@@ -40,7 +40,10 @@ public partial class ClaudeControl : UserControl
     ClaudeViewModel? _vm;
     GitViewModel? _git;
 
-    /// <summary>The commit panel's view model (Visual Studio only: the shared view model knows nothing of git).</summary>
+    /// <summary>
+    /// The Git Changes page's view model (Visual Studio only: the shared view model knows nothing of git). Without it
+    /// the window has no tabs, only the conversation.
+    /// </summary>
     public GitViewModel? Git
     {
         get => _git;
@@ -48,7 +51,8 @@ public partial class ClaudeControl : UserControl
         {
             _git = value;
             GitPanel.DataContext = value;
-            GitButton.DataContext = value;
+            PageTabs.DataContext = value;
+            PageTabs.Visibility = value is null ? Visibility.Collapsed : Visibility.Visible;
         }
     }
     bool _stickToBottom = true;
@@ -372,6 +376,7 @@ public partial class ClaudeControl : UserControl
         {
             _vm.Items.CollectionChanged -= OnItemsChanged;
             _vm.FocusInputRequested -= FocusPrompt;
+            _vm.AttentionRequested -= ShowConversation;
             _vm.PropertyChanged -= OnViewModelPropertyChanged;
         }
         _vm = vm;
@@ -379,6 +384,7 @@ public partial class ClaudeControl : UserControl
             return;
         vm.Items.CollectionChanged += OnItemsChanged;
         vm.FocusInputRequested += FocusPrompt;
+        vm.AttentionRequested += ShowConversation;
         vm.PropertyChanged += OnViewModelPropertyChanged;
     }
 
@@ -425,10 +431,20 @@ public partial class ClaudeControl : UserControl
     /// <summary>Puts the caret in the prompt (Ask Claude, new conversation, a resumed one).</summary>
     public void FocusPrompt() => Dispatcher.BeginInvoke(() =>
     {
+        ShowConversationNow();
         PromptBox.Focus();
         Keyboard.Focus(PromptBox);
         PromptBox.CaretIndex = PromptBox.Text?.Length ?? 0;
     }, DispatcherPriority.Background);
+
+    /// <summary>A permission request (or anything else Claude waits on) brings the conversation tab to the front.</summary>
+    void ShowConversation() => Dispatcher.BeginInvoke(ShowConversationNow, DispatcherPriority.Normal);
+
+    void ShowConversationNow()
+    {
+        if (_git is { IsOpen: true } git)
+            git.CloseCommand.Execute(null);
+    }
 
     void OnItemsChanged(object? sender, NotifyCollectionChangedEventArgs e)
     {

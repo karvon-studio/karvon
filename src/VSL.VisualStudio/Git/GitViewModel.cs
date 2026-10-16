@@ -158,6 +158,7 @@ public sealed partial class GitViewModel : ObservableObject
     /// <summary>A file to open in the editor (double-click on a row).</summary>
     public event Action<string>? FileOpenRequested;
 
+    /// <summary>Whether the Git Changes tab is in front (otherwise the conversation is).</summary>
     [ObservableProperty]
     public partial bool IsOpen { get; set; }
 
@@ -228,19 +229,23 @@ public sealed partial class GitViewModel : ObservableObject
 
     public bool HasNoChanges => IsRepository && StagedChanges.Count == 0 && UnstagedChanges.Count == 0;
 
+    /// <summary>The Git Changes tab: brings the page to the front with the repositories' current state.</summary>
     [RelayCommand]
-    async Task ToggleAsync()
+    async Task ShowAsync()
     {
-        IsOpen = !IsOpen;
         if (IsOpen)
-            await RefreshAsync();
+            return;
+        IsOpen = true;
+        await RefreshAsync();
     }
 
+    /// <summary>The Claude Code tab: the conversation in front again.</summary>
     [RelayCommand]
     void Close()
     {
         IsOpen = false;
         IsRepositoryMenuOpen = false;
+        IsBranchMenuOpen = false;
     }
 
     [RelayCommand]
@@ -314,15 +319,22 @@ public sealed partial class GitViewModel : ObservableObject
             return;
         IsBranchMenuOpen = false;
         var local = branch.IsRemote ? branch.Name.Substring(branch.Name.IndexOf('/') + 1) : branch.Name;
-        var done = await RunAsync($"Switching to {local}…", Scope, async repo =>
+        // The repositories in scope that have the branch (locally, or the remote one to track); the others stay as they are.
+        var scope = Scope.ToList();
+        var found = await Task.WhenAll(scope.Select(async repo =>
+            (await GitProcess.RunGitAsync(repo.Root, $"rev-parse --verify --quiet {Quote("refs/heads/" + local)}")).Ok ? "local"
+            : branch.IsRemote && (await GitProcess.RunGitAsync(repo.Root, $"rev-parse --verify --quiet {Quote("refs/remotes/" + branch.Name)}")).Ok ? "remote"
+            : null));
+        var targets = scope.Where((_, i) => found[i] is not null).ToList();
+        if (targets.Count == 0)
         {
-            var hasLocal = (await GitProcess.RunGitAsync(repo.Root, $"rev-parse --verify --quiet refs/heads/{local}")).Ok;
-            if (hasLocal)
-                return await GitProcess.RunGitAsync(repo.Root, $"switch {Quote(local)}");
-            if (branch.IsRemote && (await GitProcess.RunGitAsync(repo.Root, $"rev-parse --verify --quiet refs/remotes/{branch.Name}")).Ok)
-                return await GitProcess.RunGitAsync(repo.Root, $"switch -c {Quote(local)} --track {Quote(branch.Name)}");
-            return new ProcessResult(1, "", $"There is no branch {branch.Name}");
-        });
+            Error = $"There is no branch {branch.Name}";
+            return;
+        }
+        var done = await RunAsync($"Switching to {local}…", targets, repo =>
+            found[scope.IndexOf(repo)] == "local"
+                ? GitProcess.RunGitAsync(repo.Root, $"switch {Quote(local)}")
+                : GitProcess.RunGitAsync(repo.Root, $"switch -c {Quote(local)} --track {Quote(branch.Name)}"));
         if (done > 0)
             Status = $"Switched to {local}";
     }
@@ -412,13 +424,20 @@ public sealed partial class GitViewModel : ObservableObject
             return found;
         });
         others.AddRange(nested);
-        var projectRoots = await Task.WhenAll(projectDirectories.Select(TopLevelAsync));
-        others.AddRange(projectRoots.OfType<string>());
+        // Only projects outside every repository found so far need git to say where theirs is; most are in the
+        // solution's own, and the rest of a linked repository's projects are in it once one of them found it.
+        foreach (var project in projectDirectories)
+            if (!roots.Concat(others).Any(root => IsInside(project, root)) && await TopLevelAsync(project) is { } projectRoot)
+                others.Add(projectRoot);
         foreach (var root in others.OrderBy(r => Path.GetFileName(r), StringComparer.OrdinalIgnoreCase))
             if (!roots.Contains(root, StringComparer.OrdinalIgnoreCase))
                 roots.Add(root);
         return roots;
     }
+
+    static bool IsInside(string directory, string root) =>
+        directory.Equals(root, StringComparison.OrdinalIgnoreCase)
+        || directory.StartsWith(root.TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase);
 
     /// <summary>The root of the repository the folder is in, or null.</summary>
     static async Task<string?> TopLevelAsync(string directory)
