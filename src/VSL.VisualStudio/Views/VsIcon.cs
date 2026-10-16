@@ -99,6 +99,12 @@ public sealed class VsIcon : FrameworkElement
                 Stroke(dc, "M2.6,8 A5.4,5.4 0 1 0 4.2,4.2 M8,4.8 L8,8.3 L10.4,9.8", fg, 1.3);
                 Fill(dc, "M1.4,2.6 L4.9,2.9 L4.4,6.3 Z", fg);
                 break;
+            case "ChevronRight":
+                Stroke(dc, "M6.5,4.5 L10,8 L6.5,11.5", fg, 1.3);
+                break;
+            case "Folder":
+                Line(dc, "M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z", fg, 1.8);
+                break;
             case "ChevronUp":
                 Stroke(dc, "M4.5,9.5 L8,6 L11.5,9.5", fg, 1.3);
                 break;
@@ -118,6 +124,20 @@ public sealed class VsIcon : FrameworkElement
                 break;
             case "ArrowDown":
                 Line(dc, "M12 5v14 M19 12l-7 7-7-7", fg, 2.2);
+                break;
+            case "Fetch":
+                // A dashed arrow down: fetch without merging.
+                Line(dc, "M12 4v2.5 M12 9.5v2.5 M12 15v4 M19 12l-7 7-7-7", fg, 2.2);
+                break;
+            case "Sync":
+                Line(dc, "M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8 M21 3v5h-5 M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16 M8 16H3v5", fg, 1.9);
+                break;
+            case "Repo":
+                // An archive box: a repository.
+                Line(dc, "M3 3h18v5H3z M4 8v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8 M10 12h4", fg, 1.8);
+                break;
+            case "Minus":
+                Stroke(dc, "M3,8 L13,8", fg, 1.4);
                 break;
             case "ArrowUp":
                 Line(dc, "M12 19V5 M5 12l7-7 7 7", fg, 2.2);
