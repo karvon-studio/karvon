@@ -82,6 +82,14 @@ public partial class MainViewModel
         Claude.RequestFocus();
     }
 
+    /// <summary>Solution Explorer > Ask Claude: the files, folders or projects go into the prompt as @mentions.</summary>
+    public void AskClaudeAbout(IReadOnlyList<string> paths)
+    {
+        ShowToolWindow(ToolWindows.Claude);
+        Claude.RefreshContext();
+        Claude.AddFiles(paths);
+    }
+
     async Task OnClaudeSolutionChangedAsync()
     {
         _claudeFiles = null;

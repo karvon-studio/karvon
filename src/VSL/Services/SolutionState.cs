@@ -16,6 +16,9 @@ public sealed class SolutionState
     public string? StartupProject { get; set; }
     public string? LaunchProfile { get; set; }
     public string Configuration { get; set; } = "Debug";
+
+    /// <summary>Tab groups side by side (New Vertical Tab Group) rather than one above the other.</summary>
+    public bool DocumentGroupsVertical { get; set; } = true;
     public Dictionary<string, List<int>> Breakpoints { get; set; } = [];
     public List<string> Watches { get; set; } = [];
 
@@ -34,6 +37,12 @@ public sealed class SolutionState
         public int CaretColumn { get; set; } = 1;
         public int FirstVisibleLine { get; set; } = 1;
         public bool Pinned { get; set; }
+
+        /// <summary>The tab group it is in: 0, 1... in the main window; -1, -2... for floating windows.</summary>
+        public int Group { get; set; }
+
+        /// <summary>The tab in front of its group.</summary>
+        public bool Front { get; set; }
 
         /// <summary>First lines of the blocks that were collapsed.</summary>
         public List<int> Collapsed { get; set; } = [];

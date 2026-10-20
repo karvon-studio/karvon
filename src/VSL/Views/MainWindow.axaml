@@ -111,6 +111,14 @@
         <MenuItem Header="_Output" Click="OnShowOutput" />
         <MenuItem Header="_Test Explorer" Click="OnShowTestExplorer" />
         <MenuItem Header="_Git Changes" Command="{Binding ShowGitChangesCommand}" />
+        <MenuItem Click="OnShowDatabaseExplorer">
+          <MenuItem.Header>
+            <Grid ColumnDefinitions="*,Auto">
+              <TextBlock Text="_Database Explorer" />
+              <TextBlock Grid.Column="1" Text="Ctrl+Alt+S" Margin="32,0,0,0" Foreground="{StaticResource VsGrayTextBrush}" />
+            </Grid>
+          </MenuItem.Header>
+        </MenuItem>
         <MenuItem Command="{Binding ShowClaudeCommand}">
           <MenuItem.Header>
             <Grid ColumnDefinitions="*,Auto">
@@ -234,7 +242,21 @@
         <Separator />
         <MenuItem Header="_Restart Language Server" Command="{Binding RestartLanguageServerCommand}" />
         <MenuItem Header="_Trust ASP.NET Core Development Certificate" Command="{Binding TrustDevCertificateCommand}" />
+      </MenuItem>
+      <MenuItem Name="WindowMenu" Header="_Window">
+        <MenuItem Name="SplitMenuItem" Header="Spl_it" Click="OnSplitWindow" />
         <Separator />
+        <MenuItem Name="FloatMenuItem" Header="_Float" Command="{Binding FloatDocumentCommand}" />
+        <MenuItem Name="DockMenuItem" Header="Dock as Tabbed Docu_ment" Command="{Binding DockDocumentCommand}" />
+        <Separator />
+        <MenuItem Name="PinMenuItem" Header="Pin _Tab" Command="{Binding TogglePinCommand}" CommandParameter="{Binding ActiveDocument}" />
+        <Separator />
+        <MenuItem Name="NewHorizontalGroupMenuItem" Header="New Hori_zontal Tab Group" Command="{Binding NewHorizontalTabGroupCommand}" />
+        <MenuItem Name="NewVerticalGroupMenuItem" Header="New _Vertical Tab Group" Command="{Binding NewVerticalTabGroupCommand}" />
+        <MenuItem Name="NextGroupMenuItem" Header="Move to Ne_xt Tab Group" Command="{Binding MoveToNextTabGroupCommand}" />
+        <MenuItem Name="PreviousGroupMenuItem" Header="Move to P_revious Tab Group" Command="{Binding MoveToPreviousTabGroupCommand}" />
+        <Separator />
+        <MenuItem Header="C_lose All Tabs" Command="{Binding CloseAllDocumentsCommand}" />
         <MenuItem Header="Reset _Window Layout" Click="OnResetWindowLayout" />
       </MenuItem>
       <MenuItem Header="_Help">
@@ -320,70 +342,18 @@
 
         <!-- Document well -->
         <Panel Background="{StaticResource VsEnvironmentBrush}">
-          <TabControl Name="DocumentTabs"
-                      ItemsSource="{Binding Documents}"
-                      SelectedItem="{Binding ActiveDocument}"
-                      ItemContainerTheme="{StaticResource VsDocumentTab}"
-                      Padding="0"
-                      IsVisible="{Binding !!Documents.Count}">
-            <TabControl.ItemTemplate>
-              <DataTemplate x:DataType="vm:DocumentTab">
-                <StackPanel Orientation="Horizontal" Spacing="2" Background="Transparent" ToolTip.Tip="{Binding ToolTip}"
-                            ContextRequested="OnDocumentTabContextRequested" PointerReleased="OnDocumentTabPointerReleased">
-                  <TextBlock Text="{Binding Title}" VerticalAlignment="Center" Margin="0,0,4,0" />
-                  <Button Classes="tabbtn" IsVisible="{Binding IsPinned}" ToolTip.Tip="Unpin Tab"
-                          Command="{Binding $parent[Window].((vm:MainViewModel)DataContext).TogglePinCommand}" CommandParameter="{Binding}">
-                    <v:VsIcon Kind="Pin" Width="12" Height="12" />
-                  </Button>
-                  <Button Classes="tabbtn" IsVisible="{Binding !IsPinned}" ToolTip.Tip="Close (Ctrl+F4)"
-                          Command="{Binding $parent[Window].((vm:MainViewModel)DataContext).CloseDocumentCommand}" CommandParameter="{Binding}">
-                    <Button.Opacity>
-                      <MultiBinding Converter="{x:Static v:AnyTrueToOpacityConverter.Instance}">
-                        <Binding Path="$parent[TabItem].IsSelected" />
-                        <Binding Path="$parent[TabItem].IsPointerOver" />
-                      </MultiBinding>
-                    </Button.Opacity>
-                    <v:VsIcon Kind="Close" Width="12" Height="12" />
-                  </Button>
-                </StackPanel>
-              </DataTemplate>
-            </TabControl.ItemTemplate>
-            <TabControl.DataTemplates>
-              <DataTemplate DataType="vm:DocumentViewModel" x:DataType="vm:DocumentViewModel">
-                <Border BorderBrush="#007ACC" BorderThickness="0,2,0,0">
-                  <DockPanel>
-                    <!-- VS's editor footer: zoom drop-down and the document health indicator -->
-                    <Border DockPanel.Dock="Bottom" Background="#2D2D30" Height="20">
-                      <StackPanel Orientation="Horizontal" Spacing="10" Margin="2,0">
-                        <Button Classes="tb" Padding="6,0" MinHeight="18" Click="OnZoomButtonClick"
-                                ToolTip.Tip="Zoom (Ctrl+Wheel, Ctrl+Shift+. / Ctrl+Shift+, , Ctrl+0)">
-                          <TextBlock Text="{Binding ZoomText, StringFormat={}{0} ▾}" FontSize="11" />
-                        </Button>
-                        <StackPanel Orientation="Horizontal" Spacing="5" ToolTip.Tip="Errors and warnings in this document">
-                          <v:VsIcon Kind="{Binding IssuesIcon}" Width="13" Height="13" />
-                          <TextBlock Text="{Binding IssuesText}" FontSize="11" VerticalAlignment="Center" Foreground="{StaticResource VsGrayTextBrush}" />
-                        </StackPanel>
-                      </StackPanel>
-                    </Border>
-                    <ContentControl Content="{Binding Host.Editor}" />
-                  </DockPanel>
-                </Border>
-              </DataTemplate>
-              <DataTemplate DataType="vm:NuGetViewModel" x:DataType="vm:NuGetViewModel">
-                <Border BorderBrush="#007ACC" BorderThickness="0,2,0,0">
-                  <v:NuGetView />
-                </Border>
-              </DataTemplate>
-              <DataTemplate DataType="vm:DiffViewModel" x:DataType="vm:DiffViewModel">
-                <Border BorderBrush="#007ACC" BorderThickness="0,2,0,0">
-                  <ContentControl Content="{Binding View}" />
-                </Border>
-              </DataTemplate>
-            </TabControl.DataTemplates>
-          </TabControl>
+          <!-- Tab groups (Window > New Vertical / Horizontal Tab Group), laid out in code -->
+          <Grid Name="DocumentWell" IsVisible="{Binding !!Documents.Count}" />
 
           <!-- Start window (no solution open) -->
-          <StackPanel IsVisible="{Binding !HasSolution}" Margin="60,50" Spacing="14" MaxWidth="720" HorizontalAlignment="Left">
+          <StackPanel Margin="60,50" Spacing="14" MaxWidth="720" HorizontalAlignment="Left">
+            <!-- No solution and nothing open (a Database Explorer document can be open without a solution) -->
+            <StackPanel.IsVisible>
+              <MultiBinding Converter="{x:Static BoolConverters.And}">
+                <Binding Path="!HasSolution" />
+                <Binding Path="!Documents.Count" />
+              </MultiBinding>
+            </StackPanel.IsVisible>
             <TextBlock Text="VSL" FontSize="34" FontWeight="Light" />
             <TextBlock Text="Visual Studio for Linux" FontSize="16" Foreground="{StaticResource VsGrayTextBrush}" />
             <StackPanel Orientation="Horizontal" Spacing="10" Margin="0,16,0,0">
@@ -732,24 +702,55 @@
                 <TextBlock Classes="toolTitle" Text="Git Changes" />
               </Border>
               <StackPanel DockPanel.Dock="Top" Margin="8,6" Spacing="6" IsVisible="{Binding HasGit}">
-                <Grid ColumnDefinitions="*,Auto">
-                  <Button Classes="tb" Click="OnBranchButtonClick" HorizontalAlignment="Left" ToolTip.Tip="Switch or create a branch">
-                    <StackPanel Orientation="Horizontal" Spacing="6">
-                      <v:VsIcon Kind="Branch" />
-                      <TextBlock Text="{Binding GitBranch}" FontWeight="SemiBold" VerticalAlignment="Center" />
-                      <v:VsIcon Kind="Chevron" Width="12" Height="12" />
-                    </StackPanel>
+                <!-- Repositories, branch, and fetch / pull / push / sync, as in Visual Studio's Git Changes -->
+                <Grid ColumnDefinitions="*,*,Auto">
+                  <Button Name="GitRepositoryButton" Classes="gitbox" Click="OnGitRepositoryButtonClick" Margin="0,0,4,0" IsEnabled="{Binding IsMultiRepository}"
+                          ToolTip.Tip="Repositories">
+                    <Grid ColumnDefinitions="Auto,*,Auto">
+                      <v:VsIcon Kind="Repo" Width="14" Height="14" Margin="0,0,6,0" />
+                      <TextBlock Grid.Column="1" Text="{Binding GitRepositoryLabel}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+                      <v:VsIcon Grid.Column="2" Kind="Chevron" Width="12" Height="12" Margin="4,0,0,0" />
+                    </Grid>
                   </Button>
-                  <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="2">
+                  <Button Name="GitBranchButton" Grid.Column="1" Classes="gitbox" Click="OnGitChangesBranchClick" ToolTip.Tip="Branches">
+                    <Grid ColumnDefinitions="Auto,*,Auto">
+                      <v:VsIcon Kind="Branch" Width="14" Height="14" Margin="0,0,6,0" />
+                      <TextBlock Grid.Column="1" Text="{Binding GitScopeBranch}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+                      <v:VsIcon Grid.Column="2" Kind="Chevron" Width="12" Height="12" Margin="4,0,0,0" />
+                    </Grid>
+                  </Button>
+                  <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="2" Margin="4,0,0,0">
                     <Button Classes="tbi" Command="{Binding FetchCommand}" ToolTip.Tip="Fetch"><v:VsIcon Kind="Fetch" /></Button>
                     <Button Classes="tbi" Command="{Binding PullCommand}" ToolTip.Tip="Pull"><v:VsIcon Kind="Pull" /></Button>
                     <Button Classes="tbi" Command="{Binding PushCommand}" ToolTip.Tip="Push"><v:VsIcon Kind="Push" /></Button>
                     <Button Classes="tbi" Command="{Binding SyncCommand}" ToolTip.Tip="Sync (Pull then Push)"><v:VsIcon Kind="GitSync" /></Button>
+                    <Button Classes="tbi" Click="OnGitRefreshClick" ToolTip.Tip="Refresh"><v:VsIcon Kind="Refresh" /></Button>
                   </StackPanel>
                 </Grid>
-                <TextBlock Text="{Binding GitSyncText, StringFormat=Outgoing / incoming: {0}}" Foreground="{StaticResource VsGrayTextBrush}" IsVisible="{Binding !!GitSyncText.Length}" />
-                <TextBox Text="{Binding CommitMessage}" PlaceholderText="Enter a message &lt;Required&gt;" AcceptsReturn="True" TextWrapping="Wrap"
-                         MinHeight="60" MaxHeight="140" Background="#333337" BorderBrush="#434346" />
+                <!-- Outgoing / incoming, and who the commits are made as: the user's own git identity, never Claude -->
+                <DockPanel>
+                  <StackPanel Orientation="Horizontal" Spacing="4" ToolTip.Tip="Outgoing / incoming commits">
+                    <v:VsIcon Kind="Push" Width="12" Height="12" />
+                    <v:VsIcon Kind="Pull" Width="12" Height="12" />
+                    <TextBlock Text="{Binding GitScopeSync}" VerticalAlignment="Center" />
+                  </StackPanel>
+                  <TextBlock HorizontalAlignment="Right" Foreground="{StaticResource VsGrayTextBrush}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" Margin="12,0,0,0"
+                             IsVisible="{Binding GitAuthor, Converter={x:Static ObjectConverters.IsNotNull}}">
+                    <Run Text="Commits as" /><Run Text=" " /><Run Text="{Binding GitAuthor}" FontWeight="SemiBold" />
+                  </TextBlock>
+                </DockPanel>
+                <!-- The message, with Claude's pen in its corner -->
+                <Grid>
+                  <TextBox Name="CommitMessageBox" Text="{Binding CommitMessage}" PlaceholderText="Enter a message &lt;Required&gt;" AcceptsReturn="True" TextWrapping="Wrap"
+                           MinHeight="64" MaxHeight="160" Background="#333337" BorderBrush="#434346" Padding="6,6,30,6" />
+                  <Button Classes="tbi" HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,4,4" Command="{Binding WriteCommitMessageCommand}"
+                          ToolTip.Tip="Claude writes the message from the changes (you review it before committing)">
+                    <Panel>
+                      <v:VsIcon Kind="Sparkle" Foreground="#D97757" IsVisible="{Binding !IsWritingCommitMessage}" />
+                      <v:VsIcon Kind="Claude" IsVisible="{Binding IsWritingCommitMessage}" />
+                    </Panel>
+                  </Button>
+                </Grid>
                 <Button Command="{Binding CommitCommand}" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" Background="#0E639C" Foreground="White">
                   <TextBlock Text="{Binding CommitButtonText}" />
                 </Button>
@@ -758,59 +759,92 @@
                          IsVisible="{Binding !HasGit}" Text="The open solution is not in a Git repository." />
               <ScrollViewer IsVisible="{Binding HasGit}">
                 <StackPanel Margin="4,0" Spacing="2">
-                  <Grid ColumnDefinitions="*,Auto" Margin="4,4,4,0">
-                    <TextBlock Text="{Binding StagedChanges.Count, StringFormat=Staged Changes ({0})}" FontWeight="SemiBold" VerticalAlignment="Center" />
-                    <Button Grid.Column="1" Classes="tb" Command="{Binding UnstageAllCommand}" ToolTip.Tip="Unstage All"><v:VsIcon Kind="Minus" Width="14" Height="14" /></Button>
+                  <Grid ColumnDefinitions="Auto,*,Auto" Margin="2,4,4,0" IsVisible="{Binding !!StagedChanges.Count}">
+                    <Button Classes="tbi gitChevron" Padding="0" Command="{Binding ToggleGitSectionCommand}" CommandParameter="staged">
+                      <v:VsIcon Kind="Chevron" Width="12" Height="12" Classes.collapsed="{Binding !IsStagedSectionExpanded}" />
+                    </Button>
+                    <TextBlock Grid.Column="1" Text="{Binding StagedChanges.Count, StringFormat=Staged Changes ({0})}" FontWeight="SemiBold" VerticalAlignment="Center" Margin="4,0,0,0" />
+                    <Button Grid.Column="2" Classes="tb" Command="{Binding UnstageAllCommand}" ToolTip.Tip="Unstage All"><v:VsIcon Kind="Minus" Width="14" Height="14" /></Button>
                   </Grid>
-                  <ListBox Classes="dense" ScrollViewer.HorizontalScrollBarVisibility="Disabled" ItemsSource="{Binding StagedChanges}" DoubleTapped="OnGitItemDoubleTapped">
+                  <ListBox Name="StagedRowsList" Classes="dense" ScrollViewer.HorizontalScrollBarVisibility="Disabled" ItemsSource="{Binding StagedRows}" DoubleTapped="OnGitItemDoubleTapped">
+                    <ListBox.IsVisible>
+                      <MultiBinding Converter="{x:Static BoolConverters.And}">
+                        <Binding Path="IsStagedSectionExpanded" />
+                        <Binding Path="!!StagedChanges.Count" />
+                      </MultiBinding>
+                    </ListBox.IsVisible>
                     <ListBox.ItemTemplate>
-                      <DataTemplate x:DataType="vm:GitFileItem">
-                        <Grid Classes="gitRow" ColumnDefinitions="18,*,Auto" ToolTip.Tip="{Binding Change.RelativePath}">
-                          <TextBlock Text="{Binding Letter}" FontWeight="SemiBold" Foreground="{Binding LetterColor, Converter={x:Static v:ColorStringConverter.Instance}}" />
-                          <TextBlock Grid.Column="1" TextTrimming="CharacterEllipsis">
-                            <Run Text="{Binding FileName}" />
-                            <Run Text="{Binding FolderSuffix}" Foreground="{StaticResource VsGrayTextBrush}" />
-                          </TextBlock>
-                          <StackPanel Grid.Column="2" Classes="rowActions" Orientation="Horizontal">
+                      <DataTemplate x:DataType="vm:GitTreeRow">
+                        <Grid Classes="gitRow" ColumnDefinitions="Auto,16,20,*,Auto,18" Background="Transparent" ToolTip.Tip="{Binding ToolTip}">
+                          <Border Width="{Binding Indent}" />
+                          <Button Grid.Column="1" Classes="tbi gitChevron" Padding="0" MinHeight="16" IsVisible="{Binding IsExpandable}"
+                                  Command="{Binding $parent[Window].((vm:MainViewModel)DataContext).ActivateGitRowCommand}" CommandParameter="{Binding}">
+                            <v:VsIcon Kind="Chevron" Width="12" Height="12" Classes.collapsed="{Binding !IsExpanded}" />
+                          </Button>
+                          <ContentControl Grid.Column="2" Content="{Binding Icon, Converter={x:Static v:IconConverter.Instance}}" VerticalAlignment="Center" />
+                          <TextBlock Grid.Column="3" Text="{Binding Name}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" Margin="2,0,0,0"
+                                     FontWeight="{Binding Kind, Converter={x:Static v:GitRowWeightConverter.Instance}}" />
+                          <StackPanel Grid.Column="4" Classes="rowActions" Orientation="Horizontal">
                             <Button Classes="tb" Padding="4,0" MinHeight="16" ToolTip.Tip="Unstage"
-                                    Command="{Binding $parent[Window].((vm:MainViewModel)DataContext).UnstageCommand}" CommandParameter="{Binding}"><v:VsIcon Kind="Minus" Width="13" Height="13" /></Button>
+                                    Command="{Binding $parent[Window].((vm:MainViewModel)DataContext).UnstageRowCommand}" CommandParameter="{Binding}"><v:VsIcon Kind="Minus" Width="13" Height="13" /></Button>
                           </StackPanel>
+                          <TextBlock Grid.Column="5" Text="{Binding Letter}" FontWeight="SemiBold" HorizontalAlignment="Right" Margin="0,0,2,0"
+                                     Foreground="{Binding LetterColor, Converter={x:Static v:ColorStringConverter.Instance}}" />
                         </Grid>
                       </DataTemplate>
                     </ListBox.ItemTemplate>
                   </ListBox>
-                  <Grid ColumnDefinitions="*,Auto" Margin="4,8,4,0">
-                    <TextBlock Text="{Binding UnstagedChanges.Count, StringFormat=Changes ({0})}" FontWeight="SemiBold" VerticalAlignment="Center" />
-                    <Button Grid.Column="1" Classes="tb" Command="{Binding StageAllCommand}" ToolTip.Tip="Stage All"><v:VsIcon Kind="Plus" Width="14" Height="14" /></Button>
+                  <Grid ColumnDefinitions="Auto,*,Auto" Margin="2,8,4,0">
+                    <Button Classes="tbi gitChevron" Padding="0" Command="{Binding ToggleGitSectionCommand}" CommandParameter="changes">
+                      <v:VsIcon Kind="Chevron" Width="12" Height="12" Classes.collapsed="{Binding !IsChangesSectionExpanded}" />
+                    </Button>
+                    <TextBlock Grid.Column="1" Text="{Binding UnstagedChanges.Count, StringFormat=Changes ({0})}" FontWeight="SemiBold" VerticalAlignment="Center" Margin="4,0,0,0" />
+                    <Button Grid.Column="2" Classes="tb" Command="{Binding StageAllCommand}" ToolTip.Tip="Stage All"><v:VsIcon Kind="Plus" Width="14" Height="14" /></Button>
                   </Grid>
-                  <ListBox Classes="dense" ScrollViewer.HorizontalScrollBarVisibility="Disabled" ItemsSource="{Binding UnstagedChanges}" DoubleTapped="OnGitItemDoubleTapped">
+                  <ListBox Name="UnstagedRowsList" Classes="dense" ScrollViewer.HorizontalScrollBarVisibility="Disabled" ItemsSource="{Binding UnstagedRows}" DoubleTapped="OnGitItemDoubleTapped"
+                           IsVisible="{Binding IsChangesSectionExpanded}">
                     <ListBox.ItemTemplate>
-                      <DataTemplate x:DataType="vm:GitFileItem">
-                        <Grid Classes="gitRow" ColumnDefinitions="18,*,Auto" ToolTip.Tip="{Binding Change.RelativePath}">
-                          <TextBlock Text="{Binding Letter}" FontWeight="SemiBold" Foreground="{Binding LetterColor, Converter={x:Static v:ColorStringConverter.Instance}}" />
-                          <TextBlock Grid.Column="1" TextTrimming="CharacterEllipsis">
-                            <Run Text="{Binding FileName}" />
-                            <Run Text="{Binding FolderSuffix}" Foreground="{StaticResource VsGrayTextBrush}" />
-                          </TextBlock>
-                          <StackPanel Grid.Column="2" Classes="rowActions" Orientation="Horizontal">
-                            <Button Classes="tb" Padding="4,0" MinHeight="16" ToolTip.Tip="Undo Changes"
-                                    Command="{Binding $parent[Window].((vm:MainViewModel)DataContext).DiscardCommand}" CommandParameter="{Binding}"><v:VsIcon Kind="Discard" Width="13" Height="13" /></Button>
+                      <DataTemplate x:DataType="vm:GitTreeRow">
+                        <Grid Classes="gitRow" ColumnDefinitions="Auto,16,20,*,Auto,18" Background="Transparent" ToolTip.Tip="{Binding ToolTip}">
+                          <Border Width="{Binding Indent}" />
+                          <Button Grid.Column="1" Classes="tbi gitChevron" Padding="0" MinHeight="16" IsVisible="{Binding IsExpandable}"
+                                  Command="{Binding $parent[Window].((vm:MainViewModel)DataContext).ActivateGitRowCommand}" CommandParameter="{Binding}">
+                            <v:VsIcon Kind="Chevron" Width="12" Height="12" Classes.collapsed="{Binding !IsExpanded}" />
+                          </Button>
+                          <ContentControl Grid.Column="2" Content="{Binding Icon, Converter={x:Static v:IconConverter.Instance}}" VerticalAlignment="Center" />
+                          <TextBlock Grid.Column="3" Text="{Binding Name}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" Margin="2,0,0,0"
+                                     FontWeight="{Binding Kind, Converter={x:Static v:GitRowWeightConverter.Instance}}" />
+                          <StackPanel Grid.Column="4" Classes="rowActions" Orientation="Horizontal">
+                            <Button Classes="tb" Padding="4,0" MinHeight="16" ToolTip.Tip="Undo Changes" IsVisible="{Binding Item, Converter={x:Static ObjectConverters.IsNotNull}}"
+                                    Command="{Binding $parent[Window].((vm:MainViewModel)DataContext).DiscardCommand}" CommandParameter="{Binding Item}"><v:VsIcon Kind="Discard" Width="13" Height="13" /></Button>
                             <Button Classes="tb" Padding="4,0" MinHeight="16" ToolTip.Tip="Stage"
-                                    Command="{Binding $parent[Window].((vm:MainViewModel)DataContext).StageCommand}" CommandParameter="{Binding}"><v:VsIcon Kind="Plus" Width="13" Height="13" /></Button>
+                                    Command="{Binding $parent[Window].((vm:MainViewModel)DataContext).StageRowCommand}" CommandParameter="{Binding}"><v:VsIcon Kind="Plus" Width="13" Height="13" /></Button>
                           </StackPanel>
+                          <TextBlock Grid.Column="5" Text="{Binding Letter}" FontWeight="SemiBold" HorizontalAlignment="Right" Margin="0,0,2,0"
+                                     Foreground="{Binding LetterColor, Converter={x:Static v:ColorStringConverter.Instance}}" />
                         </Grid>
                       </DataTemplate>
                     </ListBox.ItemTemplate>
                   </ListBox>
+                  <TextBlock Margin="8,6" Foreground="{StaticResource VsGrayTextBrush}" IsVisible="{Binding HasNoGitChanges}" Text="No changes: nothing to commit." />
                 </StackPanel>
               </ScrollViewer>
             </DockPanel>
+          </TabItem>
+          <!-- Database Explorer (Bengine Data Studio's), made the first time it shows -->
+          <TabItem Name="DatabaseExplorerTab" Header="Database Explorer" Tag="DatabaseExplorer">
+            <ContentControl Name="DatabaseExplorerHost" />
           </TabItem>
           <TabItem Header="Claude Code" Tag="Claude">
             <v:ClaudeView Name="ClaudePanel" DataContext="{Binding Claude}" />
           </TabItem>
         </TabControl>
       </Border>
+
+      <!-- Where a dragged document tab would go -->
+      <Canvas Name="DocumentDropLayer" Grid.ColumnSpan="5" IsHitTestVisible="False" ZIndex="99">
+        <Border Name="DocumentDropPreview" Classes="droppreview" IsVisible="False" />
+      </Canvas>
 
       <!-- Dock guides, shown while a tool window tab is dragged -->
       <Panel Name="DockOverlay" Grid.ColumnSpan="5" IsVisible="False" IsHitTestVisible="False" ZIndex="100">

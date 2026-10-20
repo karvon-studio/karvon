@@ -104,7 +104,7 @@ public class SolutionExplorerTests
     }
 
     /// <summary>A copy of the sample sources (no restore needed: these tests only touch files).</summary>
-    static string CopySample()
+    internal static string CopySample()
     {
         var dir = Path.Combine(Path.GetTempPath(), "vsl-explorer-" + Guid.NewGuid().ToString("N"));
         var source = Path.Combine(AppContext.BaseDirectory, "TestAssets", "BlazorSample");
@@ -154,6 +154,9 @@ public class SolutionExplorerTests
         code.Editor.TextArea.Caret.Position = new AvaloniaEdit.TextViewPosition(8, 5);
         var classBlock = code.Outlines.First(f => code.Document.GetLineByOffset(f.StartOffset).LineNumber == 5);
         classBlock.IsFolded = true;
+        // Long.cs in a tab group of its own, to the right; Greeting stays the active document.
+        vm.NewTabGroup(longDoc, vertical: true);
+        vm.ActiveDocument = vm.Editors.Single(d => d.FileName == "Greeting.razor.cs");
         var sessionId = Guid.NewGuid().ToString();
         var transcript = FakeClaude.WriteTranscript(dir, sessionId);
         await vm.Claude.ResumeConversationCommand.ExecuteAsync(new VSL.Claude.ClaudeConversation(sessionId, "", DateTime.Now, transcript));
@@ -174,9 +177,13 @@ public class SolutionExplorerTests
         second.Show();
         await reopened.OpenSolutionAsync(sln);
         var editors = reopened.Editors.ToList();
-        Assert.Equal(["Program.cs", "Long.cs", "Greeting.razor.cs"], editors.Select(d => d.FileName));
+        Assert.Equal(["Program.cs", "Greeting.razor.cs", "Long.cs"], editors.Select(d => d.FileName));
+        Assert.Equal(2, reopened.DocumentGroups.Count);
+        Assert.True(reopened.DocumentGroupsVertical);
+        Assert.Equal(["Program.cs", "Greeting.razor.cs"], reopened.DocumentGroups[0].Tabs.Select(t => t.Title));
+        Assert.Equal(["Long.cs"], reopened.DocumentGroups[1].Tabs.Select(t => t.Title));
         Assert.True(editors[0].IsPinned);
-        Assert.False(editors[1].IsPinned);
+        Assert.False(editors[2].IsPinned);
         Assert.Equal("Greeting.razor.cs", reopened.ActiveEditor?.FileName);
         var restored = reopened.ActiveEditor!.Host;
         Assert.Equal((8, 5), restored.CaretPosition);
@@ -193,9 +200,9 @@ public class SolutionExplorerTests
         Assert.Equal("Fix the build", Assert.IsType<UserChatItem>(reopened.Claude.Items[0]).Text);
         Assert.Equal("Fixed.", reopened.Claude.Items.OfType<TextChatItem>().Last().Text);
         // A document opens where it was scrolled to once it is shown.
-        reopened.ActiveDocument = editors[1];
+        reopened.ActiveDocument = editors[2];
         await WaitUntil(() => false, TimeSpan.FromMilliseconds(500));
-        Assert.Equal(scrolledTo, editors[1].Host.CaptureViewState().FirstVisibleLine);
+        Assert.Equal(scrolledTo, editors[2].Host.CaptureViewState().FirstVisibleLine);
         Assert.True(await reopened.CloseSolutionCoreAsync());
     }
 

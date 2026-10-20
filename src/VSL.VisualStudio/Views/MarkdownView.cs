@@ -79,7 +79,7 @@ public sealed class MarkdownView : Decorator
         {
             if (_rendered is not null)
                 Render(force: true);
-        }, nameof(Loc.Language));
+        }, nameof(VSL.Claude.ClaudeLanguage.Language));
     }
 
     public string? Markdown

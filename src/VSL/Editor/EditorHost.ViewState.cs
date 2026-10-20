@@ -18,8 +18,8 @@ public sealed partial class EditorHost
 
     void InitializeViewState()
     {
-        Editor.TemplateApplied += (_, e) => _scrollViewer = e.NameScope.Find<ScrollViewer>("PART_ScrollViewer");
-        Editor.TextArea.TextView.SizeChanged += (_, e) =>
+        _primary.TemplateApplied += (_, e) => _scrollViewer = e.NameScope.Find<ScrollViewer>("PART_ScrollViewer");
+        _primary.TextArea.TextView.SizeChanged += (_, e) =>
         {
             if (_laidOut || e.NewSize.Height <= 0)
                 return;
@@ -33,11 +33,11 @@ public sealed partial class EditorHost
     /// <summary>The current view state; a document never shown yet keeps the one it was restored with.</summary>
     public EditorViewState CaptureViewState()
     {
-        var caret = Editor.TextArea.Caret;
+        var caret = _primary.TextArea.Caret;
         var firstLine = _pendingView?.FirstVisibleLine ?? 1;
         if (_laidOut && _pendingView is null)
         {
-            var textView = Editor.TextArea.TextView;
+            var textView = _primary.TextArea.TextView;
             // Half a pixel in: a scroll offset exactly on a line's top must not round to the line above.
             firstLine = textView.GetDocumentLineByVisualTop(textView.ScrollOffset.Y + 0.5)?.LineNumber ?? 1;
         }
@@ -51,7 +51,7 @@ public sealed partial class EditorHost
     {
         var line = Math.Clamp(state.CaretLine, 1, Document.LineCount);
         var column = Math.Clamp(state.CaretColumn, 1, Document.GetLineByNumber(line).Length + 1);
-        Editor.TextArea.Caret.Position = new TextViewPosition(line, column);
+        _primary.TextArea.Caret.Position = new TextViewPosition(line, column);
         _pendingView = state;
         _pendingCollapsed = state.Collapsed.Count > 0 ? state.Collapsed : null;
         ApplyPendingCollapsed();
@@ -79,13 +79,13 @@ public sealed partial class EditorHost
             return;
         _pendingView = null;
         var line = Math.Clamp(view.FirstVisibleLine, 1, Document.LineCount);
-        var textView = Editor.TextArea.TextView;
+        var textView = _primary.TextArea.TextView;
         textView.EnsureVisualLines();
         var top = textView.GetVisualTopByDocumentLine(line);
-        // Editor.ScrollToVerticalOffset does not move an editor the user has not scrolled yet; the viewer does.
+        // _primary.ScrollToVerticalOffset does not move an editor the user has not scrolled yet; the viewer does.
         if (_scrollViewer is not null)
             _scrollViewer.Offset = new Avalonia.Vector(_scrollViewer.Offset.X, top);
         else
-            Editor.ScrollToVerticalOffset(top);
+            _primary.ScrollToVerticalOffset(top);
     }
 }

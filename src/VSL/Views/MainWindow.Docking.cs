@@ -27,7 +27,15 @@ public partial class MainWindow
     bool _dragging;
     DockSide? _dropTarget;
 
-    IEnumerable<TabControl> ToolGroups => [LeftTabs, RightTabs, BottomTabs];
+    readonly List<FloatingToolWindow> _floatingTools = [];
+
+    /// <summary>Where each floating tool window was docked before it floated (it goes back there when its window closes).</summary>
+    readonly Dictionary<string, DockSide> _floatedFrom = [];
+
+    /// <summary>Saved floating tool windows, floated once the main window is shown (an owned window needs its owner).</summary>
+    readonly List<(TabItem Item, double[]? Bounds)> _pendingFloats = [];
+
+    IEnumerable<TabControl> ToolGroups => [LeftTabs, RightTabs, BottomTabs, .. _floatingTools.Select(w => w.Tabs)];
 
     IEnumerable<TabItem> ToolTabs => ToolGroups.SelectMany(g => g.Items.OfType<TabItem>());
 
@@ -38,6 +46,7 @@ public partial class MainWindow
         _ => BottomTabs,
     };
 
+    /// <summary>The side the tool window is docked on; null while it floats.</summary>
     public DockSide? SideOf(string toolWindow)
     {
         foreach (var side in Enum.GetValues<DockSide>())
@@ -45,6 +54,12 @@ public partial class MainWindow
                 return side;
         return null;
     }
+
+    public bool IsFloating(string toolWindow) => _floatingTools.Any(w => w.Tabs.Items.OfType<TabItem>().Any(t => (string?)t.Tag == toolWindow));
+
+    /// <summary>The floating window a tool window is in.</summary>
+    public FloatingToolWindow? FloatingWindowOf(string toolWindow) =>
+        _floatingTools.FirstOrDefault(w => w.Tabs.Items.OfType<TabItem>().Any(t => (string?)t.Tag == toolWindow));
 
     /// <summary>True when the tool window is the front tab of its group.</summary>
     public bool IsToolWindowShowing(string toolWindow) =>
@@ -72,8 +87,14 @@ public partial class MainWindow
     void ApplySavedDockLayout(MainViewModel vm)
     {
         foreach (var (id, sideName) in vm.Settings.ToolLayout.ToList())
-            if (Enum.TryParse<DockSide>(sideName, out var side) && ToolTabs.FirstOrDefault(t => (string?)t.Tag == id) is { } item)
+        {
+            if (ToolTabs.FirstOrDefault(t => (string?)t.Tag == id) is not { } item)
+                continue;
+            if (Enum.TryParse<DockSide>(sideName, out var side))
                 MoveToolWindow(item, side, remember: false);
+            else if (sideName == "Float")
+                _pendingFloats.Add((item, vm.Settings.Layout.FloatingTools.GetValueOrDefault(id)));
+        }
 
         var layout = vm.Settings.Layout;
         foreach (var side in Enum.GetValues<DockSide>())
@@ -113,6 +134,10 @@ public partial class MainWindow
                 layout.SelectedTools[side.ToString()] = id;
             else
                 layout.SelectedTools.Remove(side.ToString());
+        foreach (var window in _floatingTools)
+            foreach (var item in window.Tabs.Items.OfType<TabItem>())
+                if (item.Tag is string id)
+                    layout.FloatingTools[id] = [window.Position.X, window.Position.Y, window.Width, window.Height];
         layout.Maximized = WindowState == WindowState.Maximized;
         // A maximized window keeps the size it returns to.
         if (WindowState == WindowState.Normal)
@@ -128,7 +153,72 @@ public partial class MainWindow
         if (ToolGroups.Any(g => g.SelectedItem is TabItem { Tag: string selected } && unlessShowing.Contains(selected)))
             return;
         if (ToolTabs.FirstOrDefault(t => (string?)t.Tag == id) is { } item && ToolGroups.FirstOrDefault(g => g.Items.Contains(item)) is { } group)
+        {
             group.SelectedItem = item;
+            FloatingWindowOf(id)?.Activate();
+        }
+    }
+
+    /// <summary>Floats the saved floating tool windows once this window is on screen.</summary>
+    void FloatPendingToolWindows()
+    {
+        foreach (var (item, bounds) in _pendingFloats)
+            FloatToolWindow(item, bounds is [var x, var y, var w, var h] ? new PixelPoint((int)x, (int)y) : null,
+                bounds is [_, _, var width, var height] ? new Size(width, height) : null, remember: false);
+        _pendingFloats.Clear();
+    }
+
+    /// <summary>Window > Float for a tool window: its tab in a window of its own (at a point of the screen, or near this window).</summary>
+    public void FloatToolWindow(string id)
+    {
+        if (ToolTabs.FirstOrDefault(t => (string?)t.Tag == id) is { } item)
+            FloatToolWindow(item, null, null, remember: true);
+    }
+
+    void FloatToolWindow(TabItem item, PixelPoint? at, Size? size, bool remember)
+    {
+        var from = ToolGroups.FirstOrDefault(g => g.Items.Contains(item));
+        if (from is null || _floatingTools.Any(w => w.Tabs == from && w.Tabs.ItemCount == 1) || item.Tag is not string id)
+            return;
+        if (SideOf(id) is { } side)
+            _floatedFrom[id] = side;
+        var window = new FloatingToolWindow(this);
+        if (size is { } s)
+            (window.Width, window.Height) = (Math.Max(s.Width, 200), Math.Max(s.Height, 150));
+        window.WindowStartupLocation = WindowStartupLocation.Manual;
+        window.Position = at ?? new PixelPoint(Position.X + 160, Position.Y + 160);
+        from.Items.Remove(item);
+        if (from.SelectedItem is null && from.ItemCount > 0)
+            from.SelectedIndex = 0;
+        window.Tabs.Items.Add(item);
+        window.Tabs.SelectedItem = item;
+        window.UpdateTitle();
+        _floatingTools.Add(window);
+        window.Show(this);
+        CloseEmptyFloatingTools();
+        UpdateDockLayout();
+        if (remember && Vm is { } vm)
+        {
+            vm.Settings.ToolLayout[id] = "Float";
+            vm.Settings.Save();
+        }
+    }
+
+    /// <summary>A floating tool window was closed: its tool windows go back to where they were docked.</summary>
+    internal void DockFloatingTools(FloatingToolWindow window)
+    {
+        foreach (var item in window.Tabs.Items.OfType<TabItem>().ToList())
+            if (item.Tag is string id)
+                MoveToolWindow(item, _floatedFrom.GetValueOrDefault(id, DockSide.Right), remember: true);
+    }
+
+    void CloseEmptyFloatingTools()
+    {
+        foreach (var empty in _floatingTools.Where(w => w.Tabs.ItemCount == 0).ToList())
+        {
+            _floatingTools.Remove(empty);
+            empty.CloseEmpty();
+        }
     }
 
     /// <summary>Moves a tool window to another group and selects it there.</summary>
@@ -149,10 +239,12 @@ public partial class MainWindow
         to.SelectedItem = item;
         if (from.SelectedItem is null && from.ItemCount > 0)
             from.SelectedIndex = 0;
+        CloseEmptyFloatingTools();
         UpdateDockLayout();
         if (remember && Vm is { } vm && item.Tag is string id)
         {
             vm.Settings.ToolLayout[id] = side.ToString();
+            vm.Settings.Layout.FloatingTools.Remove(id);
             vm.Settings.Save();
         }
     }
@@ -202,7 +294,7 @@ public partial class MainWindow
             e.Pointer.Capture(_dragItem);
             DockOverlay.IsVisible = true;
         }
-        _dropTarget = ZoneAt(e.GetPosition(DockOverlay));
+        _dropTarget = ZoneAt(DockOverlay.PointToClient(_dragItem.PointToScreen(e.GetPosition(_dragItem))));
         DockZoneLeft.Classes.Set("hot", _dropTarget == DockSide.Left);
         DockZoneRight.Classes.Set("hot", _dropTarget == DockSide.Right);
         DockZoneBottom.Classes.Set("hot", _dropTarget == DockSide.Bottom);
@@ -218,10 +310,14 @@ public partial class MainWindow
         }
         var item = _dragItem;
         var target = _dropTarget;
+        var screen = item.PointToScreen(e.GetPosition(item));
         e.Pointer.Capture(null);
         EndDrag();
         if (target is { } side)
             MoveToolWindow(item, side, remember: true);
+        else if (!new Rect(Bounds.Size).Contains(this.PointToClient(screen)))
+            // Dropped outside the main window: the tool window floats there, as in Visual Studio.
+            FloatToolWindow(item, new PixelPoint(screen.X - 40, screen.Y - 12), null, remember: true);
         e.Handled = true;
     }
 
@@ -258,10 +354,13 @@ public partial class MainWindow
             menuItem.Click += (_, _) => MoveToolWindow(item, side, remember: true);
             return menuItem;
         }
+        var floatItem = new MenuItem { Header = "Float", IsEnabled = !IsFloating(id) };
+        floatItem.Click += (_, _) => FloatToolWindow(item, null, null, remember: true);
         new ContextMenu
         {
             ItemsSource = new object[]
             {
+                floatItem,
                 Item("Dock Left", DockSide.Left),
                 Item("Dock Right", DockSide.Right),
                 Item("Dock Bottom", DockSide.Bottom),
@@ -281,7 +380,7 @@ public partial class MainWindow
         MainGrid.ColumnDefinitions[0].Width = new GridLength(DefaultLeftWidth);
         MainGrid.ColumnDefinitions[4].Width = new GridLength(DefaultRightWidth);
         LeftGrid.RowDefinitions[2].Height = new GridLength(DefaultBottomHeight);
-        foreach (var id in new[] { ToolWindows.SolutionExplorer, ToolWindows.TestExplorer, ToolWindows.GitChanges, ToolWindows.Claude })
+        foreach (var id in new[] { ToolWindows.SolutionExplorer, ToolWindows.TestExplorer, ToolWindows.GitChanges, ToolWindows.DatabaseExplorer, ToolWindows.Claude })
             MoveToolWindow(id, DockSide.Right);
         foreach (var id in new[] { ToolWindows.ErrorList, ToolWindows.Output, ToolWindows.FindResults, ToolWindows.Locals, ToolWindows.Watch, ToolWindows.CallStack, ToolWindows.Terminal })
             MoveToolWindow(id, DockSide.Bottom);

@@ -2,6 +2,10 @@
   <Folder Name="/src/">
     <Project Path="src/VSL/VSL.csproj" />
   </Folder>
+  <Folder Name="/external/">
+    <Project Path="external/bengine/src/Bengine/Bengine.csproj" />
+    <Project Path="external/bengine/src/Bengine.Introspection/Bengine.Introspection.csproj" />
+  </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/VSL.Tests/VSL.Tests.csproj" />
   </Folder>

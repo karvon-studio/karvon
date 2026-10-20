@@ -26,6 +26,7 @@ public static class ToolWindows
     public const string CallStack = "CallStack";
     public const string Terminal = "Terminal";
     public const string Claude = "Claude";
+    public const string DatabaseExplorer = "DatabaseExplorer";
 }
 
 public enum StatusKind
@@ -60,6 +61,9 @@ public partial class MainViewModel : ObservableObject
 
     public MainViewModel()
     {
+        InitializeDocumentGroups();
+        if (Settings.UiLanguage is "en" or "uz")
+            VSL.Claude.ClaudeLanguage.Instance.Language = Settings.UiLanguage;
         BuildOutput = new OutputChannel("Build");
         DebugOutput = new OutputChannel("Debug");
         ServerOutput = new OutputChannel("Language Server");
@@ -193,6 +197,8 @@ public partial class MainViewModel : ObservableObject
 
     partial void OnActiveDocumentChanged(DocumentTab? value)
     {
+        SyncGroupWithActiveDocument(value);
+        SyncDatabaseActiveTab(value);
         UpdateCaretText();
         _claude?.RefreshContext();
         if (value is not DocumentViewModel editor)
@@ -322,8 +328,16 @@ public partial class MainViewModel : ObservableObject
         _buildCts?.Cancel();
         foreach (var doc in Editors)
             doc.Dispose();
-        Documents.Clear();
-        ActiveDocument = null;
+        // The solution's documents close; the Database Explorer's do not belong to it and stay.
+        if (Documents.All(d => d is not DatabaseDocument))
+            Documents.Clear();
+        else
+            foreach (var doc in Documents.Where(d => d is not DatabaseDocument).ToList())
+            {
+                Documents.Remove(doc);
+                doc.Dispose();
+            }
+        ActiveDocument = Documents.FirstOrDefault();
         await StopLanguageServerAsync();
         ExplorerRoots.Clear();
         StartupProjects.Clear();
@@ -545,6 +559,11 @@ public partial class MainViewModel : ObservableObject
         doc ??= ActiveDocument;
         if (doc is null)
             return;
+        if (doc is DatabaseDocument database)
+        {
+            CloseDatabaseDocument(database);
+            return;
+        }
         if (doc is DocumentViewModel { IsDirty: true } editor && Dialogs is not null)
         {
             var answer = await Dialogs.ConfirmSaveAsync(editor.FileName);
@@ -653,24 +672,41 @@ public partial class MainViewModel : ObservableObject
     [RelayCommand]
     Task CloseAllDocuments() => CloseDocumentsAsync(Documents);
 
+    /// <summary>The tabs of the document's group, in their order (Close All Tabs to the Left / Right stay in it, as in VS).</summary>
+    IReadOnlyList<DocumentTab> TabsOfGroup(DocumentTab doc) => GroupOf(doc)?.Tabs ?? (IReadOnlyList<DocumentTab>)Documents;
+
     [RelayCommand]
     Task CloseTabsToLeft(DocumentTab? doc) =>
-        doc is null ? Task.CompletedTask : CloseDocumentsAsync(Documents.Take(Documents.IndexOf(doc)).Where(d => !d.IsPinned));
+        doc is null ? Task.CompletedTask : CloseDocumentsAsync(TabsOfGroup(doc).TakeWhile(d => d != doc).Where(d => !d.IsPinned));
 
     [RelayCommand]
     Task CloseTabsToRight(DocumentTab? doc) =>
-        doc is null ? Task.CompletedTask : CloseDocumentsAsync(Documents.Skip(Documents.IndexOf(doc) + 1).Where(d => !d.IsPinned));
+        doc is null ? Task.CompletedTask : CloseDocumentsAsync(TabsOfGroup(doc).SkipWhile(d => d != doc).Skip(1).Where(d => !d.IsPinned));
 
-    /// <summary>Pinned tabs move to the left edge, in pin order, like VS.</summary>
+    /// <summary>Pinned tabs move to the left edge of their group, in pin order, like VS.</summary>
     [RelayCommand]
     void TogglePin(DocumentTab? doc)
     {
         if (doc is null)
             return;
         doc.IsPinned = !doc.IsPinned;
-        var target = doc.IsPinned ? Documents.Count(d => d.IsPinned && d != doc) : Documents.Count(d => d.IsPinned);
         var active = ActiveDocument;
+        var target = doc.IsPinned ? Documents.Count(d => d.IsPinned && d != doc) : Documents.Count(d => d.IsPinned);
         Documents.Move(Documents.IndexOf(doc), Math.Min(target, Documents.Count - 1));
+        if (GroupOf(doc) is { } group)
+        {
+            var tabs = group.Tabs;
+            var at = doc.IsPinned ? tabs.Count(d => d.IsPinned && d != doc) : tabs.Count(d => d.IsPinned);
+            _syncingGroups = true;
+            try
+            {
+                tabs.Move(tabs.IndexOf(doc), Math.Min(at, tabs.Count - 1));
+            }
+            finally
+            {
+                _syncingGroups = false;
+            }
+        }
         ActiveDocument = active;
     }
 

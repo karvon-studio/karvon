@@ -184,7 +184,41 @@ public sealed class GitRepository
         return result.Output.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).Order(StringComparer.Ordinal).ToList();
     }
 
+    /// <summary>Remote branches ("origin/feature"), without the remotes' HEAD.</summary>
+    public async Task<IReadOnlyList<string>> RemoteBranchesAsync()
+    {
+        var result = await RunAsync(Root, ["for-each-ref", "--format=%(refname:short)", "refs/remotes"]);
+        return result.Output.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Where(b => !b.EndsWith("/HEAD", StringComparison.Ordinal) && b.Contains('/')).Order(StringComparer.Ordinal).ToList();
+    }
+
+    /// <summary>Whether a ref exists ("refs/heads/main", "refs/remotes/origin/main").</summary>
+    public async Task<bool> HasRefAsync(string reference) =>
+        (await RunAsync(Root, ["rev-parse", "--verify", "--quiet", reference], optionalLocks: false)).Success;
+
     public Task<GitResult> SwitchAsync(string branch) => RunAsync(Root, ["switch", branch]);
+
+    /// <summary>A local branch made to track a remote one ("origin/feature" → "feature"), as Git Changes does.</summary>
+    public Task<GitResult> SwitchTrackingAsync(string local, string remote) => RunAsync(Root, ["switch", "-c", local, "--track", remote]);
+
+    /// <summary>The changes a commit would record, for Claude to describe: the staged ones, or everything against HEAD.</summary>
+    public async Task<string> DiffForMessageAsync(bool staged) =>
+        (await RunAsync(Root, staged ? ["diff", "--no-color", "--cached"] : ["diff", "--no-color", "HEAD"], optionalLocks: false)).Output;
+
+    /// <summary>The latest commit subjects, newest first (the style a written message follows).</summary>
+    public async Task<IReadOnlyList<string>> RecentSubjectsAsync(int count)
+    {
+        var result = await RunAsync(Root, ["log", "-n", count.ToString(System.Globalization.CultureInfo.InvariantCulture), "--format=%s"], optionalLocks: false);
+        return result.Success ? result.Output.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries) : [];
+    }
+
+    /// <summary>"Name &lt;email&gt;" from git config: who commits are made as (null when no name is set).</summary>
+    public async Task<string?> AuthorAsync()
+    {
+        var name = (await RunAsync(Root, ["config", "user.name"], optionalLocks: false)).Output.Trim();
+        var email = (await RunAsync(Root, ["config", "user.email"], optionalLocks: false)).Output.Trim();
+        return name.Length == 0 ? null : email.Length > 0 ? $"{name} <{email}>" : name;
+    }
 
     public Task<GitResult> CreateBranchAsync(string name) => RunAsync(Root, ["switch", "-c", name]);
 

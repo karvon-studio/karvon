@@ -41,18 +41,26 @@ Working on solutions needs the .NET 10 SDK. VSL downloads `roslyn-language-serve
 - **Debug** (F5, netcoredbg): breakpoints that follow edits, Step Over / Into / Out, Locals, Watch, Call Stack, data tips,
   debugging tests.
 - **Test Explorer**: discover, Run All / Failed / Selected, theory rows, durations, failures with stack traces.
-- **Git**: stage, commit, fetch, pull, push, branches, diff with word highlights, change bars in the editor margin,
-  badges in Solution Explorer; follows commits and checkouts made in the terminal.
+- **Git**: every repository of the solution in one Changes window (trees of staged and unstaged changes), stage,
+  commit (a message Claude writes from the diff, if you like), fetch, pull, push, sync, local and remote branches, diff
+  with word highlights, change bars in the editor margin, badges in Solution Explorer; follows commits and checkouts
+  made in the terminal.
+- **Database Explorer** (Ctrl+Alt+S): [Bengine Data Studio](https://github.com/nbkabdulakhadov/bengine) inside VSL —
+  PostgreSQL, MySQL/MariaDB, SQL Server, SQLite, Oracle and MongoDB: object tree, table data with staged edits, SQL
+  consoles with completion and explain plans, DDL, table designer, ER diagrams, schema and data compare, backup and
+  restore, import and export, server activity. Its data sources are Studio's own.
 - **Terminal**: your `$SHELL` in a real pty, in the solution folder.
 - **NuGet**: browse, install, update and uninstall across your configured feeds.
 - **Claude Code** (Ctrl+Esc): drives your installed `claude` CLI, so your login, settings and MCP servers apply.
   Streamed answers, tool calls with inline diffs, approvals, questions and plans, modes and effort, usage, MCP servers,
-  images, `/` commands and `@` files, past conversations.
-- **Layout**: drag tool windows to dock them; documents, layout and startup project are restored per solution.
+  images, `/` commands and `@` files, past conversations, Ask Claude from Solution Explorer; English or O‘zbekcha.
+- **Layout**: drag tool windows to dock or float them; tab groups (Window > New Vertical / Horizontal Tab Group),
+  Window > Split, floating documents, tabs dragged to reorder; documents, groups, layout and startup project are
+  restored per solution.
   Keyboard shortcuts follow Visual Studio (Help > Keyboard Shortcuts).
 
 Not yet: conditional breakpoints, exception settings, Immediate window, debugging Blazor WebAssembly in the browser,
-Fix All, floating tool windows, history / blame, merge conflict editor, WinForms / WPF designers.
+Fix All, history / blame, merge conflict editor, WinForms / WPF designers.
 
 ## Claude Code for Visual Studio (Windows)
 
@@ -71,6 +79,9 @@ msbuild src/VSL.VisualStudio/VSL.VisualStudio.csproj -restore -p:Configuration=R
 ```
 
 ## Development
+
+The Database Explorer's engine is the [bengine](https://github.com/nbkabdulakhadov/bengine) repository, a submodule:
+clone with `--recursive` (or run `git submodule update --init` in a clone).
 
 ```bash
 dotnet build VSL.slnx
@@ -95,6 +106,8 @@ src/VSL/
   Templates/   SDK project templates and project creation
   Editor/      AvaloniaEdit host, completion, outlining, diff view
   ViewModels/  Views/   main window, tool windows, dialogs
+  Database/    the Database Explorer: Bengine Data Studio's views and view models, on Avalonia 12
+external/bengine/       Bengine (submodule): the schema AST and the live-database layer the Database Explorer uses
 src/VSL.VisualStudio/   the Claude Code panel as a Visual Studio extension (Windows), sharing src/VSL/Claude and its view model
 ```
 
@@ -103,4 +116,7 @@ src/VSL.VisualStudio/   the Claude Code panel as a Visual Studio extension (Wind
 MIT, see [LICENSE](LICENSE). Third-party: Cascadia Mono font (SIL OFL 1.1); Avalonia, AvaloniaEdit, TextMateSharp,
 Exclr8.Terminal and Porta.Pty (MIT); roslyn-language-server and netcoredbg (MIT, downloaded at runtime);
 Material Icon Theme icons (MIT, Copyright (c) 2025 Material Extensions; `src/VSL/Assets/MaterialIcons`, refreshed with
-`scripts/update-material-icons.sh`).
+`scripts/update-material-icons.sh`, and `src/VSL/Database/Assets/Icons`). The Database Explorer uses Bengine (same
+author) and its drivers: Npgsql (PostgreSQL License), Microsoft.Data.SqlClient, MySqlConnector, SSH.NET and
+Avalonia.Controls.DataGrid (MIT), MongoDB.Driver and SQLitePCLRaw (Apache 2.0), Oracle.ManagedDataAccess.Core (Oracle
+Free Use Terms and Conditions).

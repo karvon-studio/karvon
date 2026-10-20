@@ -1,6 +1,7 @@
 using System.Runtime.CompilerServices;
 using Avalonia.Media;
 using Avalonia.Threading;
+using AvaloniaEdit;
 using AvaloniaEdit.Folding;
 
 namespace VSL.Editor;
@@ -36,16 +37,28 @@ public sealed partial class EditorHost
     /// <summary>Whether the current blocks came from the language server (rather than the text scan).</summary>
     public bool OutlinesFromServer { get; private set; }
 
-    void InitializeOutlining()
+    /// <summary>The second pane's blocks after Window > Split (collapsed independently of the first pane's).</summary>
+    FoldingManager? _secondFolding;
+
+    /// <summary>The blocks of the pane the user works in, for the outlining commands.</summary>
+    FoldingManager? ActiveFolding => _active == _second && _secondFolding is not null ? _secondFolding : _folding;
+
+    static FoldingManager InstallFolding(TextEditor editor)
     {
-        _folding = FoldingManager.Install(Editor.TextArea);
-        if (Editor.TextArea.LeftMargins.OfType<FoldingMargin>().FirstOrDefault() is { } margin)
+        var folding = FoldingManager.Install(editor.TextArea);
+        if (editor.TextArea.LeftMargins.OfType<FoldingMargin>().FirstOrDefault() is { } margin)
         {
             margin.FoldingMarkerBrush = FoldingMarkerBrush;
             margin.FoldingMarkerBackgroundBrush = EditorBackground;
             margin.SelectedFoldingMarkerBrush = FoldingMarkerSelectedBrush;
             margin.SelectedFoldingMarkerBackgroundBrush = EditorBackground;
         }
+        return folding;
+    }
+
+    void InitializeOutlining()
+    {
+        _folding = InstallFolding(_primary);
         FoldingElementGenerator.TextBrush = new SolidColorBrush(Color.Parse("#9B9B9B"));
         Document.Changed += (_, _) => ScheduleOutlining();
         ApplyOutlines(Outlining.Scan(Document, FilePath));
@@ -94,13 +107,14 @@ public sealed partial class EditorHost
             return;
         // UpdateFoldings keeps sections whose range did not change, so collapsed blocks stay collapsed while typing.
         _folding.UpdateFoldings(foldings.Where(f => f.EndOffset <= Document.TextLength), -1);
+        _secondFolding?.UpdateFoldings(foldings.Where(f => f.EndOffset <= Document.TextLength), -1);
         var kinds = new Dictionary<(int, int), OutlineKind>();
         foreach (var f in foldings)
             kinds[(f.StartOffset, f.EndOffset)] = f.IsDefinition ? OutlineKind.Definition
                 : f.Name is "..." or "{...}" or "[...]" ? OutlineKind.Code
                 : f.Name.StartsWith("//", StringComparison.Ordinal) || f.Name.StartsWith("/*", StringComparison.Ordinal) ? OutlineKind.Comment
                 : OutlineKind.Region;
-        foreach (var section in _folding.AllFoldings)
+        foreach (var section in _folding.AllFoldings.Concat(_secondFolding?.AllFoldings ?? []))
             if (kinds.TryGetValue((section.StartOffset, section.EndOffset), out var kind))
                 _outlineKinds.AddOrUpdate(section, kind);
         ApplyPendingCollapsed();
@@ -110,15 +124,15 @@ public sealed partial class EditorHost
     /// <summary>Ctrl+M, Ctrl+M: the block on the caret's line (or the innermost one around the caret).</summary>
     public void ToggleOutliningExpansion()
     {
-        if (_folding is null)
+        if (ActiveFolding is not { } folding)
             return;
         var caret = Editor.CaretOffset;
         var line = Document.GetLineByOffset(caret);
-        var section = _folding.AllFoldings
+        var section = folding.AllFoldings
             .Where(f => f.StartOffset >= line.Offset && f.StartOffset <= line.EndOffset)
             .OrderBy(f => f.StartOffset).ThenByDescending(f => f.EndOffset)
             .FirstOrDefault()
-            ?? _folding.GetFoldingsContaining(caret).OrderByDescending(f => f.StartOffset).FirstOrDefault();
+            ?? folding.GetFoldingsContaining(caret).OrderByDescending(f => f.StartOffset).FirstOrDefault();
         if (section is not null)
             section.IsFolded = !section.IsFolded;
     }
@@ -126,19 +140,19 @@ public sealed partial class EditorHost
     /// <summary>Ctrl+M, Ctrl+L: expand everything if anything is collapsed, otherwise collapse everything.</summary>
     public void ToggleAllOutlining()
     {
-        if (_folding is null)
+        if (ActiveFolding is not { } folding)
             return;
-        var collapse = !_folding.AllFoldings.Any(f => f.IsFolded);
-        foreach (var section in _folding.AllFoldings)
+        var collapse = !folding.AllFoldings.Any(f => f.IsFolded);
+        foreach (var section in folding.AllFoldings)
             section.IsFolded = collapse;
     }
 
     /// <summary>Ctrl+M, Ctrl+O: member bodies and regions collapse, the types around them stay open.</summary>
     public void CollapseToDefinitions()
     {
-        if (_folding is null)
+        if (ActiveFolding is not { } folding)
             return;
-        foreach (var section in _folding.AllFoldings)
+        foreach (var section in folding.AllFoldings)
             section.IsFolded = KindOf(section) is OutlineKind.Definition or OutlineKind.Region;
         // Keep the caret visible.
         RevealOffset(Editor.CaretOffset);
@@ -147,23 +161,23 @@ public sealed partial class EditorHost
     /// <summary>Ctrl+M, Ctrl+X.</summary>
     public void ExpandAllOutlining()
     {
-        foreach (var section in _folding?.AllFoldings ?? [])
+        foreach (var section in ActiveFolding?.AllFoldings ?? [])
             section.IsFolded = false;
     }
 
     /// <summary>Ctrl+M, Ctrl+A.</summary>
     public void CollapseAllOutlining()
     {
-        foreach (var section in _folding?.AllFoldings ?? [])
+        foreach (var section in ActiveFolding?.AllFoldings ?? [])
             section.IsFolded = true;
     }
 
     /// <summary>Opens the collapsed blocks hiding an offset (navigation, breakpoints, search results).</summary>
     public void RevealOffset(int offset)
     {
-        if (_folding is null)
+        if (ActiveFolding is not { } folding)
             return;
-        foreach (var section in _folding.GetFoldingsContaining(offset))
+        foreach (var section in folding.GetFoldingsContaining(offset))
             if (section.StartOffset < offset)
                 section.IsFolded = false;
     }

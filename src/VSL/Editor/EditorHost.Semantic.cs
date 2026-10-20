@@ -18,7 +18,7 @@ public sealed partial class EditorHost
             return;
         // Added after TextMate's transformer, so the server's colors win where it has any.
         _semantic = new SemanticColorizer();
-        Editor.TextArea.TextView.LineTransformers.Add(_semantic);
+        _primary.TextArea.TextView.LineTransformers.Add(_semantic);
         Document.Changed += (_, e) =>
         {
             _semanticEdits++;
@@ -51,7 +51,8 @@ public sealed partial class EditorHost
             if (ct.IsCancellationRequested || edits != _semanticEdits)
                 return;
             semantic.SetTokens(data, lsp.SemanticTokenTypes);
-            Editor.TextArea.TextView.Redraw();
+            foreach (var view in Views)
+                view.TextArea.TextView.Redraw();
         }
         catch (OperationCanceledException)
         {

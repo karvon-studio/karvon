@@ -65,11 +65,14 @@ public partial class ClaudeView : UserControl
         e.Handled = true;
         if (e.DataTransfer.TryGetFiles() is { Length: > 0 } files)
         {
-            vm.AddFiles(files.Select(f => f.TryGetLocalPath()).OfType<string>());
+            vm.AddFiles(ImageFit.AttachLargeImages(vm, files.Select(f => f.TryGetLocalPath()).OfType<string>()));
             return;
         }
         if (e.DataTransfer.TryGetBitmap() is { } bitmap)
-            vm.AddImage("dropped image.png", ToPng(bitmap));
+        {
+            var (bytes, extension) = ImageFit.ForClaude(ToPng(bitmap));
+            vm.AddImage("dropped image" + extension, bytes);
+        }
     }
 
     static byte[] ToPng(Bitmap bitmap)
@@ -88,12 +91,14 @@ public partial class ClaudeView : UserControl
         {
             if (await clipboard.TryGetFilesAsync() is { Length: > 0 } files)
             {
-                vm.AddFiles(files.Select(f => f.TryGetLocalPath()).OfType<string>());
+                vm.AddFiles(ImageFit.AttachLargeImages(vm, files.Select(f => f.TryGetLocalPath()).OfType<string>()));
                 return;
             }
             if (await clipboard.TryGetBitmapAsync() is { } bitmap)
             {
-                vm.AddImage($"pasted image {vm.Attachments.Count + 1}.png", ToPng(bitmap));
+                // A screenshot of a large screen goes as a smaller JPEG when it is over 5 MB as PNG.
+                var (bytes, extension) = ImageFit.ForClaude(ToPng(bitmap));
+                vm.AddImage($"pasted image {vm.Attachments.Count + 1}{extension}", bytes);
                 return;
             }
         }
@@ -119,7 +124,26 @@ public partial class ClaudeView : UserControl
                 new FilePickerFileType("All files") { Patterns = ["*"] },
             ],
         });
-        vm.AddFiles(files.Select(f => f.TryGetLocalPath()).OfType<string>());
+        vm.AddFiles(ImageFit.AttachLargeImages(vm, files.Select(f => f.TryGetLocalPath()).OfType<string>()));
+    }
+
+    /// <summary>English / O'zbekcha: the panel's language, remembered in the settings.</summary>
+    void OnLanguageClick(object? sender, RoutedEventArgs e)
+    {
+        var language = ClaudeLanguage.Instance.Language == "uz" ? "en" : "uz";
+        ClaudeLanguage.Instance.Language = language;
+        if (TopLevel.GetTopLevel(this)?.DataContext is MainViewModel main)
+        {
+            main.Settings.UiLanguage = language;
+            main.Settings.Save();
+        }
+    }
+
+    /// <summary>A model chosen in the model menu closes it.</summary>
+    void OnModelChosen(object? sender, SelectionChangedEventArgs e)
+    {
+        if (e.AddedItems.Count > 0 && e.RemovedItems.Count > 0)
+            ModelButton.Flyout?.Hide();
     }
 
     bool IsAttachedToVisualTree() => TopLevel.GetTopLevel(this) is not null;

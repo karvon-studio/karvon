@@ -267,7 +267,7 @@ public sealed partial class MarkdownView : Decorator
             Margin = new Thickness(0, 4, 4, 0),
             Opacity = 0.75,
         };
-        ToolTip.SetTip(copy, "Copy");
+        ToolTip.SetTip(copy, VSL.Claude.ClaudeLanguage.Instance.Translate("Copy"));
         copy.Click += async (_, _) =>
         {
             if (TopLevel.GetTopLevel(this)?.Clipboard is { } clipboard)

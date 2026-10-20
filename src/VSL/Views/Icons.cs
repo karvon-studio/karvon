@@ -57,3 +57,14 @@ public sealed class ColorStringConverter : IValueConverter
 
     public object? ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture) => throw new NotSupportedException();
 }
+
+/// <summary>Repository and shared-folder rows of Git Changes in semibold, folders and files regular.</summary>
+public sealed class GitRowWeightConverter : IValueConverter
+{
+    public static readonly GitRowWeightConverter Instance = new();
+
+    public object? Convert(object? value, Type targetType, object? parameter, CultureInfo culture) =>
+        value is ViewModels.GitRowKind.Repository or ViewModels.GitRowKind.Root ? FontWeight.SemiBold : FontWeight.Normal;
+
+    public object? ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture) => throw new NotSupportedException();
+}

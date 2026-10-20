@@ -1,0 +1,3 @@
+[submodule "external/bengine"]
+	path = external/bengine
+	url = https://github.com/nbkabdulakhadov/bengine.git

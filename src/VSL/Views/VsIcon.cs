@@ -38,6 +38,7 @@ public sealed class VsIcon : Control
         "Dependencies", "Package", "Framework", "cs", "razor", "css", "js", "json", "xml", "html", "sql", "md", "proto",
         "yaml", "image", "binary", "file", "CloneRepository", "OpenProject", "NewProject", "FsProject", "VbProject", "ArrowRight",
         "Claude", "History", "Send", "Copy", "Eye", "EyeOff", "Attach", "Hand", "CodeBrackets", "PlanDoc", "Bolt", "Gauge", "Plug", "Check",
+        "Sparkle", "FileCode", "ChevronUp", "GitCommit", "Repo", "Globe",
     ];
 
     public string? Kind
@@ -86,6 +87,13 @@ public sealed class VsIcon : Control
         dc.DrawGeometry(null, new Pen(new SolidColorBrush(color), width, lineCap: cap, lineJoin: PenLineJoin.Round), G(data));
 
     /// <summary>A colored rounded label with 1-3 letters, as on VS file and project icons.</summary>
+    /// <summary>A Lucide-style outline drawn on its 24-unit grid, scaled to the icon's 16 (as the VS extension draws them).</summary>
+    static void Line(DrawingContext dc, string data, Color color, double width)
+    {
+        using var scale = dc.PushTransform(Matrix.CreateScale(16 / 24.0, 16 / 24.0));
+        dc.DrawGeometry(null, new Pen(new SolidColorBrush(color), width, lineCap: PenLineCap.Round, lineJoin: PenLineJoin.Round), G(data));
+    }
+
     static void Label(DrawingContext dc, string text, Color background, Rect rect)
     {
         dc.DrawRectangle(new SolidColorBrush(background), null, rect, 1.5, 1.5);
@@ -450,6 +458,27 @@ public sealed class VsIcon : Control
                 break;
             case "PlanDoc":
                 Stroke(dc, "M3.5,1.5 L12.5,1.5 L12.5,14.5 L3.5,14.5 Z M5.5,5 L10.5,5 M5.5,8 L10.5,8 M5.5,11 L8.5,11", fg, 1.1);
+                break;
+            case "Sparkle":
+                // A four-pointed star with a small one beside it: the model.
+                Line(dc, "M12 3C12.6 8.4 15.6 11.4 21 12C15.6 12.6 12.6 15.6 12 21C11.4 15.6 8.4 12.6 3 12C8.4 11.4 11.4 8.4 12 3Z M19.5 2v4 M17.5 4h4", fg, 1.8);
+                break;
+            case "FileCode":
+                // A page with code brackets: the open file.
+                Line(dc, "M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z M14 2v6h6 M10 12.5l-2.5 3 2.5 3 M14 12.5l2.5 3-2.5 3", fg, 1.8);
+                break;
+            case "ChevronUp":
+                Stroke(dc, "M4.5,9.5 L8,6 L11.5,9.5", fg, 1.3);
+                break;
+            case "GitCommit":
+                Line(dc, "M12 9a3 3 0 1 0 0 6a3 3 0 1 0 0-6z M3 12h6 M15 12h6", fg, 1.9);
+                break;
+            case "Repo":
+                // An archive box: a repository.
+                Line(dc, "M3 3h18v5H3z M4 8v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8 M10 12h4", fg, 1.8);
+                break;
+            case "Globe":
+                Line(dc, "M12 2a10 10 0 1 0 0 20a10 10 0 1 0 0-20z M2 12h20 M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z", fg, 1.6);
                 break;
             case "Bolt":
                 Stroke(dc, "M9,1.5 L3.5,9 L8,9 L7,14.5 L12.5,7 L8,7 Z", fg, 1.1);

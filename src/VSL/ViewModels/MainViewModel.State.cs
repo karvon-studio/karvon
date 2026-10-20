@@ -29,13 +29,33 @@ public partial class MainViewModel
             ?? StartupProjects.FirstOrDefault(p => p.IsWeb)
             ?? StartupProjects.FirstOrDefault();
 
+        DocumentGroupsVertical = state.DocumentGroupsVertical;
+        var floating = new Dictionary<int, DocumentGroup>();
+        var front = new List<(DocumentGroup Group, DocumentTab Doc)>();
         foreach (var saved in state.Documents.Where(d => File.Exists(d.Path)))
         {
-            if (OpenDocument(saved.Path, activate: false) is not { } doc)
+            // Groups of the main window come back in order; each floating window as a window of its own.
+            var group = saved.Group >= 0 ? DocumentGroupAt(Math.Min(saved.Group, 8)) : floating.GetValueOrDefault(saved.Group);
+            DocumentViewModel? doc;
+            using (PlaceNewDocuments(group ?? DocumentGroups[0], int.MaxValue))
+                doc = OpenDocument(saved.Path, activate: false);
+            if (doc is null)
                 continue;
+            if (saved.Group < 0 && group is null)
+            {
+                FloatDocument(doc);
+                if (GroupOf(doc) is { IsFloating: true } window)
+                    floating[saved.Group] = window;
+            }
             doc.IsPinned = saved.Pinned;
             doc.Host.RestoreViewState(new EditorViewState(saved.CaretLine, saved.CaretColumn, saved.FirstVisibleLine, saved.Collapsed));
+            if (saved.Front && GroupOf(doc) is { } its)
+                front.Add((its, doc));
         }
+        foreach (var empty in DocumentGroups.Where(g => g.Tabs.Count == 0).ToList())
+            RemoveEmptyGroup(empty);
+        foreach (var (group, doc) in front)
+            group.Active = doc;
         var root = solution.Root;
         foreach (var key in state.ExpandedNodes)
             if (FindExplorerNode(root, key) is { } node)
@@ -55,9 +75,11 @@ public partial class MainViewModel
 
     void CaptureSolutionState(SolutionState state)
     {
-        state.Documents = Editors.Select(d =>
+        // In the order of their groups' tabs, so each group comes back as it was.
+        state.Documents = AllGroups.SelectMany(g => g.Tabs).OfType<DocumentViewModel>().Select(d =>
         {
             var view = d.Host.CaptureViewState();
+            var group = GroupOf(d);
             return new SolutionState.DocumentState
             {
                 Path = d.FilePath,
@@ -66,8 +88,11 @@ public partial class MainViewModel
                 FirstVisibleLine = view.FirstVisibleLine,
                 Pinned = d.IsPinned,
                 Collapsed = [.. view.Collapsed],
+                Group = group is null ? 0 : group.IsFloating ? -1 - FloatingGroups.IndexOf(group) : DocumentGroups.IndexOf(group),
+                Front = group?.Active == d,
             };
         }).ToList();
+        state.DocumentGroupsVertical = DocumentGroupsVertical;
         state.ActiveDocument = ActiveEditor?.FilePath;
         state.StartupProject = StartupProject?.FilePath ?? state.StartupProject;
         state.LaunchProfile = LaunchProfile ?? state.LaunchProfile;

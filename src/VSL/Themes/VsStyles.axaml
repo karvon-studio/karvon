@@ -1,5 +1,6 @@
 <Styles xmlns="https://github.com/avaloniaui"
-        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:v="using:VSL.Views">
   <Style Selector="Window">
     <Setter Property="FontFamily" Value="{StaticResource VsUiFont}" />
     <Setter Property="FontSize" Value="12" />
@@ -102,6 +103,28 @@
   </Style>
   <Style Selector="Border.dockzone.hot">
     <Setter Property="Background" Value="#55007ACC" />
+  </Style>
+  <!-- Git Changes: the repository and branch boxes, and chevrons turned right while collapsed -->
+  <Style Selector="Button.gitbox">
+    <Setter Property="Height" Value="26" />
+    <Setter Property="Padding" Value="8,0" />
+    <Setter Property="HorizontalAlignment" Value="Stretch" />
+    <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+    <Setter Property="VerticalContentAlignment" Value="Center" />
+    <Setter Property="Background" Value="#333337" />
+    <Setter Property="BorderBrush" Value="#434346" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="CornerRadius" Value="3" />
+    <Setter Property="FontSize" Value="12" />
+  </Style>
+  <Style Selector="v|VsIcon.collapsed">
+    <Setter Property="RenderTransform" Value="rotate(-90deg)" />
+  </Style>
+  <!-- Where a dragged document tab would land: a bar between tabs, or the part of a group it would take -->
+  <Style Selector="Border.droppreview">
+    <Setter Property="Background" Value="#40007ACC" />
+    <Setter Property="BorderBrush" Value="#007ACC" />
+    <Setter Property="BorderThickness" Value="1" />
   </Style>
 
   <Style Selector="ToggleButton.tb">

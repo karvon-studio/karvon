@@ -31,6 +31,9 @@ public sealed partial class EditorHost : IDisposable, IDebugLineSource
 
     readonly DiagnosticRenderer _diagnostics;
     readonly TextMate.Installation? _textMate;
+    readonly TextEditor _primary;
+    readonly Grid _viewGrid;
+    TextEditor _active;
     readonly List<LspContentChange> _pendingChanges = [];
     readonly Encoding _encoding;
     RoslynClient? _lsp;
@@ -69,33 +72,10 @@ public sealed partial class EditorHost : IDisposable, IDebugLineSource
 
         Document = new TextDocument(text) { FileName = filePath };
         Document.UndoStack.ClearAll();
-        Editor = new TextEditor
-        {
-            Document = Document,
-            ShowLineNumbers = true,
-            FontFamily = Application.Current?.FindResource("VsCodeFont") as FontFamily ?? new FontFamily("monospace"),
-            FontSize = BaseFontSize * DefaultZoom,
-            Background = EditorBackground,
-            Foreground = EditorForeground,
-            LineNumbersForeground = LineNumberBrush,
-            HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Auto,
-            VerticalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Visible,
-        };
-        Editor.Options.ConvertTabsToSpaces = true;
-        Editor.Options.IndentationSize = 4;
-        Editor.Options.HighlightCurrentLine = true;
-        Editor.Options.EnableHyperlinks = false;
-        Editor.Options.EnableEmailHyperlinks = false;
-        Editor.Options.CutCopyWholeLine = true;
-        Editor.TextArea.SelectionBrush = SelectionBrush;
-        Editor.TextArea.TextView.CurrentLineBackground = Brushes.Transparent;
-        Editor.TextArea.TextView.CurrentLineBorder = new Pen(new SolidColorBrush(Color.Parse("#464646")), 2);
-
-        Editor.LineNumbersMargin = new Thickness(12, 0, 10, 0);
-
-        _textMate = TextMateSupport.Install(Editor, filePath);
         _diagnostics = new DiagnosticRenderer(Document);
-        Editor.TextArea.TextView.BackgroundRenderers.Add(_diagnostics);
+        _primary = _active = CreateView(BaseFontSize * DefaultZoom, out _textMate);
+        _viewGrid = new Grid();
+        _viewGrid.Children.Add(_primary);
 
         Document.Changing += OnDocumentChanging;
         Document.Changed += (_, _) =>
@@ -108,24 +88,68 @@ public sealed partial class EditorHost : IDisposable, IDebugLineSource
             if (e.PropertyName == nameof(UndoStack.IsOriginalFile))
                 DirtyChanged?.Invoke();
         };
-        Editor.TextArea.TextEntering += OnTextEntering;
-        Editor.TextArea.TextEntered += OnTextEntered;
-        Editor.TextArea.Caret.PositionChanged += (_, _) => CaretMoved?.Invoke();
-        Editor.PointerHover += OnPointerHover;
-        Editor.PointerHoverStopped += (_, _) => ToolTip.SetIsOpen(Editor, false);
-        Editor.AddHandler(InputElement.KeyDownEvent, OnKeyDown, RoutingStrategies.Tunnel);
-        Editor.AddHandler(InputElement.PointerWheelChangedEvent, OnPointerWheel, RoutingStrategies.Tunnel);
-        Editor.TextArea.AddHandler(InputElement.PointerPressedEvent, OnPointerPressed, RoutingStrategies.Tunnel);
-        Editor.TextArea.RightClickMovesCaret = true;
-        Editor.ContextMenu = BuildContextMenu();
         InitializeOutlining();
         InitializeSemanticColors();
         InitializeViewState();
     }
 
+    /// <summary>A pane on the document, with everything the editor does: the first one, and the second after Window > Split.</summary>
+    TextEditor CreateView(double fontSize, out TextMate.Installation? textMate)
+    {
+        var editor = new TextEditor
+        {
+            Document = Document,
+            ShowLineNumbers = true,
+            FontFamily = Application.Current?.FindResource("VsCodeFont") as FontFamily ?? new FontFamily("monospace"),
+            FontSize = fontSize,
+            Background = EditorBackground,
+            Foreground = EditorForeground,
+            LineNumbersForeground = LineNumberBrush,
+            HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Auto,
+            VerticalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Visible,
+        };
+        editor.Options.ConvertTabsToSpaces = true;
+        editor.Options.IndentationSize = 4;
+        editor.Options.HighlightCurrentLine = true;
+        editor.Options.EnableHyperlinks = false;
+        editor.Options.EnableEmailHyperlinks = false;
+        editor.Options.CutCopyWholeLine = true;
+        editor.TextArea.SelectionBrush = SelectionBrush;
+        editor.TextArea.TextView.CurrentLineBackground = Brushes.Transparent;
+        editor.TextArea.TextView.CurrentLineBorder = new Pen(new SolidColorBrush(Color.Parse("#464646")), 2);
+
+        editor.LineNumbersMargin = new Thickness(12, 0, 10, 0);
+
+        textMate = TextMateSupport.Install(editor, FilePath);
+        editor.TextArea.TextView.BackgroundRenderers.Add(_diagnostics);
+
+        // The pane clicked or tabbed into is the one commands, the caret and the status bar follow.
+        editor.AddHandler(InputElement.PointerPressedEvent, (_, _) => Activate(editor), RoutingStrategies.Tunnel, handledEventsToo: true);
+        editor.TextArea.GotFocus += (_, _) => Activate(editor);
+        editor.TextArea.TextEntering += OnTextEntering;
+        editor.TextArea.TextEntered += OnTextEntered;
+        editor.TextArea.Caret.PositionChanged += (_, _) =>
+        {
+            if (editor == _active)
+                CaretMoved?.Invoke();
+        };
+        editor.PointerHover += OnPointerHover;
+        editor.PointerHoverStopped += (_, _) => ToolTip.SetIsOpen(editor, false);
+        editor.AddHandler(InputElement.KeyDownEvent, OnKeyDown, RoutingStrategies.Tunnel);
+        editor.AddHandler(InputElement.PointerWheelChangedEvent, OnPointerWheel, RoutingStrategies.Tunnel);
+        editor.TextArea.AddHandler(InputElement.PointerPressedEvent, OnPointerPressed, RoutingStrategies.Tunnel);
+        editor.TextArea.RightClickMovesCaret = true;
+        editor.ContextMenu = BuildContextMenu();
+        return editor;
+    }
+
     public string FilePath { get; }
     public TextDocument Document { get; }
-    public TextEditor Editor { get; }
+    /// <summary>The editor the user works in: after Window > Split, the pane last clicked or tabbed into.</summary>
+    public TextEditor Editor => _active;
+
+    /// <summary>Every pane on the document: the editor, and the second one after Window > Split.</summary>
+    IEnumerable<TextEditor> Views => _second is null ? [_primary] : [_second, _primary];
     public DateTime LastWriteTimeUtc { get; private set; }
     public bool IsDirty => !Document.UndoStack.IsOriginalFile;
     public bool HasLanguageServer => _lsp is not null;
@@ -154,7 +178,7 @@ public sealed partial class EditorHost : IDisposable, IDebugLineSource
 
     // ---- Zoom (Ctrl+wheel, Ctrl+Shift+. / Ctrl+Shift+,) ------------------------------------------------------
 
-    public double Zoom => Editor.FontSize / BaseFontSize;
+    public double Zoom => _primary.FontSize / BaseFontSize;
 
     public event Action? ZoomChanged;
 
@@ -163,7 +187,8 @@ public sealed partial class EditorHost : IDisposable, IDebugLineSource
         zoom = Math.Clamp(Math.Round(zoom, 2), MinZoom, MaxZoom);
         if (Math.Abs(zoom - Zoom) < 0.001)
             return;
-        Editor.FontSize = BaseFontSize * zoom;
+        foreach (var view in Views)
+            view.FontSize = BaseFontSize * zoom;
         DefaultZoom = zoom;
         ZoomChanged?.Invoke();
     }
@@ -195,14 +220,19 @@ public sealed partial class EditorHost : IDisposable, IDebugLineSource
     public void SetGitBaseline(string? headText)
     {
         _gitBaseline = headText is null ? null : headText.Length == 0 ? [] : Git.LineDiff.SplitLines(headText);
-        if (_gitBaseline is not null && !Editor.TextArea.LeftMargins.OfType<GitChangeMargin>().Any())
-        {
-            // Change bars sit between the line numbers and the outlining margin, as in VS.
-            var margins = Editor.TextArea.LeftMargins;
-            var folding = margins.OfType<FoldingMargin>().FirstOrDefault();
-            margins.Insert(folding is null ? margins.Count : margins.IndexOf(folding), new GitChangeMargin(() => _gitChanges));
-        }
+        foreach (var view in Views)
+            AddGitMargin(view);
         RecomputeGitChanges();
+    }
+
+    void AddGitMargin(TextEditor view)
+    {
+        if (_gitBaseline is null || view.TextArea.LeftMargins.OfType<GitChangeMargin>().Any())
+            return;
+        // Change bars sit between the line numbers and the outlining margin, as in VS.
+        var margins = view.TextArea.LeftMargins;
+        var folding = margins.OfType<FoldingMargin>().FirstOrDefault();
+        margins.Insert(folding is null ? margins.Count : margins.IndexOf(folding), new GitChangeMargin(() => _gitChanges));
     }
 
     void ScheduleGitChanges()
@@ -221,7 +251,7 @@ public sealed partial class EditorHost : IDisposable, IDebugLineSource
     void RecomputeGitChanges()
     {
         _gitChanges = _gitBaseline is null ? [] : Git.LineDiff.Compute(_gitBaseline, Git.LineDiff.SplitLines(Document.Text));
-        foreach (var margin in Editor.TextArea.LeftMargins.OfType<GitChangeMargin>())
+        foreach (var margin in Views.SelectMany(v => v.TextArea.LeftMargins.OfType<GitChangeMargin>()))
             margin.InvalidateVisual();
     }
 
@@ -240,9 +270,17 @@ public sealed partial class EditorHost : IDisposable, IDebugLineSource
         _breakpoints = store;
         store.Changed += OnBreakpointsChanged;
         store.VerificationChanged += OnVerificationChanged;
-        Editor.TextArea.LeftMargins.Insert(0, new BreakpointMargin(this));
-        Editor.TextArea.TextView.BackgroundRenderers.Add(new DebugLineRenderer(this));
+        foreach (var view in Views)
+            AddDebugAdornments(view);
         RebuildBreakpointAnchors();
+    }
+
+    void AddDebugAdornments(TextEditor view)
+    {
+        if (_breakpoints is null || view.TextArea.LeftMargins.OfType<BreakpointMargin>().Any())
+            return;
+        view.TextArea.LeftMargins.Insert(0, new BreakpointMargin(this));
+        view.TextArea.TextView.BackgroundRenderers.Add(new DebugLineRenderer(this));
     }
 
     public IReadOnlyCollection<int> BreakpointLines => _breakpoints?.For(FilePath) ?? [];
@@ -303,9 +341,12 @@ public sealed partial class EditorHost : IDisposable, IDebugLineSource
 
     void RedrawDebugAdornments()
     {
-        Editor.TextArea.TextView.InvalidateLayer(KnownLayer.Background);
-        foreach (var margin in Editor.TextArea.LeftMargins.OfType<BreakpointMargin>())
-            margin.InvalidateVisual();
+        foreach (var view in Views)
+        {
+            view.TextArea.TextView.InvalidateLayer(KnownLayer.Background);
+            foreach (var margin in view.TextArea.LeftMargins.OfType<BreakpointMargin>())
+                margin.InvalidateVisual();
+        }
     }
 
     /// <summary>The expression under the pointer for a data tip: identifiers joined by dots (this.Order.Total).</summary>
@@ -394,7 +435,8 @@ public sealed partial class EditorHost : IDisposable, IDebugLineSource
                 return;
             Diagnostics = list;
             _diagnostics.SetDiagnostics(list);
-            Editor.TextArea.TextView.InvalidateLayer(KnownLayer.Selection);
+            foreach (var view in Views)
+                view.TextArea.TextView.InvalidateLayer(KnownLayer.Selection);
             DiagnosticsChanged?.Invoke();
         }
         catch (OperationCanceledException)
@@ -598,7 +640,8 @@ public sealed partial class EditorHost : IDisposable, IDebugLineSource
 
     async void OnPointerHover(object? sender, PointerEventArgs e)
     {
-        var pos = Editor.GetPositionFromPoint(e.GetPosition(Editor));
+        var editor = sender as TextEditor ?? Editor;
+        var pos = editor.GetPositionFromPoint(e.GetPosition(editor));
         if (pos is not { } p)
             return;
         var offset = Document.GetOffset(p.Location);
@@ -625,8 +668,8 @@ public sealed partial class EditorHost : IDisposable, IDebugLineSource
         }
         if (string.IsNullOrWhiteSpace(hover) && diagnostics.Count == 0 && dataTip is null)
             return;
-        ToolTip.SetTip(Editor, QuickInfo.Build(hover, diagnostics, dataTip));
-        ToolTip.SetIsOpen(Editor, true);
+        ToolTip.SetTip(editor, QuickInfo.Build(hover, diagnostics, dataTip));
+        ToolTip.SetIsOpen(editor, true);
     }
 
     // ---- Commands -------------------------------------------------------------------------------------------
@@ -880,9 +923,9 @@ public sealed partial class EditorHost : IDisposable, IDebugLineSource
                 new Separator(),
                 compare,
                 new Separator(),
-                Item("Cut", "Ctrl+X", Editor.Cut),
-                Item("Copy", "Ctrl+C", Editor.Copy),
-                Item("Paste", "Ctrl+V", Editor.Paste),
+                Item("Cut", "Ctrl+X", () => Editor.Cut()),
+                Item("Copy", "Ctrl+C", () => Editor.Copy()),
+                Item("Paste", "Ctrl+V", () => Editor.Paste()),
             },
         };
         menu.Opening += (_, _) => compare.IsEnabled = HasGitBaseline;
@@ -1109,6 +1152,7 @@ public sealed partial class EditorHost : IDisposable, IDebugLineSource
         _lsp = null;
         _semanticCts?.Cancel();
         _textMate?.Dispose();
+        RemoveSplit();
         _gitTimer?.Stop();
         if (_breakpoints is not null)
         {

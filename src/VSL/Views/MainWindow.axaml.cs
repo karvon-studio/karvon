@@ -24,12 +24,14 @@ public partial class MainWindow : Window, IDialogService
     {
         InitializeComponent();
         InitializeDocking();
+        InitializeDatabaseExplorer();
         ExplorerTree.AddHandler(DoubleTappedEvent, OnExplorerDoubleTapped, RoutingStrategies.Bubble, handledEventsToo: true);
         DataContextChanged += (_, _) =>
         {
             if (DataContext is MainViewModel vm)
             {
                 vm.Dialogs = this;
+                AttachDocumentWell(vm);
                 vm.ToolWindowRequested += OnToolWindowRequested;
                 ApplySavedDockLayout(vm);
                 vm.BreakModeEntered += () =>
@@ -45,8 +47,10 @@ public partial class MainWindow : Window, IDialogService
             }
         };
         Activated += (_, _) => Vm?.CheckExternalChanges();
+        Opened += (_, _) => FloatPendingToolWindows();
         AddHandler(KeyDownEvent, OnWindowKeyDown, RoutingStrategies.Tunnel);
         RecentMenu.SubmenuOpened += (_, _) => BuildRecentMenu();
+        WindowMenu.SubmenuOpened += (_, _) => UpdateWindowMenu();
         // Ctrl+wheel zooms the Output window too, independently of the editors.
         OutputEditor.AddHandler(PointerWheelChangedEvent, (_, e) =>
         {
@@ -81,6 +85,7 @@ public partial class MainWindow : Window, IDialogService
             return;
         e.Cancel = true;
         SaveDockLayout(vm);
+        _databaseView?.SaveWorkspace();
         vm.SaveSession();
         if (await vm.CloseSolutionCoreAsync())
         {
@@ -97,6 +102,13 @@ public partial class MainWindow : Window, IDialogService
         var ctrl = e.KeyModifiers.HasFlag(KeyModifiers.Control);
         if (e.Key is Key.LeftCtrl or Key.RightCtrl or Key.LeftShift or Key.RightShift or Key.LeftAlt or Key.RightAlt)
             return;
+        // Ctrl+Alt+S opens the Database Explorer, as Visual Studio's Server Explorer.
+        if (ctrl && e.KeyModifiers.HasFlag(KeyModifiers.Alt) && e.Key == Key.S)
+        {
+            ShowDatabaseExplorer();
+            e.Handled = true;
+            return;
+        }
         // Ctrl+Esc opens Claude Code, as in the VS Code extension.
         if (ctrl && e.Key == Key.Escape && Vm is { } claudeVm)
         {
@@ -111,6 +123,12 @@ public partial class MainWindow : Window, IDialogService
             e.Handled = true;
             return;
         }
+        // In the Database Explorer and its documents Bengine Data Studio's keymap comes first (Ctrl+Shift+A is its Find
+        // Action, Ctrl+N Go to Object...); VSL's own keys work there through the window's key bindings it leaves.
+        if (FocusManager?.GetFocusedElement() is Visual inDatabase
+            && (inDatabase.FindAncestorOfType<Database.Views.DatabaseExplorerView>(includeSelf: true) is not null
+                || inDatabase.FindAncestorOfType<DatabaseDocumentHost>(includeSelf: true) is not null))
+            return;
         // Project > Add New Item (Ctrl+Shift+A) and Add Existing Item (Shift+Alt+A): into Solution Explorer's
         // selection when it has focus, else next to the active document.
         if (e.Key == Key.A && Vm is { HasSolution: true } addVm
@@ -325,58 +343,6 @@ public partial class MainWindow : Window, IDialogService
     }
 
     /// <summary>Right-click on a document tab: VS's tab context menu.</summary>
-    void OnDocumentTabContextRequested(object? sender, ContextRequestedEventArgs e)
-    {
-        if (sender is not Control { DataContext: DocumentTab doc } anchor || Vm is not { } vm)
-            return;
-        e.Handled = true;
-        MenuItem Item(string header, Action action, string? gesture = null, bool enabled = true)
-        {
-            var item = new MenuItem { Header = header, IsEnabled = enabled };
-            if (gesture is not null)
-                item.InputGesture = KeyGesture.Parse(gesture);
-            item.Click += (_, _) => action();
-            return item;
-        }
-        var index = vm.Documents.IndexOf(doc);
-        var menu = new ContextMenu
-        {
-            ItemsSource = new object[]
-            {
-                Item($"Save {doc.Title.TrimEnd('*')}", () => vm.SaveDocument((DocumentViewModel)doc), "Ctrl+S", doc is DocumentViewModel { IsDirty: true }),
-                new Separator(),
-                Item("Close", () => vm.CloseDocumentCommand.Execute(doc), "Ctrl+F4"),
-                Item("Close All But This", () => vm.CloseAllButThisCommand.Execute(doc), enabled: vm.Documents.Count > 1),
-                Item("Close All But Pinned", () => vm.CloseAllButPinnedCommand.Execute(null), enabled: vm.Documents.Any(d => !d.IsPinned)),
-                Item("Close All Documents", () => vm.CloseAllDocumentsCommand.Execute(null)),
-                Item("Close All Tabs to the Left", () => vm.CloseTabsToLeftCommand.Execute(doc), enabled: index > 0),
-                Item("Close All Tabs to the Right", () => vm.CloseTabsToRightCommand.Execute(doc), enabled: index < vm.Documents.Count - 1),
-                new Separator(),
-                Item(doc.IsPinned ? "Unpin Tab" : "Pin Tab", () => vm.TogglePinCommand.Execute(doc)),
-                new Separator(),
-                Item("Copy Full Path", () => _ = Clipboard?.SetTextAsync((doc as DocumentViewModel)?.FilePath ?? doc.Key), enabled: doc is DocumentViewModel),
-                Item("Open Containing Folder", () => OpenFolder(Path.GetDirectoryName(((DocumentViewModel)doc).FilePath)!), enabled: doc is DocumentViewModel),
-                Item("Select in Solution Explorer", () =>
-                {
-                    vm.ActiveDocument = doc;
-                    vm.ShowToolWindow(ToolWindows.SolutionExplorer);
-                    OnSyncWithActiveDocument(this, new RoutedEventArgs());
-                }, enabled: vm.Solution is not null && doc is DocumentViewModel),
-            },
-        };
-        menu.Open(anchor);
-    }
-
-    /// <summary>Middle-click closes a tab, like VS.</summary>
-    void OnDocumentTabPointerReleased(object? sender, PointerReleasedEventArgs e)
-    {
-        if (e.InitialPressMouseButton == MouseButton.Middle && sender is Control { DataContext: DocumentTab doc })
-        {
-            Vm?.CloseDocumentCommand.Execute(doc);
-            e.Handled = true;
-        }
-    }
-
     static void OpenFolder(string folder)
     {
         try
@@ -389,10 +355,61 @@ public partial class MainWindow : Window, IDialogService
         }
     }
 
+    /// <summary>Double-click in Git Changes: a file opens its diff, a folder or repository opens or closes.</summary>
     void OnGitItemDoubleTapped(object? sender, TappedEventArgs e)
     {
-        if (sender is ListBox { SelectedItem: GitFileItem item })
+        if (sender is ListBox { SelectedItem: GitTreeRow row })
+            Vm?.ActivateGitRowCommand.Execute(row);
+        else if (sender is ListBox { SelectedItem: GitFileItem item })
             Vm?.OpenDiffCommand.Execute(item);
+    }
+
+    void OnGitRefreshClick(object? sender, RoutedEventArgs e) => _ = Vm?.RefreshGitAsync();
+
+    /// <summary>The repository menu: all repositories, or one of them for Git Changes to work on.</summary>
+    void OnGitRepositoryButtonClick(object? sender, RoutedEventArgs e)
+    {
+        if (Vm is not { } vm || sender is not Control anchor)
+            return;
+        var menu = new MenuFlyout();
+        menu.Items.Add(new MenuItem
+        {
+            Header = (vm.SelectedGitRepository is null ? "✓ " : "   ") + $"All Repositories ({vm.GitRepositories.Count})",
+            Command = vm.SelectGitRepositoryCommand,
+            CommandParameter = null,
+        });
+        menu.Items.Add(new Separator());
+        foreach (var repository in vm.GitRepositories)
+            menu.Items.Add(new MenuItem
+            {
+                Header = (repository.IsSelected ? "✓ " : "   ") + repository.Name,
+                Command = vm.SelectGitRepositoryCommand,
+                CommandParameter = repository,
+            });
+        menu.ShowAt(anchor);
+    }
+
+    /// <summary>The branch menu of Git Changes: the local and remote branches of the repositories in scope.</summary>
+    async void OnGitChangesBranchClick(object? sender, RoutedEventArgs e)
+    {
+        if (Vm is not { } vm || sender is not Control anchor)
+            return;
+        var (local, remote) = await vm.ScopeBranchesAsync();
+        var current = vm.GitScopeBranch;
+        var menu = new MenuFlyout();
+        menu.Items.Add(new MenuItem { Header = "Local", IsEnabled = false });
+        foreach (var branch in local)
+            menu.Items.Add(new MenuItem { Header = (branch == current ? "✓ " : "   ") + branch, Command = vm.SwitchBranchCommand, CommandParameter = branch });
+        if (remote.Count > 0)
+        {
+            var remotes = new MenuItem { Header = "Remote" };
+            foreach (var branch in remote)
+                remotes.Items.Add(new MenuItem { Header = branch, Command = vm.SwitchRemoteBranchCommand, CommandParameter = branch });
+            menu.Items.Add(remotes);
+        }
+        menu.Items.Add(new Separator());
+        menu.Items.Add(new MenuItem { Header = "New Branch...", Command = vm.NewBranchCommand });
+        menu.ShowAt(anchor);
     }
 
     Window CreateDialog(string title, Control body, params (string Text, bool? Result)[] buttons)
@@ -534,6 +551,20 @@ public partial class MainWindow : Window, IDialogService
         }
         if (path is not null)
             items.Add(Item("Copy Full Path", () => _ = Clipboard?.SetTextAsync(path)));
+        // Ask Claude: the file, folder or project (its folder) as an @mention in the prompt, as in the VS extension.
+        var mention = node.Kind switch
+        {
+            NodeKind.File or NodeKind.Folder => path,
+            NodeKind.Project => folder,
+            _ => null,
+        };
+        if (mention is not null)
+        {
+            var ask = Item("Ask Claude", () => vm.AskClaudeAbout([mention]), "Ctrl+Escape");
+            ask.Icon = new VsIcon { Kind = "Claude", Width = 14, Height = 14 };
+            items.Insert(0, ask);
+            items.Insert(1, new Separator());
+        }
         return items;
 
         static bool Contains(ExplorerNode parent, ExplorerNode target) =>
@@ -763,20 +794,6 @@ public partial class MainWindow : Window, IDialogService
     void OnZoomOut(object? sender, RoutedEventArgs e) => ActiveHost?.ZoomOut();
 
     void OnZoomReset(object? sender, RoutedEventArgs e) => ActiveHost?.SetZoom(1.0);
-
-    void OnZoomButtonClick(object? sender, RoutedEventArgs e)
-    {
-        if (sender is not Button { DataContext: DocumentViewModel doc } button)
-            return;
-        var menu = new MenuFlyout();
-        foreach (var level in DocumentViewModel.ZoomLevels)
-        {
-            var item = new MenuItem { Header = $"{level} %" };
-            item.Click += (_, _) => doc.Host.SetZoom(level / 100.0);
-            menu.Items.Add(item);
-        }
-        menu.ShowAt(button);
-    }
 
     // ---- Debug menu ---------------------------------------------------------------------------------------
 

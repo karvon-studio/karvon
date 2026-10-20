@@ -53,6 +53,9 @@ public class UiTests
         vm.ShutdownBuildServers = () => Task.CompletedTask;
         vm.Settings.Solutions.Clear();
         vm.Settings.Layout = new();
+        // The Claude panel's language is shared by every window: each test starts in English.
+        vm.Settings.UiLanguage = null;
+        VSL.Claude.ClaudeLanguage.Instance.Language = "en";
         // Each test starts from a clean solution state (the shared sample's .vs folder outlives a test).
         vm.RestoresSolutionState = false;
         vm.Settings.ClaudePermissionMode = null;
@@ -62,7 +65,7 @@ public class UiTests
         return vm;
     }
 
-    static string Snapshot(Avalonia.Controls.Window window, string name)
+    internal static string Snapshot(Avalonia.Controls.Window window, string name)
     {
         AvaloniaHeadlessPlatform.ForceRenderTimerTick();
         Dispatcher.UIThread.RunJobs();

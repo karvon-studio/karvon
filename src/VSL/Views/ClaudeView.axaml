@@ -100,11 +100,106 @@
       <Setter Property="Foreground" Value="#4DAAFC" />
       <Setter Property="Padding" Value="0,2" />
     </Style>
+    <!-- Prompt toolbar chips, as in the VS extension: rounded, outlined, the mode tinted in its color. -->
+    <Style Selector="Button.chip">
+      <Setter Property="Height" Value="26" />
+      <Setter Property="MinWidth" Value="26" />
+      <Setter Property="Padding" Value="8,0" />
+      <Setter Property="Margin" Value="0,0,4,0" />
+      <Setter Property="FontSize" Value="12" />
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderBrush" Value="#50808080" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CornerRadius" Value="13" />
+      <Setter Property="Foreground" Value="#C8C8C8" />
+      <Setter Property="VerticalContentAlignment" Value="Center" />
+    </Style>
+    <Style Selector="Button.chip:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="#2E808080" />
+      <Setter Property="BorderBrush" Value="#70808080" />
+    </Style>
+    <Style Selector="Button.chip.icon">
+      <Setter Property="Width" Value="26" />
+      <Setter Property="Padding" Value="0" />
+      <Setter Property="HorizontalContentAlignment" Value="Center" />
+    </Style>
+    <Style Selector="Button.chip TextBlock.excluded">
+      <Setter Property="TextDecorations" Value="Strikethrough" />
+      <Setter Property="Foreground" Value="#8A8A8A" />
+    </Style>
+    <Style Selector="Button.mode.acceptEdits">
+      <Setter Property="Background" Value="#1FA592E8" />
+      <Setter Property="BorderBrush" Value="#80A592E8" />
+    </Style>
+    <Style Selector="Button.mode.acceptEdits v|VsIcon#ModeIcon">
+      <Setter Property="Foreground" Value="#A592E8" />
+    </Style>
+    <Style Selector="Button.mode.plan">
+      <Setter Property="Background" Value="#1F3FB8AF" />
+      <Setter Property="BorderBrush" Value="#803FB8AF" />
+    </Style>
+    <Style Selector="Button.mode.plan v|VsIcon#ModeIcon">
+      <Setter Property="Foreground" Value="#3FB8AF" />
+    </Style>
+    <Style Selector="Button.mode.auto">
+      <Setter Property="Background" Value="#1FD97757" />
+      <Setter Property="BorderBrush" Value="#80D97757" />
+    </Style>
+    <Style Selector="Button.mode.auto v|VsIcon#ModeIcon">
+      <Setter Property="Foreground" Value="#D97757" />
+    </Style>
+    <Style Selector="Border.card">
+      <Setter Property="Background" Value="#2E808080" />
+      <Setter Property="BorderBrush" Value="#50808080" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CornerRadius" Value="8" />
+    </Style>
+    <Style Selector="Button.cardclose">
+      <Setter Property="Width" Value="18" />
+      <Setter Property="Height" Value="18" />
+      <Setter Property="Padding" Value="0" />
+      <Setter Property="CornerRadius" Value="9" />
+      <Setter Property="Background" Value="#252526" />
+      <Setter Property="BorderBrush" Value="#50808080" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="HorizontalContentAlignment" Value="Center" />
+      <Setter Property="VerticalContentAlignment" Value="Center" />
+    </Style>
+    <Style Selector="FlyoutPresenter.modelmenu">
+      <Setter Property="Background" Value="#252526" />
+      <Setter Property="BorderBrush" Value="#50808080" />
+      <Setter Property="CornerRadius" Value="10" />
+      <Setter Property="Padding" Value="4" />
+    </Style>
+    <!-- Menu-like rows: rounded, a soft layer under the pointer and a tinted chosen row. -->
+    <Style Selector="ListBox.menu ListBoxItem, ListBox#SuggestionList ListBoxItem">
+      <Setter Property="CornerRadius" Value="6" />
+      <Setter Property="Padding" Value="10,5" />
+      <Setter Property="Margin" Value="0,1" />
+    </Style>
+    <Style Selector="ListBox.menu ListBoxItem:pointerover /template/ ContentPresenter#PART_ContentPresenter, ListBox#SuggestionList ListBoxItem:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="#2E808080" />
+    </Style>
+    <Style Selector="ListBox.menu ListBoxItem:selected /template/ ContentPresenter#PART_ContentPresenter, ListBox#SuggestionList ListBoxItem:selected /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="#33D97757" />
+    </Style>
+    <Style Selector="Ellipse.spin">
+      <Style.Animations>
+        <Animation Duration="0:0:1.6" IterationCount="Infinite">
+          <KeyFrame Cue="0%">
+            <Setter Property="RotateTransform.Angle" Value="0" />
+          </KeyFrame>
+          <KeyFrame Cue="100%">
+            <Setter Property="RotateTransform.Angle" Value="360" />
+          </KeyFrame>
+        </Animation>
+      </Style.Animations>
+    </Style>
     <Style Selector="Button.send">
       <Setter Property="Background" Value="#D97757" />
-      <Setter Property="Width" Value="28" />
-      <Setter Property="Height" Value="28" />
-      <Setter Property="CornerRadius" Value="14" />
+      <Setter Property="Width" Value="30" />
+      <Setter Property="Height" Value="30" />
+      <Setter Property="CornerRadius" Value="9" />
       <Setter Property="Padding" Value="0" />
       <Setter Property="HorizontalContentAlignment" Value="Center" />
       <Setter Property="VerticalContentAlignment" Value="Center" />
@@ -113,7 +208,7 @@
       <Setter Property="Background" Value="#E48A6C" />
     </Style>
     <Style Selector="Button.send:disabled /template/ ContentPresenter#PART_ContentPresenter">
-      <Setter Property="Background" Value="#4A3A34" />
+      <Setter Property="Background" Value="#5A5A5C" />
     </Style>
     <Style Selector="Border.input">
       <Setter Property="Background" Value="#2A2A2C" />
@@ -285,19 +380,26 @@
       <Grid ColumnDefinitions="Auto,*,Auto" Margin="8,3">
         <StackPanel Orientation="Horizontal" Spacing="7" VerticalAlignment="Center">
           <v:VsIcon Kind="Claude" Width="15" Height="15" />
-          <TextBlock Text="Claude Code" FontWeight="SemiBold" VerticalAlignment="Center" />
+          <TextBlock Text="{v:L 'Claude Code'}" FontWeight="SemiBold" VerticalAlignment="Center" />
         </StackPanel>
         <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="2">
-          <Button Name="UsageButton" Classes="tbi" Command="{Binding OpenUsageCommand}" ToolTip.Tip="Account &amp; usage (/usage)">
+          <!-- English / O'zbekcha, as in the VS extension -->
+          <Button Name="LanguageButton" Classes="tbi" Width="NaN" Padding="5,0" Click="OnLanguageClick" ToolTip.Tip="{v:L 'Language: English / O‘zbekcha'}">
+            <StackPanel Orientation="Horizontal" Spacing="3">
+              <v:VsIcon Kind="Globe" Width="13" Height="13" />
+              <TextBlock Text="{Binding Code, Source={x:Static c:ClaudeLanguage.Instance}}" FontSize="11" FontWeight="SemiBold" VerticalAlignment="Center" />
+            </StackPanel>
+          </Button>
+          <Button Name="UsageButton" Classes="tbi" Command="{Binding OpenUsageCommand}" ToolTip.Tip="{v:L 'Account &amp; usage (/usage)'}">
             <v:VsIcon Kind="Gauge" />
           </Button>
-          <Button Name="McpButton" Classes="tbi" Command="{Binding OpenMcpCommand}" ToolTip.Tip="MCP servers (/mcp)">
+          <Button Name="McpButton" Classes="tbi" Command="{Binding OpenMcpCommand}" ToolTip.Tip="{v:L 'MCP servers (/mcp)'}">
             <v:VsIcon Kind="Plug" />
           </Button>
-          <Button Name="HistoryButton" Classes="tbi" Command="{Binding ToggleHistoryCommand}" ToolTip.Tip="Past conversations">
+          <Button Name="HistoryButton" Classes="tbi" Command="{Binding ToggleHistoryCommand}" ToolTip.Tip="{v:L 'Past conversations'}">
             <v:VsIcon Kind="History" />
           </Button>
-          <Button Name="NewButton" Classes="tbi" Command="{Binding NewConversationCommand}" ToolTip.Tip="New conversation">
+          <Button Name="NewButton" Classes="tbi" Command="{Binding NewConversationCommand}" ToolTip.Tip="{v:L 'New conversation'}">
             <v:VsIcon Kind="Plus" />
           </Button>
         </StackPanel>
@@ -312,13 +414,13 @@
           <ListBox.ItemTemplate>
             <DataTemplate x:DataType="vm:ClaudeSuggestion">
               <Grid ColumnDefinitions="Auto,*">
-                <TextBlock Text="{Binding Label}" FontWeight="SemiBold" Classes.mono="{Binding IsFile}" />
-                <TextBlock Grid.Column="1" Text="{Binding Detail}" Classes="muted" Margin="10,0,0,0" TextTrimming="CharacterEllipsis" FontSize="12" />
+                <TextBlock Text="{v:Tr Label}" FontWeight="SemiBold" Classes.mono="{Binding IsFile}" />
+                <TextBlock Grid.Column="1" Text="{v:Tr Detail}" Classes="muted" Margin="10,0,0,0" TextTrimming="CharacterEllipsis" FontSize="12" />
               </Grid>
             </DataTemplate>
           </ListBox.ItemTemplate>
         </ListBox>
-        <ItemsControl ItemsSource="{Binding Attachments}" IsVisible="{Binding HasAttachments}" Margin="10,8,10,0">
+        <ItemsControl ItemsSource="{Binding Attachments}" IsVisible="{Binding HasAttachments}" Margin="10,10,4,0">
           <ItemsControl.ItemsPanel>
             <ItemsPanelTemplate>
               <WrapPanel />
@@ -326,66 +428,101 @@
           </ItemsControl.ItemsPanel>
           <ItemsControl.ItemTemplate>
             <DataTemplate x:DataType="vm:ClaudeAttachment">
-              <Border Classes="chip" Margin="0,0,6,6" Padding="3" ToolTip.Tip="{Binding Name}">
-                <StackPanel Orientation="Horizontal" Spacing="6">
-                  <Image Source="{Binding Thumbnail}" Width="38" Height="38" Stretch="UniformToFill" />
-                  <StackPanel VerticalAlignment="Center" MaxWidth="120">
-                    <TextBlock Text="{Binding Name}" FontSize="11" TextTrimming="CharacterEllipsis" />
-                    <TextBlock Text="{Binding SizeText}" FontSize="10" Classes="muted" />
+              <!-- A card with a rounded preview; the remove button sits on its corner. -->
+              <Panel Margin="0,0,10,8" ToolTip.Tip="{Binding Name}">
+                <Border Classes="card" Padding="4,4,10,4">
+                  <StackPanel Orientation="Horizontal" Spacing="8">
+                    <Panel Width="40" Height="40">
+                      <v:VsIcon Kind="Attach" Width="16" Height="16" Opacity="0.6" />
+                      <Border CornerRadius="6" ClipToBounds="True">
+                        <Image Source="{Binding Thumbnail}" Stretch="UniformToFill" />
+                      </Border>
+                    </Panel>
+                    <StackPanel VerticalAlignment="Center" MaxWidth="130">
+                      <TextBlock Text="{Binding Name}" FontSize="11" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                      <TextBlock Text="{Binding SizeText}" FontSize="11" Classes="muted" />
+                    </StackPanel>
                   </StackPanel>
-                  <Button Classes="tbi" VerticalAlignment="Top" ToolTip.Tip="Remove"
-                          Command="{Binding $parent[UserControl].((vm:ClaudeViewModel)DataContext).RemoveAttachmentCommand}" CommandParameter="{Binding}">
-                    <v:VsIcon Kind="Close" Width="10" Height="10" />
-                  </Button>
-                </StackPanel>
-              </Border>
+                </Border>
+                <Button Classes="cardclose" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,-6,-6,0" ToolTip.Tip="{v:L 'Remove'}"
+                        Command="{Binding $parent[UserControl].((vm:ClaudeViewModel)DataContext).RemoveAttachmentCommand}" CommandParameter="{Binding}">
+                  <v:VsIcon Kind="Close" Width="10" Height="10" />
+                </Button>
+              </Panel>
             </DataTemplate>
           </ItemsControl.ItemTemplate>
         </ItemsControl>
-        <TextBlock Text="{Binding AttachmentError}" Classes="error" FontSize="11" Margin="12,6,12,0" TextWrapping="Wrap"
+        <TextBlock Text="{v:Tr AttachmentError}" Classes="error" FontSize="11" Margin="12,6,12,0" TextWrapping="Wrap"
                    IsVisible="{Binding AttachmentError, Converter={x:Static ObjectConverters.IsNotNull}}" />
         <TextBox Name="PromptBox" Classes="prompt" Text="{Binding Prompt}" AcceptsReturn="True" TextWrapping="Wrap"
                  MinHeight="56" MaxHeight="240" Padding="12,10,12,4" FontSize="13"
-                 PlaceholderText="Ask Claude to edit, fix or explain... (/ for commands, @ for files)" />
-        <Grid ColumnDefinitions="Auto,Auto,Auto,*,Auto,Auto" Margin="6,0,6,6">
-          <Button Name="AttachButton" Classes="pill" Click="OnAttachClick" ToolTip.Tip="Attach images or files (or paste / drop them here)">
-            <v:VsIcon Kind="Attach" Width="14" Height="14" />
+                 PlaceholderText="{v:L 'Ask Claude to edit, fix or explain... (/ for commands, @ for files)'}" />
+        <Grid ColumnDefinitions="Auto,Auto,Auto,*,Auto,Auto" Margin="8,0,8,8">
+          <Button Name="AttachButton" Classes="chip icon" Click="OnAttachClick" ToolTip.Tip="{v:L 'Attach images or files (Ctrl+V pastes them, or drop them here)'}">
+            <v:VsIcon Kind="Attach" Width="15" Height="15" />
           </Button>
-          <Button Name="ContextButton" Grid.Column="1" Classes="pill" Command="{Binding ToggleContextCommand}" IsVisible="{Binding HasEditorContext}"
-                  ToolTip.Tip="Send the current file and selection with the prompt (click to toggle)">
+          <!-- The open file: shown with its icon, struck through when Claude does not see it. -->
+          <Button Name="ContextButton" Grid.Column="1" Classes="chip" Command="{Binding ToggleContextCommand}" IsVisible="{Binding HasEditorContext}"
+                  ToolTip.Tip="{v:L 'Claude sees this file and your selection. Click to include or leave it out.'}">
             <StackPanel Orientation="Horizontal" Spacing="5">
-              <v:VsIcon Kind="Eye" Width="13" Height="13" IsVisible="{Binding IncludeContext}" />
-              <v:VsIcon Kind="EyeOff" Width="13" Height="13" IsVisible="{Binding !IncludeContext}" />
-              <TextBlock Text="{Binding ContextLabel}" VerticalAlignment="Center" MaxWidth="180" TextTrimming="CharacterEllipsis" />
+              <v:VsIcon Kind="FileCode" Width="14" Height="14" />
+              <TextBlock Text="{v:Tr ContextLabel}" VerticalAlignment="Center" MaxWidth="170" TextTrimming="CharacterEllipsis"
+                         Classes.excluded="{Binding !IncludeContext}" />
+              <v:VsIcon Kind="Eye" Width="13" Height="13" Opacity="0.75" IsVisible="{Binding IncludeContext}" />
+              <v:VsIcon Kind="EyeOff" Width="13" Height="13" Opacity="0.75" IsVisible="{Binding !IncludeContext}" />
             </StackPanel>
           </Button>
-          <Button Name="ModeButton" Grid.Column="2" Classes="pill" Command="{Binding ToggleModesCommand}" ToolTip.Tip="Modes and effort (Shift+Tab switches mode)">
+          <!-- The mode in its own color, as in the VS extension (Shift+Tab switches it). -->
+          <Button Name="ModeButton" Grid.Column="2" Classes="chip mode" Command="{Binding ToggleModesCommand}"
+                  Classes.acceptEdits="{Binding PermissionMode, Converter={x:Static ObjectConverters.Equal}, ConverterParameter=acceptEdits}"
+                  Classes.plan="{Binding PermissionMode, Converter={x:Static ObjectConverters.Equal}, ConverterParameter=plan}"
+                  Classes.auto="{Binding PermissionMode, Converter={x:Static ObjectConverters.Equal}, ConverterParameter=auto}"
+                  ToolTip.Tip="{v:L 'How much Claude may do on its own, and how hard it thinks (Shift+Tab switches mode)'}">
             <StackPanel Orientation="Horizontal" Spacing="5">
-              <v:VsIcon Kind="{Binding ModeIcon}" Width="13" Height="13" />
-              <TextBlock Text="{Binding ModeLabel}" VerticalAlignment="Center" />
+              <v:VsIcon Name="ModeIcon" Kind="{Binding ModeIcon}" Width="14" Height="14" />
+              <TextBlock Text="{v:Tr ModeLabel}" VerticalAlignment="Center" />
             </StackPanel>
           </Button>
-          <ComboBox Name="ModelPicker" Grid.Column="4" ItemsSource="{Binding Models}" SelectedItem="{Binding SelectedModel}" MinWidth="0" MinHeight="24"
-                    MaxWidth="150" FontSize="12" Background="Transparent" BorderThickness="0" Margin="0,0,6,0" ToolTip.Tip="Model">
-            <ComboBox.SelectionBoxItemTemplate>
-              <DataTemplate x:DataType="vm:ClaudeModelChoice">
-                <TextBlock Text="{Binding ShortLabel}" TextTrimming="CharacterEllipsis" />
-              </DataTemplate>
-            </ComboBox.SelectionBoxItemTemplate>
-            <ComboBox.ItemTemplate>
-              <DataTemplate x:DataType="vm:ClaudeModelChoice">
-                <StackPanel Margin="0,2">
-                  <TextBlock Text="{Binding Label}" />
-                  <TextBlock Text="{Binding Description}" IsVisible="{Binding HasDescription}" Classes="muted" FontSize="11" />
+          <!-- The model: a chip that opens the model menu above the prompt. -->
+          <Button Name="ModelButton" Grid.Column="4" Classes="chip" Margin="0,0,6,0" MaxWidth="180" IsVisible="{Binding Models.Count}"
+                  ToolTip.Tip="{v:L 'Model Claude answers with'}">
+            <Button.Flyout>
+              <Flyout Placement="TopEdgeAlignedRight" FlyoutPresenterClasses="modelmenu">
+                <StackPanel Width="300">
+                  <TextBlock Text="{v:L 'Model'}" FontWeight="SemiBold" Margin="10,6,10,4" />
+                  <ListBox Name="ModelList" ItemsSource="{Binding Models}" SelectedItem="{Binding SelectedModel}" Classes="menu" SelectionChanged="OnModelChosen"
+                           Background="Transparent" ScrollViewer.HorizontalScrollBarVisibility="Disabled" MaxHeight="320">
+                    <ListBox.ItemTemplate>
+                      <DataTemplate x:DataType="vm:ClaudeModelChoice">
+                        <StackPanel Margin="0,1">
+                          <TextBlock Text="{v:Tr Label}" FontWeight="SemiBold" />
+                          <TextBlock Text="{v:Tr Description}" IsVisible="{Binding HasDescription}" Classes="muted" FontSize="11" TextWrapping="Wrap" />
+                        </StackPanel>
+                      </DataTemplate>
+                    </ListBox.ItemTemplate>
+                  </ListBox>
                 </StackPanel>
-              </DataTemplate>
-            </ComboBox.ItemTemplate>
-          </ComboBox>
-          <Button Name="SendButton" Grid.Column="5" Classes="send" Command="{Binding SendCommand}" IsVisible="{Binding !IsRunning}" ToolTip.Tip="Send (Enter)">
-            <v:VsIcon Kind="Send" Width="14" Height="14" Foreground="#1F1F1F" />
+              </Flyout>
+            </Button.Flyout>
+            <StackPanel Orientation="Horizontal" Spacing="5">
+              <v:VsIcon Kind="Sparkle" Width="14" Height="14" Foreground="#D97757" />
+              <TextBlock Text="{Binding SelectedModel.ShortLabel, FallbackValue=''}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+              <v:VsIcon Kind="ChevronUp" Width="11" Height="11" Opacity="0.7" />
+            </StackPanel>
           </Button>
-          <Button Name="StopButton" Grid.Column="5" Classes="send" Command="{Binding StopCommand}" IsVisible="{Binding IsRunning}" ToolTip.Tip="Stop (Esc)">
-            <Border Width="10" Height="10" Background="#1F1F1F" CornerRadius="2" />
+          <Button Name="SendButton" Grid.Column="5" Classes="send" Command="{Binding SendCommand}" IsVisible="{Binding !IsRunning}" ToolTip.Tip="{v:L 'Send (Enter)'}">
+            <v:VsIcon Kind="Send" Width="16" Height="16" Foreground="White" />
+          </Button>
+          <Button Name="StopButton" Grid.Column="5" Classes="send" Command="{Binding StopCommand}" IsVisible="{Binding IsRunning}" ToolTip.Tip="{v:L 'Stop Claude (Esc)'}">
+            <Panel>
+              <!-- A ring that keeps turning while Claude works. -->
+              <Ellipse Classes="spin" Width="22" Height="22" StrokeThickness="2" Stroke="#AAFFFFFF" StrokeDashArray="4,6">
+                <Ellipse.RenderTransform>
+                  <RotateTransform />
+                </Ellipse.RenderTransform>
+              </Ellipse>
+              <Border Width="9" Height="9" Background="White" CornerRadius="2" />
+            </Panel>
           </Button>
         </Grid>
       </StackPanel>
@@ -394,8 +531,8 @@
     <!-- ===== Status ===== -->
     <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" Spacing="7" Margin="14,4,10,2" IsVisible="{Binding IsRunning}">
       <v:VsIcon Kind="Claude" Width="13" Height="13" />
-      <TextBlock Text="{Binding StatusText}" Foreground="#D97757" FontSize="12" VerticalAlignment="Center" />
-      <TextBlock Text="esc to interrupt" Classes="muted" FontSize="11" VerticalAlignment="Center" />
+      <TextBlock Text="{v:Tr StatusText}" Foreground="#D97757" FontSize="12" VerticalAlignment="Center" />
+      <TextBlock Text="{v:L 'esc to interrupt'}" Classes="muted" FontSize="11" VerticalAlignment="Center" />
     </StackPanel>
 
     <Panel>
@@ -440,7 +577,7 @@
                 <Button Classes="row" Command="{Binding $parent[UserControl].((vm:ClaudeViewModel)DataContext).ToggleExpandCommand}" CommandParameter="{Binding}">
                   <StackPanel Orientation="Horizontal" Spacing="5">
                     <v:VsIcon Kind="Chevron" Width="10" Height="10" />
-                    <TextBlock Text="Thinking" FontStyle="Italic" Classes="muted" />
+                    <TextBlock Text="{v:L 'Thinking'}" FontStyle="Italic" Classes="muted" />
                   </StackPanel>
                 </Button>
                 <SelectableTextBlock Text="{Binding Text}" IsVisible="{Binding IsExpanded}" TextWrapping="Wrap" FontStyle="Italic" Classes="muted"
@@ -454,7 +591,7 @@
                   <Ellipse Width="7" Height="7" Margin="0,6,0,0" VerticalAlignment="Top" HorizontalAlignment="Left"
                            Classes="dot" Classes.running="{Binding IsRunning}" Classes.error="{Binding IsError}" />
                   <Button Grid.Column="1" Classes="row" Command="{Binding $parent[UserControl].((vm:ClaudeViewModel)DataContext).ToggleExpandCommand}"
-                          CommandParameter="{Binding}" ToolTip.Tip="Show details">
+                          CommandParameter="{Binding}" ToolTip.Tip="{v:L 'Show details'}">
                     <TextBlock TextWrapping="Wrap">
                       <Run Text="{Binding Title}" FontWeight="SemiBold" />
                       <Run Text=" " />
@@ -464,10 +601,10 @@
                 </Grid>
                 <Grid ColumnDefinitions="16,Auto,*" IsVisible="{Binding HasSummary}" Margin="0,2,0,0">
                   <Border Grid.Column="1" Width="9" Height="8" BorderBrush="#5A5A5A" BorderThickness="1,0,0,1" VerticalAlignment="Top" Margin="2,1,6,0" />
-                  <TextBlock Grid.Column="2" Text="{Binding Summary}" Classes="muted" Classes.error="{Binding IsError}" FontSize="12" TextWrapping="Wrap" />
+                  <TextBlock Grid.Column="2" Text="{v:Tr Summary}" Classes="muted" Classes.error="{Binding IsError}" FontSize="12" TextWrapping="Wrap" />
                 </Grid>
                 <StackPanel IsVisible="{Binding HasChildren}" Margin="16,3,0,0" Spacing="1">
-                  <TextBlock Text="{Binding MoreChildrenText}" IsVisible="{Binding HasMoreChildren}" Classes="muted" FontSize="11" Margin="12,0,0,1" />
+                  <TextBlock Text="{v:Tr MoreChildrenText}" IsVisible="{Binding HasMoreChildren}" Classes="muted" FontSize="11" Margin="12,0,0,1" />
                   <ItemsControl ItemsSource="{Binding VisibleChildren}">
                     <ItemsControl.ItemTemplate>
                       <DataTemplate x:DataType="vm:ToolChatItem">
@@ -479,7 +616,7 @@
                             <Run Text=" " />
                             <Run Text="{Binding Target}" FontFamily="{StaticResource VsCodeFont}" FontSize="11" Foreground="#B8B8B8" />
                             <Run Text="  " />
-                            <Run Text="{Binding Summary}" Foreground="#8B8B8B" />
+                            <Run Text="{v:Tr Summary}" Foreground="#8B8B8B" />
                           </TextBlock>
                         </Grid>
                       </DataTemplate>
@@ -532,7 +669,7 @@
               <Border Classes="card" Margin="0,10,0,4">
                 <StackPanel Spacing="8">
                   <TextBlock Text="{Binding Question}" FontWeight="SemiBold" TextWrapping="Wrap" />
-                  <TextBlock Text="{Binding Description}" IsVisible="{Binding HasDescription}" Classes="muted" TextWrapping="Wrap" FontSize="12" />
+                  <TextBlock Text="{v:Tr Description}" IsVisible="{Binding HasDescription}" Classes="muted" TextWrapping="Wrap" FontSize="12" />
                   <Border Classes="box" IsVisible="{Binding HasCode}">
                     <ScrollViewer MaxHeight="220" HorizontalScrollBarVisibility="Disabled">
                       <SelectableTextBlock Text="{Binding Code}" Classes="mono" TextWrapping="Wrap" Margin="8,6" />
@@ -559,19 +696,19 @@
                     <Button Classes="pill link" HorizontalAlignment="Left" Content="Open side-by-side diff" IsVisible="{Binding CanOpenDiff}"
                             Command="{Binding $parent[UserControl].((vm:ClaudeViewModel)DataContext).OpenDiffCommand}" CommandParameter="{Binding}" />
                     <Button Classes="choice first" Command="{Binding $parent[UserControl].((vm:ClaudeViewModel)DataContext).AllowCommand}" CommandParameter="{Binding}">
-                      <TextBlock Text="Yes" />
+                      <TextBlock Text="{v:L 'Yes'}" />
                     </Button>
                     <Button Classes="choice" IsVisible="{Binding HasSessionOption}"
                             Command="{Binding $parent[UserControl].((vm:ClaudeViewModel)DataContext).AllowForSessionCommand}" CommandParameter="{Binding}">
-                      <TextBlock Text="{Binding SessionLabel}" TextWrapping="Wrap" />
+                      <TextBlock Text="{v:Tr SessionLabel}" TextWrapping="Wrap" />
                     </Button>
                     <Grid ColumnDefinitions="*,Auto">
-                      <TextBox Classes="feedback" Text="{Binding Feedback}" PlaceholderText="No, and tell Claude what to do differently" />
+                      <TextBox Classes="feedback" Text="{Binding Feedback}" PlaceholderText="{v:L 'No, and tell Claude what to do differently'}" />
                       <Button Grid.Column="1" Classes="choice" Content="No" Margin="6,0,0,0" HorizontalAlignment="Right"
                               Command="{Binding $parent[UserControl].((vm:ClaudeViewModel)DataContext).DenyCommand}" CommandParameter="{Binding}" />
                     </Grid>
                   </StackPanel>
-                  <TextBlock Text="{Binding Outcome}" IsVisible="{Binding IsResolved}" Classes="muted" FontStyle="Italic" FontSize="12" />
+                  <TextBlock Text="{v:Tr Outcome}" IsVisible="{Binding IsResolved}" Classes="muted" FontStyle="Italic" FontSize="12" />
                 </StackPanel>
               </Border>
             </DataTemplate>
@@ -594,14 +731,14 @@
                               <DataTemplate x:DataType="vm:QuestionOption">
                                 <CheckBox IsChecked="{Binding IsSelected}" Margin="0,1">
                                   <StackPanel>
-                                    <TextBlock Text="{Binding Label}" />
-                                    <TextBlock Text="{Binding Description}" IsVisible="{Binding HasDescription}" Classes="muted" FontSize="11" TextWrapping="Wrap" />
+                                    <TextBlock Text="{v:Tr Label}" />
+                                    <TextBlock Text="{v:Tr Description}" IsVisible="{Binding HasDescription}" Classes="muted" FontSize="11" TextWrapping="Wrap" />
                                   </StackPanel>
                                 </CheckBox>
                               </DataTemplate>
                             </ItemsControl.ItemTemplate>
                           </ItemsControl>
-                          <TextBox Classes="feedback" Text="{Binding Other}" PlaceholderText="Other (type your own answer)" />
+                          <TextBox Classes="feedback" Text="{Binding Other}" PlaceholderText="{v:L 'Other (type your own answer)'}" />
                         </StackPanel>
                       </DataTemplate>
                     </ItemsControl.ItemTemplate>
@@ -609,9 +746,9 @@
                   <StackPanel Orientation="Horizontal" Spacing="10" IsVisible="{Binding IsPending}">
                     <Button Classes="choice first" Content="Submit answers" HorizontalAlignment="Left"
                             Command="{Binding $parent[UserControl].((vm:ClaudeViewModel)DataContext).SubmitAnswersCommand}" CommandParameter="{Binding}" />
-                    <TextBlock Text="{Binding Outcome}" Classes="muted" VerticalAlignment="Center" FontSize="12" />
+                    <TextBlock Text="{v:Tr Outcome}" Classes="muted" VerticalAlignment="Center" FontSize="12" />
                   </StackPanel>
-                  <TextBlock Text="{Binding Outcome}" IsVisible="{Binding IsResolved}" Classes="muted" FontStyle="Italic" FontSize="12" TextWrapping="Wrap" />
+                  <TextBlock Text="{v:Tr Outcome}" IsVisible="{Binding IsResolved}" Classes="muted" FontStyle="Italic" FontSize="12" TextWrapping="Wrap" />
                 </StackPanel>
               </Border>
             </DataTemplate>
@@ -619,23 +756,23 @@
             <DataTemplate DataType="vm:PlanChatItem" x:DataType="vm:PlanChatItem">
               <Border Classes="card" Margin="0,10,0,4">
                 <StackPanel Spacing="8">
-                  <TextBlock Text="Here is Claude's plan:" FontWeight="SemiBold" />
+                  <TextBlock Text="{v:L 'Here is Claude’s plan:'}" FontWeight="SemiBold" />
                   <Border Classes="box" Padding="12,8">
                     <v:MarkdownView Markdown="{Binding Plan}" />
                   </Border>
                   <StackPanel IsVisible="{Binding IsPending}" Spacing="5">
-                    <TextBlock Text="Would you like to proceed?" />
+                    <TextBlock Text="{v:L 'Would you like to proceed?'}" />
                     <Button Classes="choice first" Content="Yes, and auto-accept edits"
                             Command="{Binding $parent[UserControl].((vm:ClaudeViewModel)DataContext).ApprovePlanCommand}" CommandParameter="{Binding}" />
                     <Button Classes="choice" Content="Yes, and manually approve edits"
                             Command="{Binding $parent[UserControl].((vm:ClaudeViewModel)DataContext).ApprovePlanManuallyCommand}" CommandParameter="{Binding}" />
                     <Grid ColumnDefinitions="*,Auto">
-                      <TextBox Classes="feedback" Text="{Binding Feedback}" PlaceholderText="No, keep planning (tell Claude what to change)" />
+                      <TextBox Classes="feedback" Text="{Binding Feedback}" PlaceholderText="{v:L 'No, keep planning (tell Claude what to change)'}" />
                       <Button Grid.Column="1" Classes="choice" Content="Keep planning" Margin="6,0,0,0"
                               Command="{Binding $parent[UserControl].((vm:ClaudeViewModel)DataContext).KeepPlanningCommand}" CommandParameter="{Binding}" />
                     </Grid>
                   </StackPanel>
-                  <TextBlock Text="{Binding Outcome}" IsVisible="{Binding IsResolved}" Classes="muted" FontStyle="Italic" FontSize="12" />
+                  <TextBlock Text="{v:Tr Outcome}" IsVisible="{Binding IsResolved}" Classes="muted" FontStyle="Italic" FontSize="12" />
                 </StackPanel>
               </Border>
             </DataTemplate>
@@ -650,20 +787,20 @@
       <!-- ===== Empty conversation ===== -->
       <StackPanel IsVisible="{Binding IsEmpty}" VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="10" Margin="24" MaxWidth="320" IsHitTestVisible="False">
         <v:VsIcon Kind="Claude" Width="44" Height="44" HorizontalAlignment="Center" />
-        <TextBlock Text="What can I help you build?" FontSize="16" HorizontalAlignment="Center" />
+        <TextBlock Text="{v:L 'What can I help you build?'}" FontSize="16" HorizontalAlignment="Center" />
         <TextBlock Classes="muted" TextWrapping="Wrap" TextAlignment="Center" FontSize="12"
-                   Text="Claude Code works in your solution folder: it can read and edit files, run commands and explain code. You approve each edit unless you choose to edit automatically." />
+                   Text="{v:L 'Claude Code works in your solution folder: it can read and edit files, run commands and explain code. You approve each edit unless you choose to edit automatically.'}" />
       </StackPanel>
 
       <!-- ===== Claude Code not installed ===== -->
       <Border IsVisible="{Binding IsCliMissing}" Background="#1F1F1F" Padding="20">
         <StackPanel Spacing="10" VerticalAlignment="Center" MaxWidth="360">
           <v:VsIcon Kind="Claude" Width="36" Height="36" HorizontalAlignment="Center" />
-          <TextBlock Text="Claude Code is not installed" FontSize="15" HorizontalAlignment="Center" />
+          <TextBlock Text="{v:L 'Claude Code is not installed'}" FontSize="15" HorizontalAlignment="Center" />
           <TextBlock Classes="muted" TextWrapping="Wrap" TextAlignment="Center"
-                     Text="Install the Claude Code CLI, sign in once by running claude in a terminal, then retry." />
+                     Text="{v:L 'Install the Claude Code CLI, sign in once by running claude in a terminal, then retry.'}" />
           <Border Classes="box" Padding="10,6">
-            <SelectableTextBlock Classes="mono" Text="curl -fsSL https://claude.ai/install.sh | bash" TextWrapping="Wrap" />
+            <SelectableTextBlock Classes="mono" Text="{v:L 'curl -fsSL https://claude.ai/install.sh | bash'}" TextWrapping="Wrap" />
           </Border>
           <Button Classes="choice first" Content="Retry" HorizontalAlignment="Center" Command="{Binding CheckCliCommand}" />
         </StackPanel>
@@ -673,15 +810,15 @@
       <Border Name="DropOverlay" IsVisible="False" Background="#C0202022" BorderBrush="#D97757" BorderThickness="2" CornerRadius="8" Margin="8" IsHitTestVisible="False">
         <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="8">
           <v:VsIcon Kind="Attach" Width="28" Height="28" HorizontalAlignment="Center" Foreground="#D97757" />
-          <TextBlock Text="Drop images or files to attach" FontSize="14" />
+          <TextBlock Text="{v:L 'Drop images or files to attach'}" FontSize="14" />
         </StackPanel>
       </Border>
 
       <!-- ===== Past conversations ===== -->
       <Border IsVisible="{Binding IsHistoryOpen}" Background="#252526">
         <DockPanel>
-          <TextBlock DockPanel.Dock="Top" Text="Past conversations" FontWeight="SemiBold" Margin="12,8,12,4" />
-          <TextBlock DockPanel.Dock="Top" Text="No conversations in this folder yet." Classes="muted" Margin="12,0,12,10" IsVisible="{Binding !History.Count}" />
+          <TextBlock DockPanel.Dock="Top" Text="{v:L 'Past conversations'}" FontWeight="SemiBold" Margin="12,8,12,4" />
+          <TextBlock DockPanel.Dock="Top" Text="{v:L 'No conversations in this folder yet.'}" Classes="muted" Margin="12,0,12,10" IsVisible="{Binding !History.Count}" />
           <ListBox Name="HistoryList" ItemsSource="{Binding History}" Background="Transparent" Margin="4,0,4,6" ScrollViewer.HorizontalScrollBarVisibility="Disabled">
             <ListBox.ItemTemplate>
               <DataTemplate x:DataType="c:ClaudeConversation">
@@ -703,12 +840,12 @@
       <Border Name="ModesMenu" Classes="menuCard" VerticalAlignment="Bottom" HorizontalAlignment="Left" Margin="10,0,10,96" Width="330">
         <StackPanel>
           <Grid ColumnDefinitions="*,Auto" Margin="12,8,10,6">
-            <TextBlock Text="Modes" Classes="muted" FontSize="12" />
+            <TextBlock Text="{v:L 'Modes'}" Classes="muted" FontSize="12" />
             <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="4">
-              <Border Classes="key"><TextBlock Text="Shift" /></Border>
+              <Border Classes="key"><TextBlock Text="{v:L 'Shift'}" /></Border>
               <TextBlock Text="+" Classes="muted" FontSize="11" VerticalAlignment="Center" />
-              <Border Classes="key"><TextBlock Text="Tab" /></Border>
-              <TextBlock Text="to switch" Classes="muted" FontSize="11" VerticalAlignment="Center" />
+              <Border Classes="key"><TextBlock Text="{v:L 'Tab'}" /></Border>
+              <TextBlock Text="{v:L 'to switch'}" Classes="muted" FontSize="11" VerticalAlignment="Center" />
             </StackPanel>
           </Grid>
           <ItemsControl ItemsSource="{Binding Modes}">
@@ -719,8 +856,8 @@
                   <Grid ColumnDefinitions="Auto,*,Auto">
                     <v:VsIcon Kind="{Binding Icon}" Width="18" Height="18" Margin="0,1,12,0" VerticalAlignment="Top" Foreground="#C8C8C8" />
                     <StackPanel Grid.Column="1" Spacing="1">
-                      <TextBlock Text="{Binding Label}" FontSize="13" />
-                      <TextBlock Text="{Binding Description}" Classes="muted" FontSize="11" TextWrapping="Wrap" />
+                      <TextBlock Text="{v:Tr Label}" FontSize="13" />
+                      <TextBlock Text="{v:Tr Description}" Classes="muted" FontSize="11" TextWrapping="Wrap" />
                     </StackPanel>
                     <v:VsIcon Grid.Column="2" Kind="Check" Width="14" Height="14" IsVisible="{Binding IsSelected}" VerticalAlignment="Center" Margin="8,0,0,0" Foreground="#E0E0E0" />
                   </Grid>
@@ -731,7 +868,7 @@
           <Border Height="1" Background="#3A3A3D" Margin="0,4" IsVisible="{Binding HasEffort}" />
           <Grid ColumnDefinitions="Auto,*,Auto" Margin="12,6,12,10" IsVisible="{Binding HasEffort}">
             <v:VsIcon Kind="Gauge" Width="18" Height="18" Margin="0,0,12,0" Foreground="#C8C8C8" />
-            <TextBlock Grid.Column="1" Text="{Binding EffortLabel}" VerticalAlignment="Center" Foreground="#C8C8C8" />
+            <TextBlock Grid.Column="1" Text="{v:Tr EffortLabel}" VerticalAlignment="Center" Foreground="#C8C8C8" />
             <ItemsControl Name="EffortSlider" Grid.Column="2" ItemsSource="{Binding EffortSteps}" VerticalAlignment="Center">
               <ItemsControl.ItemsPanel>
                 <ItemsPanelTemplate>
@@ -740,7 +877,7 @@
               </ItemsControl.ItemsPanel>
               <ItemsControl.ItemTemplate>
                 <DataTemplate x:DataType="vm:EffortStep">
-                  <Button Classes="effortStep" ToolTip.Tip="{Binding Label}"
+                  <Button Classes="effortStep" ToolTip.Tip="{v:Tr Label}"
                           Command="{Binding $parent[UserControl].((vm:ClaudeViewModel)DataContext).SetEffortCommand}" CommandParameter="{Binding}">
                     <Panel Width="16" Height="16">
                       <Ellipse Width="5" Height="5" Classes="effortDot" Classes.reached="{Binding IsReached}" IsVisible="{Binding !IsSelected}" />
@@ -761,43 +898,43 @@
       <Border Name="UsageDialog" Classes="dialog">
         <DockPanel>
           <Grid DockPanel.Dock="Top" ColumnDefinitions="*,Auto" Margin="18,14,12,6">
-            <TextBlock Text="Account &amp; Usage" FontSize="16" FontWeight="SemiBold" />
-            <Button Grid.Column="1" Classes="tbi" Command="{Binding CloseDialogsCommand}" ToolTip.Tip="Close"><v:VsIcon Kind="Close" /></Button>
+            <TextBlock Text="{v:L 'Account &amp; Usage'}" FontSize="16" FontWeight="SemiBold" />
+            <Button Grid.Column="1" Classes="tbi" Command="{Binding CloseDialogsCommand}" ToolTip.Tip="{v:L 'Close'}"><v:VsIcon Kind="Close" /></Button>
           </Grid>
           <ScrollViewer HorizontalScrollBarVisibility="Disabled">
             <StackPanel Margin="18,0,18,16" Spacing="6">
-              <TextBlock Text="Loading..." Classes="muted" IsVisible="{Binding IsUsageLoading}" />
-              <TextBlock Text="{Binding UsageError}" Classes="error" TextWrapping="Wrap" IsVisible="{Binding UsageError, Converter={x:Static ObjectConverters.IsNotNull}}" />
+              <TextBlock Text="{v:L 'Loading...'}" Classes="muted" IsVisible="{Binding IsUsageLoading}" />
+              <TextBlock Text="{v:Tr UsageError}" Classes="error" TextWrapping="Wrap" IsVisible="{Binding UsageError, Converter={x:Static ObjectConverters.IsNotNull}}" />
               <StackPanel Spacing="6" IsVisible="{Binding Usage, Converter={x:Static ObjectConverters.IsNotNull}}">
-                <TextBlock Text="ACCOUNT" Classes="section" />
+                <TextBlock Text="{v:L 'ACCOUNT'}" Classes="section" />
                 <ItemsControl ItemsSource="{Binding Usage.Account}">
                   <ItemsControl.ItemTemplate>
                     <DataTemplate x:DataType="vm:UsageRow">
                       <Grid ColumnDefinitions="Auto,*" Margin="0,6">
-                        <TextBlock Text="{Binding Label}" Classes="muted" />
+                        <TextBlock Text="{v:Tr Label}" Classes="muted" />
                         <TextBlock Grid.Column="1" Text="{Binding Value}" HorizontalAlignment="Right" TextTrimming="CharacterEllipsis" Margin="16,0,0,0" />
                       </Grid>
                     </DataTemplate>
                   </ItemsControl.ItemTemplate>
                 </ItemsControl>
-                <TextBlock Text="USAGE" Classes="section" Margin="0,10,0,0" IsVisible="{Binding Usage.HasLimits}" />
+                <TextBlock Text="{v:L 'USAGE'}" Classes="section" Margin="0,10,0,0" IsVisible="{Binding Usage.HasLimits}" />
                 <ItemsControl ItemsSource="{Binding Usage.Limits}">
                   <ItemsControl.ItemTemplate>
                     <DataTemplate x:DataType="vm:UsageLimit">
                       <StackPanel Margin="0,6" Spacing="4">
                         <Grid ColumnDefinitions="*,Auto">
-                          <TextBlock Text="{Binding Label}" />
-                          <TextBlock Grid.Column="1" Text="{Binding PercentText}" />
+                          <TextBlock Text="{v:Tr Label}" />
+                          <TextBlock Grid.Column="1" Text="{v:Tr PercentText}" />
                         </Grid>
                         <ProgressBar Classes="usage" Classes.high="{Binding IsHigh}" Value="{Binding Percent}" Maximum="100" MinHeight="6" Height="6" />
-                        <TextBlock Text="{Binding ResetText}" Classes="muted" FontSize="11" />
+                        <TextBlock Text="{v:Tr ResetText}" Classes="muted" FontSize="11" />
                       </StackPanel>
                     </DataTemplate>
                   </ItemsControl.ItemTemplate>
                 </ItemsControl>
                 <Button Classes="link" Content="Manage usage on claude.ai" Command="{Binding OpenUrlCommand}" CommandParameter="https://claude.ai/settings/usage" />
                 <StackPanel Spacing="8" IsVisible="{Binding Usage.HasBehaviors}" Margin="0,8,0,0">
-                  <TextBlock Text="WHAT'S CONTRIBUTING TO YOUR LIMITS USAGE?" Classes="section" />
+                  <TextBlock Text="{v:L 'WHAT’S CONTRIBUTING TO YOUR LIMITS USAGE?'}" Classes="section" />
                   <Border Background="#262628" CornerRadius="5" Padding="2" HorizontalAlignment="Left">
                     <StackPanel Orientation="Horizontal">
                       <Button Classes="segment" Classes.on="{Binding !ShowUsageWeek}" Content="Day" Command="{Binding ShowUsagePeriodCommand}" CommandParameter="day" />
@@ -805,22 +942,22 @@
                     </StackPanel>
                   </Border>
                   <TextBlock Classes="muted" FontSize="11" TextWrapping="Wrap"
-                             Text="Approximate, from local sessions on this machine; other devices and claude.ai are not included." />
-                  <TextBlock Text="{Binding UsagePeriodShown.Summary}" Classes="muted" FontSize="11" />
+                             Text="{v:L 'Approximate, from local sessions on this machine; other devices and claude.ai are not included.'}" />
+                  <TextBlock Text="{v:Tr UsagePeriodShown.Summary}" Classes="muted" FontSize="11" />
                   <ItemsControl ItemsSource="{Binding UsagePeriodShown.Insights}">
                     <ItemsControl.ItemTemplate>
                       <DataTemplate x:DataType="vm:UsageInsight">
                         <StackPanel Margin="0,4" Spacing="2">
                           <TextBlock Text="{Binding Text}" TextWrapping="Wrap" />
-                          <TextBlock Text="{Binding Hint}" IsVisible="{Binding HasHint}" Classes="muted" FontSize="12" TextWrapping="Wrap" Margin="12,0,0,0" />
+                          <TextBlock Text="{v:Tr Hint}" IsVisible="{Binding HasHint}" Classes="muted" FontSize="12" TextWrapping="Wrap" Margin="12,0,0,0" />
                         </StackPanel>
                       </DataTemplate>
                     </ItemsControl.ItemTemplate>
                   </ItemsControl>
                   <StackPanel IsVisible="{Binding UsagePeriodShown.HasSkills}" Spacing="3">
                     <Grid ColumnDefinitions="*,Auto">
-                      <TextBlock Text="Skills" FontWeight="SemiBold" FontSize="12" />
-                      <TextBlock Grid.Column="1" Text="% of usage" Classes="muted" FontSize="12" />
+                      <TextBlock Text="{v:L 'Skills'}" FontWeight="SemiBold" FontSize="12" />
+                      <TextBlock Grid.Column="1" Text="{v:L '% of usage'}" Classes="muted" FontSize="12" />
                     </Grid>
                     <ItemsControl ItemsSource="{Binding UsagePeriodShown.Skills}">
                       <ItemsControl.ItemTemplate>
@@ -847,15 +984,15 @@
       <Border Name="McpDialog" Classes="dialog">
         <DockPanel>
           <Grid DockPanel.Dock="Top" ColumnDefinitions="*,Auto" Margin="18,14,12,8">
-            <TextBlock Text="MCP servers" FontSize="16" FontWeight="SemiBold" />
-            <Button Grid.Column="1" Classes="tbi" Command="{Binding CloseDialogsCommand}" ToolTip.Tip="Close"><v:VsIcon Kind="Close" /></Button>
+            <TextBlock Text="{v:L 'MCP servers'}" FontSize="16" FontWeight="SemiBold" />
+            <Button Grid.Column="1" Classes="tbi" Command="{Binding CloseDialogsCommand}" ToolTip.Tip="{v:L 'Close'}"><v:VsIcon Kind="Close" /></Button>
           </Grid>
           <Button DockPanel.Dock="Bottom" Classes="link" Content="Learn more about MCP" Margin="18,8,18,14"
                   Command="{Binding OpenUrlCommand}" CommandParameter="https://code.claude.com/docs/en/mcp" />
           <ScrollViewer HorizontalScrollBarVisibility="Disabled">
             <StackPanel Margin="18,0,18,8" Spacing="8">
-              <TextBox Classes="feedback" Text="{Binding McpFilter}" PlaceholderText="Filter servers..." />
-              <TextBlock Text="{Binding McpMessage}" Classes="muted" FontSize="12" TextWrapping="Wrap"
+              <TextBox Classes="feedback" Text="{Binding McpFilter}" PlaceholderText="{v:L 'Filter servers...'}" />
+              <TextBlock Text="{v:Tr McpMessage}" Classes="muted" FontSize="12" TextWrapping="Wrap"
                          IsVisible="{Binding McpMessage, Converter={x:Static ObjectConverters.IsNotNull}}" />
               <ItemsControl ItemsSource="{Binding McpGroups}">
                 <ItemsControl.ItemTemplate>
@@ -874,16 +1011,16 @@
                                 <Button Grid.Column="1" Classes="pill" Content="{Binding ToggleLabel}" FontSize="11" Margin="0,0,6,0" VerticalAlignment="Center"
                                         Command="{Binding $parent[UserControl].((vm:ClaudeViewModel)DataContext).ToggleMcpCommand}" CommandParameter="{Binding}" />
                                 <Panel Grid.Column="2" VerticalAlignment="Center">
-                                  <Border Classes="badge ok" IsVisible="{Binding IsConnected}"><TextBlock Text="Connected" /></Border>
-                                  <Border Classes="badge pending" IsVisible="{Binding IsPending}"><TextBlock Text="Connecting" /></Border>
-                                  <Border Classes="badge off" IsVisible="{Binding IsDisabled}"><TextBlock Text="Disabled" /></Border>
-                                  <Button Classes="badge warn" IsVisible="{Binding NeedsAuth}" ToolTip.Tip="Sign in to this server in your browser"
+                                  <Border Classes="badge ok" IsVisible="{Binding IsConnected}"><TextBlock Text="{v:L 'Connected'}" /></Border>
+                                  <Border Classes="badge pending" IsVisible="{Binding IsPending}"><TextBlock Text="{v:L 'Connecting'}" /></Border>
+                                  <Border Classes="badge off" IsVisible="{Binding IsDisabled}"><TextBlock Text="{v:L 'Disabled'}" /></Border>
+                                  <Button Classes="badge warn" IsVisible="{Binding NeedsAuth}" ToolTip.Tip="{v:L 'Sign in to this server in your browser'}"
                                           Command="{Binding $parent[UserControl].((vm:ClaudeViewModel)DataContext).AuthenticateMcpCommand}" CommandParameter="{Binding}">
-                                    <TextBlock Text="Needs Auth" />
+                                    <TextBlock Text="{v:L 'Needs Auth'}" />
                                   </Button>
-                                  <Button Classes="badge fail" IsVisible="{Binding IsFailed}" ToolTip.Tip="Reconnect"
+                                  <Button Classes="badge fail" IsVisible="{Binding IsFailed}" ToolTip.Tip="{v:L 'Reconnect'}"
                                           Command="{Binding $parent[UserControl].((vm:ClaudeViewModel)DataContext).ReconnectMcpCommand}" CommandParameter="{Binding}">
-                                    <TextBlock Text="Failed - retry" />
+                                    <TextBlock Text="{v:L 'Failed - retry'}" />
                                   </Button>
                                 </Panel>
                               </Grid>
@@ -898,8 +1035,8 @@
               <Button Classes="addServer" Content="Add server" Command="{Binding StartAddMcpServerCommand}" IsVisible="{Binding !IsAddingMcpServer}" />
               <Border Classes="serverRow" IsVisible="{Binding IsAddingMcpServer}" Padding="12">
                 <StackPanel Spacing="8" DataContext="{Binding McpDraft}" x:DataType="vm:McpServerDraft">
-                  <TextBlock Text="Add an MCP server" FontWeight="SemiBold" />
-                  <TextBox Classes="feedback" Text="{Binding Name}" PlaceholderText="Name (e.g. github)" />
+                  <TextBlock Text="{v:L 'Add an MCP server'}" FontWeight="SemiBold" />
+                  <TextBox Classes="feedback" Text="{Binding Name}" PlaceholderText="{v:L 'Name (e.g. github)'}" />
                   <ComboBox ItemsSource="{Binding Transports}" SelectedItem="{Binding Transport}" HorizontalAlignment="Stretch" />
                   <TextBox Classes="feedback" Text="{Binding Target}" PlaceholderText="{Binding TargetHint}" />
                   <ComboBox ItemsSource="{Binding $parent[UserControl].((vm:ClaudeViewModel)DataContext).McpScopes}" SelectedItem="{Binding Scope}" HorizontalAlignment="Stretch" />

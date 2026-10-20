@@ -23,6 +23,9 @@ public sealed class Settings
         /// <summary>Dock side ("Left", "Right", "Bottom") → the tool window in front.</summary>
         public Dictionary<string, string> SelectedTools { get; set; } = [];
 
+        /// <summary>Floating tool windows: tool window id → [x, y, width, height] of its window.</summary>
+        public Dictionary<string, double[]> FloatingTools { get; set; } = [];
+
         /// <summary>The window's size when it is not maximized.</summary>
         public double? Width { get; set; }
         public double? Height { get; set; }
@@ -49,6 +52,9 @@ public sealed class Settings
     /// <summary>Claude Code reasoning effort chosen in the Modes menu (low ... max).</summary>
     public string? ClaudeEffort { get; set; }
 
+    /// <summary>The Claude Code panel's language: "en" or "uz" (English when not set).</summary>
+    public string? UiLanguage { get; set; }
+
     /// <summary>The Claude Code account (its configuration folder) the panel runs with; null for the CLI's own choice.</summary>
     public string? ClaudeAccount { get; set; }
     /// <summary>
@@ -68,10 +74,12 @@ public sealed class Settings
         public List<string> Watches { get; set; } = [];
     }
 
-    static string FilePath => Path.Combine(
+    /// <summary>VSL's configuration folder (~/.config/VSL, or VSL_CONFIG_DIR).</summary>
+    public static string ConfigDirectory =>
         Environment.GetEnvironmentVariable("VSL_CONFIG_DIR") is { Length: > 0 } dir ? dir
-            : Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "VSL"),
-        "settings.json");
+            : Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "VSL");
+
+    static string FilePath => Path.Combine(ConfigDirectory, "settings.json");
 
     const int MaxRecent = 20;
 

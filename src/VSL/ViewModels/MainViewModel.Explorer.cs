@@ -182,8 +182,11 @@ public partial class MainViewModel
             var unsaved = doc.IsDirty ? doc.Host.Document.Text : null;
             var wasActive = doc == active;
             var index = Documents.IndexOf(doc);
+            var group = GroupOf(doc);
+            var groupIndex = group?.Tabs.IndexOf(doc) ?? 0;
             Documents.Remove(doc);
             doc.Dispose();
+            using var place = group is not null && AllGroups.Contains(group) ? PlaceNewDocuments(group, groupIndex) : null;
             if (OpenDocument(to!, activate: wasActive) is { } moved)
             {
                 Documents.Move(Documents.IndexOf(moved), Math.Clamp(index, 0, Documents.Count - 1));

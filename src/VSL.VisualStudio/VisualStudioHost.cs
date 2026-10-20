@@ -38,7 +38,7 @@ public sealed class VisualStudioHost : IAsyncDisposable
             ?? (System.Globalization.CultureInfo.CurrentUICulture.TwoLetterISOLanguageName == "uz" ? "uz" : "en");
         Views.Loc.Instance.PropertyChanged += (_, e) =>
         {
-            if (e.PropertyName != nameof(Views.Loc.Language))
+            if (e.PropertyName != nameof(VSL.Claude.ClaudeLanguage.Language))
                 return;
             _settings.UiLanguage = Views.Loc.Instance.Language;
             _settings.Save();

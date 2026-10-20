@@ -46,6 +46,16 @@ if ARGS[:2] == ["mcp", "add"]:
         json.dump(servers, f)
     print(f"Added {transport} MCP server {name} to {scope} config")
     sys.exit(0)
+
+# `claude -p ...` (a one-shot prompt on stdin, as Git Changes' commit message): the prompt is kept next to the config for
+# the tests, and the answer is a message wrapped the way a model might wrap it, with a trailer VSL must remove.
+if ARGS[:1] == ["-p"]:
+    prompt = sys.stdin.read()
+    os.makedirs(CONFIG, exist_ok=True)
+    with open(os.path.join(CONFIG, "last-print.json"), "w") as f:
+        json.dump({"args": ARGS, "prompt": prompt, "cwd": os.getcwd(), "claudecode": os.environ.get("CLAUDECODE")}, f)
+    print("```\nAdd the multi-repository commit panel\n\nLists every repository of the solution.\nCo-Authored-By: Claude <noreply@anthropic.com>\n```")
+    sys.exit(0)
 SESSION = ARGS[ARGS.index("--resume") + 1] if "--resume" in ARGS else "fake-session-1"
 CWD = os.getcwd()
 # Test workspaces are named vsl-claude-*; their log sits next to them so parallel tests never share one.
