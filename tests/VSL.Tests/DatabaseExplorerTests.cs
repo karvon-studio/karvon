@@ -17,7 +17,9 @@ namespace VSL.Tests;
 public class DatabaseExplorerTests
 {
     /// <summary>A SQLite data source in a server list of its own (never the user's ~/.config/bengine).</summary>
-    static string NewServers()
+    static string NewServers() => NewServers(out _);
+
+    static string NewServers(out string database)
     {
         var dir = Path.Combine(Path.GetTempPath(), "vsl-db-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(dir);
@@ -33,12 +35,30 @@ public class DatabaseExplorerTests
             command.ExecuteNonQuery();
         }
         SqliteConnection.ClearAllPools();
+        database = file;
         var servers = Path.Combine(dir, "servers.json");
         new ServerStore(servers).Upsert(new ServerProfile { Name = "shop (sqlite)", Provider = DatabaseProvider.Sqlite, FilePath = file });
         return servers;
     }
 
     static async Task Until(Func<bool> condition) => await WaitUntil(condition, TimeSpan.FromSeconds(15));
+
+    /// <summary>The users table's row of the (only) data source, its tree expanded down to it.</summary>
+    static async Task<TreeItemViewModel> UsersOf(ExplorerViewModel explorer)
+    {
+        var item = explorer.ServerItems.Single();
+        item.IsExpanded = true;
+        await Until(() => !item.IsLoading && item.Children.Count > 0 && !item.Children[0].IsPlaceholder);
+        foreach (var label in new[] { "main", "tables" })
+        {
+            item = item.Children.First(c => c.Label == label);
+            item.IsExpanded = true;
+            await Until(() => !item.IsLoading && item.Children.Count > 0 && !item.Children[0].IsPlaceholder);
+        }
+        return item.Children.First(c => c.Label == "users");
+    }
+
+    static DatabaseExplorerView? ViewOf(Window window) => window.GetVisualDescendants().OfType<DatabaseExplorerView>().SingleOrDefault();
 
     [AvaloniaFact]
     public async Task Explores_a_database_and_opens_its_documents_as_tabs()
@@ -106,6 +126,60 @@ public class DatabaseExplorerTests
         await WaitUntil(() => !window.IsVisible, TimeSpan.FromSeconds(10));
         Assert.True(File.Exists(Path.Combine(VSL.Services.Settings.ConfigDirectory, "database-workspace.json")));
         Environment.SetEnvironmentVariable("BENGINE_SERVERS_FILE", null);
+    }
+
+    [AvaloniaFact]
+    public async Task Each_solution_has_a_database_explorer_of_its_own()
+    {
+        // Studio's list (no solution open) has "shop (sqlite)": no solution sees it.
+        Environment.SetEnvironmentVariable("BENGINE_SERVERS_FILE", NewServers(out var database));
+        Environment.SetEnvironmentVariable("BENGINE_KEYRING", "off");
+        var first = SolutionExplorerTests.CopySample();
+        var second = SolutionExplorerTests.CopySample();
+        var vm = NewViewModel();
+        var window = new MainWindow { DataContext = vm, Width = 1500, Height = 950 };
+        window.Show();
+        await vm.OpenSolutionAsync(first);
+        window.ShowDatabaseExplorer();
+        var explorer = vm.Database;
+        Assert.Empty(explorer.ServerItems);
+
+        // The first solution's own data source, and a table of it open; kept beside the solution, in its .vs.
+        vm.DatabaseServers.Upsert(new ServerProfile { Name = "orders (sqlite)", Provider = DatabaseProvider.Sqlite, FilePath = database });
+        explorer.ReloadServers();
+        explorer.OpenData(await UsersOf(explorer));
+        Assert.Single(vm.Documents.OfType<DatabaseDocument>());
+        var directory = vm.DatabaseDirectory!;
+        Assert.StartsWith(Path.Combine(Path.GetDirectoryName(first)!, ".vs") + Path.DirectorySeparatorChar, directory);
+        Assert.True(File.Exists(Path.Combine(directory, "servers.json")));
+        Assert.Equal("*\n", File.ReadAllText(Path.Combine(directory, ".gitignore")));
+
+        // Another solution: nothing of the first one's, neither its data source nor its tab.
+        await vm.OpenSolutionAsync(second);
+        Assert.NotSame(explorer, vm.Database);
+        Assert.Same(vm.Database, ViewOf(window)?.DataContext);
+        Assert.Empty(vm.Database.ServerItems);
+        Assert.Empty(vm.Documents.OfType<DatabaseDocument>());
+        Assert.Empty(explorer.Tabs);
+        Assert.True(File.Exists(Path.Combine(directory, "workspace.json")));
+
+        // Back in the first one: its data source, tree and tab, as they were.
+        await vm.OpenSolutionAsync(first);
+        Assert.Same(vm.Database, ViewOf(window)?.DataContext);
+        Assert.Equal(["orders (sqlite)"], vm.Database.ServerItems.Select(s => s.Label));
+        var data = Assert.IsType<DataDocumentViewModel>(vm.Database.Tabs.Single());
+        Assert.Equal("users", data.Table.Name);
+        Assert.Same(data, vm.Documents.OfType<DatabaseDocument>().Single().Inner);
+        await Until(() => data.Rows.Count == 3);
+        await Until(() => vm.Database.ServerItems.Single() is { IsExpanded: true, IsLoading: false });
+
+        // No solution: Studio's list, and none of the first one's tabs.
+        await vm.CloseSolutionCommand.ExecuteAsync(null);
+        Assert.Same(vm.Database, ViewOf(window)?.DataContext);
+        Assert.Equal(["shop (sqlite)"], vm.Database.ServerItems.Select(s => s.Label));
+        Assert.Empty(vm.Documents.OfType<DatabaseDocument>());
+        Environment.SetEnvironmentVariable("BENGINE_SERVERS_FILE", null);
+        window.Close();
     }
 
     /// <summary>A dialog the explorer opens (it belongs to VSL's window), and what its task returned once it is closed.</summary>

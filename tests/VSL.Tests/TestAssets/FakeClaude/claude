@@ -4,12 +4,14 @@
 It speaks the same JSON lines as `claude --input-format stream-json --output-format stream-json`: it answers
 control requests, streams text, asks for permission with can_use_tool, and ends turns with a result. Every line
 it receives (and its arguments) is appended to <workspace>.fake-claude.log so tests can check what VSL sent. What it does
-for a prompt depends on a keyword in it: endpoint (the README screenshot), agent, write, edit, bash, ask, plan, slow;
+for a prompt depends on a keyword in it: endpoint (the README screenshot), agent, write, edit, bash, ask, plan,
+background, slow;
 anything else gets a Markdown answer.
 """
 import json
 import os
 import sys
+import time
 import uuid
 
 ARGS = sys.argv[1:]
@@ -56,8 +58,19 @@ if ARGS[:1] == ["-p"]:
         json.dump({"args": ARGS, "prompt": prompt, "cwd": os.getcwd(), "claudecode": os.environ.get("CLAUDECODE")}, f)
     print("```\nAdd the multi-repository commit panel\n\nLists every repository of the solution.\nCo-Authored-By: Claude <noreply@anthropic.com>\n```")
     sys.exit(0)
-SESSION = ARGS[ARGS.index("--resume") + 1] if "--resume" in ARGS else "fake-session-1"
 CWD = os.getcwd()
+# A workspace with a .fake-claude-sessions counter gives each new conversation an id of its own (several run at once).
+SESSIONS = os.path.join(CWD, ".fake-claude-sessions")
+if "--resume" in ARGS:
+    SESSION = ARGS[ARGS.index("--resume") + 1]
+elif os.path.exists(SESSIONS):
+    with open(SESSIONS) as f:
+        number = int(f.read().strip() or "0") + 1
+    with open(SESSIONS, "w") as f:
+        f.write(str(number))
+    SESSION = f"fake-session-{number}"
+else:
+    SESSION = "fake-session-1"
 # Test workspaces are named vsl-claude-*; their log sits next to them so parallel tests never share one.
 LOG = os.path.join(os.path.dirname(CWD), os.path.basename(CWD) + ".fake-claude.log") if os.path.basename(CWD).startswith("vsl-claude-") else None
 counter = [0]
@@ -370,6 +383,18 @@ def turn(prompt, content):
         decision = permission("ExitPlanMode", {"plan": plan}, [], "toolu_plan")
         tool_result("toolu_plan", "approved" if allowed(decision) else "rejected", not allowed(decision))
         stream_text("Plan approved." if allowed(decision) else "Back to planning.")
+        result("ok")
+    elif "background" in p:
+        # Works until the test lets it go on (a .fake-claude-go file), then asks to run a command.
+        stream_text("Working on it")
+        go = os.path.join(CWD, ".fake-claude-go")
+        while not os.path.exists(go):
+            time.sleep(0.05)
+        tool_input = {"command": "echo done", "description": "Finish the job"}
+        tool_use("toolu_background", "Bash", tool_input)
+        decision = permission("Bash", tool_input, [], "toolu_background")
+        tool_result("toolu_background", "done" if allowed(decision) else "denied", not allowed(decision))
+        stream_text("Finished in the background.")
         result("ok")
     elif "slow" in p:
         stream_text("Working on it")

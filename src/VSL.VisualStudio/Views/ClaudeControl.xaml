@@ -882,7 +882,15 @@
               <v:VsIcon Kind="Plug" />
             </Button>
             <Button Style="{StaticResource ClaudeIconButton}" Command="{Binding ToggleHistoryCommand}" ToolTip="{v:L 'Past conversations'}" Margin="1,0">
-              <v:VsIcon Kind="History" />
+              <Grid>
+                <v:VsIcon Kind="History" />
+                <!-- Conversations Claude works on in the background -->
+                <Border Visibility="{Binding HasBackground, Converter={StaticResource Visible}}" Background="{StaticResource ClaudeAccent}" CornerRadius="6"
+                        MinWidth="11" Height="11" Padding="2,0" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,-4,-6,0"
+                        ToolTip="{v:L 'Conversations working in the background'}">
+                  <TextBlock Text="{Binding BackgroundCount}" FontSize="8" FontWeight="Bold" Foreground="White" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                </Border>
+              </Grid>
             </Button>
             <Button Style="{StaticResource ClaudeIconButton}" Command="{Binding NewConversationCommand}" ToolTip="{v:L 'New conversation'}" Margin="1,0">
               <v:VsIcon Kind="Plus" />
@@ -1241,8 +1249,11 @@
                       <ColumnDefinition Width="Auto" />
                     </Grid.ColumnDefinitions>
                     <TextBlock Text="{v:Tr Title}" TextTrimming="CharacterEllipsis" />
-                    <TextBlock Grid.Column="1" Text="{Binding Modified, StringFormat='{}{0:dd.MM HH:mm}'}" Style="{StaticResource Muted}" FontSize="11" Margin="10,0,0,0"
-                               VerticalAlignment="Center" />
+                    <StackPanel Grid.Column="1" Orientation="Horizontal" Margin="10,0,0,0" VerticalAlignment="Center">
+                      <TextBlock Text="{v:Tr Status}" Visibility="{Binding HasStatus, Converter={StaticResource Visible}}" Foreground="{StaticResource ClaudeAccent}"
+                                 FontSize="11" Margin="0,0,10,0" />
+                      <TextBlock Text="{Binding Modified, StringFormat='{}{0:dd.MM HH:mm}'}" Style="{StaticResource Muted}" FontSize="11" />
+                    </StackPanel>
                   </Grid>
                 </DataTemplate>
               </ListBox.ItemTemplate>

@@ -8,13 +8,12 @@ namespace VSL.Views;
 /// <summary>
 /// The Database Explorer tool window (Bengine Data Studio's explorer). It is made the first time it shows: opening its
 /// workspace may reconnect to data sources and ask for their passwords, which nobody wants from a VSL that never opened it.
+/// Each solution has its own (see <see cref="MainViewModel.DatabaseDirectory"/>): the view goes with its solution, and the
+/// next solution's is made when it shows.
 /// </summary>
 public partial class MainWindow
 {
     DatabaseExplorerView? _databaseView;
-
-    /// <summary>Where the explorer's tree and database tabs are kept (VSL's own; Studio keeps its own workspace).</summary>
-    static string DatabaseWorkspaceFile => Path.Combine(Services.Settings.ConfigDirectory, "database-workspace.json");
 
     void InitializeDatabaseExplorer() =>
         DatabaseExplorerTab.PropertyChanged += (_, e) =>
@@ -23,16 +22,32 @@ public partial class MainWindow
                 EnsureDatabaseExplorer();
         };
 
-    /// <summary>The explorer view, made (and its workspace restored) the first time it is needed.</summary>
+    void AttachDatabaseExplorer(MainViewModel vm)
+    {
+        vm.DatabaseClosing += () =>
+        {
+            _databaseView?.CloseWorkspace();
+            DatabaseExplorerHost.Content = null;
+            _databaseView = null;
+        };
+        vm.DatabaseChanged += () =>
+        {
+            if (DatabaseExplorerTab.IsSelected)
+                EnsureDatabaseExplorer();
+        };
+    }
+
+    /// <summary>The explorer view of the open solution, made (and its workspace restored) the first time it is needed.</summary>
     internal DatabaseExplorerView? EnsureDatabaseExplorer()
     {
-        if (_databaseView is not null || Vm is not { } vm)
+        // Between two solutions the explorer is nobody's: the next one's shows once it is open.
+        if (_databaseView is not null || Vm is not { IsOpeningSolution: false } vm || _closing)
             return _databaseView;
         var view = _databaseView = new DatabaseExplorerView(vm.DatabaseServers) { DataContext = vm.Database };
         // Passwords, confirmations, files and the other questions the explorer asks come from the view.
         vm.Database.Dialogs = view;
         DatabaseExplorerHost.Content = view;
-        view.RestoreWorkspace(DatabaseWorkspaceFile);
+        view.RestoreWorkspace(vm.DatabaseWorkspaceFile);
         return view;
     }
 

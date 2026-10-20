@@ -112,7 +112,7 @@ public sealed partial class MarkdownView : Decorator
     /// Links are runs, which cannot take clicks, so the block hit-tests the pointer against the link ranges:
     /// a hand over a link, and a click (not a selection drag) opens it.
     /// </summary>
-    static void MakeLinksClickable(SelectableTextBlock block, IReadOnlyList<MdLink> links)
+    internal static void MakeLinksClickable(SelectableTextBlock block, IReadOnlyList<MdLink> links)
     {
         block.Tag = links;
         var normal = block.Cursor;

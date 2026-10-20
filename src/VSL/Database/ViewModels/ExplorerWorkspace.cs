@@ -107,6 +107,55 @@ public sealed partial class ExplorerViewModel
         ActiveTab = active ?? Tabs.LastOrDefault();
     }
 
+    /// <summary>
+    /// Settles what closing the workspace would lose (it goes when its solution closes): a console's open transaction
+    /// is committed or rolled back, and a data tab's unsaved edits stay only if the workspace does. A console's text
+    /// needs no question: the saved workspace keeps it.
+    /// </summary>
+    /// <returns><c>false</c> when the user keeps the edits of a data tab, and with them the workspace.</returns>
+    public async Task<bool> SettleWorkspaceAsync()
+    {
+        foreach (var tab in Tabs.ToList())
+        {
+            if (tab is QueryDocumentViewModel query)
+            {
+                await query.EndOpenTransactionAsync();
+            }
+            else if (tab is DataDocumentViewModel { HasPending: true } data && Dialogs is not null
+                     && !await Dialogs.ConfirmAsync("Pending Changes", $"Close {data.Table.Name} and discard {data.PendingCount} pending change(s)?"))
+            {
+                ActiveTab = data;
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /// <summary>Closes every tab without asking (<see cref="SettleWorkspaceAsync"/> has) and every connection.</summary>
+    /// <returns>A task that completes when the tabs and connections are closed.</returns>
+    public async Task CloseWorkspaceAsync()
+    {
+        _deferred.Clear();
+        _pendingExpanded.Clear();
+        _pendingSelected = null;
+        var tabs = Tabs.ToList();
+        ActiveTab = null;
+        Tabs.Clear();
+        foreach (var tab in tabs.OfType<IAsyncDisposable>())
+        {
+            await tab.DisposeAsync();
+        }
+
+        foreach (var server in _store.List())
+        {
+            Bengine.Introspection.Tree.ObjectExplorer.Disconnect(server.Id);
+        }
+
+        _catalogs.Clear();
+        _sessionPasswords.Clear();
+    }
+
     /// <summary>Re-expands and reselects the freshly loaded children of a row, as they were saved.</summary>
     /// <param name="parent">The row whose children just loaded.</param>
     internal void RestoreChildren(TreeItemViewModel parent)

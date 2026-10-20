@@ -55,6 +55,12 @@ public sealed class Settings
     /// <summary>The Claude Code panel's language: "en" or "uz" (English when not set).</summary>
     public string? UiLanguage { get; set; }
 
+    /// <summary>Markdown files show their preview beside the editor, as in Visual Studio 2022's Markdown editor.</summary>
+    public bool MarkdownPreview { get; set; } = true;
+
+    /// <summary>The Markdown preview is below the editor instead of to its right.</summary>
+    public bool MarkdownPreviewBelow { get; set; }
+
     /// <summary>The Claude Code account (its configuration folder) the panel runs with; null for the CLI's own choice.</summary>
     public string? ClaudeAccount { get; set; }
     /// <summary>

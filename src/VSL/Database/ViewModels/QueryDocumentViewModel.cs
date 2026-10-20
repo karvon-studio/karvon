@@ -469,6 +469,14 @@ public sealed partial class QueryDocumentViewModel : DocumentViewModel, IAsyncDi
             await SaveAsync();
         }
 
+        await EndOpenTransactionAsync();
+        return true;
+    }
+
+    /// <summary>Asks whether to commit or roll back the console's open transaction, if it has one, and does it.</summary>
+    /// <returns>A task that completes when no transaction is open.</returns>
+    public async Task EndOpenTransactionAsync()
+    {
         if (_session is { InTransaction: true } && _context.Dialogs is { } dialogs)
         {
             var commit = await dialogs.ConfirmAsync(
@@ -476,8 +484,6 @@ public sealed partial class QueryDocumentViewModel : DocumentViewModel, IAsyncDi
                 $"The console has an open transaction with {PendingStatements} statement(s). Commit it before closing? (No rolls it back.)");
             await EndTransactionAsync(commit);
         }
-
-        return true;
     }
 
     /// <inheritdoc />

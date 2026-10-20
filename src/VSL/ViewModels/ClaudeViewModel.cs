@@ -278,6 +278,7 @@ public sealed partial class ClaudeViewModel : ObservableObject, IAsyncDisposable
         _timer.Stop();
         _limitsTimer?.Stop();
         await StopSessionAsync();
+        await StopBackgroundAsync();
     }
 
     // ---- Sending -------------------------------------------------------------------------------------------
@@ -383,7 +384,9 @@ public sealed partial class ClaudeViewModel : ObservableObject, IAsyncDisposable
 
     async Task ResetAsync()
     {
-        await StopSessionAsync();
+        // A conversation Claude is working on keeps working in the background.
+        if (!MoveToBackground())
+            await StopSessionAsync();
         _resumeId = null;
         EndTurn();
         Items.Clear();
@@ -430,7 +433,10 @@ public sealed partial class ClaudeViewModel : ObservableObject, IAsyncDisposable
     void Handle(ClaudeSession session, ClaudeEvent ev)
     {
         if (session != _session)
+        {
+            HandleInBackground(session, ev);
             return;
+        }
         Apply(ev, live: true);
     }
 
@@ -1138,7 +1144,7 @@ public sealed partial class ClaudeViewModel : ObservableObject, IAsyncDisposable
     {
         History.Clear();
         foreach (var conversation in ClaudeHistory.List(_workingDirectory(), configDirectory: SelectedAccount?.ConfigDirectory))
-            History.Add(conversation);
+            History.Add(WithStatus(conversation));
     }
 
     [RelayCommand]
@@ -1179,10 +1185,17 @@ public sealed partial class ClaudeViewModel : ObservableObject, IAsyncDisposable
 
     async Task LoadConversationAsync(ClaudeConversation conversation)
     {
-        await StopSessionAsync();
+        // A conversation Claude is working on keeps working in the background.
+        if (!MoveToBackground())
+            await StopSessionAsync();
         EndTurn();
         Items.Clear();
         _tools.Clear();
+        if (BringBack(conversation.SessionId))
+        {
+            IsHistoryOpen = false;
+            return;
+        }
         _sessionCwd = _workingDirectory();
         foreach (var ev in ClaudeHistory.Load(conversation.FilePath))
             Apply(ev, live: false);

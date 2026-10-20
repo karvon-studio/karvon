@@ -263,35 +263,45 @@ public partial class MainViewModel : ObservableObject
 
     public async Task OpenSolutionAsync(string path)
     {
-        if (!await CloseSolutionCoreAsync())
-            return;
-        SetStatus($"Opening {Path.GetFileName(path)}...", StatusKind.Busy);
         SolutionInfo solution;
+        IsOpeningSolution = true;
         try
         {
-            solution = await SolutionLoader.LoadAsync(path);
-        }
-        catch (Exception ex)
-        {
-            SetStatus($"Failed to open solution: {ex.Message}", StatusKind.NoSolution);
-            return;
-        }
+            if (!await CloseSolutionCoreAsync())
+                return;
+            SetStatus($"Opening {Path.GetFileName(path)}...", StatusKind.Busy);
+            try
+            {
+                solution = await SolutionLoader.LoadAsync(path);
+            }
+            catch (Exception ex)
+            {
+                SetStatus($"Failed to open solution: {ex.Message}", StatusKind.NoSolution);
+                return;
+            }
 
-        Solution = solution;
-        ExplorerRoots.Add(solution.Root);
-        Settings.AddRecent(path);
-        OnPropertyChanged(nameof(RecentSolutions));
-        _state = RestoresSolutionState ? SolutionState.Load(path, Settings) : new SolutionState();
-        _restoringState = true;
-        try
-        {
-            RestoreSolutionState(solution, _state);
+            Solution = solution;
+            ExplorerRoots.Add(solution.Root);
+            Settings.AddRecent(path);
+            OnPropertyChanged(nameof(RecentSolutions));
+            _state = RestoresSolutionState ? SolutionState.Load(path, Settings) : new SolutionState();
+            _restoringState = true;
+            try
+            {
+                RestoreSolutionState(solution, _state);
+            }
+            finally
+            {
+                _restoringState = false;
+            }
+            Settings.Save();
         }
         finally
         {
-            _restoringState = false;
+            // The Database Explorer that shows from now on is this solution's (or no solution's, when it failed to open).
+            IsOpeningSolution = false;
+            DatabaseChanged?.Invoke();
         }
-        Settings.Save();
 
         SetStatus("Ready", StatusKind.Ready);
         await OpenGitAsync(solution);
@@ -305,7 +315,11 @@ public partial class MainViewModel : ObservableObject
     }
 
     [RelayCommand]
-    async Task CloseSolution() => await CloseSolutionCoreAsync();
+    async Task CloseSolution()
+    {
+        if (await CloseSolutionCoreAsync())
+            DatabaseChanged?.Invoke();
+    }
 
     /// <summary>Closes everything; returns false if the user cancelled saving.</summary>
     public async Task<bool> CloseSolutionCoreAsync()
@@ -321,6 +335,9 @@ public partial class MainViewModel : ObservableObject
                 doc.Host.Save();
         }
         SaveSession();
+        // The Database Explorer is the solution's too: it closes with it (a console's open transaction asks first).
+        if (!await CloseDatabaseAsync())
+            return false;
 
         _runProcess?.Kill();
         if (_session is { } debugSession)
@@ -328,16 +345,8 @@ public partial class MainViewModel : ObservableObject
         _buildCts?.Cancel();
         foreach (var doc in Editors)
             doc.Dispose();
-        // The solution's documents close; the Database Explorer's do not belong to it and stay.
-        if (Documents.All(d => d is not DatabaseDocument))
-            Documents.Clear();
-        else
-            foreach (var doc in Documents.Where(d => d is not DatabaseDocument).ToList())
-            {
-                Documents.Remove(doc);
-                doc.Dispose();
-            }
-        ActiveDocument = Documents.FirstOrDefault();
+        Documents.Clear();
+        ActiveDocument = null;
         await StopLanguageServerAsync();
         ExplorerRoots.Clear();
         StartupProjects.Clear();

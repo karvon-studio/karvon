@@ -6,7 +6,8 @@ using VSL.Database.ViewModels;
 
 /// <summary>
 /// Keeps the Database Explorer's workspace across restarts: the tree, the database tabs (through the explorer) and the
-/// side panel. It is VSL's own file (Bengine Data Studio keeps its own), written when VSL closes and every 20 seconds.
+/// side panel. It is VSL's own file, one per solution (Bengine Data Studio keeps its own), written when the solution or
+/// VSL closes and every 20 seconds.
 /// </summary>
 public partial class DatabaseExplorerView
 {
@@ -82,6 +83,23 @@ public partial class DatabaseExplorerView
         }
 
         return state;
+    }
+
+    /// <summary>
+    /// Saves the workspace a last time and stops keeping it: the explorer goes with its solution, and the next one
+    /// gets a view and a workspace of its own.
+    /// </summary>
+    public void CloseWorkspace()
+    {
+        SaveWorkspace();
+        _autosave.Stop();
+        _autosave.Tick -= OnAutosave;
+        _workspacePath = null;
+        _pendingWorkspace = null;
+        if (Current == this)
+        {
+            Current = null;
+        }
     }
 
     private void OnAutosave(object? sender, EventArgs e) => SaveWorkspace();

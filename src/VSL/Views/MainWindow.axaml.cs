@@ -17,6 +17,9 @@ namespace VSL.Views;
 public partial class MainWindow : Window, IDialogService
 {
     bool _closingConfirmed;
+
+    // From the close being asked until it is done or cancelled (the Database Explorer is not made again meanwhile).
+    bool _closing;
     bool _outputScrollPending;
     Key? _chord;
 
@@ -26,12 +29,15 @@ public partial class MainWindow : Window, IDialogService
         InitializeDocking();
         InitializeDatabaseExplorer();
         ExplorerTree.AddHandler(DoubleTappedEvent, OnExplorerDoubleTapped, RoutingStrategies.Bubble, handledEventsToo: true);
+        // Before the tree item, which takes Enter for expanding.
+        ExplorerTree.AddHandler(KeyDownEvent, OnExplorerKeyDown, RoutingStrategies.Tunnel);
         DataContextChanged += (_, _) =>
         {
             if (DataContext is MainViewModel vm)
             {
                 vm.Dialogs = this;
                 AttachDocumentWell(vm);
+                AttachDatabaseExplorer(vm);
                 vm.ToolWindowRequested += OnToolWindowRequested;
                 ApplySavedDockLayout(vm);
                 vm.BreakModeEntered += () =>
@@ -87,6 +93,7 @@ public partial class MainWindow : Window, IDialogService
         SaveDockLayout(vm);
         _databaseView?.SaveWorkspace();
         vm.SaveSession();
+        _closing = true;
         if (await vm.CloseSolutionCoreAsync())
         {
             await vm.ShutdownTerminalAsync();
@@ -95,6 +102,8 @@ public partial class MainWindow : Window, IDialogService
             _closingConfirmed = true;
             Close();
         }
+        else
+            _closing = false;
     }
 
     void OnWindowKeyDown(object? sender, KeyEventArgs e)
@@ -437,17 +446,18 @@ public partial class MainWindow : Window, IDialogService
     // ---- Solution Explorer ---------------------------------------------------------------------------------
 
     /// <summary>
-    /// Double-click opens a file, also one with nested files under it (X.razor with X.razor.cs). The tree item's
-    /// header handles a double-click first by toggling expansion (and marks it handled), so this listens to
-    /// handled double-clicks too, opens the file and undoes that toggle: expanding a file is the chevron's job.
-    /// Folders and projects still expand on double-click, as in VS.
+    /// Double-click opens a file, also one with nested files under it (X.razor with X.razor.cs), and a project's project
+    /// file, as VS does with "Open project files with double-click or the Enter key". The tree item's header handles a
+    /// double-click first by toggling expansion (and marks it handled), so this listens to handled double-clicks too,
+    /// opens the file and undoes that toggle: expanding a file or a project is the chevron's job. Folders still expand on
+    /// double-click, as in VS.
     /// </summary>
     void OnExplorerDoubleTapped(object? sender, TappedEventArgs e)
     {
         if (Vm is not { } vm || e.Source is not Visual source || source.FindAncestorOfType<ToggleButton>(includeSelf: true) is not null)
             return;
         var item = source.FindAncestorOfType<TreeViewItem>(includeSelf: true);
-        if (item?.DataContext is not ExplorerNode { Kind: NodeKind.File } node)
+        if (item?.DataContext is not ExplorerNode { Kind: NodeKind.File or NodeKind.Project } node)
             return;
         if (e.Handled && item.ItemCount > 0)
             node.IsExpanded = !node.IsExpanded;
@@ -650,7 +660,8 @@ public partial class MainWindow : Window, IDialogService
         }
         if (e.Key == Key.Enter && ExplorerTree.SelectedItem is ExplorerNode node && Vm is { } vm)
         {
-            if (node.Kind == NodeKind.File)
+            // A project opens its project file, as a file opens; the rest expand.
+            if (node.Kind is NodeKind.File or NodeKind.Project)
                 vm.OpenNode(node);
             else
                 node.IsExpanded = !node.IsExpanded;

@@ -3,7 +3,13 @@ using System.Text.RegularExpressions;
 
 namespace VSL.Claude;
 
-public sealed record ClaudeConversation(string SessionId, string Title, DateTime Modified, string FilePath);
+public sealed record ClaudeConversation(string SessionId, string Title, DateTime Modified, string FilePath)
+{
+    /// <summary>"Working" or "Waiting for you" while Claude works on it in the background; null otherwise.</summary>
+    public string? Status { get; init; }
+
+    public bool HasStatus => Status is not null;
+}
 
 /// <summary>Past conversations of a folder, read from the transcripts Claude Code saves for each session.</summary>
 public static partial class ClaudeHistory

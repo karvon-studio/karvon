@@ -61,6 +61,8 @@ public class UiTests
         vm.Settings.ClaudePermissionMode = null;
         vm.Settings.ClaudeModel = null;
         vm.Settings.EditorZoom = 1.0;
+        vm.Settings.MarkdownPreview = true;
+        vm.Settings.MarkdownPreviewBelow = false;
         VSL.Editor.EditorHost.DefaultZoom = 1.0;
         return vm;
     }
@@ -1025,6 +1027,32 @@ public class UiTests
         window.MouseDown(chevronCenter, Avalonia.Input.MouseButton.Left);
         window.MouseUp(chevronCenter, Avalonia.Input.MouseButton.Left);
         Dispatcher.UIThread.RunJobs();
+        Assert.True(greeting.IsExpanded);
+
+        // A project opens its project file on double-click or Enter, as in VS ("Open project files with double-click or
+        // the Enter key"), and stays expanded as it was.
+        var projectItem = window.GetVisualDescendants().OfType<Avalonia.Controls.TreeViewItem>().Single(i => i.DataContext == web);
+        var projectLabel = projectItem.GetVisualDescendants().OfType<Avalonia.Controls.TextBlock>().First(t => t.Text == "Web");
+        var projectCenter = projectLabel.TranslatePoint(new Point(projectLabel.Bounds.Width / 2, projectLabel.Bounds.Height / 2), window)!.Value;
+        window.MouseDown(projectCenter, Avalonia.Input.MouseButton.Left);
+        window.MouseUp(projectCenter, Avalonia.Input.MouseButton.Left);
+        window.MouseDown(projectCenter, Avalonia.Input.MouseButton.Left);
+        window.MouseUp(projectCenter, Avalonia.Input.MouseButton.Left);
+        await WaitUntil(() => vm.ActiveEditor?.FileName == "Web.csproj", TimeSpan.FromSeconds(5));
+        Assert.Equal("Web.csproj", vm.ActiveEditor?.FileName);
+        Assert.True(web.IsExpanded);
+        vm.OpenNode(greeting);
+        Assert.Equal("Greeting.razor", vm.ActiveEditor?.FileName);
+        window.ExplorerTree.SelectedItem = web;
+        projectItem.Focus();
+        window.KeyPress(Avalonia.Input.Key.Enter, Avalonia.Input.RawInputModifiers.None, Avalonia.Input.PhysicalKey.Enter, "\r");
+        Assert.Equal("Web.csproj", vm.ActiveEditor?.FileName);
+        Assert.True(web.IsExpanded);
+        // Enter opens a file, and leaves its nested files as they were.
+        window.ExplorerTree.SelectedItem = greeting;
+        item.Focus();
+        window.KeyPress(Avalonia.Input.Key.Enter, Avalonia.Input.RawInputModifiers.None, Avalonia.Input.PhysicalKey.Enter, "\r");
+        Assert.Equal("Greeting.razor", vm.ActiveEditor?.FileName);
         Assert.True(greeting.IsExpanded);
         Assert.True(await vm.CloseSolutionCoreAsync());
     }

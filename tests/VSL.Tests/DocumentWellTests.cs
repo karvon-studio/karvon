@@ -151,7 +151,7 @@ public class DocumentWellTests
 
         // Closing a floating window closes its documents.
         vm.FloatDocumentCommand.Execute(program);
-        var second = Assert.Single(window.OwnedWindows.OfType<DocumentWindow>().Where(w => w.IsVisible));
+        var second = Assert.Single(window.OwnedWindows.OfType<DocumentWindow>(), w => w.IsVisible);
         second.Close();
         await WaitUntil(() => vm.Documents.Count == 1, TimeSpan.FromSeconds(5));
         Assert.Empty(vm.FloatingGroups);

@@ -59,7 +59,9 @@
                 </StackPanel>
               </StackPanel>
             </Border>
-            <v:ControlPresenter Control="{Binding Host.View}" />
+            <v:EditorArea Host="{Binding Host}"
+                          ShowPreview="{Binding $parent[Window].((vm:MainViewModel)DataContext).MarkdownPreview}"
+                          PreviewBelow="{Binding $parent[Window].((vm:MainViewModel)DataContext).MarkdownPreviewBelow}" />
           </DockPanel>
         </Border>
       </DataTemplate>

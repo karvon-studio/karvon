@@ -32,6 +32,7 @@ Working on solutions needs the .NET 10 SDK. VSL downloads `roslyn-language-serve
 
 - **Editor**: C# and Razor IntelliSense, Quick Info, parameter info, squiggles, Ctrl+. quick actions and refactorings,
   Go To Definition / Implementation, Find All References, Rename, Format Document, outlining (Ctrl+M), Find in Files, zoom.
+  Markdown files open with a live preview to the right or below (VS 2022's Markdown editor), following the editor's scrolling.
 - **Solutions**: `.sln`, `.slnx` or a lone project file; Solution Explorer with VS file nesting, Dependencies and
   [Material Icon Theme](https://github.com/material-extensions/vscode-material-icon-theme) icons. Add New Item
   (Ctrl+Shift+A: class, interface, record, Razor component...), Existing Item, New Folder, Rename in place (F2) and
@@ -48,7 +49,8 @@ Working on solutions needs the .NET 10 SDK. VSL downloads `roslyn-language-serve
 - **Database Explorer** (Ctrl+Alt+S): [Bengine Data Studio](https://github.com/nbkabdulakhadov/bengine) inside VSL —
   PostgreSQL, MySQL/MariaDB, SQL Server, SQLite, Oracle and MongoDB: object tree, table data with staged edits, SQL
   consoles with completion and explain plans, DDL, table designer, ER diagrams, schema and data compare, backup and
-  restore, import and export, server activity. Its data sources are Studio's own.
+  restore, import and export, server activity. Each solution has its own: data sources, consoles, open tabs, tree
+  and history are kept in its `.vs` folder and come back only with it; with no solution open it shows Studio's list.
 - **Terminal**: your `$SHELL` in a real pty, in the solution folder.
 - **NuGet**: browse, install, update and uninstall across your configured feeds.
 - **Claude Code** (Ctrl+Esc): drives your installed `claude` CLI, so your login, settings and MCP servers apply.
@@ -114,7 +116,7 @@ src/VSL.VisualStudio/   the Claude Code panel as a Visual Studio extension (Wind
 ## License
 
 MIT, see [LICENSE](LICENSE). Third-party: Cascadia Mono font (SIL OFL 1.1); Avalonia, AvaloniaEdit, TextMateSharp,
-Exclr8.Terminal and Porta.Pty (MIT); roslyn-language-server and netcoredbg (MIT, downloaded at runtime);
+Exclr8.Terminal and Porta.Pty (MIT); Markdig (BSD 2-Clause); roslyn-language-server and netcoredbg (MIT, downloaded at runtime);
 Material Icon Theme icons (MIT, Copyright (c) 2025 Material Extensions; `src/VSL/Assets/MaterialIcons`, refreshed with
 `scripts/update-material-icons.sh`, and `src/VSL/Database/Assets/Icons`). The Database Explorer uses Bengine (same
 author) and its drivers: Npgsql (PostgreSQL License), Microsoft.Data.SqlClient, MySqlConnector, SSH.NET and

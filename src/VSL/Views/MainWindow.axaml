@@ -594,7 +594,7 @@
                        PlaceholderText="Search Solution Explorer (Ctrl+;)" TextChanged="OnExplorerSearchChanged" />
               <Panel>
                 <TreeView Name="ExplorerTree" ItemsSource="{Binding ExplorerRoots}" SelectedItem="{Binding SelectedExplorerNode, Mode=TwoWay}"
-                          KeyDown="OnExplorerKeyDown" Background="Transparent">
+                          Background="Transparent">
                   <TreeView.Styles>
                     <Style Selector="TreeViewItem" x:DataType="ws:ExplorerNode">
                       <Setter Property="IsExpanded" Value="{Binding IsExpanded, Mode=TwoWay}" />

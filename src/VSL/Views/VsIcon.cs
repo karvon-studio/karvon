@@ -477,6 +477,13 @@ public sealed class VsIcon : Control
                 // An archive box: a repository.
                 Line(dc, "M3 3h18v5H3z M4 8v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8 M10 12h4", fg, 1.8);
                 break;
+            case "PreviewRight":
+                // A window with a pane to the right: the preview beside the editor.
+                Line(dc, "M3 4h18v16H3z M13 4v16", fg, 1.8);
+                break;
+            case "PreviewBelow":
+                Line(dc, "M3 4h18v16H3z M3 13h18", fg, 1.8);
+                break;
             case "Globe":
                 Line(dc, "M12 2a10 10 0 1 0 0 20a10 10 0 1 0 0-20z M2 12h20 M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z", fg, 1.6);
                 break;
