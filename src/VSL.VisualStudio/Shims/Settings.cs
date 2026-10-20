@@ -13,6 +13,9 @@ public sealed class Settings
 
     public string? ClaudeEffort { get; set; }
 
+    /// <summary>Remote Control was left on: each conversation's CLI turns it on as it starts.</summary>
+    public bool ClaudeRemoteControl { get; set; }
+
     public string? ClaudeAccount { get; set; }
 
     /// <summary>The panel's language: "en" or "uz" (null: Uzbek on an Uzbek Windows, else English).</summary>

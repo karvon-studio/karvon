@@ -58,7 +58,7 @@ public sealed partial class ClaudeViewModel : ObservableObject, IAsyncDisposable
         foreach (var model in DefaultModels)
             Models.Add(model);
         SelectedModel = Models.FirstOrDefault(m => m.Value == settings.ClaudeModel) ?? Models[0];
-        PermissionMode = settings.ClaudePermissionMode is "acceptEdits" or "plan" or "auto" ? settings.ClaudePermissionMode : "default";
+        PermissionMode = KnownMode(settings.ClaudePermissionMode);
         Effort = settings.ClaudeEffort;
         RefreshModes();
         RefreshEffortSteps();
@@ -127,7 +127,7 @@ public sealed partial class ClaudeViewModel : ObservableObject, IAsyncDisposable
     [ObservableProperty]
     public partial string StatusText { get; set; } = "";
 
-    /// <summary>"default" (ask before edits), "acceptEdits" or "plan".</summary>
+    /// <summary>"default" (ask before edits), "acceptEdits", "plan", "auto" or "bypassPermissions".</summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(ModeLabel), nameof(ModeIcon))]
     public partial string PermissionMode { get; set; } = "default";
@@ -186,6 +186,7 @@ public sealed partial class ClaudeViewModel : ObservableObject, IAsyncDisposable
             ApplyInitialization(session.Initialization);
             await ApplySessionSettingsAsync(session);
             _ = RefreshLimitsAsync(session);
+            ResumeRemoteControl(session);
             return session;
         }
         finally
@@ -248,6 +249,9 @@ public sealed partial class ClaudeViewModel : ObservableObject, IAsyncDisposable
             foreach (var c in commands.EnumerateArray())
                 if (ClaudeJson.Str(c, "name") is { Length: > 0 } name && !name.StartsWith("__", StringComparison.Ordinal))
                     Commands.Add(new ClaudeCommand(name, ClaudeJson.Str(c, "description") ?? "", ClaudeJson.Str(c, "argumentHint")));
+            // VSL's own, as the VS Code extension has it (headless, the CLI does not list it).
+            if (ClaudeJson.Bool(init, "remote_control_available") && Commands.All(c => c.Name != "remote-control"))
+                Commands.Add(RemoteControlCommand());
         }
         if (init.TryGetProperty("account", out var account))
             Account = string.Join(" · ", new[] { ClaudeJson.Str(account, "subscriptionType"), ClaudeJson.Str(account, "email") }.Where(s => s is { Length: > 0 }));
@@ -259,6 +263,8 @@ public sealed partial class ClaudeViewModel : ObservableObject, IAsyncDisposable
             return;
         _resumeId = session.SessionId ?? _resumeId;
         _session = null;
+        if (_remoteSession == session)
+            ClearRemoteControl();
         await session.DisposeAsync();
     }
 
@@ -460,6 +466,23 @@ public sealed partial class ClaudeViewModel : ObservableObject, IAsyncDisposable
                 // Prompts are shown as they are sent; anything else the CLI echoes as a user turn is bookkeeping.
                 break;
 
+            case ClaudeRemotePrompt remote:
+                ApplyRemotePrompt(remote);
+                break;
+
+            case ClaudePermissionCancelled cancelled:
+                ApplyAnsweredElsewhere(cancelled.RequestId);
+                break;
+
+            case ClaudeModeChanged modeChanged when KnownMode(modeChanged.Mode) != PermissionMode:
+                // Changed on claude.ai, or by the CLI itself (an approved plan).
+                SetModeFromCli(modeChanged.Mode);
+                break;
+
+            case ClaudeBridgeState bridge:
+                ApplyBridgeState(bridge);
+                break;
+
             case ClaudeUserText user when user.ParentToolUseId is null:
                 var text = ClaudeHistory.StripContext(user.Text);
                 var images = user.Images.Select((image, i) => new ClaudeAttachment($"image {i + 1}", image.MediaType, SafeBase64(image.Base64))).ToList();
@@ -586,6 +609,7 @@ public sealed partial class ClaudeViewModel : ObservableObject, IAsyncDisposable
 
             case ClaudeExited exited:
                 _session = null;
+                ClearRemoteControl();
                 if (IsRunning || exited.ExitCode != 0)
                 {
                     var tail = string.Join("\n", exited.Stderr.Split('\n', StringSplitOptions.RemoveEmptyEntries).TakeLast(4));
@@ -1075,29 +1099,50 @@ public sealed partial class ClaudeViewModel : ObservableObject, IAsyncDisposable
 
     // ---- Mode, model, context ------------------------------------------------------------------------------
 
-    /// <summary>Shift+Tab: the next mode the model offers.</summary>
+    /// <summary>
+    /// Shift+Tab: the next mode the model offers. Bypass permissions is not on the way round: it is only ever chosen in
+    /// the menu, never by a key pressed once too often (from it, Shift+Tab goes back to Manual).
+    /// </summary>
     [RelayCommand]
     void CycleMode()
     {
-        var modes = Modes.Select(m => m.Value).ToList();
+        var modes = Modes.Select(m => m.Value).Where(m => m != "bypassPermissions" || m == PermissionMode).ToList();
         PermissionMode = modes[(modes.IndexOf(PermissionMode) + 1) % modes.Count];
     }
+
+    /// <summary>A mode VSL offers; anything else ("manual", "dontAsk"...) is shown as Manual.</summary>
+    static string KnownMode(string? mode) => AllModes.Any(m => m.Value == mode) ? mode! : "default";
 
     void SetModeFromCli(string mode)
     {
         _changingModeFromCli = true;
-        PermissionMode = mode is "acceptEdits" or "plan" or "auto" ? mode : "default";
+        PermissionMode = KnownMode(mode);
         _changingModeFromCli = false;
     }
 
-    partial void OnPermissionModeChanged(string value)
+    partial void OnPermissionModeChanged(string oldValue, string newValue)
     {
         foreach (var mode in Modes)
-            mode.IsSelected = mode.Value == value;
-        _settings.ClaudePermissionMode = value;
+            mode.IsSelected = mode.Value == newValue;
+        _settings.ClaudePermissionMode = newValue;
         _settings.Save();
         if (!_changingModeFromCli && _session is { HasExited: false } session)
-            _ = SendControlAsync(() => session.SetPermissionModeAsync(value));
+            _ = SetPermissionModeAsync(session, newValue, oldValue ?? "default");
+    }
+
+    /// <summary>A mode the CLI refuses (bypass permissions turned off by policy...) is reported, and the previous one comes back.</summary>
+    async Task SetPermissionModeAsync(ClaudeSession session, string mode, string previous)
+    {
+        try
+        {
+            await session.SetPermissionModeAsync(mode);
+        }
+        catch (InvalidOperationException ex)
+        {
+            Items.Add(new NoticeChatItem(ex.Message, isError: true));
+            if (_session == session && PermissionMode == mode)
+                SetModeFromCli(previous);
+        }
     }
 
     partial void OnSelectedModelChanged(ClaudeModelChoice? value)

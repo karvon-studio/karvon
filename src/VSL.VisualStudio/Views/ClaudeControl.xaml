@@ -314,6 +314,12 @@
           <Setter Property="Background" Value="#1FD97757" />
           <Setter Property="BorderBrush" Value="#80D97757" />
         </DataTrigger>
+        <!-- Bypass permissions in red: nothing stops Claude. -->
+        <DataTrigger Binding="{Binding PermissionMode}" Value="bypassPermissions">
+          <Setter Property="Tag" Value="#F14C4C" />
+          <Setter Property="Background" Value="#26F14C4C" />
+          <Setter Property="BorderBrush" Value="#B0F14C4C" />
+        </DataTrigger>
       </Style.Triggers>
     </Style>
     <Style x:Key="MenuRow" TargetType="Button" BasedOn="{StaticResource ClaudeButtonBase}">
@@ -540,6 +546,12 @@
             <StackPanel Orientation="Horizontal">
               <v:VsIcon Kind="file" Width="11" Height="11" Margin="0,0,4,0" />
               <TextBlock Text="{Binding Context}" FontSize="11" Style="{StaticResource Muted}" />
+            </StackPanel>
+          </Border>
+          <Border Style="{StaticResource Chip}" Visibility="{Binding IsRemote, Converter={StaticResource Visible}}" HorizontalAlignment="Left" Margin="0,6,0,0">
+            <StackPanel Orientation="Horizontal">
+              <v:VsIcon Kind="Remote" Width="11" Height="11" Margin="0,0,4,0" Foreground="#4EC9B0" />
+              <TextBlock Text="{v:L 'Sent with Remote Control'}" FontSize="11" Style="{StaticResource Muted}" />
             </StackPanel>
           </Border>
         </StackPanel>
@@ -875,6 +887,20 @@
                 <v:VsIcon Kind="Chevron" Width="10" Height="10" Margin="3,1,0,0" Opacity="0.7" />
               </StackPanel>
             </Button>
+            <!-- Remote Control: continue the conversation from claude.ai/code or the Claude app; lit while it is on. -->
+            <Button Style="{StaticResource ClaudeIconButton}" Command="{Binding ToggleRemoteControlCommand}" ToolTip="{v:Tr RemoteControlTip}" Margin="1,0">
+              <v:VsIcon Kind="Remote">
+                <v:VsIcon.Style>
+                  <Style TargetType="v:VsIcon">
+                    <Style.Triggers>
+                      <DataTrigger Binding="{Binding IsRemoteControlActive}" Value="True">
+                        <Setter Property="Foreground" Value="#4EC9B0" />
+                      </DataTrigger>
+                    </Style.Triggers>
+                  </Style>
+                </v:VsIcon.Style>
+              </v:VsIcon>
+            </Button>
             <Button Style="{StaticResource ClaudeIconButton}" Command="{Binding OpenUsageCommand}" ToolTip="{v:L 'Account &amp; usage (/usage)'}" Margin="1,0">
               <v:VsIcon Kind="Gauge" />
             </Button>
@@ -1045,6 +1071,29 @@
                 <v:VsIcon Kind="{Binding ModeIcon}" Width="14" Height="14" Margin="0,0,5,0"
                           Foreground="{Binding Tag, RelativeSource={RelativeSource AncestorType=Button}}" />
                 <TextBlock Text="{v:Tr ModeLabel}" VerticalAlignment="Center" />
+              </StackPanel>
+            </Button>
+            <!-- Remote Control is on: the conversation at claude.ai/code, one click away. -->
+            <Button Grid.Column="3" Style="{StaticResource ToolChip}" Command="{Binding OpenRemoteControlCommand}" HorizontalAlignment="Left"
+                    BorderBrush="#804EC9B0" Background="#1A4EC9B0" Visibility="{Binding IsRemoteControlActive, Converter={StaticResource Visible}}"
+                    ToolTip="{v:L 'Remote Control is on · Click to open the conversation at claude.ai/code · /remote-control turns it off'}">
+              <StackPanel Orientation="Horizontal">
+                <Ellipse Width="7" Height="7" Margin="0,0,6,0" VerticalAlignment="Center">
+                  <Ellipse.Style>
+                    <Style TargetType="Ellipse">
+                      <Setter Property="Fill" Value="#4EC9B0" />
+                      <Style.Triggers>
+                        <DataTrigger Binding="{Binding IsRemoteControlConnecting}" Value="True">
+                          <Setter Property="Fill" Value="#9D9D9D" />
+                        </DataTrigger>
+                      </Style.Triggers>
+                    </Style>
+                  </Ellipse.Style>
+                </Ellipse>
+                <TextBlock Text="{v:L 'Remote Control'}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"
+                           Visibility="{Binding IsRemoteControlOn, Converter={StaticResource Visible}}" />
+                <TextBlock Text="{v:L 'Connecting…'}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"
+                           Visibility="{Binding IsRemoteControlConnecting, Converter={StaticResource Visible}}" />
               </StackPanel>
             </Button>
             <!-- The model: a chip that opens the model menu above the prompt. -->
@@ -1292,7 +1341,18 @@
                       <ColumnDefinition Width="*" />
                       <ColumnDefinition Width="Auto" />
                     </Grid.ColumnDefinitions>
-                    <v:VsIcon Kind="{Binding Icon}" Width="18" Height="18" Margin="0,1,12,0" VerticalAlignment="Top" />
+                    <v:VsIcon Kind="{Binding Icon}" Width="18" Height="18" Margin="0,1,12,0" VerticalAlignment="Top">
+                      <v:VsIcon.Style>
+                        <Style TargetType="v:VsIcon">
+                          <Style.Triggers>
+                            <!-- Bypass permissions: nothing stops Claude. -->
+                            <DataTrigger Binding="{Binding IsRisky}" Value="True">
+                              <Setter Property="Foreground" Value="#F14C4C" />
+                            </DataTrigger>
+                          </Style.Triggers>
+                        </Style>
+                      </v:VsIcon.Style>
+                    </v:VsIcon>
                     <StackPanel Grid.Column="1">
                       <TextBlock Text="{v:Tr Label}" FontSize="13" />
                       <TextBlock Text="{v:Tr Description}" Style="{StaticResource Muted}" FontSize="11" TextWrapping="Wrap" />

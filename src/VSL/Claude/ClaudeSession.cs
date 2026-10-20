@@ -16,7 +16,8 @@ public sealed record ClaudeStartOptions(
 /// <summary>
 /// One running Claude Code CLI in headless streaming mode (the interface the Agent SDK uses): JSON lines on
 /// stdin/stdout, prompts as user messages, permission prompts as can_use_tool control requests answered by VSL,
-/// and control requests (initialize, interrupt, set_permission_mode, set_model) with matching responses.
+/// and control requests (initialize, interrupt, set_permission_mode, set_model, remote_control) with matching responses.
+/// The CLI echoes each prompt as it takes it up; those VSL did not send come from claude.ai (Remote Control).
 /// </summary>
 public sealed class ClaudeSession : IAsyncDisposable
 {
@@ -25,6 +26,7 @@ public sealed class ClaudeSession : IAsyncDisposable
     readonly Process _process;
     readonly StreamWriter _stdin;
     readonly ConcurrentDictionary<string, TaskCompletionSource<JsonElement>> _pending = new();
+    readonly ConcurrentDictionary<string, bool> _sent = new();
     readonly SemaphoreSlim _writeLock = new(1, 1);
     readonly StringBuilder _stderr = new();
     readonly Task _reader;
@@ -80,6 +82,10 @@ public sealed class ClaudeSession : IAsyncDisposable
             "--output-format", "stream-json", "--verbose", "--input-format", "stream-json", "--include-partial-messages",
             // Permission prompts come back to VSL as can_use_tool control requests instead of being denied.
             "--permission-prompt-tool", "stdio",
+            // Every prompt is echoed as the CLI takes it up: VSL's, and those sent from claude.ai with Remote Control.
+            "--replay-user-messages",
+            // Bypass permissions can be chosen during the session too (the CLI refuses it otherwise); it stays off until chosen.
+            "--allow-dangerously-skip-permissions",
         ];
         if (options.PermissionMode is { Length: > 0 } mode && mode != "default")
             args.AddRange(["--permission-mode", mode]);
@@ -147,6 +153,7 @@ public sealed class ClaudeSession : IAsyncDisposable
             message = new { role = "user", content },
             parent_tool_use_id = (string?)null,
             session_id = SessionId ?? "default",
+            uuid = NewPromptId(),
         });
     }
 
@@ -161,7 +168,16 @@ public sealed class ClaudeSession : IAsyncDisposable
             message = new { role = "user", content = command },
             parent_tool_use_id = (string?)null,
             session_id = SessionId ?? "default",
+            uuid = NewPromptId(),
         });
+
+    /// <summary>An id for a prompt VSL sends, so its echo is told apart from prompts sent from elsewhere.</summary>
+    string NewPromptId()
+    {
+        var id = Guid.NewGuid().ToString();
+        _sent[id] = true;
+        return id;
+    }
 
     /// <summary>Answers a can_use_tool request: allow (optionally with changed input / remembered rules) or deny.</summary>
     public Task RespondToPermissionAsync(string requestId, ClaudePermissionDecision decision) =>
@@ -174,6 +190,18 @@ public sealed class ClaudeSession : IAsyncDisposable
     public Task InterruptAsync() => RequestAsync(new { subtype = "interrupt" });
 
     public Task SetPermissionModeAsync(string mode) => RequestAsync(new { subtype = "set_permission_mode", mode });
+
+    /// <summary>
+    /// Turns Remote Control on or off: on, the conversation can be continued from claude.ai/code or the Claude app, and the
+    /// response carries its session_url there.
+    /// </summary>
+    public Task<JsonElement> SetRemoteControlAsync(bool enabled) => RequestAsync(new { subtype = "remote_control", enabled });
+
+    /// <summary>Whether the signed-in account can use Remote Control (a claude.ai sign-in); null when the CLI does not say.</summary>
+    public bool? IsRemoteControlAvailable =>
+        Initialization.ValueKind == JsonValueKind.Object && Initialization.TryGetProperty("remote_control_available", out var available)
+            ? available.ValueKind == JsonValueKind.True ? true : available.ValueKind == JsonValueKind.False ? false : null
+            : null;
 
     public Task SetModelAsync(string? model) => RequestAsync(new { subtype = "set_model", model = model is null or "default" ? null : model });
 
@@ -267,6 +295,18 @@ public sealed class ClaudeSession : IAsyncDisposable
                 else
                     tcs.TrySetResult(response.TryGetProperty("response", out var body) ? body.Clone() : default);
             }
+            return;
+        }
+        if (ClaudeProtocol.Str(root, "type") == "user" && root.TryGetProperty("isReplay", out var replay) && replay.ValueKind == JsonValueKind.True)
+        {
+            // The echo of a prompt VSL sent (shown when it was sent), or one sent from claude.ai.
+            if (ClaudeProtocol.Str(root, "uuid") is { } uuid && _sent.TryRemove(uuid, out _)
+                || root.TryGetProperty("isSynthetic", out var synthetic) && synthetic.ValueKind == JsonValueKind.True)
+                return;
+            foreach (var ev in ClaudeProtocol.Parse(root))
+                if (ev is ClaudeUserText { ParentToolUseId: null } user && ClaudeProtocol.PromptText(user.Text) is { } text
+                    && (text.Length > 0 || user.Images.Count > 0))
+                    Event?.Invoke(new ClaudeRemotePrompt(text, user.Images));
             return;
         }
         foreach (var ev in ClaudeProtocol.Parse(root))

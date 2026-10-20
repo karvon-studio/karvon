@@ -45,6 +45,13 @@ namespace VSL.Claude
     {
         private static partial Regex ContextPattern() => VisualStudio.Shims.GeneratedRegexes.For(typeof(ClaudeHistory), nameof(ContextPattern));
     }
+
+    public static partial class ClaudeProtocol
+    {
+        private static partial Regex CommandName() => VisualStudio.Shims.GeneratedRegexes.For(typeof(ClaudeProtocol), nameof(CommandName));
+
+        private static partial Regex CommandArgs() => VisualStudio.Shims.GeneratedRegexes.For(typeof(ClaudeProtocol), nameof(CommandArgs));
+    }
 }
 
 namespace VSL.ViewModels

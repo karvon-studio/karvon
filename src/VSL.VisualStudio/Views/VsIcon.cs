@@ -179,6 +179,14 @@ public sealed class VsIcon : FrameworkElement
                 Stroke(dc, "M2,11.5 A6,6 0 1 1 14,11.5 M8,11 L11,6.5", fg, 1.3);
                 Fill(dc, "M8,9.7 A1.3,1.3 0 1 0 8,12.3 A1.3,1.3 0 1 0 8,9.7 Z", fg);
                 break;
+            case "ShieldOff":
+                // A shield struck through: nothing stops Claude (bypass permissions).
+                Line(dc, "M12 2.5l7.5 3v6c0 4.8-3.2 8.3-7.5 10-4.3-1.7-7.5-5.2-7.5-10v-6z M3 3l18 18", fg, 1.8);
+                break;
+            case "Remote":
+                // A phone with a signal: Remote Control.
+                Line(dc, "M6.5 2h7A1.5 1.5 0 0 1 15 3.5v17a1.5 1.5 0 0 1-1.5 1.5h-7A1.5 1.5 0 0 1 5 20.5v-17A1.5 1.5 0 0 1 6.5 2z M9 18.5h2 M18 9a4 4 0 0 1 0 6 M20.5 6.5a7.5 7.5 0 0 1 0 11", fg, 1.8);
+                break;
             case "Plug":
                 Stroke(dc, "M5.5,1.5 L5.5,4.5 M10.5,1.5 L10.5,4.5 M3.5,4.5 L12.5,4.5 L12.5,7 C12.5,9.5 10.5,11 8,11 C5.5,11 3.5,9.5 3.5,7 Z M8,11 L8,14.5", fg, 1.2);
                 break;

@@ -780,8 +780,8 @@ public class UiTests
         List<JsonElement> ControlRequests() => FakeClaude.Log(log).Where(e => e.Kind == "in" && e.Data.GetProperty("type").GetString() == "control_request")
             .Select(e => e.Data.GetProperty("request")).ToList();
 
-        // Modes menu: the four modes (Auto when the model offers it) and the effort slider the CLI reports.
-        Assert.Equal(["Manual", "Edit automatically", "Plan", "Auto"], vm.Modes.Select(m => m.Label));
+        // Modes menu: the modes (Auto when the model offers it) and the effort slider the CLI reports.
+        Assert.Equal(["Manual", "Edit automatically", "Plan", "Auto", "Bypass permissions"], vm.Modes.Select(m => m.Label));
         Assert.Equal("Effort (Extra high)", vm.EffortLabel);
         Assert.Equal(["low", "medium", "high", "xhigh", "max"], vm.EffortSteps.Select(s => s.Value));
         Assert.True(vm.EffortSteps[3].IsSelected);

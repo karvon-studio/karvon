@@ -1,5 +1,6 @@
 using System.Text;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 
 namespace VSL.Claude;
 
@@ -36,6 +37,12 @@ public sealed record ClaudeUserText(string Text, IReadOnlyList<ClaudeImage> Imag
     }
 }
 
+/// <summary>
+/// A prompt VSL did not send, taken up by the CLI: typed at claude.ai/code or in the Claude app while Remote Control is
+/// on (the CLI echoes every prompt it takes up; VSL's own are already shown).
+/// </summary>
+public sealed record ClaudeRemotePrompt(string Text, IReadOnlyList<ClaudeImage> Images) : ClaudeEvent;
+
 /// <summary>An image sent with a prompt (base64, as in the Messages API).</summary>
 public sealed record ClaudeImage(string MediaType, string Base64);
 
@@ -49,6 +56,15 @@ public sealed record ClaudePermissionRequest(
     IReadOnlyList<JsonElement> Suggestions,
     string? ToolUseId,
     string? AgentId = null) : ClaudeEvent;
+
+/// <summary>control_cancel_request: a question VSL was asked is answered elsewhere (on claude.ai, with Remote Control).</summary>
+public sealed record ClaudePermissionCancelled(string RequestId) : ClaudeEvent;
+
+/// <summary>system/status with a permission mode: the mode changed (from claude.ai, or by an approved plan).</summary>
+public sealed record ClaudeModeChanged(string Mode) : ClaudeEvent;
+
+/// <summary>system/bridge_state: how Remote Control's connection to claude.ai is ("connected", "reconnecting", "failed"...).</summary>
+public sealed record ClaudeBridgeState(string State, string? Detail) : ClaudeEvent;
 
 /// <summary>The end of a turn; <paramref name="ContextTokens"/> is how much context the last model call used.</summary>
 public sealed record ClaudeResult(string Subtype, bool IsError, long DurationMs, double? CostUsd, string? Text, string? SessionId, int? ContextTokens = null)
@@ -77,7 +93,7 @@ public sealed record ClaudeToolUseBlock(string Id, string Name, JsonElement Inpu
 public sealed record ClaudeToolResult(string ToolUseId, string Content, bool IsError);
 
 /// <summary>Turns stream-json lines into <see cref="ClaudeEvent"/>s.</summary>
-public static class ClaudeProtocol
+public static partial class ClaudeProtocol
 {
     public static IEnumerable<ClaudeEvent> Parse(JsonElement root)
     {
@@ -92,6 +108,14 @@ public static class ClaudeProtocol
                     yield return new ClaudeNotice("Conversation compacted", IsError: false);
                 else if (Str(root, "subtype") is "thinking_tokens" && root.TryGetProperty("estimated_tokens", out var est) && est.TryGetInt32(out var thinking))
                     yield return new ClaudeTokens(thinking);
+                else if (Str(root, "subtype") is "status" && Str(root, "permissionMode") is { Length: > 0 } mode)
+                    yield return new ClaudeModeChanged(mode);
+                else if (Str(root, "subtype") is "bridge_state" && Str(root, "state") is { Length: > 0 } state)
+                    yield return new ClaudeBridgeState(state, Str(root, "detail"));
+                break;
+
+            case "control_cancel_request" when Str(root, "request_id") is { } cancelled:
+                yield return new ClaudePermissionCancelled(cancelled);
                 break;
 
             case "stream_event":
@@ -233,6 +257,28 @@ public static class ClaudeProtocol
             .Select(part => Str(part, "type") == "text" ? Str(part, "text") : Str(part, "type") == "image" ? "[image]" : null)
             .OfType<string>());
     }
+
+    /// <summary>
+    /// A prompt as the user typed it: a slash command the CLI expanded ("&lt;command-name&gt;/compact&lt;/command-name&gt;...")
+    /// as the command and its arguments, anything else without the editor context VSL appends; null for the CLI's own
+    /// bookkeeping (caveats, command output).
+    /// </summary>
+    public static string? PromptText(string text)
+    {
+        if (CommandName().Match(text) is { Success: true } command)
+        {
+            var args = CommandArgs().Match(text) is { Success: true } a ? a.Groups[1].Value.Trim() : "";
+            return args.Length > 0 ? command.Groups[1].Value.Trim() + " " + args : command.Groups[1].Value.Trim();
+        }
+        var prompt = ClaudeHistory.StripContext(text);
+        return prompt.StartsWith('<') ? null : prompt;
+    }
+
+    [GeneratedRegex(@"<command-name>(.*?)</command-name>", RegexOptions.Singleline)]
+    private static partial Regex CommandName();
+
+    [GeneratedRegex(@"<command-args>(.*?)</command-args>", RegexOptions.Singleline)]
+    private static partial Regex CommandArgs();
 
     static string? ParentToolUseId(JsonElement root) =>
         root.TryGetProperty("parent_tool_use_id", out var p) && p.ValueKind == JsonValueKind.String ? p.GetString() : null;

@@ -8,6 +8,9 @@ public sealed partial class ModeOption(string value, string label, string descri
 {
     public string Value { get; } = value;
 
+    /// <summary>Bypass permissions: nothing stops Claude, so the menu shows it in red.</summary>
+    public bool IsRisky => Value == "bypassPermissions";
+
     public string Label { get; } = label;
 
     public string Description { get; } = description;

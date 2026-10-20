@@ -148,6 +148,35 @@
     <Style Selector="Button.mode.auto v|VsIcon#ModeIcon">
       <Setter Property="Foreground" Value="#D97757" />
     </Style>
+    <!-- Bypass permissions in red: nothing stops Claude. -->
+    <Style Selector="Button.mode.bypass">
+      <Setter Property="Background" Value="#26F14C4C" />
+      <Setter Property="BorderBrush" Value="#B0F14C4C" />
+    </Style>
+    <Style Selector="Button.mode.bypass v|VsIcon#ModeIcon">
+      <Setter Property="Foreground" Value="#F14C4C" />
+    </Style>
+    <Style Selector="v|VsIcon.modeIcon">
+      <Setter Property="Foreground" Value="#C8C8C8" />
+    </Style>
+    <Style Selector="v|VsIcon.modeIcon.risky">
+      <Setter Property="Foreground" Value="#F14C4C" />
+    </Style>
+    <!-- Remote Control: the header button lit while it is on, and the pill that opens the conversation at claude.ai. -->
+    <Style Selector="Button.tbi.remoteOn v|VsIcon">
+      <Setter Property="Foreground" Value="#4EC9B0" />
+    </Style>
+    <Style Selector="Button.chip.remote">
+      <Setter Property="BorderBrush" Value="#804EC9B0" />
+      <Setter Property="Background" Value="#1A4EC9B0" />
+      <Setter Property="HorizontalAlignment" Value="Left" />
+    </Style>
+    <Style Selector="Ellipse.remoteDot">
+      <Setter Property="Fill" Value="#4EC9B0" />
+    </Style>
+    <Style Selector="Ellipse.remoteDot.connecting">
+      <Setter Property="Fill" Value="#9D9D9D" />
+    </Style>
     <Style Selector="Border.card">
       <Setter Property="Background" Value="#2E808080" />
       <Setter Property="BorderBrush" Value="#50808080" />
@@ -390,6 +419,10 @@
               <TextBlock Text="{Binding Code, Source={x:Static c:ClaudeLanguage.Instance}}" FontSize="11" FontWeight="SemiBold" VerticalAlignment="Center" />
             </StackPanel>
           </Button>
+          <Button Name="RemoteControlButton" Classes="tbi" Classes.remoteOn="{Binding IsRemoteControlActive}" Command="{Binding ToggleRemoteControlCommand}"
+                  ToolTip.Tip="{v:Tr RemoteControlTip}">
+            <v:VsIcon Kind="Remote" />
+          </Button>
           <Button Name="UsageButton" Classes="tbi" Command="{Binding OpenUsageCommand}" ToolTip.Tip="{v:L 'Account &amp; usage (/usage)'}">
             <v:VsIcon Kind="Gauge" />
           </Button>
@@ -484,10 +517,20 @@
                   Classes.acceptEdits="{Binding PermissionMode, Converter={x:Static ObjectConverters.Equal}, ConverterParameter=acceptEdits}"
                   Classes.plan="{Binding PermissionMode, Converter={x:Static ObjectConverters.Equal}, ConverterParameter=plan}"
                   Classes.auto="{Binding PermissionMode, Converter={x:Static ObjectConverters.Equal}, ConverterParameter=auto}"
+                  Classes.bypass="{Binding PermissionMode, Converter={x:Static ObjectConverters.Equal}, ConverterParameter=bypassPermissions}"
                   ToolTip.Tip="{v:L 'How much Claude may do on its own, and how hard it thinks (Shift+Tab switches mode)'}">
             <StackPanel Orientation="Horizontal" Spacing="5">
               <v:VsIcon Name="ModeIcon" Kind="{Binding ModeIcon}" Width="14" Height="14" />
               <TextBlock Text="{v:Tr ModeLabel}" VerticalAlignment="Center" />
+            </StackPanel>
+          </Button>
+          <!-- Remote Control is on: the conversation at claude.ai/code, one click away. -->
+          <Button Name="RemoteControlPill" Grid.Column="3" Classes="chip remote" Command="{Binding OpenRemoteControlCommand}" IsVisible="{Binding IsRemoteControlActive}"
+                  ToolTip.Tip="{v:L 'Remote Control is on · Click to open the conversation at claude.ai/code · /remote-control turns it off'}">
+            <StackPanel Orientation="Horizontal" Spacing="6">
+              <Ellipse Classes="remoteDot" Classes.connecting="{Binding IsRemoteControlConnecting}" Width="7" Height="7" VerticalAlignment="Center" />
+              <TextBlock Text="{v:L 'Remote Control'}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" IsVisible="{Binding IsRemoteControlOn}" />
+              <TextBlock Text="{v:L 'Connecting…'}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" IsVisible="{Binding IsRemoteControlConnecting}" />
             </StackPanel>
           </Button>
           <!-- The model: a chip that opens the model menu above the prompt. -->
@@ -569,6 +612,12 @@
                     <StackPanel Orientation="Horizontal" Spacing="4">
                       <v:VsIcon Kind="file" Width="11" Height="11" />
                       <TextBlock Text="{Binding Context}" FontSize="11" Classes="muted" />
+                    </StackPanel>
+                  </Border>
+                  <Border Classes="chip" IsVisible="{Binding IsRemote}" HorizontalAlignment="Left">
+                    <StackPanel Orientation="Horizontal" Spacing="4">
+                      <v:VsIcon Kind="Remote" Width="11" Height="11" Foreground="#4EC9B0" />
+                      <TextBlock Text="{v:L 'Sent with Remote Control'}" FontSize="11" Classes="muted" />
                     </StackPanel>
                   </Border>
                 </StackPanel>
@@ -862,7 +911,7 @@
                 <Button Classes="menuRow" Classes.selected="{Binding IsSelected}"
                         Command="{Binding $parent[UserControl].((vm:ClaudeViewModel)DataContext).SelectModeCommand}" CommandParameter="{Binding}">
                   <Grid ColumnDefinitions="Auto,*,Auto">
-                    <v:VsIcon Kind="{Binding Icon}" Width="18" Height="18" Margin="0,1,12,0" VerticalAlignment="Top" Foreground="#C8C8C8" />
+                    <v:VsIcon Kind="{Binding Icon}" Width="18" Height="18" Margin="0,1,12,0" VerticalAlignment="Top" Classes="modeIcon" Classes.risky="{Binding IsRisky}" />
                     <StackPanel Grid.Column="1" Spacing="1">
                       <TextBlock Text="{v:Tr Label}" FontSize="13" />
                       <TextBlock Text="{v:Tr Description}" Classes="muted" FontSize="11" TextWrapping="Wrap" />

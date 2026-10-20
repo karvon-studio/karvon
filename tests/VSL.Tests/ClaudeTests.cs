@@ -144,7 +144,8 @@ public class ClaudeProtocolTests
         var args = ClaudeSession.Arguments(new ClaudeStartOptions("claude", "/w", "opus", "plan", "abc"));
         Assert.Equal(
             ["--output-format", "stream-json", "--verbose", "--input-format", "stream-json", "--include-partial-messages",
-             "--permission-prompt-tool", "stdio", "--permission-mode", "plan", "--model", "opus", "--resume", "abc"], args);
+             "--permission-prompt-tool", "stdio", "--replay-user-messages", "--allow-dangerously-skip-permissions",
+             "--permission-mode", "plan", "--model", "opus", "--resume", "abc"], args);
         var defaults = ClaudeSession.Arguments(new ClaudeStartOptions("claude", "/w", "default", "default"));
         Assert.DoesNotContain("--model", defaults);
         Assert.DoesNotContain("--permission-mode", defaults);

@@ -231,6 +231,9 @@ public sealed class ClaudeLanguage : INotifyPropertyChanged
         ["Edit automatically"] = "Avtomatik tahrir",
         ["Plan"] = "Reja",
         ["Auto"] = "Avto",
+        ["Bypass permissions"] = "Ruxsat so‘ramasdan",
+        ["Claude runs every command and edits files without asking. Only where nothing can be harmed, such as a sandbox or container."] =
+            "Claude har qanday buyruqni bajaradi va fayllarni so‘ramasdan tahrirlaydi. Faqat hech narsa zarar ko‘rmaydigan joyda (sandbox, konteyner) ishlating.",
         ["Claude asks before each edit or command."] = "Claude har bir tahrir yoki buyruqdan oldin so‘raydi.",
         ["Claude edits files without asking; commands still need your approval."] = "Claude fayllarni so‘ramasdan tahrirlaydi; buyruqlar uchun baribir ruxsatingiz kerak.",
         ["Claude explores the code and proposes a plan before changing anything."] = "Claude kodni o‘rganadi va biror narsani o‘zgartirishdan oldin reja taklif qiladi.",
@@ -306,6 +309,23 @@ public sealed class ClaudeLanguage : INotifyPropertyChanged
         ["Allowed"] = "Ruxsat berildi",
         ["Denied"] = "Rad etildi",
         ["Cancelled"] = "Bekor qilindi",
+        ["Answered on another device"] = "Boshqa qurilmada javob berildi",
+
+        // Remote Control
+        ["Remote Control"] = "Remote Control",
+        ["Connecting…"] = "Ulanmoqda…",
+        ["Sent with Remote Control"] = "Remote Control orqali yuborilgan",
+        ["Remote Control: continue this conversation from claude.ai/code or the Claude app (/remote-control)"] =
+            "Remote Control: bu suhbatni claude.ai/code yoki Claude ilovasidan davom ettiring (/remote-control)",
+        ["Remote Control is on: continue this conversation at claude.ai/code or in the Claude app. Click to turn it off."] =
+            "Remote Control yoqilgan: bu suhbatni claude.ai/code yoki Claude ilovasida davom ettiring. O‘chirish uchun bosing.",
+        ["Remote Control is connecting… Click to turn it off."] = "Remote Control ulanmoqda… O‘chirish uchun bosing.",
+        ["Remote Control is on · Click to open the conversation at claude.ai/code · /remote-control turns it off"] =
+            "Remote Control yoqilgan · Suhbatni claude.ai/code’da ochish uchun bosing · /remote-control uni o‘chiradi",
+        ["Continue this conversation from claude.ai/code or the Claude app (on/off)"] = "Bu suhbatni claude.ai/code yoki Claude ilovasidan davom ettirish (on/off)",
+        ["Remote Control needs a claude.ai sign-in (not an API key or a cloud provider)."] =
+            "Remote Control uchun claude.ai akkaunti bilan kirish kerak (API kalit yoki bulut provayderi emas).",
+        ["Remote Control disconnected."] = "Remote Control uzildi.",
         ["Approved, editing automatically"] = "Tasdiqlandi, avtomatik tahrirlanmoqda",
         ["Approved, asking before edits"] = "Tasdiqlandi, tahrirdan oldin so‘raladi",
         ["Answer each question first."] = "Avval har bir savolga javob bering.",
@@ -379,6 +399,8 @@ public sealed class ClaudeLanguage : INotifyPropertyChanged
         (new(@"^Finish signing in to (.+) in your browser\.$"), m => $"{m.Groups[1].Value} serveriga kirishni brauzerda yakunlang."),
         (new(@"^Effort set to (.+)\.$"), m => $"Fikrlash darajasi: {T(m.Groups[1].Value)}."),
         (new(@"^Claude Code could not be started: (.+)$", RegexOptions.Singleline), m => "Claude Code ishga tushmadi: " + m.Groups[1].Value),
+        (new(@"^Remote Control could not be turned on: (.+)$", RegexOptions.Singleline), m => "Remote Control yoqilmadi: " + m.Groups[1].Value),
+        (new(@"^Remote Control disconnected: (.+)$", RegexOptions.Singleline), m => "Remote Control uzildi: " + m.Groups[1].Value),
         (new(@"^Claude Code stopped \(exit code (-?\d+)\)\.(.*)$", RegexOptions.Singleline), m => $"Claude Code to‘xtadi (chiqish kodi {m.Groups[1].Value}).{m.Groups[2].Value}"),
         (new(@"^Usage is not available: (.+)$", RegexOptions.Singleline), m => "Limitlar mavjud emas: " + m.Groups[1].Value),
         (new(@"^MCP servers are not available: (.+)$", RegexOptions.Singleline), m => "MCP serverlar mavjud emas: " + m.Groups[1].Value),

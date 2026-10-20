@@ -18,6 +18,7 @@ public sealed partial class ClaudeViewModel
         ("acceptEdits", "Edit automatically", "Claude edits files without asking; commands still need your approval.", "CodeBrackets"),
         ("plan", "Plan", "Claude explores the code and proposes a plan before changing anything.", "PlanDoc"),
         ("auto", "Auto", "Claude runs what passes a safety check and stops to ask about anything risky.", "Bolt"),
+        ("bypassPermissions", "Bypass permissions", "Claude runs every command and edits files without asking. Only where nothing can be harmed, such as a sandbox or container.", "ShieldOff"),
     ];
 
     static readonly string[] ScopeOrder = ["local", "project", "user", "claudeai", "enterprise", "dynamic"];
@@ -533,6 +534,9 @@ public sealed partial class ClaudeViewModel
                 return true;
             case "/mcp":
                 await OpenMcpAsync();
+                return true;
+            case "/remote-control" or "/rc":
+                await RemoteControlCommandAsync(argument);
                 return true;
             case "/effort" when argument.Length == 0:
                 IsModesOpen = true;

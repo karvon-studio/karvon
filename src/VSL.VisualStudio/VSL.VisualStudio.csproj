@@ -51,6 +51,7 @@
     <Compile Include="..\VSL\ViewModels\ClaudeViewModel.Accounts.cs" Link="Shared\ViewModels\ClaudeViewModel.Accounts.cs" />
     <Compile Include="..\VSL\ViewModels\ClaudeViewModel.Tokens.cs" Link="Shared\ViewModels\ClaudeViewModel.Tokens.cs" />
     <Compile Include="..\VSL\ViewModels\ClaudeViewModel.Background.cs" Link="Shared\ViewModels\ClaudeViewModel.Background.cs" />
+    <Compile Include="..\VSL\ViewModels\ClaudeViewModel.Remote.cs" Link="Shared\ViewModels\ClaudeViewModel.Remote.cs" />
     <Compile Include="..\VSL\ViewModels\ClaudeChatItems.cs" Link="Shared\ViewModels\ClaudeChatItems.cs" />
     <Compile Include="..\VSL\ViewModels\ClaudePanelItems.cs" Link="Shared\ViewModels\ClaudePanelItems.cs" />
     <Compile Include="..\VSL\Views\MarkdownParser.cs" Link="Shared\Views\MarkdownParser.cs" />

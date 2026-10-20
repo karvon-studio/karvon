@@ -40,6 +40,9 @@ public partial class ClaudeViewModel
 
         /// <summary>Claude waits for the user (an approval, an answer, a plan).</summary>
         public bool IsWaiting { get; set; }
+
+        /// <summary>Remote Control as it was ("on" or "connecting", with the claude.ai link), or null when it was off.</summary>
+        public (string State, string? Url)? RemoteControl { get; set; }
     }
 
     /// <summary>How many conversations Claude is working on in the background.</summary>
@@ -64,8 +67,11 @@ public partial class ClaudeViewModel
             Interrupting = _interrupting,
             ContextTokens = ContextTokens,
             IsWaiting = Items.Any(i => i is PermissionChatItem { IsPending: true } or QuestionChatItem { IsPending: true } or PlanChatItem { IsPending: true }),
+            RemoteControl = _remoteSession == session ? (RemoteControlState, RemoteControlUrl) : null,
         });
         _session = null;
+        if (_remoteSession == session)
+            ClearRemoteControl();
         BackgroundChanged();
         return true;
     }
@@ -84,6 +90,12 @@ public partial class ClaudeViewModel
         foreach (var (id, tool) in conversation.Tools)
             _tools[id] = tool;
         ContextTokens = conversation.ContextTokens;
+        if (conversation.RemoteControl is var (state, url))
+        {
+            _remoteSession = conversation.Session;
+            RemoteControlUrl = url;
+            RemoteControlState = state;
+        }
         BeginTurn();
         _turnStarted = conversation.TurnStarted;
         _tokens = conversation.Tokens;
@@ -112,6 +124,11 @@ public partial class ClaudeViewModel
                 conversation.IsWaiting = true;
                 BackgroundChanged();
                 AttentionRequested?.Invoke();
+                break;
+            case ClaudePermissionCancelled:
+                // Answered on claude.ai (Remote Control): Claude goes on.
+                conversation.IsWaiting = false;
+                BackgroundChanged();
                 break;
             case ClaudeToolResults:
                 // It may have edited files open in the editor.

@@ -23,6 +23,9 @@ public sealed class UserChatItem(string text, string? context, IReadOnlyList<Cla
     public string? Context { get; } = context;
 
     public bool HasContext => Context is not null;
+
+    /// <summary>Sent from claude.ai/code or the Claude app (Remote Control), not typed here.</summary>
+    public bool IsRemote { get; init; }
 }
 
 /// <summary>Assistant text (Markdown); grows while it streams.</summary>

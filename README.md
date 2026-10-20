@@ -54,8 +54,10 @@ Working on solutions needs the .NET 10 SDK. VSL downloads `roslyn-language-serve
 - **Terminal**: your `$SHELL` in a real pty, in the solution folder.
 - **NuGet**: browse, install, update and uninstall across your configured feeds.
 - **Claude Code** (Ctrl+Esc): drives your installed `claude` CLI, so your login, settings and MCP servers apply.
-  Streamed answers, tool calls with inline diffs, approvals, questions and plans, modes and effort, usage, MCP servers,
-  images, `/` commands and `@` files, past conversations, Ask Claude from Solution Explorer; English or O‘zbekcha.
+  Streamed answers, tool calls with inline diffs, approvals, questions and plans, modes (Bypass permissions among
+  them) and effort, usage, MCP servers, images, `/` commands and `@` files, past conversations, conversations that
+  keep working in the background, Remote Control (go on from claude.ai or the Claude app), Ask Claude from Solution
+  Explorer; English or O‘zbekcha.
 - **Layout**: drag tool windows to dock or float them; tab groups (Window > New Vertical / Horizontal Tab Group),
   Window > Split, floating documents, tabs dragged to reorder; documents, groups, layout and startup project are
   restored per solution.

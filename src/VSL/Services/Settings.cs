@@ -52,6 +52,9 @@ public sealed class Settings
     /// <summary>Claude Code reasoning effort chosen in the Modes menu (low ... max).</summary>
     public string? ClaudeEffort { get; set; }
 
+    /// <summary>Remote Control was left on: each conversation's CLI turns it on as it starts.</summary>
+    public bool ClaudeRemoteControl { get; set; }
+
     /// <summary>The Claude Code panel's language: "en" or "uz" (English when not set).</summary>
     public string? UiLanguage { get; set; }
 

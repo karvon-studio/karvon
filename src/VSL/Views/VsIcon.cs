@@ -484,6 +484,14 @@ public sealed class VsIcon : Control
             case "PreviewBelow":
                 Line(dc, "M3 4h18v16H3z M3 13h18", fg, 1.8);
                 break;
+            case "ShieldOff":
+                // A shield struck through: nothing stops Claude (bypass permissions).
+                Line(dc, "M12 2.5l7.5 3v6c0 4.8-3.2 8.3-7.5 10-4.3-1.7-7.5-5.2-7.5-10v-6z M3 3l18 18", fg, 1.8);
+                break;
+            case "Remote":
+                // A phone with a signal: Remote Control.
+                Line(dc, "M6.5 2h7A1.5 1.5 0 0 1 15 3.5v17a1.5 1.5 0 0 1-1.5 1.5h-7A1.5 1.5 0 0 1 5 20.5v-17A1.5 1.5 0 0 1 6.5 2z M9 18.5h2 M18 9a4 4 0 0 1 0 6 M20.5 6.5a7.5 7.5 0 0 1 0 11", fg, 1.8);
+                break;
             case "Globe":
                 Line(dc, "M12 2a10 10 0 1 0 0 20a10 10 0 1 0 0-20z M2 12h20 M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z", fg, 1.6);
                 break;
