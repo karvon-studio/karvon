@@ -2,7 +2,6 @@ using Avalonia.Threading;
 using Bengine.Introspection.Servers;
 using CommunityToolkit.Mvvm.Input;
 using Karvon.Claude.Tools;
-using Karvon.Docker;
 using Karvon.ViewModels;
 
 namespace Karvon.ViewModels;
@@ -11,7 +10,7 @@ namespace Karvon.ViewModels;
 /// Claude Code tool window: runs in the solution folder and sees the active editor and selection, and uses Karvon's tools
 /// (the Database Explorer's data sources, the Docker engine) as the user's own.
 /// </summary>
-public partial class MainViewModel : IClaudeToolHost
+public partial class MainViewModel : IDatabaseToolHost
 {
     static readonly HashSet<string> SkippedFolders = new(StringComparer.Ordinal) { "bin", "obj", ".git", ".vs", ".idea", "node_modules" };
 
@@ -22,7 +21,7 @@ public partial class MainViewModel : IClaudeToolHost
 
     ClaudeViewModel CreateClaude()
     {
-        var tools = Settings.ClaudeKarvonTools ? KarvonTools.Create(this, this, EnsureServers) : null;
+        var tools = Settings.ClaudeKarvonTools ? KarvonToolServer() : null;
         if (tools is not null)
             tools.Called += OnClaudeToolCalled;
         var claude = new ClaudeViewModel(Settings, ClaudeWorkingDirectory, ClaudeEditorContextNow, ClaudeFiles)
@@ -53,19 +52,11 @@ public partial class MainViewModel : IClaudeToolHost
         return claude;
     }
 
-    string? IClaudeToolHost.SolutionDirectory => Solution?.Directory;
-
-    IReadOnlyList<ServerProfile> IClaudeToolHost.DataSources() => DatabaseServers.List();
+    IReadOnlyList<ServerProfile> IDatabaseToolHost.DataSources() => DatabaseServers.List();
 
     /// <summary>The explorer's passwords are the UI thread's.</summary>
-    Task<string?> IClaudeToolHost.PasswordForAsync(ServerProfile server) =>
+    Task<string?> IDatabaseToolHost.PasswordForAsync(ServerProfile server) =>
         Dispatcher.UIThread.InvokeAsync<string?>(() => _database is { } explorer ? explorer.PasswordFor(server) : server.Password).GetTask();
-
-    DockerEngine IClaudeToolHost.Docker => Docker?.Engine ?? (_claudeDocker ??= DockerEngine.Find());
-
-    DockerEngine? _claudeDocker;
-
-    bool IClaudeToolHost.AllContainers => Settings.ClaudeAllContainers;
 
     string ClaudeWorkingDirectory() => Solution?.Directory ?? Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
 

@@ -256,8 +256,9 @@ public class Screenshots
         {
             // Room for the dashboard: a smaller Error List.
             window.FindControl<Grid>("LeftGrid")!.RowDefinitions[2].Height = new GridLength(120);
-            vm.ShowDockerExplorerCommand.Execute(null);
-            var explorer = vm.Docker!;
+            var module = vm.Module<Karvon.Docker.DockerModule>()!;
+            vm.ShowToolWindow(Karvon.Docker.DockerModule.ToolWindowId);
+            var explorer = module.Explorer!;
             await WaitUntil(() => explorer.IsEngineRunning && explorer.Containers.Count == 6, TimeSpan.FromSeconds(10));
             // The tree in the tool window; the Containers table as a document.
             explorer.Open(explorer.Sections[0]);
@@ -271,7 +272,7 @@ public class Screenshots
             await WaitUntil(() => api.CpuHistory.Count >= 12, TimeSpan.FromSeconds(15));
             await Settle();
             Save(window, "docker-container");
-            vm.ShutdownDocker();
+            module.Dispose();
             await CloseAsync(vm, window);
         }
         finally

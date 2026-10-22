@@ -2,10 +2,6 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:Karvon.ViewModels"
              xmlns:v="using:Karvon.Views"
-             xmlns:dvm="using:Karvon.Docker.ViewModels"
-             xmlns:dv="using:Karvon.Docker.Views"
-             xmlns:svm="using:Karvon.Servers.ViewModels"
-             xmlns:sv="using:Karvon.Servers.Views"
              x:Class="Karvon.Views.DocumentGroupView"
              x:DataType="vm:DocumentGroup">
   <UserControl.Styles>
@@ -67,16 +63,6 @@
                           ShowPreview="{Binding $parent[Window].((vm:MainViewModel)DataContext).MarkdownPreview}"
                           PreviewBelow="{Binding $parent[Window].((vm:MainViewModel)DataContext).MarkdownPreviewBelow}" />
           </DockPanel>
-        </Border>
-      </DataTemplate>
-      <DataTemplate DataType="svm:ServerDocument" x:DataType="svm:ServerDocument">
-        <Border Classes="docframe" BorderBrush="#007ACC" BorderThickness="0,2,0,0">
-          <sv:ServerPageView DataContext="{Binding Page}" />
-        </Border>
-      </DataTemplate>
-      <DataTemplate DataType="dvm:DockerDocument" x:DataType="dvm:DockerDocument">
-        <Border Classes="docframe" BorderBrush="#007ACC" BorderThickness="0,2,0,0">
-          <dv:DockerDocumentView />
         </Border>
       </DataTemplate>
       <DataTemplate DataType="vm:NuGetViewModel" x:DataType="vm:NuGetViewModel">

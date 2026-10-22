@@ -9,7 +9,7 @@ namespace Karvon.ViewModels;
 /// The modules (see <see cref="KarvonModule"/>): every one Karvon has, those that are on started with Karvon as their
 /// workbench, and what Karvon offers them (Claude Code through <see cref="IClaudeService"/>).
 /// </summary>
-public partial class MainViewModel : IWorkbench, IClaudeService
+public partial class MainViewModel : IWorkbench, IClaudeService, IDatabaseService
 {
     /// <summary>Every module, on or off, in the order they show (Tools > Modules lists them).</summary>
     public IReadOnlyList<KarvonModule> AllModules { get; private set; } = [];
@@ -26,6 +26,18 @@ public partial class MainViewModel : IWorkbench, IClaudeService
         Modules = [.. AllModules.Where(m => !Settings.DisabledModules.Contains(m.Id))];
         foreach (var module in Modules)
             module.Start(this);
+    }
+
+    /// <summary>
+    /// Karvon's tools for a Claude Code session: the IDE's, the databases' and those of the modules that are on (each module
+    /// shows what its tools did).
+    /// </summary>
+    public ClaudeToolServer KarvonToolServer()
+    {
+        var tools = Modules.SelectMany(m => m.ClaudeTools().Select(t => (Module: m, Tool: t))).ToList();
+        foreach (var (module, tool) in tools)
+            _claudeToolModules[tool.Name] = module;
+        return KarvonTools.Create(this, this, tools.Select(t => t.Tool));
     }
 
     /// <summary>Karvon closes: what the modules started stops.</summary>
@@ -68,11 +80,45 @@ public partial class MainViewModel : IWorkbench, IClaudeService
 
     void IWorkbench.ShowToolWindow(string id) => ShowToolWindow(id);
 
+    void IWorkbench.ShowToolWindowBesideClaude(string id) => ShowToolWindowBeside(id);
+
+    public event Action<string>? FileSaved;
+
+    Task<IReadOnlyList<string>> IWorkbench.PickFilesAsync(string title) => Dialogs?.PickFilesAsync(title) ?? Task.FromResult<IReadOnlyList<string>>([]);
+
+    OutputChannel IWorkbench.Output(string name)
+    {
+        if (OutputChannels.FirstOrDefault(c => c.Name == name) is { } channel)
+            return channel;
+        channel = new OutputChannel(name);
+        OutputChannels.Add(channel);
+        return channel;
+    }
+
+    void IWorkbench.ShowOutput(OutputChannel channel)
+    {
+        SelectedOutput = channel;
+        ShowToolWindow(ToolWindows.Output);
+    }
+
     void IWorkbench.OpenUrl(string url) => OpenBrowser(url);
 
     void IWorkbench.Status(string text) => SetStatus(text);
 
-    T? IWorkbench.Service<T>() where T : class => typeof(T) == typeof(IClaudeService) ? this as T : Modules.OfType<T>().FirstOrDefault();
+    T? IWorkbench.Service<T>() where T : class =>
+        typeof(T) == typeof(IClaudeService) || typeof(T) == typeof(IDatabaseService) ? this as T : Modules.OfType<T>().FirstOrDefault();
+
+    // ---- IDatabaseService ---------------------------------------------------------------------------------------
+
+    void IDatabaseService.AddDataSource(Bengine.Introspection.Servers.ServerProfile server, Func<Bengine.Introspection.Servers.ServerProfile, bool> isSame)
+    {
+        var store = DatabaseServers;
+        if (!store.List().Any(isSame))
+            store.Upsert(server);
+        if (_database is { } explorer)
+            explorer.ReloadServers();
+        ShowToolWindow(ToolWindows.DatabaseExplorer);
+    }
 
     // ---- IClaudeService -----------------------------------------------------------------------------------------
 
@@ -93,9 +139,14 @@ public partial class MainViewModel : IWorkbench, IClaudeService
         Environment.GetEnvironmentVariable("KARVON_USER_HOME") is null && _claude?.SelectedAccount is { IsDefault: false } account
             ? Path.Combine(account.ConfigDirectory, ".claude.json") : null;
 
-    IReadOnlyList<IClaudeTool> IClaudeService.BuiltInTools => Settings.ClaudeKarvonTools ? KarvonTools.Create(this, this, EnsureServers).Tools : [];
+    IReadOnlyList<IClaudeTool> IClaudeService.BuiltInTools => Settings.ClaudeKarvonTools ? KarvonToolServer().Tools : [];
 
-    void IClaudeService.Ask(string prompt) => ((Docker.ViewModels.IDockerHost)this).AskClaude(prompt);
+    void IClaudeService.Ask(string prompt)
+    {
+        ShowToolWindow(ToolWindows.Claude);
+        Claude.Prompt = prompt;
+        Claude.RequestFocus();
+    }
 
     Task<string> IClaudeService.AuthenticateMcpAsync(string name) => Claude.AuthenticateMcpAsync(name);
 

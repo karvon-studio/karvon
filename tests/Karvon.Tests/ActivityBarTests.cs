@@ -36,7 +36,7 @@ public class ActivityBarTests
         // One column of icons at the right edge, however many tool windows: the names are tooltips.
         var solution = Tab(window, ToolWindows.SolutionExplorer);
         var git = Tab(window, ToolWindows.GitChanges);
-        var docker = Tab(window, ToolWindows.DockerExplorer);
+        var docker = Tab(window, Karvon.Docker.DockerModule.ToolWindowId);
         Assert.Equal(Dock.Right, rightTabs.TabStripPlacement);
         Assert.All(rightTabs.Items.OfType<TabItem>(), t => Assert.Equal(44, t.Bounds.Width));
         Assert.Equal(solution.Bounds.X, docker.Bounds.X);
@@ -74,9 +74,9 @@ public class ActivityBarTests
         Assert.True(window.IsToolWindowShowing(ToolWindows.Claude));
 
         // Docked at the bottom, a tool window is a named tab again; back at a side, an icon (on the left: the bar at the left edge).
-        window.MoveToolWindow(ToolWindows.DockerExplorer, DockSide.Bottom);
+        window.MoveToolWindow(Karvon.Docker.DockerModule.ToolWindowId, DockSide.Bottom);
         Assert.Equal("VsToolTab", ThemeKey(window, docker));
-        window.MoveToolWindow(ToolWindows.DockerExplorer, DockSide.Left);
+        window.MoveToolWindow(Karvon.Docker.DockerModule.ToolWindowId, DockSide.Left);
         Assert.Equal("VsActivityTab", ThemeKey(window, docker));
         Assert.False(docker.Classes.Contains("right"));
         Assert.True(columns[0].Width.Value > 45);
@@ -112,18 +112,18 @@ public class ActivityBarTests
         var rightTabs = window.FindControl<TabControl>("RightTabs")!;
         var bottomTabs = window.FindControl<TabControl>("BottomTabs")!;
         var solution = Tab(window, ToolWindows.SolutionExplorer);
-        var docker = Tab(window, ToolWindows.DockerExplorer);
+        var docker = Tab(window, Karvon.Docker.DockerModule.ToolWindowId);
         var claude = Tab(window, ToolWindows.Claude);
         Assert.Equal(ToolWindows.SolutionExplorer, Order(rightTabs)[0]);
         Assert.True(solution.IsSelected);
 
         // Docker Explorer's icon, dragged above Solution Explorer's: first on the bar; the window in front stays so.
         Drag(window, docker, At(window, solution, 22, 6));
-        Assert.Equal([ToolWindows.DockerExplorer, ToolWindows.SolutionExplorer], Order(rightTabs)[..2]);
+        Assert.Equal([Karvon.Docker.DockerModule.ToolWindowId, ToolWindows.SolutionExplorer], Order(rightTabs)[..2]);
         Assert.True(solution.IsSelected);
         Assert.False(window.IsCollapsed(DockSide.Right));
         Assert.Equal(Order(rightTabs), vm.Settings.Layout.ToolOrder["Right"]);
-        Assert.Equal(DockSide.Right, window.SideOf(ToolWindows.DockerExplorer));
+        Assert.Equal(DockSide.Right, window.SideOf(Karvon.Docker.DockerModule.ToolWindowId));
 
         // While it is dragged, a line shows where it would go.
         var marker = window.FindControl<Border>("ToolDropMarker")!;
@@ -147,8 +147,8 @@ public class ActivityBarTests
         // Dropped between two of the bottom tabs, a tool window goes there, a named tab in front.
         var output = Tab(window, ToolWindows.Output);
         Drag(window, docker, At(window, output, 3, output.Bounds.Height / 2));
-        Assert.Equal(DockSide.Bottom, window.SideOf(ToolWindows.DockerExplorer));
-        Assert.Equal(Order(bottomTabs).ToList().IndexOf(ToolWindows.Output) - 1, Order(bottomTabs).ToList().IndexOf(ToolWindows.DockerExplorer));
+        Assert.Equal(DockSide.Bottom, window.SideOf(Karvon.Docker.DockerModule.ToolWindowId));
+        Assert.Equal(Order(bottomTabs).ToList().IndexOf(ToolWindows.Output) - 1, Order(bottomTabs).ToList().IndexOf(Karvon.Docker.DockerModule.ToolWindowId));
         Assert.True(docker.IsSelected);
         Assert.Equal("VsToolTab", ThemeKey(window, docker));
         await WaitUntil(() => false, TimeSpan.FromMilliseconds(100));
@@ -156,7 +156,7 @@ public class ActivityBarTests
 
         // Reset Window Layout: every tab back in its place, in the first order.
         window.ResetWindowLayout();
-        Assert.Equal([ToolWindows.SolutionExplorer, ToolWindows.TestExplorer, ToolWindows.GitChanges, ToolWindows.DatabaseExplorer, ToolWindows.DockerExplorer, ToolWindows.Servers, Karvon.Mcp.McpModule.ToolWindowId, Karvon.Skills.SkillsModule.ToolWindowId, ToolWindows.Claude],
+        Assert.Equal([ToolWindows.SolutionExplorer, ToolWindows.TestExplorer, ToolWindows.GitChanges, ToolWindows.DatabaseExplorer, Karvon.Docker.DockerModule.ToolWindowId, Karvon.Servers.ServersModule.ToolWindowId, Karvon.Mcp.McpModule.ToolWindowId, Karvon.Skills.SkillsModule.ToolWindowId, ToolWindows.Claude],
             Order(rightTabs));
         Assert.Empty(vm.Settings.Layout.ToolOrder);
         window.Close();

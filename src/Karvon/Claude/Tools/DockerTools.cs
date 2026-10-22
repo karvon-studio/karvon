@@ -13,9 +13,9 @@ namespace Karvon.Claude.Tools;
 /// solution's folder (all of them with no solution open, or when the user chose so), by container or compose service
 /// name. Secrets in environments, commands and logs are hidden.
 /// </summary>
-abstract class DockerTool(IClaudeToolHost host) : IClaudeTool
+abstract class DockerTool(IDockerToolHost host) : IClaudeTool
 {
-    protected IClaudeToolHost Host { get; } = host;
+    protected IDockerToolHost Host { get; } = host;
 
     public abstract string Name { get; }
 
@@ -73,7 +73,7 @@ abstract class DockerTool(IClaudeToolHost host) : IClaudeTool
 }
 
 /// <summary><c>container_list</c>: the containers, running or stopped, with how they ended.</summary>
-sealed class ContainerListTool(IClaudeToolHost host) : DockerTool(host)
+sealed class ContainerListTool(IDockerToolHost host) : DockerTool(host)
 {
     public override string Name => "container_list";
 
@@ -101,7 +101,7 @@ sealed class ContainerListTool(IClaudeToolHost host) : DockerTool(host)
 }
 
 /// <summary><c>container_logs</c>: the last lines of a container's output, also after it exited.</summary>
-sealed class ContainerLogsTool(IClaudeToolHost host) : DockerTool(host)
+sealed class ContainerLogsTool(IDockerToolHost host) : DockerTool(host)
 {
     public override string Name => "container_logs";
 
@@ -138,7 +138,7 @@ sealed class ContainerLogsTool(IClaudeToolHost host) : DockerTool(host)
 }
 
 /// <summary><c>container_inspect</c>: what matters of a container's inspect, secrets hidden.</summary>
-sealed class ContainerInspectTool(IClaudeToolHost host) : DockerTool(host)
+sealed class ContainerInspectTool(IDockerToolHost host) : DockerTool(host)
 {
     static readonly JsonSerializerOptions Indented = new() { WriteIndented = true, Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping };
 
@@ -224,7 +224,7 @@ sealed class ContainerInspectTool(IClaudeToolHost host) : DockerTool(host)
 }
 
 /// <summary><c>container_restart</c> (asks first): restarts a container, or starts one that stopped.</summary>
-sealed class ContainerRestartTool(IClaudeToolHost host) : DockerTool(host)
+sealed class ContainerRestartTool(IDockerToolHost host) : DockerTool(host)
 {
     public override string Name => "container_restart";
 
@@ -252,7 +252,7 @@ sealed class ContainerRestartTool(IClaudeToolHost host) : DockerTool(host)
 }
 
 /// <summary><c>compose_up</c> (asks first): compose up -d in the solution's folder, for every service or one.</summary>
-sealed class ComposeUpTool(IClaudeToolHost host) : DockerTool(host)
+sealed class ComposeUpTool(IDockerToolHost host) : DockerTool(host)
 {
     public override string Name => "compose_up";
 
@@ -287,7 +287,7 @@ sealed class ComposeUpTool(IClaudeToolHost host) : DockerTool(host)
 }
 
 /// <summary><c>container_remove</c> (asks first, every time): stops and deletes a container.</summary>
-sealed class ContainerRemoveTool(IClaudeToolHost host) : DockerTool(host)
+sealed class ContainerRemoveTool(IDockerToolHost host) : DockerTool(host)
 {
     public override string Name => "container_remove";
 

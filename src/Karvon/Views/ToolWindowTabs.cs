@@ -32,8 +32,6 @@ public static class ToolWindowTabs
         ToolWindows.TestExplorer => "ToolTests",
         ToolWindows.GitChanges => "ToolGit",
         ToolWindows.DatabaseExplorer => "ToolDatabase",
-        ToolWindows.DockerExplorer => "Docker",
-        ToolWindows.Servers => "ToolServers",
         ToolWindows.Claude => "Claude",
         ToolWindows.ErrorList => "ToolErrors",
         ToolWindows.Output => "ToolOutput",

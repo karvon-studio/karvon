@@ -27,8 +27,6 @@ public static class ToolWindows
     public const string Terminal = "Terminal";
     public const string Claude = "Claude";
     public const string DatabaseExplorer = "DatabaseExplorer";
-    public const string DockerExplorer = "DockerExplorer";
-    public const string Servers = "Servers";
 }
 
 public enum StatusKind
@@ -84,7 +82,7 @@ public partial class MainViewModel : ObservableObject
         BuildOutput = new OutputChannel("Build");
         DebugOutput = new OutputChannel("Debug");
         ServerOutput = new OutputChannel("Language Server");
-        OutputChannels = [BuildOutput, DebugOutput, ServerOutput, GitOutput, PackageManagerOutput, DockerOutput, ClaudeOutput];
+        OutputChannels = [BuildOutput, DebugOutput, ServerOutput, GitOutput, PackageManagerOutput, ClaudeOutput];
         SelectedOutput = BuildOutput;
         InitializeDebugging();
         StartModules();
@@ -328,7 +326,6 @@ public partial class MainViewModel : ObservableObject
         if (_terminal is { } terminal)
             terminal.WorkingDirectory = solution.Directory;
         await OnClaudeSolutionChangedAsync();
-        await OnDockerSolutionChangedAsync();
         if (_state.ClaudeConversation is { } conversation)
             await Claude.RestoreConversationAsync(conversation);
         await StartLanguageServerAsync();
@@ -568,7 +565,7 @@ public partial class MainViewModel : ObservableObject
         host.WorkspaceEditRequested += ApplyWorkspaceEditAsync;
         host.WorkspaceOperationsRequested += ApplyWorkspaceOperationsAsync;
         host.Saved += () => _ = RefreshGitAsync();
-        host.Saved += () => _ = OnServerFileSavedAsync(doc.FilePath);
+        host.Saved += () => FileSaved?.Invoke(doc.FilePath);
         host.CompareRequested += () => _ = CompareWithUnmodifiedAsync(doc);
         host.AskClaudeRequested += ShowClaude;
         host.ZoomChanged += () => Settings.EditorZoom = host.Zoom;

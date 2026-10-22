@@ -1,8 +1,10 @@
+using System.Text.Json;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Templates;
 using Avalonia.Media;
 using CommunityToolkit.Mvvm.ComponentModel;
+using Karvon.Claude;
 
 namespace Karvon.Modules;
 
@@ -49,6 +51,15 @@ public abstract partial class KarvonModule : ObservableObject, IDisposable
 
     /// <summary>How <see cref="Overlay"/> looks.</summary>
     public virtual IDataTemplate? OverlayTemplate => null;
+
+    /// <summary>The tools it gives the Claude Code sessions Karvon starts (mcp__karvon__*): new ones for each session.</summary>
+    public virtual IEnumerable<IClaudeTool> ClaudeTools() => [];
+
+    /// <summary>
+    /// A call of one of its tools ran (on the UI thread): what it did, shown where the user would have done it (a
+    /// container's logs on its page). It runs unless the user turned that off.
+    /// </summary>
+    public virtual Task ShowClaudeToolAsync(string tool, JsonElement input, ClaudeToolOutput output) => Task.CompletedTask;
 
     /// <summary>Karvon, from <see cref="Start"/> on.</summary>
     protected IWorkbench Workbench { get; private set; } = null!;

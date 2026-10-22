@@ -4,8 +4,13 @@ A module is a part of Karvon Studio that can be turned off in **Tools > Modules*
 on their own (see the [roadmap](../ROADMAP.md)). Karvon knows a module only through `Karvon.Modules.KarvonModule`,
 and a module uses Karvon only through `IWorkbench`.
 
-The modules so far are MCP Servers (`Mcp/McpModule.cs`) and Skills (`Skills/SkillsModule.cs`). The others still live in
-`MainViewModel` and are moving over one by one.
+The modules so far are:
+- Docker Explorer (`Docker/DockerModule.cs`);
+- Servers (`Servers/ServersModule.cs`);
+- MCP Servers (`Mcp/McpModule.cs`);
+- Skills (`Skills/SkillsModule.cs`).
+
+The others still live in `MainViewModel` and are moving over one by one.
 
 ## Writing one
 
@@ -35,6 +40,8 @@ Then add it to `ModuleCatalog.Create()`.
 | `ToolWindows` | Each tool window becomes a tab in its group (before Claude Code at the sides) and an item in the View menu. Its view is made the first time it shows: a module that is never opened reads nothing and starts nothing. |
 | `DocumentTemplates` | How the module's documents look in the document well, in every window. `Document<T>` puts the view under the well's blue line. |
 | `Overlay` and `OverlayTemplate` | The module's dialogs and messages over the whole window, once it has something to show. |
+| `ClaudeTools()` | The tools it gives the Claude Code sessions Karvon starts (`mcp__karvon__*`). A module that is off gives none. |
+| `ShowClaudeToolAsync` | One of its tools ran: show what it did where the user would have done it (a container's logs on its page). |
 | `Started()` | Runs once Karvon has started with the module on: subscribe to the workbench here. |
 | `Dispose()` | Runs when Karvon closes: stop what the module started. |
 
@@ -47,11 +54,15 @@ also matches null, so one added to the application would take over every empty p
 - the settings;
 - the open folder and its changes;
 - the document well (show and close documents, open a file at a line);
-- the tool windows, the browser and the status bar.
+- the files the editor saves, and a file picker;
+- the tool windows (and one beside Claude Code, so the conversation stays in view);
+- a pane of its own in the Output window;
+- the browser and the status bar.
 
 `Workbench.Service<T>()` gives a module what other parts of Karvon offer:
 - `IClaudeService` (Claude Code): the chosen account's folders, Karvon's tools, `claude mcp add`, the extra MCP
   servers the sessions get, and its changes;
+- `IDatabaseService` (the Database Explorer): a data source added to it;
 - another module, by its type.
 
 It returns null for a part that is off, and a module keeps working without it.

@@ -24,11 +24,11 @@ public sealed record DbPlanRun(ServerProfile Server, string? Database, string Sq
 /// connections and passwords are used and never shown; a read-only data source is read-only on the server too, and
 /// its changes are refused before they run.
 /// </summary>
-abstract class DatabaseTool(IClaudeToolHost host) : IClaudeTool
+abstract class DatabaseTool(IDatabaseToolHost host) : IClaudeTool
 {
     const int MaxCell = 200;
 
-    protected IClaudeToolHost Host { get; } = host;
+    protected IDatabaseToolHost Host { get; } = host;
 
     public abstract string Name { get; }
 
@@ -137,7 +137,7 @@ abstract class DatabaseTool(IClaudeToolHost host) : IClaudeTool
 }
 
 /// <summary><c>db_connections</c>: the data sources, what each is, and never their credentials.</summary>
-sealed class DbConnectionsTool(IClaudeToolHost host) : DatabaseTool(host)
+sealed class DbConnectionsTool(IDatabaseToolHost host) : DatabaseTool(host)
 {
     public override string Name => "db_connections";
 
@@ -166,7 +166,7 @@ sealed class DbConnectionsTool(IClaudeToolHost host) : DatabaseTool(host)
 }
 
 /// <summary><c>db_schema</c>: the live schema as DDL, with approximate row counts.</summary>
-sealed class DbSchemaTool(IClaudeToolHost host) : DatabaseTool(host)
+sealed class DbSchemaTool(IDatabaseToolHost host) : DatabaseTool(host)
 {
     public override string Name => "db_schema";
 
@@ -218,7 +218,7 @@ sealed class DbSchemaTool(IClaudeToolHost host) : DatabaseTool(host)
 }
 
 /// <summary><c>db_query</c>: runs SQL and returns the rows; a query reads, a change asks the user first.</summary>
-sealed class DbQueryTool(IClaudeToolHost host) : DatabaseTool(host)
+sealed class DbQueryTool(IDatabaseToolHost host) : DatabaseTool(host)
 {
     public override string Name => "db_query";
 
@@ -270,7 +270,7 @@ sealed class DbQueryTool(IClaudeToolHost host) : DatabaseTool(host)
 }
 
 /// <summary><c>db_explain</c>: the execution plan as a tree, with warnings; with analyze it runs the statement.</summary>
-sealed class DbExplainTool(IClaudeToolHost host) : DatabaseTool(host)
+sealed class DbExplainTool(IDatabaseToolHost host) : DatabaseTool(host)
 {
     public override string Name => "db_explain";
 

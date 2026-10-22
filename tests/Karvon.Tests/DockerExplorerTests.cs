@@ -592,9 +592,10 @@ public class DockerExplorerTests
             var window = new Views.MainWindow { DataContext = vm, Width = 1400, Height = 900 };
             window.Show();
             // Nothing asks the engine until the explorer shows.
-            Assert.Null(vm.Docker);
-            vm.ShowDockerExplorerCommand.Execute(null);
-            var explorer = vm.Docker!;
+            var module = vm.Module<Karvon.Docker.DockerModule>()!;
+            Assert.Null(module.Explorer);
+            vm.ShowToolWindow(Karvon.Docker.DockerModule.ToolWindowId);
+            var explorer = module.Explorer!;
             await WaitUntil(() => window.GetVisualDescendants().OfType<DockerExplorerView>().Any(v => v.IsEffectivelyVisible), TimeSpan.FromSeconds(5));
             var tab = window.GetVisualDescendants().OfType<TabItem>().Single(t => (string?)t.Tag == "DockerExplorer");
             Assert.True(tab.IsSelected);
@@ -620,11 +621,11 @@ public class DockerExplorerTests
             await WaitUntil(() => vm.Documents.OfType<DockerDocument>().Count() == 1, TimeSpan.FromSeconds(10));
 
             // Ask Claude puts the prompt in the Claude panel without sending it.
-            ((IDockerHost)vm).AskClaude("Why did migrate exit?");
+            ((IDockerHost)module).AskClaude("Why did migrate exit?");
             Assert.Equal("Why did migrate exit?", vm.Claude.Prompt);
             await vm.CloseDocumentCommand.ExecuteAsync(containers);
             Assert.Empty(vm.Documents.OfType<DockerDocument>());
-            vm.ShutdownDocker();
+            module.Dispose();
             window.Close();
         }
         finally

@@ -3,7 +3,7 @@ using Avalonia.Threading;
 using Karvon.Claude;
 using Karvon.Claude.Tools;
 using Karvon.Database.ViewModels;
-using Karvon.Docker.ViewModels;
+using Karvon.Modules;
 using static Karvon.Claude.Tools.ToolInput;
 
 namespace Karvon.ViewModels;
@@ -18,6 +18,9 @@ public partial class MainViewModel
 {
     /// <summary>Output (Claude): every call of Karvon's tools, what it was about and what it gave.</summary>
     public OutputChannel ClaudeOutput { get; } = new("Claude");
+
+    /// <summary>The module each of the modules' tools is of: it shows what the tool did.</summary>
+    readonly Dictionary<string, KarvonModule> _claudeToolModules = new(StringComparer.Ordinal);
 
     /// <summary>Claude's Query Tool of each data source, used again while it is open.</summary>
     readonly Dictionary<string, QueryDocumentViewModel> _claudeQueries = new(StringComparer.Ordinal);
@@ -52,19 +55,6 @@ public partial class MainViewModel
                     break;
                 case "db_connections" or "db_schema":
                     ShowToolWindowBeside(ToolWindows.DatabaseExplorer);
-                    break;
-                case "container_list" or "compose_up" or "container_remove":
-                    EnsureDocker().OpenSection(DockerSection.Containers);
-                    break;
-                case "container_logs" or "container_inspect" or "container_restart":
-                    await OpenClaudeContainerAsync(Str(input, "name"), tool == "container_inspect" ? "inspect" : null);
-                    break;
-                case "server_list":
-                    EnsureServers();
-                    ShowToolWindowBeside(ToolWindows.Servers);
-                    break;
-                case "server_logs" or "server_exec":
-                    ShowClaudeServer(Str(input, "server"), tool == "server_logs" ? input : null);
                     break;
                 case "run_build":
                     SelectedOutput = BuildOutput;
@@ -101,6 +91,11 @@ public partial class MainViewModel
                     FindResultsTitle = $"Claude: '{Str(input, "query")}' ({found.Count})";
                     ShowToolWindow(ToolWindows.FindResults);
                     break;
+                // A module's tool: the module shows it.
+                default:
+                    if (_claudeToolModules.GetValueOrDefault(tool) is { } module)
+                        await module.ShowClaudeToolAsync(tool, input, output);
+                    break;
             }
         }
         catch (Exception ex) when (ex is IOException or InvalidOperationException or ArgumentException or Bengine.Introspection.IntrospectionException)
@@ -131,30 +126,6 @@ public partial class MainViewModel
         if (query is not null)
             _claudeQueries[key] = query;
         return query;
-    }
-
-    async Task OpenClaudeContainerAsync(string? name, string? tab)
-    {
-        if (name is null)
-            return;
-        var docker = EnsureDocker();
-        if (!docker.Containers.AllRows.Any())
-            await docker.RefreshContainersAsync();
-        if (docker.Containers.AllRows.FirstOrDefault(r => r.Container.Name == name || r.Container.Id.StartsWith(name, StringComparison.Ordinal)) is { } row)
-            docker.OpenContainer(row, tab);
-    }
-
-    /// <summary>A server's page; for its logs, on its Logs tab with what Claude read (a unit, a file, how many lines).</summary>
-    void ShowClaudeServer(string? name, JsonElement? logs)
-    {
-        if (name is null || EnsureServers().Find(name) is not { } node)
-            return;
-        var page = Servers!.Open(node, logs is null ? null : "logs").Page;
-        if (logs is { } input)
-        {
-            (page.LogUnit, page.LogFile, page.LogLines) = (Str(input, "unit") ?? "", Str(input, "file") ?? "", Int(input, "lines", 200, 10, 10_000));
-            page.RefreshLogsCommand.Execute(null);
-        }
     }
 
     /// <summary>A file of the solution in the editor, its lines (when given) selected.</summary>
