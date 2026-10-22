@@ -7,6 +7,7 @@ using CommunityToolkit.Mvvm.Input;
 using Karvon.Build;
 using Karvon.Editor;
 using Karvon.Lsp;
+using Karvon.Modules;
 using Karvon.Services;
 using Karvon.Workspace;
 
@@ -72,9 +73,10 @@ public partial class MainViewModel : ObservableObject
     {
     }
 
-    /// <summary>With these settings (the modules that are on among them).</summary>
-    public MainViewModel(Settings settings)
+    /// <summary>With these settings (the modules that are on among them), and these modules instead of the application's.</summary>
+    public MainViewModel(Settings settings, IReadOnlyList<KarvonModule>? modules = null)
     {
+        _givenModules = modules;
         Settings = settings;
         InitializeDocumentGroups();
         if (Settings.UiLanguage is "en" or "uz")
@@ -374,6 +376,7 @@ public partial class MainViewModel : ObservableObject
         Documents.Clear();
         ActiveDocument = null;
         await StopLanguageServerAsync();
+        await StopModuleLanguageServersAsync();
         ExplorerRoots.Clear();
         StartupProjects.Clear();
         LaunchProfiles.Clear();
@@ -543,6 +546,7 @@ public partial class MainViewModel : ObservableObject
             Documents.Add(existing);
             if (_lsp is not null)
                 host.Attach(_lsp);
+            AttachModuleLanguageServer(existing);
         }
         if (activate)
             ActiveDocument = existing;

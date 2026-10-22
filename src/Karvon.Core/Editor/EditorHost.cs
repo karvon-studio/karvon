@@ -371,6 +371,7 @@ public sealed partial class EditorHost : IDisposable, IDebugLineSource
         if (!lsp.Handles(FilePath))
             return;
         _lsp = lsp;
+        lsp.DiagnosticsPublished += OnDiagnosticsPublished;
         _pendingChanges.Clear();
         _version = 1;
         _ = lsp.DidOpenAsync(FilePath, Document.Text);
@@ -381,8 +382,17 @@ public sealed partial class EditorHost : IDisposable, IDebugLineSource
 
     public void Detach()
     {
+        if (_lsp is { } lsp)
+            lsp.DiagnosticsPublished -= OnDiagnosticsPublished;
         _lsp = null;
         _pendingChanges.Clear();
+    }
+
+    /// <summary>A server that pushes its diagnostics sent this file's: they show at once.</summary>
+    void OnDiagnosticsPublished(string path)
+    {
+        if (path == FilePath)
+            Dispatcher.UIThread.Post(() => ScheduleDiagnostics(0));
     }
 
     void OnDocumentChanging(object? sender, DocumentChangeEventArgs e)
@@ -1148,7 +1158,10 @@ public sealed partial class EditorHost : IDisposable, IDebugLineSource
         _completionWindow?.Close();
         _insightWindow?.Close();
         if (_lsp is { } lsp)
+        {
+            lsp.DiagnosticsPublished -= OnDiagnosticsPublished;
             _ = lsp.DidCloseAsync(FilePath);
+        }
         _lsp = null;
         _semanticCts?.Cancel();
         _textMate?.Dispose();

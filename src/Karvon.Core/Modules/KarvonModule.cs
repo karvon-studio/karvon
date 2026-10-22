@@ -33,6 +33,16 @@ public sealed record ToolWindowInfo(string Id, string Title, string MenuHeader, 
     public Action? Show { get; init; }
 }
 
+/// <summary>A workload's language server: the files it serves, and how it starts for a folder.</summary>
+/// <param name="Id">Its id (one runs per workspace).</param>
+/// <param name="Serves">Whether it serves a file (by its path).</param>
+public sealed record LanguageServerInfo(string Id, string Name, Func<string, bool> Serves, Func<LanguageServerStart, Task<Lsp.LspClient>> StartAsync);
+
+/// <summary>What a language server starts with.</summary>
+/// <param name="Workspace">The folder it serves: the solution's, or the folder opened.</param>
+/// <param name="Log">Its Output pane (Language Server): what installing or starting it says.</param>
+public sealed record LanguageServerStart(string Workspace, Action<string> Log, CancellationToken Cancellation);
+
 /// <summary>
 /// A control whose keys come before Karvon's (Bengine Data Studio's keymap in the Database Explorer): while the focus is
 /// in it, the window leaves its keys to it.
@@ -65,6 +75,9 @@ public abstract partial class KarvonModule : ObservableObject, IDisposable, IAsy
 
     /// <summary>How <see cref="Overlay"/> looks.</summary>
     public virtual IDataTemplate? OverlayTemplate => null;
+
+    /// <summary>The language servers it brings: one starts when a file it serves opens in the editor.</summary>
+    public virtual IReadOnlyList<LanguageServerInfo> LanguageServers => [];
 
     /// <summary>The tools it gives the Claude Code sessions Karvon starts (mcp__karvon__*): new ones for each session.</summary>
     public virtual IEnumerable<IClaudeTool> ClaudeTools() => [];

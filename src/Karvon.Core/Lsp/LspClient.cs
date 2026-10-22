@@ -15,6 +15,7 @@ namespace Karvon.Lsp;
 public class LspClient : IAsyncDisposable
 {
     readonly FileWatchBridge _watch;
+    readonly System.Collections.Concurrent.ConcurrentDictionary<string, IReadOnlyList<LspDiagnostic>> _published = new(StringComparer.Ordinal);
     int _exited;
 
     protected LspClient(Process process, JsonRpcConnection rpc, string root)
@@ -33,6 +34,12 @@ public class LspClient : IAsyncDisposable
 
     public event Action<string>? Log;
     public event Action? DiagnosticsRefreshRequested;
+
+    /// <summary>A server that pushes its diagnostics (textDocument/publishDiagnostics) sent a file's: its path.</summary>
+    public event Action<string>? DiagnosticsPublished;
+
+    /// <summary>What the server said it can do (its initialize result's capabilities).</summary>
+    public JsonElement Capabilities { get; private set; }
 
     /// <summary>The server's classifications changed (a project loaded, a referenced file was edited...).</summary>
     public event Action? SemanticTokensRefreshRequested;
@@ -86,6 +93,7 @@ public class LspClient : IAsyncDisposable
             ? new { processId = Environment.ProcessId, clientInfo = new { name = "Karvon", version = "0.1" }, rootUri = ToUri(root), workspaceFolders = folders, capabilities = ClientCapabilities }
             : new { processId = Environment.ProcessId, clientInfo = new { name = "Karvon", version = "0.1" }, rootUri = ToUri(root), workspaceFolders = folders, capabilities = ClientCapabilities, initializationOptions }, ct);
         SemanticTokenTypes = SemanticTokenLegend(init);
+        Capabilities = init.ValueKind == JsonValueKind.Object && init.TryGetProperty("capabilities", out var capabilities) ? capabilities.Clone() : default;
         await Rpc.NotifyAsync("initialized", new { });
         if (ReadyOnceInitialized)
             IsReady = true;
@@ -205,6 +213,13 @@ public class LspClient : IAsyncDisposable
             SemanticTokensRefreshRequested?.Invoke();
             return Task.FromResult<object?>(null);
         });
+        Rpc.OnNotification("textDocument/publishDiagnostics", p =>
+        {
+            if (!p.TryGetProperty("uri", out var uri) || uri.GetString() is not { } text || !Uri.TryCreate(text, UriKind.Absolute, out var parsed))
+                return;
+            _published[parsed.AbsoluteUri] = p.TryGetProperty("diagnostics", out var items) ? LspParse.Diagnostics(items) : [];
+            DiagnosticsPublished?.Invoke(parsed.LocalPath);
+        });
         Rpc.OnNotification("window/logMessage", p =>
         {
             var type = p.GetProperty("type").GetInt32();
@@ -309,8 +324,11 @@ public class LspClient : IAsyncDisposable
             context = new { includeDeclaration = true },
         }, ct));
 
+    /// <summary>A file's diagnostics: those the server pushed for it, else pulled (textDocument/diagnostic).</summary>
     public async Task<IReadOnlyList<LspDiagnostic>> DiagnosticsAsync(string path, CancellationToken ct)
     {
+        if (_published.TryGetValue(ToUri(path), out var pushed))
+            return pushed;
         var result = await Rpc.RequestAsync("textDocument/diagnostic", new { textDocument = new { uri = ToUri(path) } }, ct);
         return result.ValueKind == JsonValueKind.Object && result.TryGetProperty("items", out var items)
             ? LspParse.Diagnostics(items)

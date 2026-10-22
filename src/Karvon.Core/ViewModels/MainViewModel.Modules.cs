@@ -20,12 +20,15 @@ public partial class MainViewModel : IWorkbench
     /// <summary>A module that is on.</summary>
     public T? Module<T>() where T : KarvonModule => Modules.OfType<T>().FirstOrDefault();
 
+    readonly IReadOnlyList<KarvonModule>? _givenModules;
+
     void StartModules()
     {
-        AllModules = ModuleCatalog.Create();
+        AllModules = _givenModules ?? ModuleCatalog.Create();
         Modules = [.. AllModules.Where(m => !Settings.DisabledModules.Contains(m.Id))];
         foreach (var module in Modules)
             module.Start(this);
+        RegisterModuleLanguageServers();
     }
 
     /// <summary>Karvon closes: what the modules started stops.</summary>

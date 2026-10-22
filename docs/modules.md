@@ -47,6 +47,7 @@ application's project references.
 | `ToolWindows` | Each tool window becomes a tab in its group (before Claude Code at the sides) and an item in the View menu. Its view is made the first time it shows: a module that is never opened reads nothing and starts nothing. |
 | `DocumentTemplates` | How the module's documents look in the document well, in every window. `Document<T>` puts the view under the well's blue line. |
 | `Overlay` and `OverlayTemplate` | The module's dialogs and messages over the whole window, once it has something to show. |
+| `LanguageServers` | The language servers it brings (an `LspClient` each, for the files it serves). One starts for the workspace when the first of its files opens in the editor, serves every editor of its files, and stops with the workspace. Servers that push diagnostics and servers that are asked for them both work. |
 | `ClaudeTools()` | The tools it gives the Claude Code sessions Karvon starts (`mcp__karvon__*`). A module that is off gives none. |
 | `ShowClaudeToolAsync` | One of its tools ran: show what it did where the user would have done it (a container's logs on its page). |
 | `Started()` | Runs once Karvon has started with the module on: subscribe to the workbench here. |

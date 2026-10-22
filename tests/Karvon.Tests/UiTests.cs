@@ -51,7 +51,7 @@ public class UiTests
     /// <summary>The Database Explorer module of a window's view model.</summary>
     internal static Karvon.Database.DatabaseModule Db(MainViewModel vm) => vm.Module<Karvon.Database.DatabaseModule>()!;
 
-    internal static MainViewModel NewViewModel(Action<Karvon.Services.Settings>? configure = null)
+    internal static MainViewModel NewViewModel(Action<Karvon.Services.Settings>? configure = null, IReadOnlyList<Karvon.Modules.KarvonModule>? modules = null)
     {
         // The Claude Code window must never start the user's real CLI from a test.
         FakeClaude.Ensure();
@@ -59,7 +59,7 @@ public class UiTests
         // Every module on, unless the test says otherwise.
         settings.DisabledModules = [];
         configure?.Invoke(settings);
-        var vm = new MainViewModel(settings);
+        var vm = new MainViewModel(settings, modules);
         // Other tests may be building in parallel: never shut down the shared build servers.
         vm.ShutdownBuildServers = () => Task.CompletedTask;
         vm.Settings.Solutions.Clear();
