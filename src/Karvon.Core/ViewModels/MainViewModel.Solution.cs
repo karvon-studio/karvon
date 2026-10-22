@@ -261,7 +261,11 @@ public partial class MainViewModel
                 var target = Path.Combine(directory, newName);
                 if (!MovePaths([(file, target)]))
                     return false;
-                await EditSolutionAsync(solution => SolutionEditor.MoveFileAsync(solution, node.SolutionFolder!, file, target));
+                if (!await EditSolutionAsync(solution => SolutionEditor.MoveFileAsync(solution, node.SolutionFolder!, file, target)))
+                {
+                    MovePaths([(target, file)]);
+                    return false;
+                }
                 await ReloadSolutionAsync(target);
                 return true;
             case { Kind: NodeKind.Solution }:

@@ -120,9 +120,22 @@ public static class SolutionEditor
             throw new InvalidOperationException("A project opened on its own has no solution file to change.");
         var serializer = SolutionSerializers.GetSerializerByMoniker(solutionPath)
             ?? throw new NotSupportedException($"Unsupported solution format: {solutionPath}");
-        var model = await serializer.OpenAsync(solutionPath, CancellationToken.None);
-        change(model, Path.GetDirectoryName(solutionPath)!);
-        await serializer.SaveAsync(solutionPath, model, CancellationToken.None);
+        // Writing locks the file (flock on Unix): a reader holding it a moment (the language server, a restore) makes it
+        // fail, so the edit is made again from the file as it is then.
+        for (var attempt = 1; ; attempt++)
+        {
+            try
+            {
+                var model = await serializer.OpenAsync(solutionPath, CancellationToken.None);
+                change(model, Path.GetDirectoryName(solutionPath)!);
+                await serializer.SaveAsync(solutionPath, model, CancellationToken.None);
+                return;
+            }
+            catch (IOException) when (attempt < 20 && File.Exists(solutionPath))
+            {
+                await Task.Delay(100);
+            }
+        }
     }
 
     /// <summary>A path as the model keeps it: relative to the solution's folder (each format writes its own separators).</summary>

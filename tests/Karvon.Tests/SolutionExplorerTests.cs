@@ -378,7 +378,7 @@ public class SolutionExplorerTests
         Assert.Equal(["notes.txt", "README.md"], Node("Solution Items").Children.Select(c => c.Name).Order());
         Assert.All(Node("Solution Items").Children, c => Assert.True(c.IsSolutionItem));
         Assert.Equal(["Open", "Compare with Unmodified", "Rename", "Remove", "Delete"], Headers(window.ExplorerMenuItems(Node("Solution Items", "README.md"))).Skip(1).Take(5));
-        Assert.True(await vm.RenameInSolutionAsync(Node("Solution Items", "notes.txt"), "todo.txt"));
+        Assert.True(await vm.RenameInSolutionAsync(Node("Solution Items", "notes.txt"), "todo.txt"), vm.StatusText);
         Assert.True(File.Exists(Path.Combine(dir, "todo.txt")));
         Assert.Equal("todo.txt", vm.ActiveEditor?.FileName);
         Assert.Contains("todo.txt = todo.txt", File.ReadAllText(sln));

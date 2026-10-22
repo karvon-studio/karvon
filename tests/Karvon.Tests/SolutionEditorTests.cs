@@ -37,6 +37,20 @@ public class SolutionEditorTests
 
     static ExplorerNode Child(ExplorerNode node, string name) => node.Children.Single(c => c.Name == name);
 
+    [Fact]
+    public async Task A_change_waits_for_a_reader_of_the_file()
+    {
+        // The language server or a restore reading the solution holds it (flock on Unix) while it is written.
+        var sln = Copy("sln");
+        var dir = Path.GetDirectoryName(sln)!;
+        File.WriteAllText(Path.Combine(dir, "notes.txt"), "");
+        var reader = new FileStream(sln, FileMode.Open, FileAccess.Read, FileShare.Read);
+        var released = Task.Delay(300, TestContext.Current.CancellationToken).ContinueWith(_ => reader.Dispose(), TaskScheduler.Default);
+        await SolutionEditor.AddFilesAsync(sln, SolutionEditor.SolutionItems, [Path.Combine(dir, "notes.txt")]);
+        await released;
+        Assert.Contains("notes.txt = notes.txt", File.ReadAllText(sln));
+    }
+
     [Theory]
     [InlineData("sln")]
     [InlineData("slnx")]

@@ -574,8 +574,10 @@ public class DockerExplorerTests
             s["containers"]!.AsArray().RemoveAt(3);
             s["events"]!.AsArray().Add(JsonNode.Parse("""{"Type":"container","Action":"destroy","Actor":{"ID":"cache"}}"""));
         });
-        await WaitUntil(() => containers.Items.All(i => i != cache), TimeSpan.FromSeconds(10));
+        // By its name: a refresh may have made its row again, so the row read before is no proof it is gone.
+        await WaitUntil(() => containers.Count == 5 && !containers.Items.OfType<ContainerRow>().Any(r => r.Name == "cache"), TimeSpan.FromSeconds(10));
         Assert.Equal(5, containers.Count);
+        Assert.DoesNotContain(vm.Containers.AllRows, r => r.Name == "cache");
         Assert.IsType<VolumesPage>(Assert.Single(host.Open).Content);
         vm.Dispose();
         window.Close();
