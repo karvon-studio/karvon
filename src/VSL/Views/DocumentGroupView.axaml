@@ -67,9 +67,9 @@
           </DockPanel>
         </Border>
       </DataTemplate>
-      <DataTemplate DataType="dvm:DockerExplorerViewModel" x:DataType="dvm:DockerExplorerViewModel">
+      <DataTemplate DataType="dvm:DockerDocument" x:DataType="dvm:DockerDocument">
         <Border Classes="docframe" BorderBrush="#007ACC" BorderThickness="0,2,0,0">
-          <dv:DockerExplorerView />
+          <dv:DockerDocumentView />
         </Border>
       </DataTemplate>
       <DataTemplate DataType="vm:NuGetViewModel" x:DataType="vm:NuGetViewModel">

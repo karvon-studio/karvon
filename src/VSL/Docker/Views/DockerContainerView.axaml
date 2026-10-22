@@ -9,12 +9,9 @@
              x:DataType="dvm:ContainerDetailViewModel">
   <DockPanel Margin="20,14,20,0">
     <StackPanel DockPanel.Dock="Top" Spacing="12">
-      <!-- Back, the container, its state and actions -->
-      <Grid ColumnDefinitions="Auto,*,Auto">
-        <Button Name="BackButton" Classes="dkIcon" Command="{Binding BackCommand}" ToolTip.Tip="Back to Containers (Esc)" VerticalAlignment="Top">
-          <v:VsIcon Kind="DockerBack" />
-        </Button>
-        <StackPanel Grid.Column="1" Margin="8,0,0,0" Spacing="5">
+      <!-- The container, its state and actions -->
+      <Grid ColumnDefinitions="*,Auto">
+        <StackPanel Spacing="5">
           <StackPanel Orientation="Horizontal" Spacing="10">
             <v:VsIcon Kind="DockerContainer" Width="22" Height="22" Classes="state"
                       Classes.running="{Binding Row.StateKind, Converter={x:Static ObjectConverters.Equal}, ConverterParameter=running}"
@@ -59,7 +56,7 @@
             </ItemsControl>
           </WrapPanel>
         </StackPanel>
-        <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="6" VerticalAlignment="Top">
+        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6" VerticalAlignment="Top">
           <Button Name="AskClaudeButton" Classes="dkOutline" Command="{Binding AskClaudeCommand}" ToolTip.Tip="Claude Code, with its state and last log lines">
             <StackPanel Orientation="Horizontal" Spacing="6">
               <v:VsIcon Kind="Claude" Width="13" Height="13" />

@@ -250,22 +250,24 @@ public class Screenshots
         Environment.SetEnvironmentVariable("VSL_DOCKER_PATH", docker);
         try
         {
-            // Room for the dashboard: a smaller Error List and Solution Explorer.
+            // Room for the dashboard: a smaller Error List.
             window.FindControl<Grid>("LeftGrid")!.RowDefinitions[2].Height = new GridLength(120);
-            window.FindControl<Grid>("MainGrid")!.ColumnDefinitions[4].Width = new GridLength(260);
-            await vm.ShowDockerExplorerCommand.ExecuteAsync(null);
-            var explorer = vm.Documents.OfType<VSL.Docker.ViewModels.DockerExplorerViewModel>().Single();
+            vm.ShowDockerExplorerCommand.Execute(null);
+            var explorer = vm.Docker!;
+            await WaitUntil(() => explorer.IsEngineRunning && explorer.Containers.Count == 6, TimeSpan.FromSeconds(10));
+            // The tree in the tool window; the Containers table as a document.
+            explorer.Open(explorer.Sections[0]);
             await WaitUntil(() => explorer.Containers.AllRows.Count(r => r.Cpu is not null) == 4, TimeSpan.FromSeconds(10));
             await Settle();
             Save(window, "docker-explorer");
 
             // A container's page, on its stats.
-            explorer.Containers.AllRows.Single(r => r.Name == "shop-api-1").OpenCommand.Execute(null);
-            var page = (VSL.Docker.ViewModels.ContainerDetailViewModel)explorer.Detail!;
-            page.ShowTabCommand.Execute("stats");
-            await WaitUntil(() => page.Row.CpuHistory.Count >= 12, TimeSpan.FromSeconds(15));
+            var api = explorer.Containers.AllRows.Single(r => r.Name == "shop-api-1");
+            api.OpenTabCommand.Execute("stats");
+            await WaitUntil(() => api.CpuHistory.Count >= 12, TimeSpan.FromSeconds(15));
             await Settle();
             Save(window, "docker-container");
+            vm.ShutdownDocker();
             await CloseAsync(vm, window);
         }
         finally

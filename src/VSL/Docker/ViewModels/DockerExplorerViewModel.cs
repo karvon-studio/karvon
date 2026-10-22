@@ -32,19 +32,25 @@ public interface IDockerHost
 
     /// <summary>Claude Code, with this prompt ready to send.</summary>
     void AskClaude(string prompt);
+
+    /// <summary>The explorer's documents open in the document well.</summary>
+    IEnumerable<DockerDocument> Documents { get; }
+
+    /// <summary>Opens the document in the document well (when it is not open yet) and brings it to the front.</summary>
+    void ShowDocument(DockerDocument document);
+
+    void CloseDocument(DockerDocument document);
 }
 
 /// <summary>
-/// The Docker Explorer (View > Docker Explorer): Docker Desktop's dashboard in a document. A sidebar for containers,
-/// images, volumes and networks; each a table that follows the engine's events, with CPU and memory from its stats
-/// stream; a page for a container (logs, inspect, mounts, a shell, stats), an image, a volume or a network. The
-/// engine is the docker command line (<see cref="DockerEngine"/>); when it is not running the page says why and
-/// tries again every few seconds.
+/// The Docker Explorer tool window (View > Docker Explorer), as the Database Explorer: a tree of the engine's
+/// containers (compose projects as stacks), images, volumes and networks that follows its events. What it opens is a
+/// document: a section's table as Docker Desktop's (CPU and memory from the stats stream), or a container's page
+/// (logs, inspect, mounts, a shell, stats), an image's, a volume's or a network's. The engine is the docker command
+/// line (<see cref="DockerEngine"/>); when it is not running the explorer says why and tries again every few seconds.
 /// </summary>
-public sealed partial class DockerExplorerViewModel : DocumentTab
+public sealed partial class DockerExplorerViewModel : ObservableObject, IDisposable
 {
-    public const string DocumentKey = "docker:explorer";
-
     static readonly TimeSpan RetryInterval = TimeSpan.FromSeconds(5);
 
     readonly DispatcherTimer _refreshTimer = new() { Interval = TimeSpan.FromMilliseconds(250) };
@@ -56,6 +62,7 @@ public sealed partial class DockerExplorerViewModel : DocumentTab
     bool _networksDirty;
     bool _connecting;
     bool _disposed;
+    int _watchers;
 
     public DockerExplorerViewModel(DockerEngine engine, IDockerHost host)
     {
@@ -65,6 +72,13 @@ public sealed partial class DockerExplorerViewModel : DocumentTab
         Images = new ImagesPage(this);
         Volumes = new VolumesPage(this);
         Networks = new NetworksPage(this);
+        Sections =
+        [
+            new DockerSectionNode(this, DockerSection.Containers, "DockerContainer") { IsTreeExpanded = true },
+            new DockerSectionNode(this, DockerSection.Images, "DockerImage"),
+            new DockerSectionNode(this, DockerSection.Volumes, "DockerVolume"),
+            new DockerSectionNode(this, DockerSection.Networks, "DockerNetwork"),
+        ];
         _refreshTimer.Tick += (_, _) =>
         {
             _refreshTimer.Stop();
@@ -76,12 +90,6 @@ public sealed partial class DockerExplorerViewModel : DocumentTab
                 _ = ConnectAsync();
         };
     }
-
-    public override string Key => DocumentKey;
-
-    public override string Title => "Docker";
-
-    public override string ToolTip => $"Docker Explorer ({Engine.Name})";
 
     public DockerEngine Engine { get; }
 
@@ -95,48 +103,21 @@ public sealed partial class DockerExplorerViewModel : DocumentTab
 
     public NetworksPage Networks { get; }
 
+    /// <summary>The tree's top level: Containers, Images, Volumes, Networks.</summary>
+    public IReadOnlyList<DockerSectionNode> Sections { get; }
+
+    /// <summary>The tree's search: names that contain it (a stack's containers when the stack's does).</summary>
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(IsContainers), nameof(IsImages), nameof(IsVolumes), nameof(IsNetworks))]
-    public partial DockerSection Section { get; set; }
+    public partial string Filter { get; set; } = "";
 
-    public bool IsContainers => Section == DockerSection.Containers;
-
-    /// <summary>Which table shows: the section's, while the engine runs and no page is open over it.</summary>
-    public bool ShowContainers => IsEngineRunning && Detail is null && IsContainers;
-
-    public bool ShowImages => IsEngineRunning && Detail is null && IsImages;
-
-    public bool ShowVolumes => IsEngineRunning && Detail is null && IsVolumes;
-
-    public bool ShowNetworks => IsEngineRunning && Detail is null && IsNetworks;
-
-    public bool ShowDetail => IsEngineRunning && Detail is not null;
-
-    partial void OnSectionChanged(DockerSection value) => PagesChanged();
-
-    partial void OnDetailChanged(object? value) => PagesChanged();
-
-    partial void OnEngineStateChanged(string value) => PagesChanged();
-
-    void PagesChanged()
-    {
-        OnPropertyChanged(nameof(ShowContainers));
-        OnPropertyChanged(nameof(ShowImages));
-        OnPropertyChanged(nameof(ShowVolumes));
-        OnPropertyChanged(nameof(ShowNetworks));
-        OnPropertyChanged(nameof(ShowDetail));
-    }
-
-    public bool IsImages => Section == DockerSection.Images;
-
-    public bool IsVolumes => Section == DockerSection.Volumes;
-
-    public bool IsNetworks => Section == DockerSection.Networks;
+    partial void OnFilterChanged(string value) => SyncTree();
 
     /// <summary>"starting" (first look), "running", or "stopped" (not installed, not running, no access).</summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsEngineRunning), nameof(IsEngineStopped), nameof(IsEngineStarting), nameof(EngineStatusText))]
     public partial string EngineState { get; set; } = "starting";
+
+    partial void OnEngineStateChanged(string value) => UpdateStatsStream();
 
     public bool IsEngineRunning => EngineState == "running";
 
@@ -169,13 +150,6 @@ public sealed partial class DockerExplorerViewModel : DocumentTab
         ? string.Join(" · ", new[] { info.OperatingSystem, info.Cpus > 0 ? $"{info.Cpus} CPUs" : null, info.Memory > 0 ? DockerFormat.Size(info.Memory) : null }.Where(s => s is { Length: > 0 }))
         : "";
 
-    /// <summary>A container's, image's, volume's or network's page, over the section's table; null shows the table.</summary>
-    [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(HasDetail))]
-    public partial object? Detail { get; set; }
-
-    public bool HasDetail => Detail is not null;
-
     /// <summary>The dialog over the page (a confirmation, Run, Create), or null.</summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasDialog))]
@@ -190,7 +164,7 @@ public sealed partial class DockerExplorerViewModel : DocumentTab
 
     public bool HasError => Error is not null;
 
-    /// <summary>The footer's totals, as Docker Desktop's: memory and CPU of the running containers, and the disk used.</summary>
+    /// <summary>The status bar's totals, as Docker Desktop's: memory and CPU of the running containers, and the disk used.</summary>
     [ObservableProperty]
     public partial string RamText { get; set; } = "";
 
@@ -244,7 +218,7 @@ public sealed partial class DockerExplorerViewModel : DocumentTab
             DockerProblem.NotRunning => "Start the Docker daemon (sudo systemctl start docker), or Docker Desktop. VSL connects as soon as it is up.",
             _ => null,
         };
-        Containers.Apply([]);
+        // The rows stay, for the documents open on them; the tree and the documents say the engine is away meanwhile.
         if (!_disposed)
             _retryTimer.Start();
     }
@@ -264,6 +238,8 @@ public sealed partial class DockerExplorerViewModel : DocumentTab
             Containers.Apply(containers);
             Networks.ApplyContainers(containers);
             UpdateTotals();
+            SyncTree();
+            CloseGone();
         }
         catch (DockerException ex)
         {
@@ -279,6 +255,8 @@ public sealed partial class DockerExplorerViewModel : DocumentTab
             Images.Apply(usage);
             Volumes.Apply(usage.Volumes);
             DiskText = $"Disk {DockerFormat.Size(usage.Total)} used";
+            SyncTree();
+            CloseGone();
         }
         catch (DockerException ex)
         {
@@ -291,6 +269,8 @@ public sealed partial class DockerExplorerViewModel : DocumentTab
         try
         {
             Networks.Apply(await Engine.NetworksAsync());
+            SyncTree();
+            CloseGone();
         }
         catch (DockerException ex)
         {
@@ -325,6 +305,45 @@ public sealed partial class DockerExplorerViewModel : DocumentTab
         {
             _events = Engine.Stream(["events", "--format", "{{json .}}"], line => Dispatcher.UIThread.Post(() => OnEvent(line)),
                 _ => Dispatcher.UIThread.Post(OnEventsEnded));
+        }
+        catch (DockerException ex)
+        {
+            Report(ex);
+        }
+        UpdateStatsStream();
+    }
+
+    void StopStreams()
+    {
+        _events?.Dispose();
+        _events = null;
+        _stats?.Dispose();
+        _stats = null;
+    }
+
+    /// <summary>
+    /// A view of the explorer (the tool window, a document) shows (+1) or goes (-1). The stats stream, which has the
+    /// engine sample every running container each second, runs only while one shows.
+    /// </summary>
+    internal void Watch(int change)
+    {
+        _watchers = Math.Max(_watchers + change, 0);
+        UpdateStatsStream();
+    }
+
+    void UpdateStatsStream()
+    {
+        var wanted = _watchers > 0 && IsEngineRunning && _events is not null && !_disposed;
+        if (wanted == _stats is not null)
+            return;
+        if (!wanted)
+        {
+            _stats!.Dispose();
+            _stats = null;
+            return;
+        }
+        try
+        {
             _stats = Engine.Stream(["stats", "--format", "{{json .}}"], line =>
             {
                 if (DockerEngine.ParseStats(line) is { } stats)
@@ -335,14 +354,6 @@ public sealed partial class DockerExplorerViewModel : DocumentTab
         {
             Report(ex);
         }
-    }
-
-    void StopStreams()
-    {
-        _events?.Dispose();
-        _events = null;
-        _stats?.Dispose();
-        _stats = null;
     }
 
     /// <summary>One engine event: what it concerns is read again a moment later (several events come together).</summary>
@@ -405,6 +416,8 @@ public sealed partial class DockerExplorerViewModel : DocumentTab
         if (_disposed || EngineState != "running")
             return;
         _events = null;
+        _stats?.Dispose();
+        _stats = null;
         DispatcherTimer.RunOnce(() => _ = ReconnectAsync(), TimeSpan.FromSeconds(1));
     }
 
@@ -443,40 +456,127 @@ public sealed partial class DockerExplorerViewModel : DocumentTab
         Containers.UpdateSummary(cpu, memory, cpus, Info?.Memory ?? 0);
     }
 
-    // ---- Navigation ---------------------------------------------------------------------------------------------
+    // ---- The tree ---------------------------------------------------------------------------------------------------
 
-    [RelayCommand]
-    void ShowSection(DockerSection section)
+    /// <summary>
+    /// The tree shows what the engine has, the search's matches: the solution's stack first, then stacks and lone
+    /// containers by name; images by name, untagged last; named volumes before anonymous; the engine's networks first.
+    /// </summary>
+    void SyncTree()
     {
-        CloseDetail();
-        Section = section;
+        var filter = Filter.Trim();
+        bool Match(string name) => filter.Length == 0 || name.Contains(filter, StringComparison.OrdinalIgnoreCase);
+        var containers = new List<DockerTreeItem>();
+        foreach (var stack in Containers.Stacks.OrderByDescending(s => s.IsThisSolution).ThenBy(s => s.Name, StringComparer.OrdinalIgnoreCase))
+        {
+            var children = stack.Children.Where(c => Match(stack.Name) || Match(c.Name)).OrderBy(c => c.Name, StringComparer.OrdinalIgnoreCase).ToList();
+            ContainersPage.Sync(stack.TreeChildren, children);
+            if (children.Count > 0)
+                containers.Add(stack);
+        }
+        containers.AddRange(Containers.AllRows.Where(r => r.Container.Project is null && Match(r.Name)).OrderBy(r => r.Name, StringComparer.OrdinalIgnoreCase));
+        Show(Sections[0], containers, Containers.Count);
+        Sections[0].HasCompose = Containers.HasComposeFile;
+        Show(Sections[1], Images.AllRows.Where(r => Match(r.Reference)).OrderBy(r => r.Image.IsDangling).ThenBy(r => r.Reference, StringComparer.OrdinalIgnoreCase), Images.Count);
+        Show(Sections[2], Volumes.AllRows.Where(r => Match(r.Name)).OrderBy(r => r.Volume.IsAnonymous).ThenBy(r => r.Name, StringComparer.OrdinalIgnoreCase), Volumes.Count);
+        Show(Sections[3], Networks.AllRows.Where(r => Match(r.Name)).OrderBy(r => !r.Network.IsBuiltIn).ThenBy(r => r.Name, StringComparer.OrdinalIgnoreCase), Networks.Count);
+
+        void Show(DockerSectionNode section, IEnumerable<DockerTreeItem> items, int count)
+        {
+            ContainersPage.Sync(section.Items, items.ToList());
+            section.Count = count;
+            // Searching opens the sections it finds something in.
+            if (filter.Length > 0 && section.Items.Count > 0)
+                section.IsTreeExpanded = true;
+        }
     }
 
     [RelayCommand]
-    void Back() => CloseDetail();
-
-    void CloseDetail()
+    void CollapseAll()
     {
-        (Detail as IDisposable)?.Dispose();
-        Detail = null;
+        foreach (var section in Sections)
+            section.IsTreeExpanded = false;
     }
 
-    internal void OpenContainer(ContainerRow row)
+    /// <summary>Double-click or Enter in the tree: a section's table, or a container's, image's, volume's or network's page.</summary>
+    public void Open(DockerTreeItem item)
     {
-        CloseDetail();
-        Section = DockerSection.Containers;
-        var detail = new ContainerDetailViewModel(this, row);
-        Detail = detail;
-        detail.Initialize();
+        switch (item)
+        {
+            case DockerSectionNode section:
+                OpenSection(section.Section);
+                break;
+            case ContainerRow container:
+                OpenContainer(container);
+                break;
+            case ImageRow image:
+                OpenImage(image);
+                break;
+            case VolumeRow volume:
+                OpenVolume(volume);
+                break;
+            case NetworkRow network:
+                OpenNetwork(network);
+                break;
+            case StackRow stack:
+                stack.IsTreeExpanded = !stack.IsTreeExpanded;
+                break;
+        }
     }
 
-    internal void OpenImage(ImageRow row)
+    // ---- Documents ----------------------------------------------------------------------------------------------
+
+    /// <summary>The document with this key, brought to the front; made by <paramref name="create"/> when it is not open.</summary>
+    DockerDocument Show(string key, Func<DockerDocument> create)
     {
-        CloseDetail();
-        Section = DockerSection.Images;
-        var detail = new ImageDetailViewModel(this, row);
-        Detail = detail;
-        _ = detail.LoadAsync();
+        var document = Host.Documents.FirstOrDefault(d => d.Key == key) ?? create();
+        Host.ShowDocument(document);
+        return document;
+    }
+
+    /// <summary>A section's table as a document: Docker Desktop's Containers, Images, Volumes or Networks.</summary>
+    public DockerDocument OpenSection(DockerSection section)
+    {
+        var key = "docker:" + section.ToString().ToLowerInvariant();
+        return Show(key, () => new DockerDocument(this, key, section.ToString(), $"Docker {section.ToString().ToLowerInvariant()} ({Engine.Name})", section switch
+        {
+            DockerSection.Containers => Containers,
+            DockerSection.Images => Images,
+            DockerSection.Volumes => Volumes,
+            _ => Networks,
+        }));
+    }
+
+    /// <summary>A container's page, on its logs (or on <paramref name="tab"/>: "inspect", "mounts", "exec", "stats").</summary>
+    internal DockerDocument OpenContainer(ContainerRow row, string? tab = null)
+    {
+        var key = "docker:container:" + row.Container.Id;
+        var document = Show(key, () =>
+        {
+            var detail = new ContainerDetailViewModel(this, row);
+            detail.Initialize();
+            return new DockerDocument(this, key, row.Name, $"Container {row.Name} ({row.Image})", detail);
+        });
+        if (tab is not null && document.Content is ContainerDetailViewModel page)
+            page.Tab = tab;
+        return document;
+    }
+
+    internal void OpenContainer(string idOrName)
+    {
+        if (Containers.AllRows.FirstOrDefault(r => r.Container.Id.StartsWith(idOrName, StringComparison.Ordinal) || r.Container.Name == idOrName) is { } row)
+            OpenContainer(row);
+    }
+
+    internal DockerDocument OpenImage(ImageRow row)
+    {
+        var key = "docker:image:" + row.Image.Id + "|" + row.Image.Reference;
+        return Show(key, () =>
+        {
+            var detail = new ImageDetailViewModel(this, row);
+            _ = detail.LoadAsync();
+            return new DockerDocument(this, key, row.Image.IsDangling ? row.ShortId : row.Image.Reference, $"Image {row.Reference}", detail);
+        });
     }
 
     /// <summary>The image a container runs, by the reference it was started with.</summary>
@@ -488,34 +588,47 @@ public sealed partial class DockerExplorerViewModel : DocumentTab
             Error = $"{reference} is not a local image any more.";
     }
 
-    internal void OpenVolume(VolumeRow row)
+    internal DockerDocument OpenVolume(VolumeRow row)
     {
-        CloseDetail();
-        Section = DockerSection.Volumes;
-        var detail = new VolumeDetailViewModel(this, row);
-        Detail = detail;
-        _ = detail.LoadAsync();
+        var key = "docker:volume:" + row.Name;
+        return Show(key, () =>
+        {
+            var detail = new VolumeDetailViewModel(this, row);
+            _ = detail.LoadAsync();
+            return new DockerDocument(this, key, row.TreeName, $"Volume {row.Name}", detail);
+        });
     }
 
     internal void OpenVolume(string name)
     {
-        if (Volumes.Rows.FirstOrDefault(v => v.Volume.Name == name) is { } row)
+        if (Volumes.AllRows.FirstOrDefault(v => v.Volume.Name == name) is { } row)
             OpenVolume(row);
     }
 
-    internal void OpenNetwork(NetworkRow row)
+    internal DockerDocument OpenNetwork(NetworkRow row)
     {
-        CloseDetail();
-        Section = DockerSection.Networks;
-        var detail = new NetworkDetailViewModel(this, row);
-        Detail = detail;
-        _ = detail.LoadAsync();
+        var key = "docker:network:" + row.Network.Id;
+        return Show(key, () =>
+        {
+            var detail = new NetworkDetailViewModel(this, row);
+            _ = detail.LoadAsync();
+            return new DockerDocument(this, key, row.Name, $"Network {row.Name} ({row.Driver})", detail);
+        });
     }
 
-    internal void OpenContainer(string idOrName)
+    /// <summary>A container, image, volume or network that is gone (deleted here or elsewhere) takes its page with it.</summary>
+    void CloseGone()
     {
-        if (Containers.AllRows.FirstOrDefault(r => r.Container.Id.StartsWith(idOrName, StringComparison.Ordinal) || r.Container.Name == idOrName) is { } row)
-            OpenContainer(row);
+        foreach (var document in Host.Documents.Where(d => d.Explorer == this).ToList())
+            if (document.Content switch
+                {
+                    ContainerDetailViewModel c => !Containers.Contains(c.Row),
+                    ImageDetailViewModel i => !Images.Contains(i.Row),
+                    VolumeDetailViewModel v => !Volumes.Contains(v.Row),
+                    NetworkDetailViewModel n => !Networks.Contains(n.Row),
+                    _ => false,
+                })
+                Host.CloseDocument(document);
     }
 
     // ---- Actions ------------------------------------------------------------------------------------------------
@@ -559,8 +672,6 @@ public sealed partial class DockerExplorerViewModel : DocumentTab
             foreach (var row in rows)
                 row.BusyText = null;
         }
-        if (verb == "rm" && Detail is ContainerDetailViewModel open && rows.Contains(open.Row))
-            CloseDetail();
         await RefreshContainersAsync();
         if (verb == "rm")
             await RefreshDiskAsync();
@@ -638,13 +749,12 @@ public sealed partial class DockerExplorerViewModel : DocumentTab
             OpenContainer(id);
     }
 
-    public override void Dispose()
+    public void Dispose()
     {
         _disposed = true;
         _refreshTimer.Stop();
         _retryTimer.Stop();
         StopStreams();
-        CloseDetail();
         Dialog?.Cancel();
     }
 }

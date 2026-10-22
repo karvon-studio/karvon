@@ -27,6 +27,7 @@ public static class ToolWindows
     public const string Terminal = "Terminal";
     public const string Claude = "Claude";
     public const string DatabaseExplorer = "DatabaseExplorer";
+    public const string DockerExplorer = "DockerExplorer";
 }
 
 public enum StatusKind

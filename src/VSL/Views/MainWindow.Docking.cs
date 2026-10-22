@@ -380,7 +380,7 @@ public partial class MainWindow
         MainGrid.ColumnDefinitions[0].Width = new GridLength(DefaultLeftWidth);
         MainGrid.ColumnDefinitions[4].Width = new GridLength(DefaultRightWidth);
         LeftGrid.RowDefinitions[2].Height = new GridLength(DefaultBottomHeight);
-        foreach (var id in new[] { ToolWindows.SolutionExplorer, ToolWindows.TestExplorer, ToolWindows.GitChanges, ToolWindows.DatabaseExplorer, ToolWindows.Claude })
+        foreach (var id in new[] { ToolWindows.SolutionExplorer, ToolWindows.TestExplorer, ToolWindows.GitChanges, ToolWindows.DatabaseExplorer, ToolWindows.DockerExplorer, ToolWindows.Claude })
             MoveToolWindow(id, DockSide.Right);
         foreach (var id in new[] { ToolWindows.ErrorList, ToolWindows.Output, ToolWindows.FindResults, ToolWindows.Locals, ToolWindows.Watch, ToolWindows.CallStack, ToolWindows.Terminal })
             MoveToolWindow(id, DockSide.Bottom);

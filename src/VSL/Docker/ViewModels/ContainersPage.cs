@@ -6,7 +6,7 @@ using CommunityToolkit.Mvvm.Input;
 namespace VSL.Docker.ViewModels;
 
 /// <summary>A row of the Containers table: one container, alone or in its compose stack.</summary>
-public sealed partial class ContainerRow : ObservableObject
+public sealed partial class ContainerRow : DockerTreeItem
 {
     const int HistoryLength = 60;
 
@@ -21,7 +21,7 @@ public sealed partial class ContainerRow : ObservableObject
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(Name), nameof(Image), nameof(ShortId), nameof(FirstPort), nameof(HasPorts), nameof(MorePortsText), nameof(HasMorePorts),
         nameof(PortsTip), nameof(LastStartedText), nameof(StateKind), nameof(StateText), nameof(IsUp), nameof(IsRunning), nameof(IsPaused), nameof(CpuText),
-        nameof(MemoryText), nameof(StartStopTip), nameof(IsFailing), nameof(Ports))]
+        nameof(MemoryText), nameof(StartStopTip), nameof(PauseResumeText), nameof(IsFailing), nameof(Ports), nameof(TreeText))]
     public partial DockerContainer Container { get; set; }
 
     /// <summary>In a compose stack: shown under it, indented.</summary>
@@ -80,6 +80,11 @@ public sealed partial class ContainerRow : ObservableObject
     }
 
     public string StartStopTip => IsUp ? "Stop" : "Start";
+
+    /// <summary>Beside its name in the tree: where it listens, or how it ended.</summary>
+    public string TreeText => IsRunning && FirstPort is { } port ? port.Text : IsRunning ? "" : StateText;
+
+    public string PauseResumeText => IsPaused ? "Resume" : "Pause";
 
     [ObservableProperty]
     public partial bool IsSelected { get; set; }
@@ -186,6 +191,10 @@ public sealed partial class ContainerRow : ObservableObject
     [RelayCommand]
     void Open() => _page.Open(this);
 
+    /// <summary>Its page on a tab: "logs", "inspect", "mounts", "exec" or "stats".</summary>
+    [RelayCommand]
+    void OpenTab(string tab) => _page.Open(this, tab);
+
     [RelayCommand]
     Task StartStop() => _page.StartStopAsync(this);
 
@@ -206,7 +215,7 @@ public sealed partial class ContainerRow : ObservableObject
 }
 
 /// <summary>A compose project: its containers under it, started, stopped and deleted together (Docker Desktop's stack).</summary>
-public sealed partial class StackRow : ObservableObject
+public sealed partial class StackRow : DockerTreeItem
 {
     readonly ContainersPage _page;
 
@@ -214,12 +223,16 @@ public sealed partial class StackRow : ObservableObject
     {
         _page = page;
         Name = name;
+        IsTreeExpanded = true;
     }
 
     public string Name { get; }
 
     /// <summary>All its containers (whether the filters show them or not).</summary>
     public List<ContainerRow> Children { get; } = [];
+
+    /// <summary>Its containers in the Docker Explorer's tree (those its search finds).</summary>
+    public ObservableCollection<ContainerRow> TreeChildren { get; } = [];
 
     [ObservableProperty]
     public partial bool IsExpanded { get; set; } = true;
@@ -254,9 +267,12 @@ public sealed partial class StackRow : ObservableObject
 
     public string StartStopTip => IsUp ? "Stop" : "Start";
 
+    public string TreeText => $"{RunningCount}/{Children.Count} running";
+
     /// <summary>The stack's numbers follow its containers.</summary>
     internal void Refresh()
     {
+        OnPropertyChanged(nameof(TreeText));
         OnPropertyChanged(nameof(RunningCount));
         OnPropertyChanged(nameof(IsUp));
         OnPropertyChanged(nameof(StateKind));
@@ -306,6 +322,8 @@ public sealed partial class ContainersPage : ObservableObject
     public ObservableCollection<object> Rows { get; } = [];
 
     public IEnumerable<ContainerRow> AllRows => _rows.Values;
+
+    public bool Contains(ContainerRow row) => _rows.TryGetValue(row.Container.Id, out var kept) && kept == row;
 
     public IEnumerable<StackRow> Stacks => _stacks.Values;
 
@@ -611,7 +629,7 @@ public sealed partial class ContainersPage : ObservableObject
         }
     }
 
-    internal void Open(ContainerRow row) => _explorer.OpenContainer(row);
+    internal void Open(ContainerRow row, string? tab = null) => _explorer.OpenContainer(row, tab);
 
     internal void OpenPort(DockerPort? port)
     {

@@ -1,10 +1,9 @@
 <Styles xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:v="using:VSL.Views">
-  <!-- The Docker Explorer: Docker Desktop's dashboard (sidebar, cards, tables, pills) in Visual Studio's dark colors. -->
+  <!-- The Docker Explorer: Docker Desktop's dashboard (cards, tables, pills) in Visual Studio's dark colors. -->
   <Styles.Resources>
     <SolidColorBrush x:Key="DkPage" Color="#1E1E1E" />
-    <SolidColorBrush x:Key="DkSidebar" Color="#252526" />
     <SolidColorBrush x:Key="DkCard" Color="#252526" />
     <SolidColorBrush x:Key="DkLine" Color="#333337" />
     <SolidColorBrush x:Key="DkBorder" Color="#3F3F46" />
@@ -46,30 +45,6 @@
     <Setter Property="VerticalAlignment" Value="Center" />
     <Setter Property="TextTrimming" Value="CharacterEllipsis" />
     <Setter Property="Foreground" Value="#CCCCCC" />
-  </Style>
-
-  <!-- Sidebar -->
-  <Style Selector="Button.dkNav">
-    <Setter Property="Background" Value="Transparent" />
-    <Setter Property="BorderThickness" Value="0" />
-    <Setter Property="CornerRadius" Value="6" />
-    <Setter Property="Padding" Value="10,7" />
-    <Setter Property="Margin" Value="8,1" />
-    <Setter Property="HorizontalAlignment" Value="Stretch" />
-    <Setter Property="HorizontalContentAlignment" Value="Stretch" />
-    <Setter Property="Foreground" Value="#CCCCCC" />
-  </Style>
-  <Style Selector="Button.dkNav:pointerover /template/ ContentPresenter#PART_ContentPresenter">
-    <Setter Property="Background" Value="#2E2E32" />
-  </Style>
-  <Style Selector="Button.dkNav.selected /template/ ContentPresenter#PART_ContentPresenter">
-    <Setter Property="Background" Value="#1F2E4D" />
-  </Style>
-  <Style Selector="Button.dkNav.selected">
-    <Setter Property="Foreground" Value="#FFFFFF" />
-  </Style>
-  <Style Selector="Button.dkNav.selected v|VsIcon">
-    <Setter Property="Foreground" Value="#5B8DEF" />
   </Style>
 
   <!-- Cards (CPU / memory, compose banner, dialogs) -->

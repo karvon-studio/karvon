@@ -3,6 +3,8 @@
         xmlns:vm="using:VSL.ViewModels"
         xmlns:ws="using:VSL.Workspace"
         xmlns:v="using:VSL.Views"
+        xmlns:dv="using:VSL.Docker.Views"
+        xmlns:dvm="using:VSL.Docker.ViewModels"
         xmlns:ae="https://github.com/avaloniaui/avaloniaedit"
         x:Class="VSL.Views.MainWindow"
         x:DataType="vm:MainViewModel"
@@ -836,11 +838,24 @@
           <TabItem Name="DatabaseExplorerTab" Header="Database Explorer" Tag="DatabaseExplorer">
             <ContentControl Name="DatabaseExplorerHost" />
           </TabItem>
+          <!-- Docker Explorer, made (and connected to the engine) the first time it shows -->
+          <TabItem Name="DockerExplorerTab" Header="Docker Explorer" Tag="DockerExplorer">
+            <ContentControl Name="DockerExplorerHost" />
+          </TabItem>
           <TabItem Header="Claude Code" Tag="Claude">
             <v:ClaudeView Name="ClaudePanel" DataContext="{Binding Claude}" />
           </TabItem>
         </TabControl>
       </Border>
+
+      <!-- The Docker Explorer's dialogs and errors -->
+      <ContentControl Name="DockerOverlayHost" Grid.ColumnSpan="5" ZIndex="98" Content="{Binding Docker}">
+        <ContentControl.ContentTemplate>
+          <DataTemplate x:DataType="dvm:DockerExplorerViewModel">
+            <dv:DockerOverlay />
+          </DataTemplate>
+        </ContentControl.ContentTemplate>
+      </ContentControl>
 
       <!-- Where a dragged document tab would go -->
       <Canvas Name="DocumentDropLayer" Grid.ColumnSpan="5" IsHitTestVisible="False" ZIndex="99">

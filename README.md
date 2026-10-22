@@ -30,7 +30,7 @@ Working on solutions needs the .NET 10 SDK. VSL downloads `roslyn-language-serve
 | ![Test Explorer](docs/screenshots/test-explorer.png) | ![Claude Code](docs/screenshots/claude-code.png) |
 | **Test Explorer**: run and debug xUnit, NUnit and MSTest tests | **Claude Code** in a tool window, with diffs and approvals |
 | ![Docker Explorer](docs/screenshots/docker-explorer.png) | ![A container's page](docs/screenshots/docker-container.png) |
-| **Docker Explorer**: Docker Desktop's dashboard, the solution's compose stack first | **A container's page**: logs, inspect, mounts, a shell, live stats |
+| **Docker Explorer**: a tool window tree, Docker Desktop's tables as documents | **A container's page**: logs, inspect, mounts, a shell, live stats |
 
 - **Editor**: C# and Razor IntelliSense, Quick Info, parameter info, squiggles, Ctrl+. quick actions and refactorings,
   Go To Definition / Implementation, Find All References, Rename, Format Document, outlining (Ctrl+M), Find in Files, zoom.
@@ -53,13 +53,14 @@ Working on solutions needs the .NET 10 SDK. VSL downloads `roslyn-language-serve
   consoles with completion and explain plans, DDL, table designer, ER diagrams, schema and data compare, backup and
   restore, import and export, server activity. Each solution has its own: data sources, consoles, open tabs, tree
   and history are kept in its `.vs` folder and come back only with it; with no solution open it shows Studio's list.
-- **Docker Explorer** (View > Docker Explorer): Docker Desktop's dashboard in a document, through your `docker` (or
-  `podman`) command line. Containers with compose projects as stacks, CPU and memory, search, only running, start,
-  stop, restart, pause and delete (one or ticked together); a container's page with its logs as they come (colors,
-  timestamps, search), inspect, bind mounts, a shell in it and live stats charts. Images (pull, run with ports,
-  volumes and variables, clean up), volumes and networks. It follows the engine's events, says why when the engine
-  is not running, and knows the solution: its stack first, Compose up / down for its compose file, database
-  containers opened in the Database Explorer, Ask Claude why a container failed.
+- **Docker Explorer** (View > Docker Explorer): a tool window, as the Database Explorer, through your `docker` (or
+  `podman`) command line: a tree of containers (compose projects as stacks, the solution's first), images, volumes and
+  networks, with a context menu for each. What it opens is a document. Docker Desktop's tables: containers with CPU
+  and memory, search, only running, start, stop, restart, pause and delete (one or ticked together); images (pull,
+  run with ports, volumes and variables, clean up), volumes and networks. A container's page: its logs as they come
+  (colors, timestamps, search), inspect, bind mounts, a shell in it and live stats charts. It follows the engine's
+  events, says why when the engine is not running, and knows the solution: its stack first, Compose up / down for
+  its compose file, database containers opened in the Database Explorer, Ask Claude why a container failed.
 - **Terminal**: your `$SHELL` in a real pty, in the solution folder.
 - **NuGet**: browse, install, update and uninstall across your configured feeds.
 - **Claude Code** (Ctrl+Esc): drives your installed `claude` CLI, so your login, settings and MCP servers apply.

@@ -16,6 +16,21 @@ namespace VSL.Tests;
 /// <summary>The Database Explorer: Bengine Data Studio's explorer (the bengine submodule) as a VSL tool window.</summary>
 public class DatabaseExplorerTests
 {
+    /// <summary>Test Connection reports a connection the driver refuses outright (a MongoDB user with no password) instead of crashing VSL.</summary>
+    [Fact]
+    public async Task Test_connection_reports_what_the_driver_refuses()
+    {
+        var form = new ServerFormViewModel(new ServerStore(Path.Combine(Path.GetTempPath(), "vsl-db-" + Guid.NewGuid().ToString("N"), "servers.json")), null) { Name = "mongo" };
+        form.SelectedProvider = form.ProviderOptions.First(p => p.Provider == DatabaseProvider.MongoDb);
+        form.Host = "127.0.0.1";
+        form.Port = 1;
+        form.Username = "app";
+        form.Password = "";
+        await form.TestCommand.ExecuteAsync(null);
+        Assert.True(form.IsError);
+        Assert.Contains("needs a password", form.Message);
+    }
+
     /// <summary>A SQLite data source in a server list of its own (never the user's ~/.config/bengine).</summary>
     static string NewServers() => NewServers(out _);
 

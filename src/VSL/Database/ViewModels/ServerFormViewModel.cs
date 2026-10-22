@@ -220,6 +220,11 @@ public sealed partial class ServerFormViewModel : ObservableObject
         {
             Show(ex.Message, error: true);
         }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            // Test Connection reports what went wrong, whatever the driver threw, instead of taking VSL down.
+            Show(ex.Message, error: true);
+        }
         finally
         {
             IsBusy = false;

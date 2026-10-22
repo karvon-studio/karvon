@@ -23,7 +23,7 @@ public static class Compose
 }
 
 /// <summary>A row of the Images table.</summary>
-public sealed partial class ImageRow : ObservableObject
+public sealed partial class ImageRow : DockerTreeItem
 {
     readonly ImagesPage _page;
 
@@ -34,10 +34,13 @@ public sealed partial class ImageRow : ObservableObject
     }
 
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(Name), nameof(Tag), nameof(ShortId), nameof(CreatedText), nameof(SizeText), nameof(InUse), nameof(StatusText), nameof(CanRun))]
+    [NotifyPropertyChangedFor(nameof(Name), nameof(Tag), nameof(ShortId), nameof(CreatedText), nameof(SizeText), nameof(InUse), nameof(StatusText), nameof(CanRun), nameof(Reference))]
     public partial DockerImage Image { get; set; }
 
     public string Name => Image.Repository;
+
+    /// <summary>"nginx:1.27" (the tree's name for it), or the ID of an untagged image.</summary>
+    public string Reference => Image.IsDangling ? $"<none> ({ShortId})" : Image.Reference;
 
     public string Tag => Image.Tag;
 
@@ -85,6 +88,8 @@ public sealed partial class ImagesPage : ObservableObject
     public ObservableCollection<ImageRow> Rows { get; } = [];
 
     public IEnumerable<ImageRow> AllRows => _rows.Values;
+
+    public bool Contains(ImageRow row) => _rows.TryGetValue(Key(row.Image), out var kept) && kept == row;
 
     [ObservableProperty]
     public partial string Search { get; set; } = "";
@@ -278,8 +283,6 @@ public sealed partial class ImagesPage : ObservableObject
             foreach (var row in rows)
                 row.BusyText = null;
         }
-        if (_explorer.Detail is ImageDetailViewModel open && rows.Contains(open.Row))
-            _explorer.BackCommand.Execute(null);
         await _explorer.RefreshDiskAsync();
     }
 
@@ -347,7 +350,7 @@ public sealed partial class ImagesPage : ObservableObject
 }
 
 /// <summary>A row of the Volumes table.</summary>
-public sealed partial class VolumeRow : ObservableObject
+public sealed partial class VolumeRow : DockerTreeItem
 {
     readonly VolumesPage _page;
 
@@ -358,10 +361,13 @@ public sealed partial class VolumeRow : ObservableObject
     }
 
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(Name), nameof(StatusText), nameof(InUse), nameof(CreatedText), nameof(SizeText), nameof(Driver))]
+    [NotifyPropertyChangedFor(nameof(Name), nameof(StatusText), nameof(InUse), nameof(CreatedText), nameof(SizeText), nameof(Driver), nameof(TreeName))]
     public partial DockerVolume Volume { get; set; }
 
     public string Name => Volume.Name;
+
+    /// <summary>The tree's name: an anonymous volume's long ID shortened.</summary>
+    public string TreeName => Volume.IsAnonymous ? Name[..12] + "…" : Name;
 
     public string Driver => Volume.Driver;
 
@@ -402,6 +408,8 @@ public sealed partial class VolumesPage : ObservableObject
     public ObservableCollection<VolumeRow> Rows { get; } = [];
 
     public IEnumerable<VolumeRow> AllRows => _rows.Values;
+
+    public bool Contains(VolumeRow row) => _rows.TryGetValue(row.Volume.Name, out var kept) && kept == row;
 
     [ObservableProperty]
     public partial string Search { get; set; } = "";
@@ -546,8 +554,6 @@ public sealed partial class VolumesPage : ObservableObject
             foreach (var row in rows)
                 row.BusyText = null;
         }
-        if (_explorer.Detail is VolumeDetailViewModel open && rows.Contains(open.Row))
-            _explorer.BackCommand.Execute(null);
         await _explorer.RefreshDiskAsync();
     }
 
@@ -569,7 +575,7 @@ public sealed partial class VolumesPage : ObservableObject
 }
 
 /// <summary>A row of the Networks table.</summary>
-public sealed partial class NetworkRow : ObservableObject
+public sealed partial class NetworkRow : DockerTreeItem
 {
     readonly NetworksPage _page;
 
@@ -636,6 +642,8 @@ public sealed partial class NetworksPage : ObservableObject
     public ObservableCollection<NetworkRow> Rows { get; } = [];
 
     public IEnumerable<NetworkRow> AllRows => _rows.Values;
+
+    public bool Contains(NetworkRow row) => _rows.TryGetValue(row.Network.Id, out var kept) && kept == row;
 
     [ObservableProperty]
     public partial string Search { get; set; } = "";
@@ -752,8 +760,6 @@ public sealed partial class NetworksPage : ObservableObject
             foreach (var row in rows)
                 row.BusyText = null;
         }
-        if (_explorer.Detail is NetworkDetailViewModel open && rows.Contains(open.Row))
-            _explorer.BackCommand.Execute(null);
         await _explorer.RefreshNetworksAsync();
     }
 

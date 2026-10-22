@@ -2,182 +2,242 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:v="using:VSL.Views"
              xmlns:dvm="using:VSL.Docker.ViewModels"
-             xmlns:dv="using:VSL.Docker.Views"
              x:Class="VSL.Docker.Views.DockerExplorerView"
-             x:DataType="dvm:DockerExplorerViewModel"
-             Background="#1E1E1E">
+             x:DataType="dvm:DockerExplorerViewModel">
   <UserControl.Styles>
     <StyleInclude Source="avares://VSL/Docker/Views/DockerStyles.axaml" />
+    <Style Selector="TreeView#Tree TreeViewItem" x:DataType="dvm:DockerTreeItem">
+      <Setter Property="IsExpanded" Value="{Binding IsTreeExpanded, Mode=TwoWay}" />
+    </Style>
+    <!-- A row as wide as the tree: the name trims, a container's start / stop sits at the right edge. -->
+    <Style Selector="TreeView#Tree TreeViewItem /template/ ContentPresenter#PART_HeaderPresenter">
+      <Setter Property="HorizontalAlignment" Value="Stretch" />
+      <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+    </Style>
+    <Style Selector="Grid.dkNode">
+      <Setter Property="Height" Value="22" />
+      <Setter Property="Background" Value="Transparent" />
+    </Style>
+    <Style Selector="Grid.dkNode TextBlock.detail">
+      <Setter Property="Foreground" Value="#9D9D9D" />
+    </Style>
+    <!-- A container's start / stop shows on hover, as Git Changes' row buttons. -->
+    <Style Selector="Grid.dkNode StackPanel.rowActions">
+      <Setter Property="Opacity" Value="0" />
+    </Style>
+    <Style Selector="Grid.dkNode:pointerover StackPanel.rowActions">
+      <Setter Property="Opacity" Value="1" />
+    </Style>
+    <Style Selector="Grid.dkNode Button.tbi">
+      <Setter Property="Padding" Value="3" />
+      <Setter Property="MinHeight" Value="18" />
+    </Style>
+    <Style Selector="Grid.dkNode Button.tbi v|VsIcon">
+      <Setter Property="Width" Value="12" />
+      <Setter Property="Height" Value="12" />
+    </Style>
   </UserControl.Styles>
 
-  <Panel>
-    <DockPanel>
-      <!-- ===== Footer: the engine, and what the containers use (Docker Desktop's status bar) ===== -->
-      <Border DockPanel.Dock="Bottom" Height="28" Background="#252526" BorderBrush="#3F3F46" BorderThickness="0,1,0,0">
-        <Grid ColumnDefinitions="Auto,*,Auto" Margin="10,0">
-          <StackPanel Orientation="Horizontal" Spacing="16">
-            <Border Name="EngineStatus" Classes="pill" Classes.green="{Binding IsEngineRunning}" Classes.red="{Binding IsEngineStopped}">
-              <StackPanel Orientation="Horizontal" Spacing="6">
-                <Ellipse Classes="dot" Classes.running="{Binding IsEngineRunning}" Classes.failing="{Binding IsEngineStopped}" Width="7" Height="7" />
-                <TextBlock Text="{Binding EngineStatusText}" />
-              </StackPanel>
-            </Border>
-            <StackPanel Orientation="Horizontal" Spacing="16" IsVisible="{Binding IsEngineRunning}">
-              <TextBlock Text="{Binding RamText}" FontSize="11" Classes="dkMuted" VerticalAlignment="Center" />
-              <TextBlock Text="{Binding CpuText}" FontSize="11" Classes="dkMuted" VerticalAlignment="Center" />
-              <TextBlock Text="{Binding DiskText}" FontSize="11" Classes="dkMuted" VerticalAlignment="Center" />
-            </StackPanel>
+  <DockPanel>
+    <Border DockPanel.Dock="Top" Background="{StaticResource VsEnvironmentBrush}">
+      <TextBlock Classes="toolTitle" Text="Docker Explorer" />
+    </Border>
+    <Border DockPanel.Dock="Top" Padding="4,2">
+      <StackPanel Orientation="Horizontal" Spacing="2">
+        <Button Name="RefreshButton" Classes="tbi" Command="{Binding RefreshAllCommand}" IsEnabled="{Binding IsEngineRunning}" ToolTip.Tip="Refresh">
+          <v:VsIcon Kind="Refresh" />
+        </Button>
+        <Button Classes="tbi" Command="{Binding CollapseAllCommand}" ToolTip.Tip="Collapse All">
+          <v:VsIcon Kind="CollapseAll" />
+        </Button>
+      </StackPanel>
+    </Border>
+    <TextBox Name="FilterBox" DockPanel.Dock="Top" Classes="search" Margin="4,0,4,4" Text="{Binding Filter}" PlaceholderText="Search Docker Explorer"
+             IsVisible="{Binding IsEngineRunning}" />
+
+    <!-- The engine, and what the running containers use (Docker Desktop's status bar) -->
+    <Border DockPanel.Dock="Bottom" BorderBrush="#3F3F46" BorderThickness="0,1,0,0" Padding="8,4,8,5" ToolTip.Tip="{Binding MachineText}">
+      <StackPanel Spacing="2">
+        <Grid ColumnDefinitions="Auto,*">
+          <StackPanel Orientation="Horizontal" Spacing="6">
+            <Ellipse Classes="dot" Classes.running="{Binding IsEngineRunning}" Classes.failing="{Binding IsEngineStopped}" Width="7" Height="7" />
+            <TextBlock Name="EngineStatus" Text="{Binding EngineStatusText}" FontSize="11" VerticalAlignment="Center" />
           </StackPanel>
-          <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="12">
-            <TextBlock Text="{Binding MachineText}" FontSize="11" Classes="dkMuted" VerticalAlignment="Center" />
-            <TextBlock Text="{Binding VersionText}" FontSize="11" Classes="dkMuted" VerticalAlignment="Center" />
-          </StackPanel>
+          <TextBlock Grid.Column="1" Text="{Binding VersionText}" FontSize="11" Classes="dkMuted" HorizontalAlignment="Right" VerticalAlignment="Center"
+                     TextTrimming="CharacterEllipsis" Margin="8,0,0,0" />
         </Grid>
-      </Border>
+        <TextBlock FontSize="11" Classes="dkMuted" TextTrimming="CharacterEllipsis" IsVisible="{Binding IsEngineRunning}">
+          <Run Text="{Binding RamText}" /><Run Text="  ·  " /><Run Text="{Binding CpuText}" /><Run Text="  ·  " /><Run Text="{Binding DiskText}" />
+        </TextBlock>
+      </StackPanel>
+    </Border>
 
-      <!-- ===== Sidebar ===== -->
-      <Border DockPanel.Dock="Left" Width="208" Background="#252526" BorderBrush="#333337" BorderThickness="0,0,1,0">
-        <StackPanel>
-          <StackPanel Orientation="Horizontal" Spacing="9" Margin="18,16,16,14">
-            <v:VsIcon Kind="Docker" Width="24" Height="24" Foreground="#2496ED" />
-            <TextBlock Text="Docker" FontSize="16" FontWeight="SemiBold" VerticalAlignment="Center" />
-          </StackPanel>
-          <Button Name="NavContainers" Classes="dkNav" Classes.selected="{Binding IsContainers}" Command="{Binding ShowSectionCommand}" CommandParameter="{x:Static dvm:DockerSection.Containers}">
-            <Grid ColumnDefinitions="Auto,*,Auto">
-              <v:VsIcon Kind="DockerContainer" Width="17" Height="17" />
-              <TextBlock Grid.Column="1" Text="Containers" Margin="11,0,0,0" VerticalAlignment="Center" />
-              <TextBlock Grid.Column="2" Text="{Binding Containers.Count}" FontSize="11" Classes="dkMuted" VerticalAlignment="Center" />
-            </Grid>
-          </Button>
-          <Button Name="NavImages" Classes="dkNav" Classes.selected="{Binding IsImages}" Command="{Binding ShowSectionCommand}" CommandParameter="{x:Static dvm:DockerSection.Images}">
-            <Grid ColumnDefinitions="Auto,*,Auto">
-              <v:VsIcon Kind="DockerImage" Width="17" Height="17" />
-              <TextBlock Grid.Column="1" Text="Images" Margin="11,0,0,0" VerticalAlignment="Center" />
-              <TextBlock Grid.Column="2" Text="{Binding Images.Count}" FontSize="11" Classes="dkMuted" VerticalAlignment="Center" />
-            </Grid>
-          </Button>
-          <Button Name="NavVolumes" Classes="dkNav" Classes.selected="{Binding IsVolumes}" Command="{Binding ShowSectionCommand}" CommandParameter="{x:Static dvm:DockerSection.Volumes}">
-            <Grid ColumnDefinitions="Auto,*,Auto">
-              <v:VsIcon Kind="DockerVolume" Width="17" Height="17" />
-              <TextBlock Grid.Column="1" Text="Volumes" Margin="11,0,0,0" VerticalAlignment="Center" />
-              <TextBlock Grid.Column="2" Text="{Binding Volumes.Count}" FontSize="11" Classes="dkMuted" VerticalAlignment="Center" />
-            </Grid>
-          </Button>
-          <Button Name="NavNetworks" Classes="dkNav" Classes.selected="{Binding IsNetworks}" Command="{Binding ShowSectionCommand}" CommandParameter="{x:Static dvm:DockerSection.Networks}">
-            <Grid ColumnDefinitions="Auto,*,Auto">
-              <v:VsIcon Kind="DockerNetwork" Width="17" Height="17" />
-              <TextBlock Grid.Column="1" Text="Networks" Margin="11,0,0,0" VerticalAlignment="Center" />
-              <TextBlock Grid.Column="2" Text="{Binding Networks.Count}" FontSize="11" Classes="dkMuted" VerticalAlignment="Center" />
-            </Grid>
-          </Button>
+    <Panel>
+      <TextBlock IsVisible="{Binding IsEngineStarting}" Text="Connecting to the Docker engine…" Classes="dkMuted" Margin="12,10" TextWrapping="Wrap" />
+
+      <!-- Not installed, not running, or no access -->
+      <StackPanel Name="EngineStopped" IsVisible="{Binding IsEngineStopped}" Margin="12,10" Spacing="8">
+        <StackPanel Orientation="Horizontal" Spacing="8">
+          <v:VsIcon Kind="Docker" Width="20" Height="20" Foreground="#5A6270" />
+          <TextBlock Text="The Docker engine is not available" FontWeight="SemiBold" VerticalAlignment="Center" TextWrapping="Wrap" />
         </StackPanel>
-      </Border>
+        <SelectableTextBlock Text="{Binding EngineMessage}" TextWrapping="Wrap" Classes="dkMuted dkMono" FontSize="11" />
+        <TextBlock Text="{Binding EngineHint}" TextWrapping="Wrap" IsVisible="{Binding EngineHint, Converter={x:Static ObjectConverters.IsNotNull}}" />
+        <Button Name="RetryButton" Classes="dkPrimary" HorizontalAlignment="Left" Command="{Binding RetryCommand}" Content="Retry" />
+      </StackPanel>
 
-      <!-- ===== Content ===== -->
-      <DockPanel>
-        <!-- What the engine said when something failed -->
-        <Border Name="ErrorBanner" DockPanel.Dock="Top" IsVisible="{Binding HasError}" Background="#3D1C1E" BorderBrush="#7A2E32" BorderThickness="0,0,0,1">
-          <Grid ColumnDefinitions="Auto,*,Auto" Margin="20,8,10,8">
-            <v:VsIcon Kind="Error" Width="16" Height="16" VerticalAlignment="Top" Margin="0,1,10,0" />
-            <SelectableTextBlock Grid.Column="1" Text="{Binding Error}" TextWrapping="Wrap" Foreground="#FFB4AE" />
-            <Button Grid.Column="2" Classes="dkIcon" Width="24" Height="24" Command="{Binding DismissErrorCommand}" ToolTip.Tip="Dismiss">
-              <v:VsIcon Kind="Close" Width="12" Height="12" />
-            </Button>
-          </Grid>
-        </Border>
+      <TreeView Name="Tree" ItemsSource="{Binding Sections}" IsVisible="{Binding IsEngineRunning}" Background="Transparent"
+                ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+        <TreeView.DataTemplates>
+          <!-- Containers, Images, Volumes, Networks: double-click opens the table -->
+          <TreeDataTemplate DataType="dvm:DockerSectionNode" ItemsSource="{Binding Items}">
+            <Grid Classes="dkNode" ColumnDefinitions="Auto,*">
+              <Grid.ContextMenu>
+                <ContextMenu>
+                  <MenuItem Header="{Binding Title, StringFormat=Open {0}}" Command="{Binding OpenCommand}" FontWeight="SemiBold" />
+                  <MenuItem Header="Refresh" Command="{Binding Explorer.RefreshAllCommand}" />
+                  <Separator IsVisible="{Binding HasCompose}" />
+                  <MenuItem Header="Compose Up" Command="{Binding Explorer.Containers.ComposeUpCommand}" IsVisible="{Binding HasCompose}" />
+                  <MenuItem Header="Compose Down" Command="{Binding Explorer.Containers.ComposeDownCommand}" IsVisible="{Binding HasCompose}" />
+                  <Separator IsVisible="{Binding !IsContainers}" />
+                  <MenuItem Header="Clean Up Unused Images…" Command="{Binding Explorer.Images.CleanUpCommand}" IsVisible="{Binding IsImages}" />
+                  <MenuItem Header="Create Volume…" Command="{Binding Explorer.Volumes.CreateCommand}" IsVisible="{Binding IsVolumes}" />
+                  <MenuItem Header="Create Network…" Command="{Binding Explorer.Networks.CreateCommand}" IsVisible="{Binding IsNetworks}" />
+                </ContextMenu>
+              </Grid.ContextMenu>
+              <v:VsIcon Kind="{Binding Icon}" Width="15" Height="15" Foreground="#4DAAFC" />
+              <TextBlock Grid.Column="1" Margin="6,0,0,0" VerticalAlignment="Center" TextTrimming="CharacterEllipsis">
+                <Run Text="{Binding Title}" FontWeight="SemiBold" /><Run Text="  " /><Run Text="{Binding Count}" Foreground="#9D9D9D" />
+              </TextBlock>
+            </Grid>
+          </TreeDataTemplate>
 
-        <Panel>
-          <!-- Asking the engine for the first time -->
-          <StackPanel IsVisible="{Binding IsEngineStarting}" HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="10">
-            <v:VsIcon Kind="Docker" Width="48" Height="48" Foreground="#2496ED" HorizontalAlignment="Center" />
-            <TextBlock Text="Connecting to the Docker engine…" Classes="dkMuted" HorizontalAlignment="Center" />
-          </StackPanel>
-
-          <!-- Not installed, not running, or no access -->
-          <Border Name="EngineStopped" IsVisible="{Binding IsEngineStopped}" Classes="dkCard" Padding="28,24" MaxWidth="560" HorizontalAlignment="Center" VerticalAlignment="Center">
-            <StackPanel Spacing="12">
-              <v:VsIcon Kind="Docker" Width="48" Height="48" Foreground="#5A6270" HorizontalAlignment="Center" />
-              <TextBlock Text="The Docker engine is not available" FontSize="16" FontWeight="SemiBold" HorizontalAlignment="Center" />
-              <SelectableTextBlock Text="{Binding EngineMessage}" TextWrapping="Wrap" Classes="dkMuted dkMono" TextAlignment="Center" />
-              <TextBlock Text="{Binding EngineHint}" TextWrapping="Wrap" TextAlignment="Center" IsVisible="{Binding EngineHint, Converter={x:Static ObjectConverters.IsNotNull}}" />
-              <Button Name="RetryButton" Classes="dkPrimary" HorizontalAlignment="Center" Command="{Binding RetryCommand}" Content="Retry" />
-            </StackPanel>
-          </Border>
-
-          <Panel IsVisible="{Binding ShowContainers}">
-            <dv:DockerContainersView Name="ContainersView" DataContext="{Binding Containers}" />
-          </Panel>
-          <Panel IsVisible="{Binding ShowImages}">
-            <dv:DockerImagesView Name="ImagesView" DataContext="{Binding Images}" />
-          </Panel>
-          <Panel IsVisible="{Binding ShowVolumes}">
-            <dv:DockerVolumesView Name="VolumesView" DataContext="{Binding Volumes}" />
-          </Panel>
-          <Panel IsVisible="{Binding ShowNetworks}">
-            <dv:DockerNetworksView Name="NetworksView" DataContext="{Binding Networks}" />
-          </Panel>
-
-          <!-- A container's, image's, volume's or network's page -->
-          <ContentControl Name="DetailHost" Content="{Binding Detail}" IsVisible="{Binding ShowDetail}">
-            <ContentControl.DataTemplates>
-              <DataTemplate DataType="dvm:ContainerDetailViewModel">
-                <dv:DockerContainerView />
-              </DataTemplate>
-              <DataTemplate DataType="dvm:ImageDetailViewModel">
-                <dv:DockerImageView />
-              </DataTemplate>
-              <DataTemplate DataType="dvm:VolumeDetailViewModel">
-                <dv:DockerVolumeView />
-              </DataTemplate>
-              <DataTemplate DataType="dvm:NetworkDetailViewModel">
-                <dv:DockerNetworkView />
-              </DataTemplate>
-            </ContentControl.DataTemplates>
-          </ContentControl>
-        </Panel>
-      </DockPanel>
-    </DockPanel>
-
-    <!-- ===== Dialogs, over everything ===== -->
-    <Panel Name="DialogLayer" IsVisible="{Binding HasDialog}" Background="#99000000">
-      <ContentControl Content="{Binding Dialog}" HorizontalAlignment="Center" VerticalAlignment="Center">
-        <ContentControl.DataTemplates>
-          <DataTemplate DataType="dvm:ConfirmDialog">
-            <Border Classes="dkCard" Width="440" Padding="22,18" Background="#2B2B2F">
-              <StackPanel Spacing="14">
-                <TextBlock Text="{Binding Title}" FontSize="16" FontWeight="SemiBold" TextWrapping="Wrap" />
-                <TextBlock Text="{Binding Message}" TextWrapping="Wrap" Classes="dkMuted" />
-                <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">
-                  <Button Classes="dkOutline" Command="{Binding CancelCommand}" Content="Cancel" IsCancel="True" />
-                  <Button Name="ConfirmButton" Classes="dkPrimary" Classes.dkDanger="{Binding IsDanger}" Command="{Binding ConfirmCommand}" Content="{Binding ConfirmText}" IsDefault="True" />
-                </StackPanel>
+          <!-- A compose project -->
+          <TreeDataTemplate DataType="dvm:StackRow" ItemsSource="{Binding TreeChildren}">
+            <Grid Classes="dkNode" ColumnDefinitions="Auto,*,Auto,Auto" ToolTip.Tip="{Binding StateText}">
+              <Grid.ContextMenu>
+                <ContextMenu>
+                  <MenuItem Header="{Binding StartStopTip}" Command="{Binding StartStopCommand}" IsEnabled="{Binding IsIdle}" />
+                  <MenuItem Header="Restart" Command="{Binding RestartCommand}" IsEnabled="{Binding IsIdle}" />
+                  <Separator />
+                  <MenuItem Header="Delete" Command="{Binding DeleteCommand}" IsEnabled="{Binding IsIdle}" />
+                </ContextMenu>
+              </Grid.ContextMenu>
+              <v:VsIcon Kind="DockerStack" Width="15" Height="15" Classes="state"
+                        Classes.running="{Binding StateKind, Converter={x:Static ObjectConverters.Equal}, ConverterParameter=running}"
+                        Classes.paused="{Binding StateKind, Converter={x:Static ObjectConverters.Equal}, ConverterParameter=paused}"
+                        Classes.failing="{Binding StateKind, Converter={x:Static ObjectConverters.Equal}, ConverterParameter=failing}" />
+              <TextBlock Grid.Column="1" Margin="6,0,0,0" VerticalAlignment="Center" TextTrimming="CharacterEllipsis">
+                <Run Text="{Binding Name}" /><Run Text="  " /><Run Text="{Binding TreeText}" Foreground="#9D9D9D" />
+              </TextBlock>
+              <Border Grid.Column="2" Classes="pill blue" IsVisible="{Binding IsThisSolution}" Margin="6,0,0,0" Padding="6,0">
+                <TextBlock Text="This solution" FontSize="10" />
+              </Border>
+              <StackPanel Grid.Column="3" Classes="rowActions" Orientation="Horizontal" Margin="4,0,0,0">
+                <Button Classes="tbi" Command="{Binding StartStopCommand}" IsEnabled="{Binding IsIdle}" ToolTip.Tip="{Binding StartStopTip}">
+                  <Panel>
+                    <v:VsIcon Kind="DockerStop" IsVisible="{Binding IsUp}" />
+                    <v:VsIcon Kind="DockerPlay" IsVisible="{Binding !IsUp}" />
+                  </Panel>
+                </Button>
               </StackPanel>
-            </Border>
-          </DataTemplate>
-          <DataTemplate DataType="dvm:InputDialog">
-            <Border Classes="dkCard" Width="420" Padding="22,18" Background="#2B2B2F">
-              <StackPanel Spacing="12">
-                <TextBlock Text="{Binding Title}" FontSize="16" FontWeight="SemiBold" />
-                <StackPanel Spacing="5">
-                  <TextBlock Text="{Binding Label}" Classes="dkMuted" />
-                  <TextBox Name="InputText" Classes="dkField" Text="{Binding Text}" PlaceholderText="{Binding Placeholder}" />
-                </StackPanel>
-                <StackPanel Spacing="5" IsVisible="{Binding HasChoices}">
-                  <TextBlock Text="Driver" Classes="dkMuted" />
-                  <ComboBox ItemsSource="{Binding Choices}" SelectedItem="{Binding Choice}" MinWidth="160" />
-                </StackPanel>
-                <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">
-                  <Button Classes="dkOutline" Command="{Binding CancelCommand}" Content="Cancel" IsCancel="True" />
-                  <Button Classes="dkPrimary" Command="{Binding ConfirmCommand}" Content="{Binding ConfirmText}" IsDefault="True" />
-                </StackPanel>
+            </Grid>
+          </TreeDataTemplate>
+
+          <DataTemplate DataType="dvm:ContainerRow">
+            <Grid Classes="dkNode" ColumnDefinitions="Auto,*,Auto" ToolTip.Tip="{Binding Image}">
+              <Grid.ContextMenu>
+                <ContextMenu>
+                  <MenuItem Header="Open" Command="{Binding OpenCommand}" FontWeight="SemiBold" />
+                  <MenuItem Header="Open Shell" Command="{Binding OpenTabCommand}" CommandParameter="exec" IsEnabled="{Binding IsRunning}" />
+                  <MenuItem Header="Inspect" Command="{Binding OpenTabCommand}" CommandParameter="inspect" />
+                  <MenuItem Header="Stats" Command="{Binding OpenTabCommand}" CommandParameter="stats" IsEnabled="{Binding IsRunning}" />
+                  <Separator />
+                  <MenuItem Header="{Binding StartStopTip}" Command="{Binding StartStopCommand}" IsEnabled="{Binding IsIdle}" />
+                  <MenuItem Header="Restart" Command="{Binding RestartCommand}" IsEnabled="{Binding IsIdle}" />
+                  <MenuItem Header="{Binding PauseResumeText}" Command="{Binding PauseResumeCommand}" IsEnabled="{Binding IsUp}" />
+                  <MenuItem Header="Delete" Command="{Binding DeleteCommand}" IsEnabled="{Binding IsIdle}" />
+                  <Separator />
+                  <MenuItem Header="Open in Browser" Command="{Binding OpenPortCommand}" IsVisible="{Binding HasPorts}" />
+                  <MenuItem Header="Open Image" Command="{Binding OpenImageCommand}" />
+                  <MenuItem Header="Copy Container ID" Click="OnCopy" Tag="{Binding Container.Id}" />
+                  <MenuItem Header="Copy Name" Click="OnCopy" Tag="{Binding Name}" />
+                </ContextMenu>
+              </Grid.ContextMenu>
+              <v:VsIcon Kind="DockerContainer" Width="15" Height="15" Classes="state"
+                        Classes.running="{Binding StateKind, Converter={x:Static ObjectConverters.Equal}, ConverterParameter=running}"
+                        Classes.paused="{Binding StateKind, Converter={x:Static ObjectConverters.Equal}, ConverterParameter=paused}"
+                        Classes.failing="{Binding StateKind, Converter={x:Static ObjectConverters.Equal}, ConverterParameter=failing}" />
+              <TextBlock Grid.Column="1" Margin="6,0,0,0" VerticalAlignment="Center" TextTrimming="CharacterEllipsis">
+                <Run Text="{Binding Name}" /><Run Text="  " /><Run Text="{Binding TreeText}" Foreground="#9D9D9D" /><Run Text="  " /><Run Text="{Binding BusyText}" Foreground="#79A6F6" />
+              </TextBlock>
+              <StackPanel Grid.Column="2" Classes="rowActions" Orientation="Horizontal" Margin="4,0,0,0">
+                <Button Classes="tbi" Command="{Binding StartStopCommand}" IsEnabled="{Binding IsIdle}" ToolTip.Tip="{Binding StartStopTip}">
+                  <Panel>
+                    <v:VsIcon Kind="DockerStop" IsVisible="{Binding IsUp}" />
+                    <v:VsIcon Kind="DockerPlay" IsVisible="{Binding !IsUp}" />
+                  </Panel>
+                </Button>
               </StackPanel>
-            </Border>
+            </Grid>
           </DataTemplate>
-          <DataTemplate DataType="dvm:RunDialog">
-            <dv:DockerRunDialog />
+
+          <DataTemplate DataType="dvm:ImageRow">
+            <Grid Classes="dkNode" ColumnDefinitions="Auto,*" ToolTip.Tip="{Binding StatusText}">
+              <Grid.ContextMenu>
+                <ContextMenu>
+                  <MenuItem Header="Open" Command="{Binding OpenCommand}" FontWeight="SemiBold" />
+                  <MenuItem Header="Run…" Command="{Binding RunCommand}" />
+                  <Separator />
+                  <MenuItem Header="Delete" Command="{Binding DeleteCommand}" IsEnabled="{Binding !IsBusy}" />
+                  <Separator />
+                  <MenuItem Header="Copy Image ID" Click="OnCopy" Tag="{Binding Image.Id}" />
+                </ContextMenu>
+              </Grid.ContextMenu>
+              <v:VsIcon Kind="DockerImage" Width="15" Height="15" Classes="state" Classes.running="{Binding InUse}" />
+              <TextBlock Grid.Column="1" Margin="6,0,0,0" VerticalAlignment="Center" TextTrimming="CharacterEllipsis">
+                <Run Text="{Binding Reference}" /><Run Text="  " /><Run Text="{Binding SizeText}" Foreground="#9D9D9D" />
+              </TextBlock>
+            </Grid>
           </DataTemplate>
-        </ContentControl.DataTemplates>
-      </ContentControl>
+
+          <DataTemplate DataType="dvm:VolumeRow">
+            <Grid Classes="dkNode" ColumnDefinitions="Auto,*" ToolTip.Tip="{Binding Name}">
+              <Grid.ContextMenu>
+                <ContextMenu>
+                  <MenuItem Header="Open" Command="{Binding OpenCommand}" FontWeight="SemiBold" />
+                  <Separator />
+                  <MenuItem Header="Delete" Command="{Binding DeleteCommand}" IsEnabled="{Binding !IsBusy}" />
+                  <Separator />
+                  <MenuItem Header="Copy Name" Click="OnCopy" Tag="{Binding Name}" />
+                </ContextMenu>
+              </Grid.ContextMenu>
+              <v:VsIcon Kind="DockerVolume" Width="15" Height="15" Classes="state" Classes.running="{Binding InUse}" />
+              <TextBlock Grid.Column="1" Margin="6,0,0,0" VerticalAlignment="Center" TextTrimming="CharacterEllipsis">
+                <Run Text="{Binding TreeName}" /><Run Text="  " /><Run Text="{Binding SizeText}" Foreground="#9D9D9D" />
+              </TextBlock>
+            </Grid>
+          </DataTemplate>
+
+          <DataTemplate DataType="dvm:NetworkRow">
+            <Grid Classes="dkNode" ColumnDefinitions="Auto,*">
+              <Grid.ContextMenu>
+                <ContextMenu>
+                  <MenuItem Header="Open" Command="{Binding OpenCommand}" FontWeight="SemiBold" />
+                  <Separator />
+                  <MenuItem Header="Delete" Command="{Binding DeleteCommand}" IsEnabled="{Binding CanDelete}" />
+                  <Separator />
+                  <MenuItem Header="Copy Network ID" Click="OnCopy" Tag="{Binding Network.Id}" />
+                </ContextMenu>
+              </Grid.ContextMenu>
+              <v:VsIcon Kind="DockerNetwork" Width="15" Height="15" Classes="state" Classes.running="{Binding HasContainers}" />
+              <TextBlock Grid.Column="1" Margin="6,0,0,0" VerticalAlignment="Center" TextTrimming="CharacterEllipsis">
+                <Run Text="{Binding Name}" /><Run Text="  " /><Run Text="{Binding Driver}" Foreground="#9D9D9D" />
+              </TextBlock>
+            </Grid>
+          </DataTemplate>
+        </TreeView.DataTemplates>
+      </TreeView>
     </Panel>
-  </Panel>
+  </DockPanel>
 </UserControl>

@@ -28,6 +28,7 @@ public partial class MainWindow : Window, IDialogService
         InitializeComponent();
         InitializeDocking();
         InitializeDatabaseExplorer();
+        InitializeDockerExplorer();
         ExplorerTree.AddHandler(DoubleTappedEvent, OnExplorerDoubleTapped, RoutingStrategies.Bubble, handledEventsToo: true);
         // Before the tree item, which takes Enter for expanding.
         ExplorerTree.AddHandler(KeyDownEvent, OnExplorerKeyDown, RoutingStrategies.Tunnel);
@@ -99,6 +100,7 @@ public partial class MainWindow : Window, IDialogService
             await vm.ShutdownTerminalAsync();
             await vm.ShutdownClaudeAsync();
             await vm.ShutdownBuildServersAsync();
+            vm.ShutdownDocker();
             _closingConfirmed = true;
             Close();
         }

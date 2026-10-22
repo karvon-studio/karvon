@@ -7,11 +7,8 @@
              x:DataType="dvm:NetworkDetailViewModel">
   <DockPanel Margin="20,14,20,0">
     <StackPanel DockPanel.Dock="Top" Spacing="12">
-      <Grid ColumnDefinitions="Auto,*,Auto">
-        <Button Classes="dkIcon" Command="{Binding BackCommand}" ToolTip.Tip="Back to Networks (Esc)" VerticalAlignment="Top">
-          <v:VsIcon Kind="DockerBack" />
-        </Button>
-        <StackPanel Grid.Column="1" Margin="8,0,0,0" Spacing="5">
+      <Grid ColumnDefinitions="*,Auto">
+        <StackPanel Spacing="5">
           <StackPanel Orientation="Horizontal" Spacing="10">
             <v:VsIcon Kind="DockerNetwork" Width="22" Height="22" Classes="state" Classes.running="{Binding Row.HasContainers}" />
             <TextBlock Name="NetworkName" Text="{Binding Row.Name}" FontSize="19" FontWeight="SemiBold" VerticalAlignment="Center" />
@@ -25,7 +22,7 @@
             <TextBlock Text="{Binding Row.Scope, StringFormat='Scope {0}'}" Classes="dkMuted" />
           </StackPanel>
         </StackPanel>
-        <Button Grid.Column="2" Classes="dkIcon" Command="{Binding DeleteCommand}" ToolTip.Tip="Delete" IsEnabled="{Binding Row.CanDelete}" VerticalAlignment="Top">
+        <Button Grid.Column="1" Classes="dkIcon" Command="{Binding DeleteCommand}" ToolTip.Tip="Delete" IsEnabled="{Binding Row.CanDelete}" VerticalAlignment="Top">
           <v:VsIcon Kind="DockerDelete" />
         </Button>
       </Grid>

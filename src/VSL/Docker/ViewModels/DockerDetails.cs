@@ -53,8 +53,6 @@ public sealed partial class ContainerDetailViewModel : ObservableObject, IDispos
 
     public ContainerRow Row { get; }
 
-    public ContainersPage Page => _explorer.Containers;
-
     /// <summary>"logs", "inspect", "mounts", "exec" or "stats".</summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsLogs), nameof(IsInspect), nameof(IsMounts), nameof(IsExec), nameof(IsStats))]
@@ -132,9 +130,6 @@ public sealed partial class ContainerDetailViewModel : ObservableObject, IDispos
 
     [RelayCommand]
     void ShowTab(string tab) => Tab = tab;
-
-    [RelayCommand]
-    void Back() => _explorer.BackCommand.Execute(null);
 
     void StartLogs()
     {
@@ -320,9 +315,6 @@ public sealed partial class ImageDetailViewModel : ObservableObject, IDisposable
     void ShowTab(string tab) => Tab = tab;
 
     [RelayCommand]
-    void Back() => _explorer.BackCommand.Execute(null);
-
-    [RelayCommand]
     Task Run() => _explorer.RunImageAsync(Row.Image.Reference);
 
     [RelayCommand]
@@ -393,9 +385,6 @@ public sealed partial class VolumeDetailViewModel : ObservableObject, IDisposabl
     void ShowTab(string tab) => Tab = tab;
 
     [RelayCommand]
-    void Back() => _explorer.BackCommand.Execute(null);
-
-    [RelayCommand]
     Task Delete() => _explorer.Volumes.DeleteAsync([Row]);
 
     [RelayCommand]
@@ -463,9 +452,6 @@ public sealed partial class NetworkDetailViewModel : ObservableObject, IDisposab
 
     [RelayCommand]
     void ShowTab(string tab) => Tab = tab;
-
-    [RelayCommand]
-    void Back() => _explorer.BackCommand.Execute(null);
 
     [RelayCommand]
     Task Delete() => _explorer.Networks.DeleteAsync([Row]);

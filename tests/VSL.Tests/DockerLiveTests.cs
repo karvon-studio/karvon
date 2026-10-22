@@ -20,7 +20,8 @@ public class DockerLiveTests
         Assert.SkipUnless(Environment.GetEnvironmentVariable("VSL_DOCKER_LIVE") == "1", "Set VSL_DOCKER_LIVE=1 to try the Docker Explorer against the local engine.");
         var engine = DockerEngine.Find();
         var name = "vsl-live-" + Guid.NewGuid().ToString("N")[..8];
-        var vm = new DockerExplorerViewModel(engine, new TestDockerHost(null));
+        var host = new TestDockerHost(null);
+        var vm = new DockerExplorerViewModel(engine, host);
         var window = new Window { Width = 1360, Height = 860, Content = new DockerExplorerView { DataContext = vm } };
         window.Show();
         try
@@ -45,7 +46,7 @@ public class DockerLiveTests
 
             // Its page: logs as they come, its inspect, a stats sample.
             row.OpenCommand.Execute(null);
-            var page = Assert.IsType<ContainerDetailViewModel>(vm.Detail);
+            var page = host.Page<ContainerDetailViewModel>();
             await WaitUntil(() => page.Logs.Document.Text.Contains("Ready to accept connections", StringComparison.Ordinal), TimeSpan.FromSeconds(15));
             await WaitUntil(() => page.InspectJson.Contains("VSL_LIVE=1", StringComparison.Ordinal), TimeSpan.FromSeconds(15));
             await WaitUntil(() => row.Cpu is not null, TimeSpan.FromSeconds(15));
@@ -57,8 +58,8 @@ public class DockerLiveTests
             await WaitUntil(() => vm.Dialog is ConfirmDialog, TimeSpan.FromSeconds(5));
             vm.Dialog!.Confirm();
             await deleting;
-            Assert.Null(vm.Detail);
             await WaitUntil(() => vm.Containers.AllRows.All(r => r.Name != name), TimeSpan.FromSeconds(15));
+            await WaitUntil(() => host.Open.Count == 0, TimeSpan.FromSeconds(5));
         }
         finally
         {

@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Bengine.Enums;
 using Bengine.Introspection.Servers;
+using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using VSL.Docker;
 using VSL.Docker.ViewModels;
@@ -8,32 +9,60 @@ using VSL.Docker.ViewModels;
 namespace VSL.ViewModels;
 
 /// <summary>
-/// View > Docker Explorer: Docker Desktop's dashboard as a document (see <see cref="DockerExplorerViewModel"/>). It knows
-/// the open solution's compose file and stack, writes compose and pull output to Output > Docker, opens database
+/// View > Docker Explorer: a tool window with the engine's containers, images, volumes and networks (see
+/// <see cref="DockerExplorerViewModel"/>), made the first time it shows; what it opens are documents. It knows the
+/// open solution's compose file and stack, writes compose and pull output to Output > Docker, opens database
 /// containers in the solution's Database Explorer and asks Claude about a container.
 /// </summary>
 public partial class MainViewModel : IDockerHost
 {
     public OutputChannel DockerOutput { get; } = new("Docker");
 
-    DockerExplorerViewModel? DockerExplorer => Documents.OfType<DockerExplorerViewModel>().FirstOrDefault();
+    /// <summary>The explorer, once the tool window has shown (null before: no docker command runs until then).</summary>
+    [ObservableProperty]
+    public partial DockerExplorerViewModel? Docker { get; private set; }
+
+    /// <summary>The explorer, made and connected to the engine the first time it is needed.</summary>
+    public DockerExplorerViewModel EnsureDocker()
+    {
+        if (Docker is { } docker)
+            return docker;
+        docker = Docker = new DockerExplorerViewModel(DockerEngine.Find(), this);
+        _ = docker.InitializeAsync();
+        return docker;
+    }
 
     [RelayCommand]
-    public async Task ShowDockerExplorer()
+    void ShowDockerExplorer()
     {
-        if (DockerExplorer is { } open)
-        {
-            ActiveDocument = open;
-            return;
-        }
-        var explorer = new DockerExplorerViewModel(DockerEngine.Find(), this);
-        Documents.Add(explorer);
-        ActiveDocument = explorer;
-        await explorer.InitializeAsync();
+        EnsureDocker();
+        ShowToolWindow(ToolWindows.DockerExplorer);
     }
 
     /// <summary>Another solution: its compose file and stack are the ones the explorer points out.</summary>
-    Task OnDockerSolutionChangedAsync() => DockerExplorer is { IsEngineRunning: true } explorer ? explorer.RefreshContainersAsync() : Task.CompletedTask;
+    Task OnDockerSolutionChangedAsync() => Docker is { IsEngineRunning: true } explorer ? explorer.RefreshContainersAsync() : Task.CompletedTask;
+
+    /// <summary>VSL closes: the explorer's engine streams stop.</summary>
+    public void ShutdownDocker()
+    {
+        Docker?.Dispose();
+        Docker = null;
+    }
+
+    IEnumerable<DockerDocument> IDockerHost.Documents => Documents.OfType<DockerDocument>();
+
+    void IDockerHost.ShowDocument(DockerDocument document)
+    {
+        if (!Documents.Contains(document))
+            Documents.Add(document);
+        ActiveDocument = document;
+    }
+
+    void IDockerHost.CloseDocument(DockerDocument document)
+    {
+        if (Documents.Contains(document))
+            _ = CloseDocument(document);
+    }
 
     string? IDockerHost.SolutionDirectory => Solution?.Directory;
 

@@ -8,11 +8,8 @@
              x:DataType="dvm:ImageDetailViewModel">
   <DockPanel Margin="20,14,20,0">
     <StackPanel DockPanel.Dock="Top" Spacing="12">
-      <Grid ColumnDefinitions="Auto,*,Auto">
-        <Button Classes="dkIcon" Command="{Binding BackCommand}" ToolTip.Tip="Back to Images (Esc)" VerticalAlignment="Top">
-          <v:VsIcon Kind="DockerBack" />
-        </Button>
-        <StackPanel Grid.Column="1" Margin="8,0,0,0" Spacing="5">
+      <Grid ColumnDefinitions="*,Auto">
+        <StackPanel Spacing="5">
           <StackPanel Orientation="Horizontal" Spacing="10">
             <v:VsIcon Kind="DockerImage" Width="22" Height="22" Classes="state" Classes.running="{Binding Row.InUse}" />
             <TextBlock Name="ImageName" Text="{Binding Row.Name}" FontSize="19" FontWeight="SemiBold" VerticalAlignment="Center" />
@@ -35,7 +32,7 @@
             <TextBlock Text="{Binding UsedByText}" Classes="dkMuted" VerticalAlignment="Center" />
           </StackPanel>
         </StackPanel>
-        <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="6" VerticalAlignment="Top">
+        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6" VerticalAlignment="Top">
           <Button Classes="dkOutline" Command="{Binding PullCommand}" IsVisible="{Binding CanPull}" Content="Pull" ToolTip.Tip="Pull its newest version" />
           <Button Name="RunButton" Classes="dkPrimary" Command="{Binding RunCommand}">
             <StackPanel Orientation="Horizontal" Spacing="6">
