@@ -1,0 +1,148 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="clr-namespace:Karvon.Database.ViewModels"
+             xmlns:c="clr-namespace:Karvon.Database.Controls"
+             x:Class="Karvon.Database.Views.DatabaseExplorerView"
+             x:CompileBindings="False"
+             x:DataType="vm:ExplorerViewModel"
+             Classes="dbx"
+             FontSize="13"
+             Background="{StaticResource Panel}">
+  <!-- Database Explorer: Bengine Data Studio's Object Explorer and SQL files, as a Karvon tool window. -->
+  <UserControl.Styles>
+    <Style Selector="TreeView#Tree TreeViewItem">
+      <Setter Property="IsExpanded" Value="{Binding IsExpanded, Mode=TwoWay}" x:DataType="vm:TreeItemViewModel" />
+      <Setter Property="IsVisible" Value="{Binding IsVisible}" x:DataType="vm:TreeItemViewModel" />
+      <Setter Property="MinHeight" Value="24" />
+      <Setter Property="Padding" Value="0" />
+    </Style>
+    <Style Selector="TreeView#FileTree TreeViewItem">
+      <Setter Property="IsExpanded" Value="{Binding IsExpanded, Mode=TwoWay}" x:DataType="vm:FileItem" />
+      <Setter Property="MinHeight" Value="24" />
+      <Setter Property="Padding" Value="0" />
+    </Style>
+    <!-- Quick Documentation (Ctrl+Q): wider than Fluent's 456px flyout limit, no horizontal scrolling. -->
+    <Style Selector="FlyoutPresenter.quickdoc">
+      <Setter Property="MaxWidth" Value="640" />
+      <Setter Property="MaxHeight" Value="620" />
+      <Setter Property="ScrollViewer.HorizontalScrollBarVisibility" Value="Disabled" />
+    </Style>
+    <Style Selector="TabControl.side > TabItem">
+      <Setter Property="MinHeight" Value="30" />
+      <Setter Property="Padding" Value="12,0" />
+      <Setter Property="FontSize" Value="13" />
+    </Style>
+    <Style Selector="TabControl.workspace > TabItem">
+      <Setter Property="MinHeight" Value="34" />
+      <Setter Property="Padding" Value="12,0" />
+      <Setter Property="FontSize" Value="13" />
+    </Style>
+    <!-- A row that failed to load: in the error color (the others keep the panel's text color). -->
+    <Style Selector="TreeView#Tree TextBlock.error">
+      <Setter Property="Foreground" Value="{StaticResource Danger}" />
+    </Style>
+  </UserControl.Styles>
+
+  <DockPanel>
+    <!-- What the explorer is doing, and where its data sources are kept -->
+    <Border DockPanel.Dock="Bottom" Background="{StaticResource Panel2}" BorderBrush="{StaticResource LineSoft}" BorderThickness="0,1,0,0" Padding="8,3">
+      <TextBlock Classes="dim" FontSize="12" Text="{Binding Status}" TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding StorePath}" />
+    </Border>
+      <TabControl Classes="side" x:Name="SidePanels" Padding="0" Background="{StaticResource Panel}">
+    <!-- Object Explorer -->
+    <TabItem Header="Database">
+    <DockPanel Background="{StaticResource Panel}">
+      <Border DockPanel.Dock="Top" BorderBrush="{StaticResource LineSoft}" BorderThickness="0,0,0,1" Padding="6">
+        <DockPanel>
+          <StackPanel Orientation="Horizontal" Spacing="2">
+            <Button Classes="tool" Content="＋" ToolTip.Tip="New data source" Command="{Binding RegisterServerCommand}" />
+            <Button Classes="tool" Content="⇩" ToolTip.Tip="Import from pgAdmin / DataGrip" Command="{Binding ImportPgAdminCommand}" />
+            <Button Classes="tool" Content="⟳" ToolTip.Tip="Refresh (Ctrl+F5)" Command="{Binding RefreshCommand}" />
+            <Button Classes="tool" Content="⌨" ToolTip.Tip="Query console (Ctrl+Shift+Q)" Command="{Binding QueryToolCommand}" />
+            <Button Classes="tool" Content="⊟" ToolTip.Tip="Collapse all" Click="OnCollapseAll" />
+            <Button Classes="tool" Content="⟲" ToolTip.Tip="Query history (Ctrl+Alt+E)" Command="{Binding ShowHistoryCommand}" />
+            <Button Classes="tool" Content="⌕" ToolTip.Tip="Go to object (Ctrl+N)" Click="OnGoTo" />
+            <Button Classes="tool" Content="⇄" ToolTip.Tip="Compare schemas" Command="{Binding CompareCommand}" />
+          </StackPanel>
+
+        </DockPanel>
+      </Border>
+
+      <Border DockPanel.Dock="Top" Padding="8,6" BorderBrush="{StaticResource LineSoft}" BorderThickness="0,0,0,1">
+        <TextBox x:Name="TreeFilter" Text="{Binding FilterText}" Watermark="Filter loaded objects…  (Ctrl+F)" MinHeight="28" Padding="8,4" />
+      </Border>
+
+      <Panel>
+        <TreeView x:Name="Tree"
+                  ItemsSource="{Binding Roots}"
+                  SelectedItem="{Binding SelectedItem}"
+                  Background="Transparent"
+                  ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                  Padding="0,4">
+          <TreeView.ItemTemplate>
+            <TreeDataTemplate DataType="vm:TreeItemViewModel" ItemsSource="{Binding Children}">
+              <StackPanel Orientation="Horizontal" Spacing="6" Height="22" Background="{Binding AccentColor, Converter={x:Static c:Converters.AccentTint}}">
+                <Border Width="3" Height="16" CornerRadius="1" VerticalAlignment="Center" Background="{Binding AccentColor, Converter={x:Static c:Converters.AccentBrush}}"
+                        IsVisible="{Binding AccentColor, Converter={x:Static ObjectConverters.IsNotNull}}" />
+                <ContentControl Content="{Binding Icon}" Width="16" Height="16" VerticalAlignment="Center" IsVisible="{Binding !IsPlaceholder}" />
+                <TextBlock Text="{Binding Label}" VerticalAlignment="Center"
+                           Classes.dim="{Binding IsPlaceholder}"
+                           FontStyle="{Binding IsPlaceholder, Converter={x:Static c:Converters.ItalicIfTrue}}"
+                           Classes.error="{Binding IsError}" />
+                <TextBlock Text="{Binding CountText}" Classes="faint" FontSize="12" VerticalAlignment="Center" IsVisible="{Binding CountText, Converter={x:Static ObjectConverters.IsNotNull}}" />
+                <TextBlock Text="{Binding Detail}" Classes="faint" FontSize="12" VerticalAlignment="Center" IsVisible="{Binding Detail, Converter={x:Static ObjectConverters.IsNotNull}}" />
+                <TextBlock Text="🔒" FontSize="10" VerticalAlignment="Center" ToolTip.Tip="Read-only" IsVisible="{Binding IsReadOnlyServer}" />
+                <ProgressBar IsIndeterminate="True" Width="40" Height="3" MinWidth="0" VerticalAlignment="Center" IsVisible="{Binding IsLoading}" />
+              </StackPanel>
+            </TreeDataTemplate>
+          </TreeView.ItemTemplate>
+        </TreeView>
+
+        <!-- Speed search: typing in the tree jumps to the first matching row. -->
+        <Border x:Name="SpeedSearchBox" VerticalAlignment="Top" HorizontalAlignment="Right" Margin="8,2" Padding="8,3" CornerRadius="3"
+                Background="#25303f" BorderBrush="#3d4b5f" BorderThickness="1" IsVisible="False">
+          <TextBlock x:Name="SpeedSearchText" Classes="mono" FontSize="12" />
+        </Border>
+
+        <StackPanel Spacing="10" Margin="18" IsVisible="{Binding !HasServers}">
+          <TextBlock Classes="dim" TextWrapping="Wrap" Text="No data sources yet." />
+          <Button Classes="primary" Content="New Data Source" Command="{Binding RegisterServerCommand}" />
+          <Button Classes="ghost" Content="Import from pgAdmin / DataGrip" Command="{Binding ImportPgAdminCommand}" />
+        </StackPanel>
+      </Panel>
+    </DockPanel>
+    </TabItem>
+
+    <!-- SQL files: the project folder and scratches -->
+    <TabItem Header="Files">
+      <DockPanel Background="{StaticResource Panel}" DataContext="{Binding FilesPanel}" x:DataType="vm:FilesViewModel">
+        <Border DockPanel.Dock="Top" BorderBrush="{StaticResource LineSoft}" BorderThickness="0,0,0,1" Padding="12,6,6,6">
+          <DockPanel>
+            <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="2">
+              <Button Classes="tool" Content="＋" ToolTip.Tip="New SQL file" Command="{Binding NewFileCommand}" />
+              <Button Classes="tool" Content="⇪" ToolTip.Tip="Open a SQL file…" Command="{Binding OpenFileCommand}" />
+              <Button Classes="tool" Content="✎" ToolTip.Tip="New scratch file" Command="{Binding NewScratchCommand}" />
+              <Button Classes="tool" Content="▤" ToolTip.Tip="Choose the project folder" Command="{Binding ChooseFolderCommand}" />
+              <Button Classes="tool" Content="⟳" ToolTip.Tip="Refresh" Command="{Binding RefreshCommand}" />
+            </StackPanel>
+            <TextBlock Text="Files" FontWeight="SemiBold" VerticalAlignment="Center" />
+          </DockPanel>
+        </Border>
+        <TextBlock DockPanel.Dock="Top" Classes="faint" FontSize="11.5" Margin="12,6" Text="{Binding Folder}" TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding Folder}" />
+        <TreeView x:Name="FileTree" ItemsSource="{Binding Roots}" SelectedItem="{Binding Selected}" Background="Transparent" Padding="0,2"
+                  ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+          <TreeView.ItemTemplate>
+            <TreeDataTemplate DataType="vm:FileItem" ItemsSource="{Binding Children}">
+              <StackPanel Orientation="Horizontal" Spacing="6" Height="22" ToolTip.Tip="{Binding Path}">
+                <Image Source="{Binding Icon}" Width="16" Height="16" VerticalAlignment="Center" />
+                <TextBlock Text="{Binding Name}" VerticalAlignment="Center" FontWeight="{Binding IsDirectory, Converter={x:Static c:Converters.BoldIfTrue}}" />
+              </StackPanel>
+            </TreeDataTemplate>
+          </TreeView.ItemTemplate>
+        </TreeView>
+      </DockPanel>
+    </TabItem>
+    </TabControl>
+
+  </DockPanel>
+</UserControl>

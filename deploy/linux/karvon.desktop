@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=Karvon Studio
+GenericName=Integrated Development Environment
+Comment=C#, ASP.NET Core and Blazor IDE
+Exec=karvon %f
+Icon=karvon
+Terminal=false
+Categories=Development;IDE;
+Keywords=karvon;ide;csharp;dotnet;blazor;razor;ide;
+StartupWMClass=Karvon

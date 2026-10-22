@@ -1,0 +1,316 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:v="using:Karvon.Views"
+             xmlns:s="using:Karvon.Servers"
+             xmlns:svm="using:Karvon.Servers.ViewModels"
+             xmlns:ae="using:AvaloniaEdit"
+             x:Class="Karvon.Servers.Views.ServerPageView"
+             x:DataType="svm:ServerPageViewModel"
+             Background="#1E1E1E">
+  <UserControl.Styles>
+    <StyleInclude Source="avares://Karvon/Docker/Views/DockerStyles.axaml" />
+    <Style Selector="TextBlock.label">
+      <Setter Property="FontSize" Value="12" />
+      <Setter Property="Foreground" Value="#9D9D9D" />
+    </Style>
+    <Style Selector="TextBlock.big">
+      <Setter Property="FontSize" Value="18" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+      <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+    </Style>
+    <Style Selector="ProgressBar.usage">
+      <Setter Property="MinWidth" Value="0" />
+      <Setter Property="Height" Value="6" />
+      <Setter Property="MinHeight" Value="6" />
+      <Setter Property="Minimum" Value="0" />
+      <Setter Property="Maximum" Value="1" />
+      <Setter Property="Background" Value="#33363B" />
+      <Setter Property="Foreground" Value="#3FB950" />
+      <Setter Property="CornerRadius" Value="3" />
+    </Style>
+    <Style Selector="Button.crumb">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="Padding" Value="4,2" />
+      <Setter Property="MinHeight" Value="0" />
+      <Setter Property="Foreground" Value="#4DAAFC" />
+    </Style>
+  </UserControl.Styles>
+
+  <DockPanel Margin="20,14,20,0">
+    <StackPanel DockPanel.Dock="Top" Spacing="12">
+      <!-- The machine, whether Karvon is connected to it, and what to do -->
+      <Grid ColumnDefinitions="*,Auto">
+        <StackPanel Spacing="5">
+          <StackPanel Orientation="Horizontal" Spacing="10">
+            <v:VsIcon Kind="ToolServers" Width="22" Height="22" Foreground="#4DAAFC" />
+            <TextBlock Name="ServerName" Text="{Binding Node.Name}" FontSize="19" FontWeight="SemiBold" VerticalAlignment="Center" />
+            <Border Classes="pill" Classes.green="{Binding Node.IsConnected}"
+                    Classes.red="{Binding Node.DotKind, Converter={x:Static ObjectConverters.Equal}, ConverterParameter=failing}">
+              <TextBlock Name="StatusText" Text="{Binding Node.StatusText}" MaxWidth="420" TextTrimming="CharacterEllipsis" />
+            </Border>
+            <Border Classes="pill red" IsVisible="{Binding Node.IsProduction}" ToolTip.Tip="Every change on it asks, yours and Claude's">
+              <TextBlock Text="Production" />
+            </Border>
+          </StackPanel>
+          <TextBlock Margin="32,0,0,0" Classes="dkMuted dkMono" Text="{Binding Node.ToolTip}" TextTrimming="CharacterEllipsis" />
+        </StackPanel>
+        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6" VerticalAlignment="Top">
+          <Button Classes="dkPrimary" Command="{Binding ShowTabCommand}" CommandParameter="terminal">
+            <StackPanel Orientation="Horizontal" Spacing="6">
+              <v:VsIcon Kind="ToolTerminal" Width="13" Height="13" />
+              <TextBlock Text="Terminal" VerticalAlignment="Center" />
+            </StackPanel>
+          </Button>
+          <Button Classes="dkOutline" Command="{Binding ConnectAgainCommand}" Content="Connect again" />
+          <Button Classes="dkIcon" Command="{Binding Node.EditCommand}" ToolTip.Tip="Edit…">
+            <v:VsIcon Kind="Pencil" />
+          </Button>
+        </StackPanel>
+      </Grid>
+
+      <Border Name="ProblemBanner" IsVisible="{Binding HasProblem}" Background="#3D1C1E" BorderBrush="#7A2E32" BorderThickness="1" CornerRadius="6" Padding="12,8">
+        <Grid ColumnDefinitions="Auto,*">
+          <v:VsIcon Kind="Error" Width="15" Height="15" VerticalAlignment="Top" Margin="0,1,8,0" />
+          <SelectableTextBlock Grid.Column="1" Text="{Binding Problem}" TextWrapping="Wrap" Foreground="#FFB4AE" />
+        </Grid>
+      </Border>
+
+      <Border BorderBrush="#3F3F46" BorderThickness="0,0,0,1">
+        <StackPanel Orientation="Horizontal" Margin="4,0,0,0">
+          <Button Name="OverviewTab" Classes="dkTab" Classes.selected="{Binding IsOverview}" Command="{Binding ShowTabCommand}" CommandParameter="overview" Content="Overview" />
+          <Button Name="TerminalTab" Classes="dkTab" Classes.selected="{Binding IsTerminal}" Command="{Binding ShowTabCommand}" CommandParameter="terminal" Content="Terminal" />
+          <Button Name="FilesTab" Classes="dkTab" Classes.selected="{Binding IsFiles}" Command="{Binding ShowTabCommand}" CommandParameter="files" Content="Files" />
+          <Button Name="ServicesTab" Classes="dkTab" Classes.selected="{Binding IsServices}" Command="{Binding ShowTabCommand}" CommandParameter="services" Content="Services" />
+          <Button Name="LogsTab" Classes="dkTab" Classes.selected="{Binding IsLogs}" Command="{Binding ShowTabCommand}" CommandParameter="logs" Content="Logs" />
+        </StackPanel>
+      </Border>
+    </StackPanel>
+
+    <Panel Margin="0,12,0,14">
+      <!-- ===== Overview ===== -->
+      <ScrollViewer IsVisible="{Binding IsOverview}" HorizontalScrollBarVisibility="Disabled">
+        <StackPanel Spacing="14">
+          <TextBlock Text="Reading the machine's state…" Classes="dkMuted" IsVisible="{Binding IsLoadingOverview}" />
+          <WrapPanel IsVisible="{Binding HasMetrics}">
+            <Border Classes="dkCard" Width="260" Margin="0,0,12,12">
+              <StackPanel Spacing="3">
+                <TextBlock Text="System" Classes="label" />
+                <TextBlock Name="SystemText" Text="{Binding Metrics.System, FallbackValue=''}" Classes="big" ToolTip.Tip="{Binding Metrics.System, FallbackValue=''}" />
+              </StackPanel>
+            </Border>
+            <Border Classes="dkCard" Width="180" Margin="0,0,12,12">
+              <StackPanel Spacing="3">
+                <TextBlock Text="Up for" Classes="label" />
+                <TextBlock Text="{Binding UptimeText}" Classes="big" />
+              </StackPanel>
+            </Border>
+            <Border Classes="dkCard" Width="200" Margin="0,0,12,12">
+              <StackPanel Spacing="3">
+                <TextBlock Text="CPU" Classes="label" />
+                <TextBlock Name="CpuText" Text="{Binding CpuText}" Classes="big" />
+                <TextBlock Text="{Binding LoadText, StringFormat='load {0}'}" Classes="dkMuted" FontSize="11" />
+              </StackPanel>
+            </Border>
+            <Border Classes="dkCard" Width="260" Margin="0,0,12,12">
+              <StackPanel Spacing="5">
+                <TextBlock Text="Memory" Classes="label" />
+                <TextBlock Name="MemoryText" Text="{Binding MemoryText}" Classes="big" />
+                <ProgressBar Classes="usage" Value="{Binding MemoryRatio}" />
+                <TextBlock Text="{Binding SwapText}" Classes="dkMuted" FontSize="11" />
+              </StackPanel>
+            </Border>
+          </WrapPanel>
+          <StackPanel IsVisible="{Binding HasMetrics}" Spacing="6" MaxWidth="900" HorizontalAlignment="Left">
+            <TextBlock Text="Disks" FontWeight="SemiBold" />
+            <ItemsControl Name="Disks" ItemsSource="{Binding Metrics.Disks, FallbackValue={x:Null}}">
+              <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="s:ServerDisk">
+                  <Grid ColumnDefinitions="220,*,170" Margin="0,4">
+                    <TextBlock Text="{Binding Mount}" Classes="dkMono" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                    <ProgressBar Grid.Column="1" Classes="usage" Value="{Binding UsedRatio}" VerticalAlignment="Center" Margin="0,0,14,0" />
+                    <TextBlock Grid.Column="2" Classes="dkMuted" VerticalAlignment="Center">
+                      <Run Text="{Binding Used, Converter={x:Static svm:ServerConverters.Size}}" /><Run Text=" / " /><Run Text="{Binding Size, Converter={x:Static svm:ServerConverters.Size}}" />
+                    </TextBlock>
+                  </Grid>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+          </StackPanel>
+          <Button Classes="dkOutline" HorizontalAlignment="Left" Command="{Binding RefreshOverviewCommand}" Content="Refresh" IsEnabled="{Binding !IsLoadingOverview}" />
+        </StackPanel>
+      </ScrollViewer>
+
+      <!-- ===== Terminal: the system's ssh ===== -->
+      <Border IsVisible="{Binding IsTerminal}" BorderBrush="#3F3F46" BorderThickness="1" CornerRadius="6" ClipToBounds="True" Background="#1E1E1E">
+        <v:ControlPresenter Name="TerminalHost" Control="{Binding Terminal.Control, FallbackValue={x:Null}}" Margin="6,4" />
+      </Border>
+
+      <!-- ===== Files over SFTP ===== -->
+      <DockPanel IsVisible="{Binding IsFiles}">
+        <Grid DockPanel.Dock="Top" ColumnDefinitions="Auto,*,Auto" Margin="0,0,0,8">
+          <StackPanel Orientation="Horizontal" Spacing="2">
+            <Button Classes="dkIcon" Command="{Binding UpCommand}" ToolTip.Tip="Up a folder">
+              <v:VsIcon Kind="ChevronUp" />
+            </Button>
+            <Button Classes="dkIcon" Command="{Binding RefreshFilesCommand}" ToolTip.Tip="Refresh">
+              <v:VsIcon Kind="Refresh" />
+            </Button>
+          </StackPanel>
+          <TextBox Name="PathBox" Grid.Column="1" Classes="dkField" Text="{Binding PathText}" Margin="8,0" KeyDown="OnPathKeyDown" FontFamily="{StaticResource VsCodeFont}" />
+          <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="6">
+            <Button Classes="dkOutline" Command="{Binding NewFolderCommand}" Content="New folder" />
+            <Button Classes="dkPrimary" Command="{Binding UploadCommand}">
+              <StackPanel Orientation="Horizontal" Spacing="6">
+                <v:VsIcon Kind="Push" Width="13" Height="13" />
+                <TextBlock Text="Upload" VerticalAlignment="Center" />
+              </StackPanel>
+            </Button>
+          </StackPanel>
+        </Grid>
+        <ItemsControl DockPanel.Dock="Top" ItemsSource="{Binding Crumbs}" Margin="0,0,0,6">
+          <ItemsControl.ItemsPanel>
+            <ItemsPanelTemplate>
+              <WrapPanel />
+            </ItemsPanelTemplate>
+          </ItemsControl.ItemsPanel>
+          <ItemsControl.ItemTemplate>
+            <DataTemplate x:DataType="svm:RemoteCrumb">
+              <StackPanel Orientation="Horizontal">
+                <Button Classes="crumb" Command="{Binding $parent[UserControl].((svm:ServerPageViewModel)DataContext).GoToCommand}" CommandParameter="{Binding}" Content="{Binding Name}" />
+                <TextBlock Text="›" Classes="dkMuted" VerticalAlignment="Center" Margin="0,0,2,0" />
+              </StackPanel>
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+        <Border DockPanel.Dock="Top" Classes="dkTableHeader">
+          <Grid ColumnDefinitions="*,110,150,110,110" Margin="12,0">
+            <TextBlock Text="Name" Classes="dkHeader" />
+            <TextBlock Grid.Column="1" Text="Size" Classes="dkHeader" />
+            <TextBlock Grid.Column="2" Text="Modified" Classes="dkHeader" />
+            <TextBlock Grid.Column="3" Text="Permissions" Classes="dkHeader" />
+            <TextBlock Grid.Column="4" Text="Actions" Classes="dkHeader" HorizontalAlignment="Right" />
+          </Grid>
+        </Border>
+        <Panel>
+          <ScrollViewer Name="FilesScroll" HorizontalScrollBarVisibility="Disabled" DragDrop.AllowDrop="True">
+            <ItemsControl Name="FilesTable" ItemsSource="{Binding Entries}">
+              <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="svm:RemoteEntry">
+                  <Border Classes="dkRow" DoubleTapped="OnEntryDoubleTapped" Background="Transparent">
+                    <Grid ColumnDefinitions="*,110,150,110,110" Margin="12,0" Height="34">
+                      <StackPanel Orientation="Horizontal" Spacing="8">
+                        <v:VsIcon Kind="Folder" Width="16" Height="16" IsVisible="{Binding IsFolder}" VerticalAlignment="Center" />
+                        <v:VsIcon Kind="file" Width="16" Height="16" IsVisible="{Binding !IsFolder}" VerticalAlignment="Center" />
+                        <TextBlock Text="{Binding Name}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                        <TextBlock Text="{Binding BusyText}" Foreground="#79A6F6" FontSize="11" VerticalAlignment="Center" IsVisible="{Binding IsBusy}" />
+                      </StackPanel>
+                      <TextBlock Grid.Column="1" Classes="dkCell" Text="{Binding SizeText}" />
+                      <TextBlock Grid.Column="2" Classes="dkCell" Text="{Binding ModifiedText}" />
+                      <TextBlock Grid.Column="3" Classes="dkCell dkMono" Text="{Binding Permissions}" />
+                      <StackPanel Grid.Column="4" Orientation="Horizontal" Spacing="2" HorizontalAlignment="Right">
+                        <Button Classes="dkIcon" IsVisible="{Binding !IsFolder}" ToolTip.Tip="Download to ~/Downloads"
+                                Command="{Binding $parent[UserControl].((svm:ServerPageViewModel)DataContext).DownloadCommand}" CommandParameter="{Binding}">
+                          <v:VsIcon Kind="Pull" />
+                        </Button>
+                        <Button Classes="dkIcon" ToolTip.Tip="Rename"
+                                Command="{Binding $parent[UserControl].((svm:ServerPageViewModel)DataContext).RenameCommand}" CommandParameter="{Binding}">
+                          <v:VsIcon Kind="Pencil" />
+                        </Button>
+                        <Button Classes="dkIcon" ToolTip.Tip="Delete"
+                                Command="{Binding $parent[UserControl].((svm:ServerPageViewModel)DataContext).DeleteCommand}" CommandParameter="{Binding}">
+                          <v:VsIcon Kind="DockerDelete" />
+                        </Button>
+                      </StackPanel>
+                    </Grid>
+                  </Border>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+          </ScrollViewer>
+          <TextBlock Text="Listing…" Classes="dkMuted" IsVisible="{Binding IsLoadingFiles}" HorizontalAlignment="Center" VerticalAlignment="Top" Margin="0,30,0,0" />
+          <Border Name="DropHint" IsVisible="False" Background="#331D63ED" BorderBrush="#1D63ED" BorderThickness="2" CornerRadius="8" IsHitTestVisible="False">
+            <TextBlock Text="Drop to upload here" FontSize="15" HorizontalAlignment="Center" VerticalAlignment="Center" />
+          </Border>
+        </Panel>
+      </DockPanel>
+
+      <!-- ===== Services (systemd) ===== -->
+      <DockPanel IsVisible="{Binding IsServices}">
+        <Grid DockPanel.Dock="Top" ColumnDefinitions="300,Auto,*,Auto" Margin="0,0,0,8">
+          <Panel>
+            <TextBox Classes="dkSearch" Text="{Binding ServiceFilter}" PlaceholderText="Search services" />
+            <v:VsIcon Kind="Search" Width="14" Height="14" Margin="10,0,0,0" HorizontalAlignment="Left" IsHitTestVisible="False" Foreground="#9D9D9D" />
+          </Panel>
+          <ToggleSwitch Grid.Column="1" Classes="dkSwitch" IsChecked="{Binding OnlyRunning}" Margin="14,0,6,0" />
+          <TextBlock Grid.Column="2" Text="Only running" VerticalAlignment="Center" />
+          <Button Grid.Column="3" Classes="dkIcon" Command="{Binding RefreshServicesCommand}" ToolTip.Tip="Refresh">
+            <v:VsIcon Kind="Refresh" />
+          </Button>
+        </Grid>
+        <TextBlock DockPanel.Dock="Top" Text="{Binding ServicesProblem}" IsVisible="{Binding ServicesProblem, Converter={x:Static ObjectConverters.IsNotNull}}"
+                   Foreground="#FF7B72" TextWrapping="Wrap" Margin="0,0,0,8" />
+        <ScrollViewer HorizontalScrollBarVisibility="Disabled">
+          <ItemsControl Name="ServicesTable" ItemsSource="{Binding ShownServices}">
+            <ItemsControl.ItemTemplate>
+              <DataTemplate x:DataType="svm:ServiceRow">
+                <Border Classes="dkRow">
+                  <Grid ColumnDefinitions="Auto,260,150,*,Auto" Margin="12,0" Height="34">
+                    <Ellipse Classes="dot" Margin="0,0,10,0"
+                             Classes.running="{Binding DotKind, Converter={x:Static ObjectConverters.Equal}, ConverterParameter=running}"
+                             Classes.paused="{Binding DotKind, Converter={x:Static ObjectConverters.Equal}, ConverterParameter=paused}"
+                             Classes.failing="{Binding DotKind, Converter={x:Static ObjectConverters.Equal}, ConverterParameter=failing}" />
+                    <TextBlock Grid.Column="1" Text="{Binding Service.Name}" FontWeight="SemiBold" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding Service.Unit}" />
+                    <TextBlock Grid.Column="2" Classes="dkCell" Text="{Binding Service.State}" />
+                    <TextBlock Grid.Column="3" Classes="dkCell dkMuted" Text="{Binding Service.Description}" TextTrimming="CharacterEllipsis" />
+                    <StackPanel Grid.Column="4" Orientation="Horizontal" Spacing="2">
+                      <TextBlock Text="{Binding BusyText}" Foreground="#79A6F6" FontSize="11" VerticalAlignment="Center" IsVisible="{Binding IsBusy}" Margin="0,0,6,0" />
+                      <Button Classes="dkIcon" ToolTip.Tip="Start" IsVisible="{Binding !Service.IsRunning}"
+                              Command="{Binding $parent[UserControl].((svm:ServerPageViewModel)DataContext).StartServiceCommand}" CommandParameter="{Binding}">
+                        <v:VsIcon Kind="DockerPlay" />
+                      </Button>
+                      <Button Classes="dkIcon" ToolTip.Tip="Stop" IsVisible="{Binding Service.IsRunning}"
+                              Command="{Binding $parent[UserControl].((svm:ServerPageViewModel)DataContext).StopServiceCommand}" CommandParameter="{Binding}">
+                        <v:VsIcon Kind="DockerStop" />
+                      </Button>
+                      <Button Classes="dkIcon" ToolTip.Tip="Restart"
+                              Command="{Binding $parent[UserControl].((svm:ServerPageViewModel)DataContext).RestartServiceCommand}" CommandParameter="{Binding}">
+                        <v:VsIcon Kind="DockerRestart" />
+                      </Button>
+                      <Button Classes="dkIcon" ToolTip.Tip="Logs"
+                              Command="{Binding $parent[UserControl].((svm:ServerPageViewModel)DataContext).ServiceLogsCommand}" CommandParameter="{Binding}">
+                        <v:VsIcon Kind="DockerLogs" />
+                      </Button>
+                    </StackPanel>
+                  </Grid>
+                </Border>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+        </ScrollViewer>
+      </DockPanel>
+
+      <!-- ===== Logs: the journal, a unit's, or a file ===== -->
+      <DockPanel IsVisible="{Binding IsLogs}">
+        <Grid DockPanel.Dock="Top" ColumnDefinitions="220,*,90,Auto,Auto,Auto" Margin="0,0,0,8">
+          <TextBox Classes="dkField" Text="{Binding LogUnit}" PlaceholderText="Unit (empty: the whole journal)" KeyDown="OnLogsKeyDown" />
+          <TextBox Grid.Column="1" Classes="dkField" Text="{Binding LogFile}" PlaceholderText="…or a file: /var/log/nginx/error.log" Margin="8,0" KeyDown="OnLogsKeyDown" />
+          <NumericUpDown Grid.Column="2" Value="{Binding LogLines}" Minimum="10" Maximum="10000" Increment="100" FormatString="0" ToolTip.Tip="Lines from the end" />
+          <CheckBox Grid.Column="3" Content="Follow" IsChecked="{Binding FollowLogs}" Margin="12,0" />
+          <Button Grid.Column="4" Classes="dkIcon" Command="{Binding RefreshLogsCommand}" ToolTip.Tip="Read again">
+            <v:VsIcon Kind="Refresh" />
+          </Button>
+          <Button Grid.Column="5" Classes="dkOutline" Command="{Binding AskClaudeAboutLogsCommand}" Margin="6,0,0,0">
+            <StackPanel Orientation="Horizontal" Spacing="6">
+              <v:VsIcon Kind="Claude" Width="13" Height="13" />
+              <TextBlock Text="Ask Claude" VerticalAlignment="Center" />
+            </StackPanel>
+          </Button>
+        </Grid>
+        <Border BorderBrush="#3F3F46" BorderThickness="1" CornerRadius="6" ClipToBounds="True">
+          <ae:TextEditor Name="LogsEditor" FontFamily="{StaticResource VsCodeFont}" FontSize="12" Background="#181818" Foreground="#D4D4D4"
+                         Padding="10,6" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto" WordWrap="True" />
+        </Border>
+      </DockPanel>
+    </Panel>
+  </DockPanel>
+</UserControl>

@@ -1,0 +1,123 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Karvon.ViewModels"
+             xmlns:v="using:Karvon.Views"
+             xmlns:dvm="using:Karvon.Docker.ViewModels"
+             xmlns:dv="using:Karvon.Docker.Views"
+             xmlns:svm="using:Karvon.Servers.ViewModels"
+             xmlns:sv="using:Karvon.Servers.Views"
+             xmlns:mvm="using:Karvon.Mcp.ViewModels"
+             xmlns:mv="using:Karvon.Mcp.Views"
+             xmlns:kvm="using:Karvon.Skills.ViewModels"
+             xmlns:kv="using:Karvon.Skills.Views"
+             x:Class="Karvon.Views.DocumentGroupView"
+             x:DataType="vm:DocumentGroup">
+  <UserControl.Styles>
+    <!-- Only the group the user works in shows its tab and frame in the accent color, as in VS. -->
+    <Style Selector="TabControl.inactive TabItem:selected">
+      <Setter Property="Background" Value="#3F3F46" />
+    </Style>
+    <Style Selector="TabControl.inactive Border.docframe">
+      <Setter Property="BorderBrush" Value="#3F3F46" />
+    </Style>
+  </UserControl.Styles>
+
+  <TabControl Name="Tabs"
+              ItemsSource="{Binding Tabs}"
+              SelectedItem="{Binding Active}"
+              ItemContainerTheme="{StaticResource VsDocumentTab}"
+              Classes.inactive="{Binding !IsActive}"
+              Padding="0">
+    <TabControl.ItemTemplate>
+      <DataTemplate x:DataType="vm:DocumentTab">
+        <StackPanel Orientation="Horizontal" Spacing="2" Background="Transparent" ToolTip.Tip="{Binding ToolTip}"
+                    ContextRequested="OnTabContextRequested" PointerReleased="OnTabPointerReleased">
+          <TextBlock Text="{Binding Title}" VerticalAlignment="Center" Margin="0,0,4,0" />
+          <Button Classes="tabbtn" IsVisible="{Binding IsPinned}" ToolTip.Tip="Unpin Tab"
+                  Command="{Binding $parent[Window].((vm:MainViewModel)DataContext).TogglePinCommand}" CommandParameter="{Binding}">
+            <v:VsIcon Kind="Pin" Width="12" Height="12" />
+          </Button>
+          <Button Classes="tabbtn" IsVisible="{Binding !IsPinned}" ToolTip.Tip="Close (Ctrl+F4)"
+                  Command="{Binding $parent[Window].((vm:MainViewModel)DataContext).CloseDocumentCommand}" CommandParameter="{Binding}">
+            <Button.Opacity>
+              <MultiBinding Converter="{x:Static v:AnyTrueToOpacityConverter.Instance}">
+                <Binding Path="$parent[TabItem].IsSelected" />
+                <Binding Path="$parent[TabItem].IsPointerOver" />
+              </MultiBinding>
+            </Button.Opacity>
+            <v:VsIcon Kind="Close" Width="12" Height="12" />
+          </Button>
+        </StackPanel>
+      </DataTemplate>
+    </TabControl.ItemTemplate>
+    <TabControl.DataTemplates>
+      <DataTemplate DataType="vm:DocumentViewModel" x:DataType="vm:DocumentViewModel">
+        <Border Classes="docframe" BorderBrush="#007ACC" BorderThickness="0,2,0,0">
+          <DockPanel>
+            <!-- VS's editor footer: zoom drop-down and the document health indicator -->
+            <Border DockPanel.Dock="Bottom" Background="#2D2D30" Height="20">
+              <StackPanel Orientation="Horizontal" Spacing="10" Margin="2,0">
+                <Button Classes="tb" Padding="6,0" MinHeight="18" Click="OnZoomButtonClick"
+                        ToolTip.Tip="Zoom (Ctrl+Wheel, Ctrl+Shift+. / Ctrl+Shift+, , Ctrl+0)">
+                  <TextBlock Text="{Binding ZoomText, StringFormat={}{0} ▾}" FontSize="11" />
+                </Button>
+                <StackPanel Orientation="Horizontal" Spacing="5" ToolTip.Tip="Errors and warnings in this document">
+                  <v:VsIcon Kind="{Binding IssuesIcon}" Width="13" Height="13" />
+                  <TextBlock Text="{Binding IssuesText}" FontSize="11" VerticalAlignment="Center" Foreground="{StaticResource VsGrayTextBrush}" />
+                </StackPanel>
+              </StackPanel>
+            </Border>
+            <v:EditorArea Host="{Binding Host}"
+                          ShowPreview="{Binding $parent[Window].((vm:MainViewModel)DataContext).MarkdownPreview}"
+                          PreviewBelow="{Binding $parent[Window].((vm:MainViewModel)DataContext).MarkdownPreviewBelow}" />
+          </DockPanel>
+        </Border>
+      </DataTemplate>
+      <DataTemplate DataType="kvm:SkillDocument" x:DataType="kvm:SkillDocument">
+        <Border Classes="docframe" BorderBrush="#007ACC" BorderThickness="0,2,0,0">
+          <kv:SkillPageView DataContext="{Binding Page}" />
+        </Border>
+      </DataTemplate>
+      <DataTemplate DataType="kvm:SkillsMarketplaceDocument" x:DataType="kvm:SkillsMarketplaceDocument">
+        <Border Classes="docframe" BorderBrush="#007ACC" BorderThickness="0,2,0,0">
+          <kv:SkillsMarketplaceView DataContext="{Binding Marketplace}" />
+        </Border>
+      </DataTemplate>
+      <DataTemplate DataType="mvm:McpServerDocument" x:DataType="mvm:McpServerDocument">
+        <Border Classes="docframe" BorderBrush="#007ACC" BorderThickness="0,2,0,0">
+          <mv:McpServerPageView DataContext="{Binding Page}" />
+        </Border>
+      </DataTemplate>
+      <DataTemplate DataType="mvm:McpBuiltInDocument" x:DataType="mvm:McpBuiltInDocument">
+        <Border Classes="docframe" BorderBrush="#007ACC" BorderThickness="0,2,0,0">
+          <mv:McpBuiltInView />
+        </Border>
+      </DataTemplate>
+      <DataTemplate DataType="svm:ServerDocument" x:DataType="svm:ServerDocument">
+        <Border Classes="docframe" BorderBrush="#007ACC" BorderThickness="0,2,0,0">
+          <sv:ServerPageView DataContext="{Binding Page}" />
+        </Border>
+      </DataTemplate>
+      <DataTemplate DataType="dvm:DockerDocument" x:DataType="dvm:DockerDocument">
+        <Border Classes="docframe" BorderBrush="#007ACC" BorderThickness="0,2,0,0">
+          <dv:DockerDocumentView />
+        </Border>
+      </DataTemplate>
+      <DataTemplate DataType="vm:NuGetViewModel" x:DataType="vm:NuGetViewModel">
+        <Border Classes="docframe" BorderBrush="#007ACC" BorderThickness="0,2,0,0">
+          <v:NuGetView />
+        </Border>
+      </DataTemplate>
+      <DataTemplate DataType="vm:DatabaseDocument" x:DataType="vm:DatabaseDocument">
+        <Border Classes="docframe dbx" BorderBrush="#007ACC" BorderThickness="0,2,0,0" Background="{StaticResource Bg}">
+          <v:DatabaseDocumentHost Content="{Binding Inner}" />
+        </Border>
+      </DataTemplate>
+      <DataTemplate DataType="vm:DiffViewModel" x:DataType="vm:DiffViewModel">
+        <Border Classes="docframe" BorderBrush="#007ACC" BorderThickness="0,2,0,0">
+          <v:ControlPresenter Control="{Binding View}" />
+        </Border>
+      </DataTemplate>
+    </TabControl.DataTemplates>
+  </TabControl>
+</UserControl>

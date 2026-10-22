@@ -1,6 +1,6 @@
-# Claude Code for Visual Studio (src/VSL.VisualStudio) → VSL.ClaudeCode.VisualStudio.vsix as a build artifact.
+# Claude Code for Visual Studio (src/Karvon.VisualStudio) → Karvon.ClaudeCode.VisualStudio.vsix as a build artifact.
 # The VSIX targets (VSCT, pkgdef, the .vsix container) need Visual Studio's .NET Framework MSBuild, so this runs on Windows.
-# It also catches shared Claude code (src/VSL/Claude, the Claude view model) that no longer builds for .NET Framework.
+# It also catches shared Claude code (src/Karvon/Claude, the Claude view model) that no longer builds for .NET Framework.
 # Run it by hand with "publish" ticked to upload the .vsix to the Visual Studio Marketplace: that needs the
 # VS_MARKETPLACE_TOKEN secret (an Azure DevOps token with Marketplace > Manage) and the VS_MARKETPLACE_PUBLISHER variable
 # (the Marketplace publisher ID). Raise the Version in source.extension.vsixmanifest before each upload.
@@ -10,23 +10,23 @@ on:
   push:
     branches: [main]
     paths:
-      - 'src/VSL.VisualStudio/**'
-      - 'src/VSL/Claude/**'
-      - 'src/VSL/ViewModels/Claude*'
-      - 'src/VSL/Views/MarkdownParser.cs'
+      - 'src/Karvon.VisualStudio/**'
+      - 'src/Karvon/Claude/**'
+      - 'src/Karvon/ViewModels/Claude*'
+      - 'src/Karvon/Views/MarkdownParser.cs'
       - '.github/workflows/vsix.yml'
-      - '!src/VSL.VisualStudio/**/*.md'
-      - '!src/VSL.VisualStudio/images/**'
+      - '!src/Karvon.VisualStudio/**/*.md'
+      - '!src/Karvon.VisualStudio/images/**'
   pull_request:
     branches: [main]
     paths:
-      - 'src/VSL.VisualStudio/**'
-      - 'src/VSL/Claude/**'
-      - 'src/VSL/ViewModels/Claude*'
-      - 'src/VSL/Views/MarkdownParser.cs'
+      - 'src/Karvon.VisualStudio/**'
+      - 'src/Karvon/Claude/**'
+      - 'src/Karvon/ViewModels/Claude*'
+      - 'src/Karvon/Views/MarkdownParser.cs'
       - '.github/workflows/vsix.yml'
-      - '!src/VSL.VisualStudio/**/*.md'
-      - '!src/VSL.VisualStudio/images/**'
+      - '!src/Karvon.VisualStudio/**/*.md'
+      - '!src/Karvon.VisualStudio/images/**'
   workflow_dispatch:
     inputs:
       publish:
@@ -45,12 +45,12 @@ jobs:
       - uses: microsoft/setup-msbuild@v2
 
       - name: Build
-        run: msbuild src/VSL.VisualStudio/VSL.VisualStudio.csproj -restore -p:Configuration=Release -v:minimal
+        run: msbuild src/Karvon.VisualStudio/Karvon.VisualStudio.csproj -restore -p:Configuration=Release -v:minimal
 
       - uses: actions/upload-artifact@v4
         with:
-          name: VSL.ClaudeCode.VisualStudio
-          path: src/VSL.VisualStudio/bin/Release/net48/*.vsix
+          name: Karvon.ClaudeCode.VisualStudio
+          path: src/Karvon.VisualStudio/bin/Release/net48/*.vsix
           if-no-files-found: error
 
       - name: Publish to the Visual Studio Marketplace
@@ -62,7 +62,7 @@ jobs:
         run: |
           if (-not $env:VS_MARKETPLACE_TOKEN) { throw 'Add the VS_MARKETPLACE_TOKEN secret.' }
           if (-not $env:VS_MARKETPLACE_PUBLISHER) { throw 'Add the VS_MARKETPLACE_PUBLISHER variable (the Marketplace publisher ID).' }
-          $manifestPath = 'src/VSL.VisualStudio/publishManifest.json'
+          $manifestPath = 'src/Karvon.VisualStudio/publishManifest.json'
           $manifest = Get-Content $manifestPath -Raw | ConvertFrom-Json
           $manifest.publisher = $env:VS_MARKETPLACE_PUBLISHER
           $manifest | ConvertTo-Json -Depth 5 | Set-Content $manifestPath
@@ -76,6 +76,6 @@ jobs:
           if (-not $publisherPath) { throw 'VsixPublisher.exe not found.' }
           Write-Host "Using $publisherPath"
           $publisher = Get-Item $publisherPath
-          $vsix = Get-Item src/VSL.VisualStudio/bin/Release/net48/*.vsix | Select-Object -First 1
+          $vsix = Get-Item src/Karvon.VisualStudio/bin/Release/net48/*.vsix | Select-Object -First 1
           & $publisher.FullName publish -payload $vsix.FullName -publishManifest (Resolve-Path $manifestPath) -personalAccessToken $env:VS_MARKETPLACE_TOKEN
           if ($LASTEXITCODE -ne 0) { throw "VsixPublisher failed with exit code $LASTEXITCODE." }

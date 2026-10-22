@@ -1,0 +1,99 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:v="using:Karvon.Views"
+             xmlns:mvm="using:Karvon.Mcp.ViewModels"
+             xmlns:dvm="using:Karvon.Docker.ViewModels"
+             x:Class="Karvon.Mcp.Views.McpOverlay"
+             x:DataType="mvm:McpExplorerViewModel">
+  <UserControl.Styles>
+    <StyleInclude Source="avares://Karvon/Docker/Views/DockerStyles.axaml" />
+    <Style Selector="TextBox.lines">
+      <Setter Property="AcceptsReturn" Value="True" />
+      <Setter Property="FontFamily" Value="{StaticResource VsCodeFont}" />
+      <Setter Property="FontSize" Value="12" />
+      <Setter Property="MinHeight" Value="58" />
+      <Setter Property="MaxHeight" Value="140" />
+      <Setter Property="TextWrapping" Value="NoWrap" />
+      <Setter Property="VerticalContentAlignment" Value="Top" />
+    </Style>
+  </UserControl.Styles>
+
+  <!-- Over the window: the MCP Servers explorer's dialogs and errors. Clicks pass through otherwise. -->
+  <Panel>
+    <Panel Name="DialogLayer" IsVisible="{Binding HasDialog}" Background="#99000000">
+      <ContentControl Content="{Binding Dialog}" HorizontalAlignment="Center" VerticalAlignment="Center">
+        <ContentControl.DataTemplates>
+          <DataTemplate DataType="mvm:McpServerFormDialog">
+            <Border Classes="dkCard" Width="580" Padding="22,18" Background="#2B2B2F">
+              <StackPanel Spacing="8">
+                <TextBlock Text="{Binding Title}" FontSize="16" FontWeight="SemiBold" />
+                <TextBlock Text="{Binding Subtitle}" TextWrapping="Wrap" Classes="dkMuted" FontSize="12" />
+                <TextBlock Text="Name" Classes="dkMuted" Margin="0,6,0,0" />
+                <TextBox Name="McpNameBox" Classes="dkField" Text="{Binding Name}" PlaceholderText="github" />
+                <TextBlock Text="How Karvon reaches it" Classes="dkMuted" Margin="0,6,0,0" />
+                <StackPanel Orientation="Horizontal" Spacing="18">
+                  <RadioButton GroupName="McpTransport" Content="A program it starts (stdio)" IsChecked="{Binding IsStdio}" />
+                  <RadioButton Name="McpHttpChoice" GroupName="McpTransport" Content="A URL (HTTP)" IsChecked="{Binding IsHttp}" />
+                </StackPanel>
+                <StackPanel Spacing="6" IsVisible="{Binding IsStdio}">
+                  <TextBlock Text="Command line" Classes="dkMuted" />
+                  <TextBox Name="McpCommandBox" Classes="dkField" Text="{Binding CommandLine}" FontFamily="{StaticResource VsCodeFont}"
+                           PlaceholderText="npx -y @modelcontextprotocol/server-github" />
+                  <TextBlock Text="Environment, one NAME=value a line" Classes="dkMuted" />
+                  <TextBox Classes="dkField lines" Text="{Binding Environment}" PlaceholderText="GITHUB_TOKEN=${GITHUB_TOKEN}" />
+                </StackPanel>
+                <StackPanel Spacing="6" IsVisible="{Binding IsHttp}">
+                  <TextBlock Text="URL" Classes="dkMuted" />
+                  <TextBox Name="McpUrlBox" Classes="dkField" Text="{Binding Url}" PlaceholderText="https://example.com/mcp" />
+                  <TextBlock Text="Headers, one Name: value a line" Classes="dkMuted" />
+                  <TextBox Classes="dkField lines" Text="{Binding Headers}" PlaceholderText="Authorization: Bearer ${TOKEN}" />
+                  <CheckBox Content="Only the older SSE transport" IsChecked="{Binding IsSse}" />
+                </StackPanel>
+                <StackPanel Spacing="6" IsVisible="{Binding IsNew}">
+                  <TextBlock Text="Where it is kept" Classes="dkMuted" Margin="0,6,0,0" />
+                  <ComboBox Name="McpWhereBox" ItemsSource="{Binding Places}" SelectedItem="{Binding Where}" HorizontalAlignment="Stretch" />
+                  <TextBlock Text="{Binding Where.File}" Classes="dkMuted dkMono" FontSize="11" TextTrimming="CharacterEllipsis" />
+                </StackPanel>
+                <TextBlock Classes="dkMuted" FontSize="11" TextWrapping="Wrap" Margin="0,4,0,0"
+                           Text="${VAR} stays in the file as written; Karvon fills it in from its environment when it connects." />
+                <TextBlock Name="McpProblem" Text="{Binding Problem}" Foreground="#FF7B72" TextWrapping="Wrap"
+                           IsVisible="{Binding Problem, Converter={x:Static ObjectConverters.IsNotNull}}" />
+                <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right" Margin="0,6,0,0">
+                  <Button Classes="dkOutline" Command="{Binding CancelCommand}" Content="Cancel" IsCancel="True" />
+                  <Button Name="McpSave" Classes="dkPrimary" Command="{Binding ConfirmCommand}" Content="{Binding ConfirmText}"
+                          IsEnabled="{Binding Problem, Converter={x:Static ObjectConverters.IsNull}}" />
+                </StackPanel>
+              </StackPanel>
+            </Border>
+          </DataTemplate>
+          <DataTemplate DataType="dvm:ConfirmDialog">
+            <Border Classes="dkCard" Width="460" Padding="22,18" Background="#2B2B2F">
+              <StackPanel Spacing="14">
+                <TextBlock Text="{Binding Title}" FontSize="16" FontWeight="SemiBold" TextWrapping="Wrap" />
+                <TextBlock Text="{Binding Message}" TextWrapping="Wrap" Classes="dkMuted" />
+                <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">
+                  <Button Classes="dkOutline" Command="{Binding CancelCommand}" Content="Cancel" IsCancel="True" />
+                  <Button Classes="dkPrimary" Classes.dkDanger="{Binding IsDanger}" Command="{Binding ConfirmCommand}" Content="{Binding ConfirmText}" IsDefault="True" />
+                </StackPanel>
+              </StackPanel>
+            </Border>
+          </DataTemplate>
+        </ContentControl.DataTemplates>
+      </ContentControl>
+    </Panel>
+
+    <Border IsVisible="{Binding HasError}" HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="16" MaxWidth="480"
+            Background="#3D1C1E" BorderBrush="#7A2E32" BorderThickness="1" CornerRadius="6" BoxShadow="0 4 16 0 #80000000">
+      <Grid ColumnDefinitions="Auto,*,Auto" Margin="12,10,6,10">
+        <v:VsIcon Kind="Error" Width="16" Height="16" VerticalAlignment="Top" Margin="0,1,10,0" />
+        <StackPanel Grid.Column="1" Spacing="3">
+          <TextBlock Text="MCP Servers" FontWeight="SemiBold" Foreground="#FFB4AE" />
+          <SelectableTextBlock Text="{Binding Error}" TextWrapping="Wrap" Foreground="#FFB4AE" />
+        </StackPanel>
+        <Button Grid.Column="2" Classes="dkIcon" Width="24" Height="24" VerticalAlignment="Top" Command="{Binding DismissErrorCommand}" ToolTip.Tip="Dismiss">
+          <v:VsIcon Kind="Close" Width="12" Height="12" />
+        </Button>
+      </Grid>
+    </Border>
+  </Panel>
+</UserControl>

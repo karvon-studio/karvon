@@ -1,0 +1,31 @@
+<Application xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:dbvm="using:Karvon.Database.ViewModels"
+             xmlns:dbv="using:Karvon.Database.Views"
+             x:Class="Karvon.App"
+             RequestedThemeVariant="Dark">
+  <!-- Database Explorer documents (Bengine Data Studio's), wherever a document tab shows them -->
+  <Application.DataTemplates>
+    <DataTemplate DataType="dbvm:PropertiesDocumentViewModel"><dbv:PropertiesView /></DataTemplate>
+    <DataTemplate DataType="dbvm:SqlDocumentViewModel"><dbv:SqlView /></DataTemplate>
+    <DataTemplate DataType="dbvm:DataDocumentViewModel"><dbv:DataView /></DataTemplate>
+    <DataTemplate DataType="dbvm:QueryDocumentViewModel"><dbv:QueryView /></DataTemplate>
+    <DataTemplate DataType="dbvm:SchemaCompareViewModel"><dbv:SchemaCompareView /></DataTemplate>
+    <DataTemplate DataType="dbvm:DiagramDocumentViewModel"><dbv:DiagramView /></DataTemplate>
+    <DataTemplate DataType="dbvm:ActivityDocumentViewModel"><dbv:ActivityView /></DataTemplate>
+    <DataTemplate DataType="dbvm:DataCompareViewModel"><dbv:DataCompareView /></DataTemplate>
+  </Application.DataTemplates>
+  <Application.Resources>
+    <ResourceDictionary>
+      <ResourceDictionary.MergedDictionaries>
+        <ResourceInclude Source="avares://Karvon/Themes/VsColors.axaml" />
+      </ResourceDictionary.MergedDictionaries>
+    </ResourceDictionary>
+  </Application.Resources>
+  <Application.Styles>
+    <FluentTheme DensityStyle="Compact" />
+    <StyleInclude Source="avares://AvaloniaEdit/Themes/Fluent/AvaloniaEdit.xaml" />
+    <StyleInclude Source="avares://Karvon/Themes/VsStyles.axaml" />
+    <StyleInclude Source="avares://Karvon/Database/DatabaseStyles.axaml" />
+  </Application.Styles>
+</Application>

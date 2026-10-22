@@ -1,0 +1,12 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Karvon/Karvon.csproj" />
+  </Folder>
+  <Folder Name="/external/">
+    <Project Path="external/bengine/src/Bengine/Bengine.csproj" />
+    <Project Path="external/bengine/src/Bengine.Introspection/Bengine.Introspection.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Karvon.Tests/Karvon.Tests.csproj" />
+  </Folder>
+</Solution>

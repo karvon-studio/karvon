@@ -1,23 +1,25 @@
-# VSL — Visual Studio for Linux
+# Karvon Studio
 
-A native Linux IDE for C#, ASP.NET Core and Blazor with Visual Studio's look and workflow. Built with Avalonia;
-IntelliSense comes from Microsoft's Roslyn language server (the engine Visual Studio uses), Razor included.
+A native IDE with Visual Studio's look and workflow, made to grow by modules: today C#, ASP.NET Core and Blazor on
+Linux; more languages, macOS and Windows next (see the [roadmap](ROADMAP.md)). Built with Avalonia; IntelliSense
+comes from Microsoft's Roslyn language server (the engine Visual Studio uses), Razor included. Karvon Studio grew out
+of VSL, whose history this repository carries.
 
 ![Editing C# with IntelliSense, Solution Explorer and the build output](docs/screenshots/editor.png)
 
 ## Install
 
-Download the [latest release](https://github.com/nbkabdulakhadov/VSL/releases/latest) (Linux x64; VSL itself needs no .NET runtime):
+Download the [latest release](https://github.com/karvon-studio/karvon/releases/latest) (Linux x64; Karvon itself needs no .NET runtime):
 
 ```bash
-sudo apt install ./vsl_*_amd64.deb                          # Debian/Ubuntu: `vsl` command and menu entry
-chmod +x VSL-*-x86_64.AppImage && ./VSL-*-x86_64.AppImage   # any distribution (or unpack the .tar.gz)
+sudo apt install ./karvon-studio_*_amd64.deb                                 # Debian/Ubuntu: `karvon` command and menu entry
+chmod +x Karvon-Studio-*-x86_64.AppImage && ./Karvon-Studio-*-x86_64.AppImage   # any distribution (or unpack the .tar.gz)
 ```
 
-From source, `./scripts/install.sh` publishes to `~/.local/share/VSL/app` and adds `vsl`. Then `vsl path/to/App.sln`
-(a `.slnx` or `.csproj` works too), or just `vsl` for the start window.
+From source, `./scripts/install.sh` publishes to `~/.local/share/karvon/app` and adds `karvon`. Then `karvon path/to/App.sln`
+(a `.slnx` or `.csproj` works too), or just `karvon` for the start window.
 
-Working on solutions needs the .NET 10 SDK. VSL downloads `roslyn-language-server` and `netcoredbg` (both MIT) on first use.
+Working on solutions needs the .NET 10 SDK. Karvon downloads `roslyn-language-server` and `netcoredbg` (both MIT) on first use.
 
 ## Features
 
@@ -54,7 +56,7 @@ Working on solutions needs the .NET 10 SDK. VSL downloads `roslyn-language-serve
   commit (a message Claude writes from the diff, if you like), fetch, pull, push, sync, local and remote branches, diff
   with word highlights, change bars in the editor margin, badges in Solution Explorer; follows commits and checkouts
   made in the terminal.
-- **Database Explorer** (Ctrl+Alt+S): [Bengine Data Studio](https://github.com/nbkabdulakhadov/bengine) inside VSL —
+- **Database Explorer** (Ctrl+Alt+S): [Bengine Data Studio](https://github.com/nbkabdulakhadov/bengine) inside Karvon —
   PostgreSQL, MySQL/MariaDB, SQL Server, SQLite, Oracle and MongoDB: object tree, table data with staged edits, SQL
   consoles with completion and explain plans, DDL, table designer, ER diagrams, schema and data compare, backup and
   restore, import and export, server activity. Each solution has its own: data sources, consoles, open tabs, tree
@@ -70,18 +72,18 @@ Working on solutions needs the .NET 10 SDK. VSL downloads `roslyn-language-serve
   containers opened in the Database Explorer, Ask Claude why a container fails (with its last log lines, secrets
   hidden).
 - **Servers** (View > Servers): the machines of `~/.ssh/config` (Include, ProxyJump and wildcards as OpenSSH reads
-  them) and those you add, in groups, with whether VSL is connected and how fast each answers. A machine's page: its
+  them) and those you add, in groups, with whether Karvon is connected and how fast each answers. A machine's page: its
   state (system, uptime, CPU, memory, disks), a terminal (your `ssh`), its files (upload by dropping them, open one in
   the editor and saving puts it back, asking when it changed there), its systemd services (start, stop, restart) and
   its logs (the journal, a unit's or a file's, followed as they come, secrets hidden), Ask Claude about them. A new
   host key is shown to compare before it is trusted; passwords and passphrases are asked once and can go to the system
   keyring; a production machine asks before every change, yours and Claude's.
 - **MCP Servers** (View > MCP Servers): the MCP servers of every agent's configuration in one tree, this folder's
-  `.mcp.json`, Claude Code's (every project's and this folder's), Codex's `config.toml` and Gemini CLI's, with VSL's own
+  `.mcp.json`, Claude Code's (every project's and this folder's), Codex's `config.toml` and Gemini CLI's, with Karvon's own
   tools first. A server connects when you open it (never at start) and shows its tools, resources and prompts; its page
   runs a tool with a form made from its schema, reads a resource, gets a prompt, and logs everything said (its stderr
   too). Add and edit servers (a program, with its environment, or a URL, with its headers) in each file's own format,
-  keeping the rest of it; `${VAR}` stays as written. The Claude Code sessions VSL starts get the servers you switch on
+  keeping the rest of it; `${VAR}` stays as written. The Claude Code sessions Karvon starts get the servers you switch on
   for them, beside those Claude Code reads itself.
 - **Skills** (View > Skills): the skills Claude Code loads (the folder's `.claude/skills`, yours, the plugins'), each
   with its checks (the name matches its folder and the rules, the description says when to use it, linked files exist,
@@ -101,7 +103,7 @@ Working on solutions needs the .NET 10 SDK. VSL downloads `roslyn-language-serve
   keep working in the background, Remote Control (go on from claude.ai or the Claude app), Ask Claude from Solution
   Explorer; English or O‘zbekcha. Old conversations open at their last message, compaction summaries and long
   prompts fold.
-  Claude gets VSL's own tools (`mcp__vsl__*`, an MCP server inside VSL): the build and the tests (`run_build`,
+  Claude gets Karvon's own tools (`mcp__karvon__*`, an MCP server inside Karvon): the build and the tests (`run_build`,
   `build_errors`, `run_tests`, `test_failures`), running the app as Ctrl+F5 does (`app_control`: start, stop, restart,
   its URLs and output), the debugger where it stopped (`debug_state`, `debug_locals`, `debug_evaluate`,
   `debug_control`), the editor (`editor_selection`, `open_document`, `code_diagnostics`,
@@ -122,18 +124,18 @@ Fix All, history / blame, merge conflict editor, WinForms / WPF designers.
 
 ## Claude Code for Visual Studio (Windows)
 
-`src/VSL.VisualStudio` is VSL's Claude Code panel as a Visual Studio 2022 (17.14+) / 2026 extension: the same CLI
-session, protocol and view model (shared with VSL, not copied), with a WPF view that follows the Visual Studio theme.
-What it does and how to use it is in [its README](src/VSL.VisualStudio/README.md), which is also its Marketplace page.
+`src/Karvon.VisualStudio` is Karvon's Claude Code panel as a Visual Studio 2022 (17.14+) / 2026 extension: the same CLI
+session, protocol and view model (shared with Karvon, not copied), with a WPF view that follows the Visual Studio theme.
+What it does and how to use it is in [its README](src/Karvon.VisualStudio/README.md), which is also its Marketplace page.
 
-The `vsix` workflow builds `VSL.ClaudeCode.VisualStudio.vsix` on Windows for every change to the extension or the shared
+The `vsix` workflow builds `Karvon.ClaudeCode.VisualStudio.vsix` on Windows for every change to the extension or the shared
 Claude code (download it from the run's artifacts; open it to install). Running the workflow by hand with **publish**
 ticked uploads it to the Visual Studio Marketplace; raise the version in `source.extension.vsixmanifest` first. Locally
-it builds with Visual Studio's MSBuild (not `dotnet build`); the project is not in `VSL.slnx`, so the Linux build is
+it builds with Visual Studio's MSBuild (not `dotnet build`); the project is not in `Karvon.slnx`, so the Linux build is
 unchanged:
 
 ```powershell
-msbuild src/VSL.VisualStudio/VSL.VisualStudio.csproj -restore -p:Configuration=Release
+msbuild src/Karvon.VisualStudio/Karvon.VisualStudio.csproj -restore -p:Configuration=Release
 ```
 
 ## Development
@@ -142,16 +144,16 @@ The Database Explorer's engine is the [bengine](https://github.com/nbkabdulakhad
 clone with `--recursive` (or run `git submodule update --init` in a clone).
 
 ```bash
-dotnet build VSL.slnx
-dotnet tests/VSL.Tests/bin/Debug/net10.0/VSL.Tests.dll      # unit, Roslyn integration and headless UI tests
-VSL_SCREENSHOTS=$PWD/docs/screenshots dotnet tests/VSL.Tests/bin/Debug/net10.0/VSL.Tests.dll -class VSL.Tests.Screenshots
+dotnet build Karvon.slnx
+dotnet tests/Karvon.Tests/bin/Debug/net10.0/Karvon.Tests.dll      # unit, Roslyn integration and headless UI tests
+KARVON_SCREENSHOTS=$PWD/docs/screenshots dotnet tests/Karvon.Tests/bin/Debug/net10.0/Karvon.Tests.dll -class Karvon.Tests.Screenshots
 ```
 
 The last command renders the screenshots above. CI runs the tests on every push. A `vX.Y.Z` tag publishes a release with
 the `.deb`, `.AppImage` and `.tar.gz`, which `deploy/linux/package.sh` also builds locally.
 
 ```
-src/VSL/
+src/Karvon/
   Lsp/         JSON-RPC, Roslyn client, file watching, HTML service for Razor cohosting
   Workspace/   solution and project loading, Solution Explorer tree
   Build/       dotnet runner, MSBuild output parser, dev certificates
@@ -166,15 +168,15 @@ src/VSL/
   ViewModels/  Views/   main window, tool windows, dialogs
   Database/    the Database Explorer: Bengine Data Studio's views and view models, on Avalonia 12
 external/bengine/       Bengine (submodule): the schema AST and the live-database layer the Database Explorer uses
-src/VSL.VisualStudio/   the Claude Code panel as a Visual Studio extension (Windows), sharing src/VSL/Claude and its view model
+src/Karvon.VisualStudio/   the Claude Code panel as a Visual Studio extension (Windows), sharing src/Karvon/Claude and its view model
 ```
 
 ## License
 
 MIT, see [LICENSE](LICENSE). Third-party: Cascadia Mono font (SIL OFL 1.1); Avalonia, AvaloniaEdit, TextMateSharp,
 Exclr8.Terminal and Porta.Pty (MIT); Markdig (BSD 2-Clause); roslyn-language-server and netcoredbg (MIT, downloaded at runtime);
-Material Icon Theme icons (MIT, Copyright (c) 2025 Material Extensions; `src/VSL/Assets/MaterialIcons`, refreshed with
-`scripts/update-material-icons.sh`, and `src/VSL/Database/Assets/Icons`). The Database Explorer uses Bengine (same
+Material Icon Theme icons (MIT, Copyright (c) 2025 Material Extensions; `src/Karvon/Assets/MaterialIcons`, refreshed with
+`scripts/update-material-icons.sh`, and `src/Karvon/Database/Assets/Icons`). The Database Explorer uses Bengine (same
 author) and its drivers: Npgsql (PostgreSQL License), Microsoft.Data.SqlClient, MySqlConnector, SSH.NET and
 Avalonia.Controls.DataGrid (MIT), MongoDB.Driver and SQLitePCLRaw (Apache 2.0), Oracle.ManagedDataAccess.Core (Oracle
 Free Use Terms and Conditions).

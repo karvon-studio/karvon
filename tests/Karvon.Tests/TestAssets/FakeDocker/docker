@@ -1,0 +1,415 @@
+#!/usr/bin/env python3
+"""A stand-in for the docker command line, for the Docker Explorer's tests.
+
+It answers the commands Karvon runs (ps, system df, network ls, inspect, history, stats, events, logs, start, stop,
+rm, rmi, run, pull, volume and network create/rm, image prune, compose up/down, exec) the way Docker 29 prints them,
+from a JSON state file named by KARVON_FAKE_DOCKER_STATE. Changes are written back to it and recorded as events, which a
+running `events` prints; every command line is appended to the state's "calls". With "daemon": "down" it fails as
+docker does when the daemon is not running.
+"""
+import json
+import os
+import random
+import select
+import sys
+import time
+
+STATE = os.environ.get("KARVON_FAKE_DOCKER_STATE", "")
+ARGS = sys.argv[1:]
+PARENT = os.getppid()
+
+
+def orphaned():
+    """The Karvon (or test) that started a follow is gone: so is the follow, as the real one's pipe would end."""
+    return os.getppid() != PARENT
+
+
+def load():
+    for _ in range(50):
+        try:
+            with open(STATE) as f:
+                return json.load(f)
+        except (OSError, ValueError):
+            time.sleep(0.02)
+    raise SystemExit("fake docker: no state")
+
+
+def save(state):
+    temp = f"{STATE}.{os.getpid()}.tmp"
+    with open(temp, "w") as f:
+        json.dump(state, f)
+    os.replace(temp, STATE)
+
+
+def out(text=""):
+    sys.stdout.write(text + "\n")
+    sys.stdout.flush()
+
+
+def fail(message, code=1):
+    sys.stderr.write(message + "\n")
+    sys.stderr.flush()
+    sys.exit(code)
+
+
+def event(state, kind, action, name):
+    state.setdefault("events", []).append({"Type": kind, "Action": action, "Actor": {"ID": name, "Attributes": {"name": name}}, "scope": "local"})
+
+
+def find(state, ref):
+    for c in state["containers"]:
+        if c["id"].startswith(ref) or c["name"] == ref:
+            return c
+    return None
+
+
+def status(c):
+    if c["state"] == "running":
+        return "Up 2 hours" + (f" ({c['health']})" if c.get("health") else "")
+    if c["state"] == "paused":
+        return "Up 2 hours (Paused)"
+    if c["state"] == "exited":
+        return f"Exited ({c.get('exit', 0)}) 3 minutes ago"
+    return "Created"
+
+
+def ports_text(c):
+    parts = []
+    for p in c.get("ports", []):
+        if p.get("host"):
+            parts.append(f"0.0.0.0:{p['host']}->{p['container']}")
+            parts.append(f"[::]:{p['host']}->{p['container']}")
+        else:
+            parts.append(p["container"])
+    return ", ".join(parts)
+
+
+def labels_text(c):
+    labels = dict(c.get("labels", {}))
+    if c.get("project"):
+        labels["com.docker.compose.project"] = c["project"]
+        labels["com.docker.compose.service"] = c.get("service", c["name"])
+        labels["com.docker.compose.project.working_dir"] = c.get("workdir", "/srv")
+    return ",".join(f"{k}={v}" for k, v in labels.items())
+
+
+def image_in_use(state, image):
+    ref = f"{image['repo']}:{image['tag']}"
+    return sum(1 for c in state["containers"] if c["image"] in (ref, image["repo"] if image["tag"] == "latest" else ref, image["id"][7:19]))
+
+
+def daemon(state):
+    if state.get("daemon") == "down":
+        fail("failed to connect to the docker API at unix:///var/run/docker.sock; check if the path is correct and if the daemon is running: "
+             "dial unix /var/run/docker.sock: connect: no such file or directory")
+
+
+def main():
+    state = load()
+    state.setdefault("calls", []).append(ARGS)
+    save(state)
+    daemon(state)
+    command = ARGS[0] if ARGS else ""
+    rest = ARGS[1:]
+
+    if command == "info":
+        out(json.dumps({"ServerVersion": "29.1.0", "OperatingSystem": "Fake Linux 1.0", "NCPU": 8, "MemTotal": 16_000_000_000, "Name": "fake-host"}))
+    elif command == "ps":
+        for c in state["containers"]:
+            out(json.dumps({"ID": c["id"], "Names": c["name"], "Image": c["image"], "State": c["state"], "Status": status(c),
+                            "Labels": labels_text(c), "Ports": ports_text(c), "Command": '"' + c.get("command", "sh") + '"',
+                            "CreatedAt": "2026-10-20 10:00:00 +0500 +05", "Mounts": ",".join(m["name"] for m in c.get("mounts", [])),
+                            "Networks": ",".join(c.get("networks", ["bridge"])), "RunningFor": "2 days ago", "Size": "0B"}))
+    elif command == "container" and rest[:1] == ["inspect"] and "--format" in rest:
+        for ref in rest[3:]:
+            c = find(state, ref)
+            if c:
+                started = "2026-10-20T08:00:00Z" if c["state"] != "created" else "0001-01-01T00:00:00Z"
+                out(f"{c['id']} {started} 2026-10-20T09:00:00Z")
+    elif command == "volume" and rest[:1] == ["inspect"] and "--format" in rest:
+        for name in rest[3:]:
+            out(f"{name} 2026-10-10T10:00:00+05:00")
+    elif command in ("container", "image", "volume", "network") and rest[:1] == ["inspect"]:
+        inspect(state, command, rest[1:])
+    elif command == "system" and rest[:1] == ["df"]:
+        images = [{"ID": i["id"], "Repository": i["repo"], "Tag": i["tag"], "Size": i["size"], "CreatedAt": i.get("created", "2026-10-01 10:00:00 +0500 +05"),
+                   "Containers": str(image_in_use(state, i))} for i in state["images"]]
+        volumes = [{"Name": v["name"], "Driver": "local", "Mountpoint": f"/var/lib/docker/volumes/{v['name']}/_data", "Size": v.get("size", "0B"),
+                    "Links": str(sum(1 for c in state["containers"] for m in c.get("mounts", []) if m["name"] == v["name"])), "Labels": ""} for v in state["volumes"]]
+        out(json.dumps({"Images": images, "Volumes": volumes, "Containers": [{"Size": "12kB"} for _ in state["containers"]], "BuildCache": []}))
+    elif command == "network" and rest[:1] == ["ls"]:
+        for n in state["networks"]:
+            out(json.dumps({"ID": n["id"], "Name": n["name"], "Driver": n.get("driver", "bridge"), "Scope": "local", "Internal": "false",
+                            "CreatedAt": "2026-10-01 10:00:00.123 +0500 +05", "Labels": n.get("labels", "")}))
+    elif command == "image" and rest[:1] == ["history"]:
+        out(json.dumps({"CreatedBy": "CMD [\"nginx\" \"-g\" \"daemon off;\"]", "Size": "0B", "CreatedSince": "2 weeks ago"}))
+        out(json.dumps({"CreatedBy": "/bin/sh -c apt-get install -y nginx", "Size": "61.2MB", "CreatedSince": "2 weeks ago"}))
+        out(json.dumps({"CreatedBy": "ADD rootfs.tar.xz / # buildkit", "Size": "74.8MB", "CreatedSince": "3 weeks ago"}))
+    elif command == "stats":
+        stats(state, "--no-stream" in rest)
+    elif command == "events":
+        events()
+    elif command == "logs":
+        logs(rest)
+    elif command in ("start", "stop", "restart", "pause", "unpause", "rm"):
+        act(state, command, [r for r in rest if not r.startswith("-")])
+    elif command == "rmi":
+        for ref in rest:
+            image = next((i for i in state["images"] if f"{i['repo']}:{i['tag']}" == ref or i["id"][7:].startswith(ref) or i["repo"] == ref), None)
+            if image is None:
+                fail(f"Error response from daemon: No such image: {ref}")
+            if image_in_use(state, image):
+                fail(f"Error response from daemon: conflict: unable to remove repository reference \"{ref}\" (must force) - container is using its referenced image")
+            state["images"].remove(image)
+            event(state, "image", "delete", ref)
+            out(f"Untagged: {ref}")
+        save(state)
+    elif command == "image" and rest[:1] == ["prune"]:
+        unused = [i for i in state["images"] if not image_in_use(state, i)]
+        for image in unused:
+            state["images"].remove(image)
+            event(state, "image", "delete", image["id"])
+            out(f"deleted: {image['id']}")
+        save(state)
+        out("Total reclaimed space: 1.2GB")
+    elif command == "pull":
+        ref = rest[0]
+        repo, _, tag = ref.partition(":")
+        out(f"{tag or 'latest'}: Pulling from library/{repo}")
+        time.sleep(0.2)
+        out("a1b2c3d4e5f6: Pull complete")
+        out(f"Status: Downloaded newer image for {ref}")
+        if not any(i["repo"] == repo and i["tag"] == (tag or "latest") for i in state["images"]):
+            state["images"].append({"id": "sha256:" + "%064x" % random.getrandbits(256), "repo": repo, "tag": tag or "latest", "size": "48.2MB"})
+            event(state, "image", "pull", ref)
+        save(state)
+    elif command == "run":
+        run(state, rest)
+    elif command == "volume" and rest[:1] == ["create"]:
+        state["volumes"].append({"name": rest[1], "size": "0B"})
+        event(state, "volume", "create", rest[1])
+        save(state)
+        out(rest[1])
+    elif command == "volume" and rest[:1] == ["rm"]:
+        for name in rest[1:]:
+            if any(m["name"] == name for c in state["containers"] for m in c.get("mounts", [])):
+                fail(f"Error response from daemon: remove {name}: volume is in use")
+            state["volumes"] = [v for v in state["volumes"] if v["name"] != name]
+            event(state, "volume", "destroy", name)
+            out(name)
+        save(state)
+    elif command == "network" and rest[:1] == ["create"]:
+        name = rest[-1]
+        driver = rest[rest.index("--driver") + 1] if "--driver" in rest else "bridge"
+        state["networks"].append({"id": "%064x" % random.getrandbits(256), "name": name, "driver": driver})
+        event(state, "network", "create", name)
+        save(state)
+        out(name)
+    elif command == "network" and rest[:1] == ["rm"]:
+        for ref in rest[1:]:
+            state["networks"] = [n for n in state["networks"] if not n["id"].startswith(ref) and n["name"] != ref]
+            event(state, "network", "destroy", ref)
+        save(state)
+    elif command == "compose":
+        compose(state, rest)
+    elif command == "exec":
+        shell(state, rest)
+    else:
+        fail(f"docker: unknown command: {' '.join(ARGS)}")
+
+
+def compose_labels(c):
+    """The labels compose puts on its containers, as inspect shows them."""
+    if not c.get("project"):
+        return {}
+    return {"com.docker.compose.project": c["project"], "com.docker.compose.service": c.get("service") or "",
+            "com.docker.compose.project.working_dir": c.get("workdir") or ""}
+
+
+def inspect(state, kind, refs):
+    items = []
+    for ref in refs:
+        if kind == "container":
+            c = find(state, ref)
+            if c is None:
+                fail(f"Error: No such container: {ref}")
+            ports = {p["container"]: ([{"HostIp": "0.0.0.0", "HostPort": str(p["host"])}] if p.get("host") else None) for p in c.get("ports", [])}
+            items.append({"Id": c["id"], "Name": "/" + c["name"], "Created": "2026-10-20T05:00:00Z",
+                          "State": {"Status": c["state"], "Running": c["state"] == "running", "ExitCode": c.get("exit", 0),
+                                    "StartedAt": "2026-10-20T08:00:00Z", "FinishedAt": "2026-10-20T09:00:00Z"},
+                          "Config": {"Image": c["image"], "Env": c.get("env", []), "Cmd": [c.get("command", "sh")], "Labels": compose_labels(c)},
+                          "Mounts": [{"Type": m.get("type", "volume"), "Name": m["name"] if m.get("type", "volume") == "volume" else "",
+                                      "Source": m.get("source", f"/var/lib/docker/volumes/{m['name']}/_data"), "Destination": m["destination"], "RW": True}
+                                     for m in c.get("mounts", [])],
+                          "NetworkSettings": {"Ports": ports}})
+        elif kind == "image":
+            image = next((i for i in state["images"] if i["id"] == ref or f"{i['repo']}:{i['tag']}" == ref or i["repo"] == ref), None)
+            if image is None:
+                fail(f"Error: No such image: {ref}")
+            items.append({"Id": image["id"], "RepoTags": [f"{image['repo']}:{image['tag']}"], "Size": 1000,
+                          "Config": {"ExposedPorts": {p: {} for p in image.get("exposed", [])}, "Env": ["PATH=/usr/bin"]}})
+        elif kind == "volume":
+            items.append({"Name": ref, "Driver": "local", "Mountpoint": f"/var/lib/docker/volumes/{ref}/_data", "CreatedAt": "2026-10-10T10:00:00+05:00"})
+        else:
+            n = next((n for n in state["networks"] if n["id"].startswith(ref) or n["name"] == ref), None)
+            members = {c["id"]: {"Name": c["name"], "IPv4Address": f"172.18.0.{i + 2}/16"}
+                       for i, c in enumerate(c for c in state["containers"] if n and n["name"] in c.get("networks", ["bridge"]) and c["state"] == "running")}
+            items.append({"Id": n["id"] if n else ref, "Name": n["name"] if n else ref, "IPAM": {"Config": [{"Subnet": "172.18.0.0/16"}]}, "Containers": members})
+    out(json.dumps(items, indent=4))
+
+
+def stats(state, once):
+    while True:
+        state = load()
+        frame = []
+        for c in state["containers"]:
+            if c["state"] == "running":
+                cpu = c.get("cpu", 0.5) + random.random() * 0.2
+                frame.append(json.dumps({"ID": c["id"][:12], "Name": c["name"], "Container": c["id"][:12], "CPUPerc": f"{cpu:.2f}%",
+                                         "MemUsage": f"{c.get('memory', '24.6MiB')} / 15.62GiB", "MemPerc": "0.15%", "NetIO": f"{random.randint(1, 900)}kB / 126B",
+                                         "BlockIO": "4.1MB / 0B", "PIDs": "7"}))
+        sys.stdout.write("\x1b[H" + "\n".join(frame) + "\n")
+        sys.stdout.flush()
+        if once or orphaned():
+            return
+        time.sleep(0.3)
+
+
+def events():
+    seen = len(load().get("events", []))
+    while True:
+        state = load()
+        for e in state.get("events", [])[seen:]:
+            out(json.dumps(e))
+        seen = len(state.get("events", []))
+        if orphaned():
+            return
+        time.sleep(0.05)
+
+
+def logs(rest):
+    ref = rest[-1]
+    timestamps = "--timestamps" in rest
+    follow = "--follow" in rest
+    printed = 0
+    while True:
+        state = load()
+        c = find(state, ref)
+        if c is None:
+            return
+        lines = c.get("logs", [])
+        for line in lines[printed:]:
+            text = ("2026-10-20T08:00:00.000000000Z " if timestamps else "") + line
+            (sys.stderr if line.startswith("ERR") else sys.stdout).write(text + "\n")
+        sys.stdout.flush()
+        sys.stderr.flush()
+        printed = len(lines)
+        if not follow or c["state"] != "running" or orphaned():
+            return
+        time.sleep(0.1)
+
+
+def act(state, verb, refs):
+    for ref in refs:
+        c = find(state, ref)
+        if c is None:
+            fail(f"Error response from daemon: No such container: {ref}")
+        if verb == "rm":
+            state["containers"].remove(c)
+            event(state, "container", "destroy", c["name"])
+        else:
+            c["state"] = {"start": "running", "restart": "running", "stop": "exited", "pause": "paused", "unpause": "running"}[verb]
+            if verb == "stop":
+                c["exit"] = 0
+            c.setdefault("logs", []).append(f"{verb}ed by the fake engine")
+            event(state, "container", {"start": "start", "restart": "restart", "stop": "die", "pause": "pause", "unpause": "unpause"}[verb], c["name"])
+        out(ref)
+    save(state)
+
+
+def run(state, rest):
+    name, ports, env, mounts = None, [], [], []
+    i = 0
+    while i < len(rest) and rest[i].startswith("-"):
+        flag = rest[i]
+        if flag == "-d":
+            i += 1
+            continue
+        value = rest[i + 1]
+        if flag == "--name":
+            name = value
+        elif flag == "-p":
+            host, _, container = value.partition(":")
+            ports.append({"host": int(host), "container": container if "/" in container else container + "/tcp"})
+        elif flag == "-e":
+            env.append(value)
+        elif flag == "-v":
+            source, _, destination = value.partition(":")
+            mounts.append({"name": source, "destination": destination, "type": "bind" if source.startswith("/") else "volume", "source": source})
+        i += 2
+    image = rest[i]
+    if not any(f"{im['repo']}:{im['tag']}" == image or im["repo"] == image for im in state["images"]):
+        fail(f"Unable to find image '{image}' locally\ndocker: Error response from daemon: pull access denied for {image}")
+    cid = "%064x" % random.getrandbits(256)
+    name = name or f"festive_{cid[:4]}"
+    if any(c["name"] == name for c in state["containers"]):
+        fail(f"docker: Error response from daemon: Conflict. The container name \"/{name}\" is already in use.")
+    state["containers"].append({"id": cid, "name": name, "image": image, "state": "running", "ports": ports, "env": env, "mounts": mounts,
+                                "logs": [f"{name} is up", "listening"]})
+    event(state, "container", "create", name)
+    event(state, "container", "start", name)
+    save(state)
+    out(cid)
+
+
+def compose(state, rest):
+    folder = os.getcwd()
+    project = os.path.basename(folder).lower()
+    if rest[:1] == ["up"]:
+        services = []
+        with open(os.path.join(folder, "compose.yaml")) as f:
+            inside = False
+            for line in f:
+                if line.startswith("services:"):
+                    inside = True
+                elif inside and line.startswith("  ") and not line.startswith("    ") and line.strip().endswith(":"):
+                    services.append(line.strip()[:-1])
+                elif inside and line.strip() and not line.startswith(" "):
+                    inside = False
+        for service in services:
+            name = f"{project}-{service}-1"
+            c = find(state, name)
+            if c is None:
+                c = {"id": "%064x" % random.getrandbits(256), "name": name, "image": f"{service}:latest", "state": "running", "project": project,
+                     "service": service, "workdir": folder, "logs": [f"{service} started"]}
+                state["containers"].append(c)
+                event(state, "container", "create", name)
+            c["state"] = "running"
+            event(state, "container", "start", name)
+            sys.stderr.write(f" Container {name}  Started\n")
+        save(state)
+    elif rest[:1] == ["down"]:
+        for c in [c for c in state["containers"] if c.get("project") == project]:
+            state["containers"].remove(c)
+            event(state, "container", "destroy", c["name"])
+            sys.stderr.write(f" Container {c['name']}  Removed\n")
+        save(state)
+
+
+def shell(state, rest):
+    c = find(state, rest[1])
+    out(f"fake shell in {c['name'] if c else rest[1]}")
+    while True:
+        sys.stdout.write("$ ")
+        sys.stdout.flush()
+        while not select.select([sys.stdin], [], [], 0.5)[0]:
+            if orphaned():
+                return
+        line = sys.stdin.readline()
+        if not line or line.strip() == "exit":
+            return
+        out("you typed: " + line.strip())
+
+
+if __name__ == "__main__":
+    main()

@@ -1,0 +1,42 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:v="using:Karvon.Views"
+             xmlns:mvm="using:Karvon.Mcp.ViewModels"
+             x:Class="Karvon.Mcp.Views.McpBuiltInView"
+             x:DataType="mvm:McpBuiltInDocument"
+             Background="#1E1E1E">
+  <UserControl.Styles>
+    <StyleInclude Source="avares://Karvon/Docker/Views/DockerStyles.axaml" />
+  </UserControl.Styles>
+
+  <!-- Karvon's own tools, as the Claude Code sessions Karvon starts have them (mcp__karvon__…) -->
+  <ScrollViewer HorizontalScrollBarVisibility="Disabled">
+    <StackPanel Margin="20,14,20,14" Spacing="6" MaxWidth="900" HorizontalAlignment="Left">
+      <StackPanel Orientation="Horizontal" Spacing="10">
+        <v:VsIcon Kind="Claude" Width="22" Height="22" />
+        <TextBlock Text="karvon" FontSize="19" FontWeight="SemiBold" VerticalAlignment="Center" />
+        <Border Classes="pill blue">
+          <TextBlock Text="built in" />
+        </Border>
+      </StackPanel>
+      <TextBlock Classes="dkMuted" TextWrapping="Wrap" Margin="0,0,0,10"
+                 Text="The tools Karvon gives the Claude Code sessions it starts, beside the user's own servers: they work with what Karvon has open (the solution, the debugger, the Database Explorer's data sources, Docker, the Servers) as you would, and hide secrets. Those that only read go at once; a change asks first, and a destructive one asks every time." />
+      <TextBlock Classes="dkMuted" IsVisible="{Binding IsOff}" TextWrapping="Wrap"
+                 Text="They are off: the ClaudeKarvonTools setting in Karvon's settings.json." />
+      <ItemsControl ItemsSource="{Binding Tools}">
+        <ItemsControl.ItemTemplate>
+          <DataTemplate x:DataType="mvm:McpBuiltInToolNode">
+            <Border Classes="dkRow" Padding="12,8">
+              <StackPanel Spacing="2">
+                <TextBlock>
+                  <Run Text="{Binding Name}" FontFamily="{StaticResource VsCodeFont}" FontWeight="SemiBold" /><Run Text="   " /><Run Text="{Binding Access}" Foreground="#9D9D9D" FontSize="11.5" />
+                </TextBlock>
+                <TextBlock Text="{Binding Description}" Classes="dkMuted" FontSize="12" TextWrapping="Wrap" />
+              </StackPanel>
+            </Border>
+          </DataTemplate>
+        </ItemsControl.ItemTemplate>
+      </ItemsControl>
+    </StackPanel>
+  </ScrollViewer>
+</UserControl>
