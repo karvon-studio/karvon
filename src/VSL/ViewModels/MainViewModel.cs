@@ -28,6 +28,8 @@ public static class ToolWindows
     public const string Claude = "Claude";
     public const string DatabaseExplorer = "DatabaseExplorer";
     public const string DockerExplorer = "DockerExplorer";
+    public const string Servers = "Servers";
+    public const string Mcp = "Mcp";
 }
 
 public enum StatusKind
@@ -56,6 +58,7 @@ public interface IDialogService
 public partial class MainViewModel : ObservableObject
 {
     readonly List<ErrorItem> _buildErrors = [];
+    (string Verb, string Target, bool Succeeded, TimeSpan Took)? _lastBuild;
     RoslynClient? _lsp;
     CancellationTokenSource? _buildCts;
     ProcessRunner? _runProcess;
@@ -548,6 +551,7 @@ public partial class MainViewModel : ObservableObject
         host.WorkspaceEditRequested += ApplyWorkspaceEditAsync;
         host.WorkspaceOperationsRequested += ApplyWorkspaceOperationsAsync;
         host.Saved += () => _ = RefreshGitAsync();
+        host.Saved += () => _ = OnServerFileSavedAsync(doc.FilePath);
         host.CompareRequested += () => _ = CompareWithUnmodifiedAsync(doc);
         host.AskClaudeRequested += ShowClaude;
         host.ZoomChanged += () => Settings.EditorZoom = host.Zoom;
@@ -875,17 +879,22 @@ public partial class MainViewModel : ObservableObject
 
     // ---- Error List ---------------------------------------------------------------------------------------
 
-    void RefreshErrorList()
+    /// <summary>VS's "Build + IntelliSense": the last build's errors and the open files' live ones, each once.</summary>
+    internal List<ErrorItem> AllProblems()
     {
         var live = Editors
             .SelectMany(d => d.Host.Diagnostics.Select(x => new ErrorItem(
                 x.Severity == DiagnosticSeverity.Hint ? DiagnosticSeverity.Information : x.Severity,
                 x.Code, x.Message, ProjectNameFor(d.FilePath), d.FilePath,
                 x.Range.Start.Line + 1, x.Range.Start.Character + 1, "IntelliSense")));
-        // VS's "Build + IntelliSense": both sources are listed; an error both report appears once.
-        var all = _buildErrors.Concat(live)
+        return _buildErrors.Concat(live)
             .DistinctBy(e => (e.FilePath, e.Line, e.Code, e.Description))
             .ToList();
+    }
+
+    void RefreshErrorList()
+    {
+        var all = AllProblems();
 
         ErrorCount = all.Count(e => e.Severity == DiagnosticSeverity.Error);
         WarningCount = all.Count(e => e.Severity == DiagnosticSeverity.Warning);
@@ -984,6 +993,7 @@ public partial class MainViewModel : ObservableObject
         BuildOutput.Append($"========== {verbLabel}: {(ok ? "succeeded" : "failed")}, {errors} error(s), {warnings} warning(s), {succeeded} project(s) built ==========");
         BuildOutput.Append($"========== {verbLabel} completed at {DateTime.Now:HH:mm} and took {sw.Elapsed.TotalSeconds:0.000} seconds ==========");
         SetStatus(ok ? $"{verbLabel} succeeded" : $"{verbLabel} failed", IsRunning || IsDebugging ? StatusKind.Running : StatusKind.Ready);
+        _lastBuild = (verbLabel, Path.GetFileName(target ?? solution.FilePath), ok, sw.Elapsed);
         if (!ok && errors > 0)
             ShowToolWindow(ToolWindows.ErrorList);
         return ok;

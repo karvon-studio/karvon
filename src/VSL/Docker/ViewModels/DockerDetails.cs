@@ -95,7 +95,7 @@ public sealed partial class ContainerDetailViewModel : ObservableObject, IDispos
     /// <summary>The image is a database the Database Explorer knows.</summary>
     public bool IsDatabase => DockerDatabases.ProviderOf(Row.Container.Image) is not null;
 
-    public string AskClaudeText => Row.IsFailing ? "Ask Claude why it failed" : "Ask Claude";
+    public string AskClaudeText => Row.IsFailing ? "Ask Claude why it failed" : Row.HasProblems ? "Ask Claude about it" : "Ask Claude";
 
     public void Initialize()
     {
@@ -105,6 +105,8 @@ public sealed partial class ContainerDetailViewModel : ObservableObject, IDispos
 
     void OnRowChanged(object? sender, PropertyChangedEventArgs e)
     {
+        if (e.PropertyName == nameof(ContainerRow.HasProblems))
+            OnPropertyChanged(nameof(AskClaudeText));
         if (e.PropertyName != nameof(ContainerRow.Container))
             return;
         OnPropertyChanged(nameof(StatusText));
@@ -218,19 +220,9 @@ public sealed partial class ContainerDetailViewModel : ObservableObject, IDispos
     [RelayCommand]
     void ClearLogs() => Logs.Clear();
 
-    /// <summary>Claude Code with the container's state and last log lines in the prompt, ready to send.</summary>
+    /// <summary>Claude Code with the container's state, compose problems and last log lines in the prompt, ready to send.</summary>
     [RelayCommand]
-    void AskClaude()
-    {
-        var c = Row.Container;
-        var lines = Logs.Document.Text.Split('\n').Select(l => l.TrimEnd('\r')).Where(l => l.Length > 0).TakeLast(60).ToList();
-        var prompt = new StringBuilder();
-        prompt.Append($"The Docker container {c.Name} (image {c.Image}{(c.Project is { } p ? $", compose project {p}, service {c.Service}" : "")}) is {Row.StateText.ToLowerInvariant()}.");
-        if (lines.Count > 0)
-            prompt.Append("\nIts last log lines:\n```\n").Append(string.Join("\n", lines)).Append("\n```");
-        prompt.Append(Row.IsFailing ? "\nWhy did it fail, and how do I fix it?" : "\n");
-        _explorer.Host.AskClaude(prompt.ToString());
-    }
+    void AskClaude() => _explorer.Host.AskClaude(DockerExplorerViewModel.ClaudePrompt(Row, Logs.Document.Text.Split('\n')));
 
     [RelayCommand]
     async Task OpenInDatabaseExplorer()

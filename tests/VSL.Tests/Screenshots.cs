@@ -84,6 +84,9 @@ public class Screenshots
         File.WriteAllText(Path.Combine(dir, "Web", "TodoStore.cs"), TodoStoreCs);
         File.WriteAllText(Path.Combine(dir, ".gitignore"), "bin/\nobj/\n");
         TempRepo.Git(dir, "init", "-q", "-b", "main");
+        // Git Changes shows who commits: the demo's own identity, never the user's.
+        TempRepo.Git(dir, "config", "user.name", "VSL Demo");
+        TempRepo.Git(dir, "config", "user.email", "demo@example.invalid");
         TempRepo.Git(dir, "add", "-A");
         TempRepo.Git(dir, "-c", "user.name=VSL", "-c", "user.email=vsl@example.invalid", "-c", "commit.gpgsign=false", "commit", "-q", "-m", "Todo app");
 
@@ -247,6 +250,7 @@ public class Screenshots
         var compose = Path.Combine(dir, "compose.yaml");
         File.WriteAllText(compose, "services:\n  web:\n    image: nginx\n");
         var (docker, _, _) = FakeDocker.Create(FakeDocker.Sample(dir));
+        var engine = Environment.GetEnvironmentVariable("VSL_DOCKER_PATH");
         Environment.SetEnvironmentVariable("VSL_DOCKER_PATH", docker);
         try
         {
@@ -272,7 +276,7 @@ public class Screenshots
         }
         finally
         {
-            Environment.SetEnvironmentVariable("VSL_DOCKER_PATH", null);
+            Environment.SetEnvironmentVariable("VSL_DOCKER_PATH", engine);
             File.Delete(compose);
         }
     }

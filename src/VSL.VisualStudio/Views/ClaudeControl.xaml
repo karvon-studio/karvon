@@ -541,7 +541,14 @@
               </DataTemplate>
             </ItemsControl.ItemTemplate>
           </ItemsControl>
-          <TextBox Style="{StaticResource ClaudeSelectableText}" Text="{Binding Text, Mode=OneWay}" Visibility="{Binding HasText, Converter={StaticResource Visible}}" />
+          <TextBox Style="{StaticResource ClaudeSelectableText}" Text="{Binding ShownText, Mode=OneWay}" Visibility="{Binding HasText, Converter={StaticResource Visible}}" />
+          <Button Style="{StaticResource Row}" HorizontalAlignment="Left" Margin="0,4,0,0" Visibility="{Binding IsLong, Converter={StaticResource Visible}}"
+                  Command="{Binding DataContext.ToggleExpandCommand, RelativeSource={RelativeSource AncestorType=v:ClaudeControl}}" CommandParameter="{Binding}">
+            <Grid>
+              <TextBlock Text="{v:L 'Show more'}" FontSize="12" Style="{StaticResource Muted}" Visibility="{Binding IsExpanded, Converter={StaticResource Hidden}}" />
+              <TextBlock Text="{v:L 'Show less'}" FontSize="12" Style="{StaticResource Muted}" Visibility="{Binding IsExpanded, Converter={StaticResource Visible}}" />
+            </Grid>
+          </Button>
           <Border Style="{StaticResource Chip}" Visibility="{Binding HasContext, Converter={StaticResource Visible}}" HorizontalAlignment="Left" Margin="0,6,0,0">
             <StackPanel Orientation="Horizontal">
               <v:VsIcon Kind="file" Width="11" Height="11" Margin="0,0,4,0" />
@@ -813,6 +820,28 @@
                      FontSize="12" Margin="0,8,0,0" />
         </StackPanel>
       </Border>
+    </DataTemplate>
+
+    <DataTemplate DataType="{x:Type vm:CompactChatItem}">
+      <StackPanel Margin="0,14,0,4">
+        <Grid>
+          <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="*" />
+            <ColumnDefinition Width="Auto" />
+            <ColumnDefinition Width="*" />
+          </Grid.ColumnDefinitions>
+          <Border Height="1" Background="{StaticResource ClaudeLine}" VerticalAlignment="Center" />
+          <Button Grid.Column="1" Style="{StaticResource Row}" Margin="8,0" IsEnabled="{Binding HasSummary}" ToolTip="{v:L 'The summary that replaced the earlier messages'}"
+                  Command="{Binding DataContext.ToggleExpandCommand, RelativeSource={RelativeSource AncestorType=v:ClaudeControl}}" CommandParameter="{Binding}">
+            <TextBlock Text="{v:L 'Conversation compacted'}" Style="{StaticResource Muted}" FontSize="12" />
+          </Button>
+          <Border Grid.Column="2" Height="1" Background="{StaticResource ClaudeLine}" VerticalAlignment="Center" />
+        </Grid>
+        <Border Visibility="{Binding IsExpanded, Converter={StaticResource Visible}}" BorderBrush="{StaticResource ClaudeLine}" BorderThickness="1"
+                CornerRadius="5" Padding="12,4,12,8" Margin="0,6,0,0">
+          <v:MarkdownView Markdown="{Binding Summary}" />
+        </Border>
+      </StackPanel>
     </DataTemplate>
 
     <DataTemplate DataType="{x:Type vm:NoticeChatItem}">

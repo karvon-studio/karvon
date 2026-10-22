@@ -1,5 +1,6 @@
 <ResourceDictionary xmlns="https://github.com/avaloniaui"
-                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:v="using:VSL.Views">
   <!-- Visual Studio "Dark" environment palette -->
   <Color x:Key="SystemAccentColor">#007ACC</Color>
   <Color x:Key="SystemAccentColorDark1">#0E639C</Color>
@@ -79,6 +80,40 @@
     <Style Selector="^:selected">
       <Setter Property="Background" Value="#252526" />
       <Setter Property="Foreground" Value="#3399FF" />
+    </Style>
+  </ControlTheme>
+
+  <!-- A tool window in a side group, as an icon of VS Code's activity bar: its name in the tooltip, a count badge,
+       a bar at the outer edge for the one in front (the "right" class puts it on the right). -->
+  <ControlTheme x:Key="VsActivityTab" TargetType="TabItem">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="Foreground" Value="#8A8A8A" />
+    <Setter Property="Padding" Value="0" />
+    <Setter Property="Template">
+      <ControlTemplate>
+        <Panel Name="PART_LayoutRoot" Width="44" Height="44" Background="{TemplateBinding Background}" ToolTip.Tip="{TemplateBinding Header}">
+          <Border Name="PART_Indicator" Width="2" HorizontalAlignment="Left" Background="Transparent" />
+          <v:VsIcon Kind="{TemplateBinding Tag, Converter={x:Static v:ToolWindowTabs.Icon}}" Width="22" Height="22" Foreground="{TemplateBinding Foreground}" />
+          <Border Name="PART_Badge" IsVisible="{TemplateBinding v:ToolWindowTabs.Badge, Converter={x:Static v:ToolWindowTabs.HasBadge}}"
+                  Background="#0078D4" CornerRadius="8" MinWidth="16" Height="16" Padding="4,0"
+                  HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,6,6">
+            <TextBlock Text="{TemplateBinding v:ToolWindowTabs.Badge, Converter={x:Static v:ToolWindowTabs.BadgeText}}" FontSize="10" FontWeight="SemiBold"
+                       Foreground="White" HorizontalAlignment="Center" VerticalAlignment="Center" />
+          </Border>
+        </Panel>
+      </ControlTemplate>
+    </Setter>
+    <Style Selector="^:pointerover">
+      <Setter Property="Foreground" Value="#E0E0E0" />
+    </Style>
+    <Style Selector="^:selected">
+      <Setter Property="Foreground" Value="#FFFFFF" />
+    </Style>
+    <Style Selector="^:selected /template/ Border#PART_Indicator">
+      <Setter Property="Background" Value="#3399FF" />
+    </Style>
+    <Style Selector="^.right /template/ Border#PART_Indicator">
+      <Setter Property="HorizontalAlignment" Value="Right" />
     </Style>
   </ControlTheme>
 </ResourceDictionary>

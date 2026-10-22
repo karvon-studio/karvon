@@ -306,7 +306,7 @@ public sealed partial class MarkdownPreview : Decorator
         {
             Children =
             {
-                new ScrollViewer { HorizontalScrollBarVisibility = ScrollBarVisibility.Auto, VerticalScrollBarVisibility = ScrollBarVisibility.Disabled, Content = body },
+                MarkdownView.Sideways(body),
                 copy,
             },
         };
@@ -393,12 +393,7 @@ public sealed partial class MarkdownPreview : Decorator
                 grid.Children.Add(border);
             }
         }
-        return new ScrollViewer
-        {
-            HorizontalScrollBarVisibility = ScrollBarVisibility.Auto,
-            VerticalScrollBarVisibility = ScrollBarVisibility.Disabled,
-            Content = new Border { BorderBrush = RuleBrush, BorderThickness = new Thickness(1, 1, 0, 0), Child = grid, HorizontalAlignment = HorizontalAlignment.Left },
-        };
+        return MarkdownView.Sideways(new Border { BorderBrush = RuleBrush, BorderThickness = new Thickness(1, 1, 0, 0), Child = grid, HorizontalAlignment = HorizontalAlignment.Left });
     }
 
     Control FootnotesOf(FootnoteGroup footnotes)

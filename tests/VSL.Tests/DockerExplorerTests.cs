@@ -360,7 +360,7 @@ public class DockerExplorerTests
         Assert.Equal("Ask Claude why it failed", failed.AskClaudeText);
         await WaitUntil(() => failed.Logs.Document.Text.Contains("does not exist", StringComparison.Ordinal), TimeSpan.FromSeconds(10));
         failed.AskClaudeCommand.Execute(null);
-        Assert.EndsWith("Why did it fail, and how do I fix it?", host.Prompts[1]);
+        Assert.EndsWith("Why does it fail, and how do I fix it?", host.Prompts[1]);
 
         // Deleted, its page closes with it.
         var deleting = failed.DeleteCommand.ExecuteAsync(null);
@@ -584,6 +584,7 @@ public class DockerExplorerTests
     public async Task View_menu_shows_the_docker_explorer_tool_window()
     {
         var (docker, _, _) = FakeDocker.Create();
+        var engine = Environment.GetEnvironmentVariable("VSL_DOCKER_PATH");
         Environment.SetEnvironmentVariable("VSL_DOCKER_PATH", docker);
         try
         {
@@ -628,8 +629,81 @@ public class DockerExplorerTests
         }
         finally
         {
-            Environment.SetEnvironmentVariable("VSL_DOCKER_PATH", null);
+            Environment.SetEnvironmentVariable("VSL_DOCKER_PATH", engine);
         }
+    }
+
+    /// <summary>A compose file whose api reaches the database through localhost (and a worker that is right).</summary>
+    const string BrokenCompose = """
+        services:
+          api:
+            image: shop-api:latest
+            environment:
+              ConnectionStrings__Default: Host=localhost;Port=5432;Database=shop
+              ASPNETCORE_URLS: http://+:8080
+          db:
+            image: postgres:17
+          worker:
+            image: alpine:3.20
+            environment:
+              - CACHE=redis:6379
+        """;
+
+    [Fact]
+    public void A_service_that_reaches_another_through_localhost_is_a_compose_problem()
+    {
+        var dir = Path.Combine(Path.GetTempPath(), "vsl-compose-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(dir);
+        var file = Path.Combine(dir, "compose.yaml");
+        File.WriteAllText(file, BrokenCompose);
+        var problem = Assert.Single(Compose.Inspect(file));
+        Assert.Equal("api", problem.Service);
+        Assert.Equal("api: ConnectionStrings__Default uses localhost, which inside a container is api itself. Use the service name: db.", problem.Text);
+        // A list of NAME=value counts as well; a file that cannot be read has none.
+        File.WriteAllText(file, "services:\n  web:\n    environment:\n      - API=http://127.0.0.1:5000\n  api:\n    image: shop-api\n");
+        Assert.Equal("web: API uses localhost, which inside a container is web itself. Use the service name: api.", Assert.Single(Compose.Inspect(file)).Text);
+        File.WriteAllText(file, "services: [unclosed");
+        Assert.Empty(Compose.Inspect(file));
+    }
+
+    [AvaloniaFact]
+    public async Task Compose_problems_show_on_the_solutions_stack_and_go_to_Claude()
+    {
+        var solution = Path.Combine(Path.GetTempPath(), "vsl-docker-solution-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(solution);
+        File.WriteAllText(Path.Combine(solution, "compose.yaml"), BrokenCompose);
+        var sample = FakeDocker.Sample(solution);
+        sample["containers"]![1]!["logs"]!.AsArray().Add("Npgsql: connecting with Password=hunter2 failed");
+        var (vm, host, window, _) = Open(solution, sample);
+        await vm.InitializeAsync();
+        vm.OpenSection(DockerSection.Containers);
+        var page = host.Page<ContainersPage>();
+
+        // The banner lists it; the stack and the api container are marked, the others are not.
+        Assert.True(page.HasComposeProblems);
+        var api = page.AllRows.Single(r => r.Name == "shop-api-1");
+        Assert.True(api.HasProblems);
+        Assert.False(page.AllRows.Single(r => r.Name == "shop-db-1").HasProblems);
+        Assert.False(page.AllRows.Single(r => r.Name == "cache").HasProblems);
+        Assert.True(page.Stacks.Single().HasProblems);
+        await WaitUntil(() => false, TimeSpan.FromMilliseconds(300));
+        Snapshot(window, "docker-compose-problems");
+
+        // Asking Claude about it: its state, the problem and its last lines, with the password hidden.
+        await api.AskClaudeCommand.ExecuteAsync(null);
+        var prompt = Assert.Single(host.Prompts);
+        Assert.Contains("The compose file: api: ConnectionStrings__Default uses localhost", prompt);
+        Assert.Contains("ERR connection refused, retrying", prompt);
+        Assert.Contains("Password=***", prompt);
+        Assert.DoesNotContain("hunter2", prompt);
+        Assert.EndsWith("Why does it fail, and how do I fix it?", prompt);
+
+        // Its page says so too.
+        api.OpenCommand.Execute(null);
+        var detail = host.Page<ContainerDetailViewModel>();
+        Assert.Equal("Ask Claude about it", detail.AskClaudeText);
+        vm.Dispose();
+        window.Close();
     }
 
     [Fact]

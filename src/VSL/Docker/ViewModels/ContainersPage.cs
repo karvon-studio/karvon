@@ -86,6 +86,20 @@ public sealed partial class ContainerRow : DockerTreeItem
 
     public string PauseResumeText => IsPaused ? "Resume" : "Pause";
 
+    /// <summary>What the solution's compose file gets wrong for its service.</summary>
+    public IReadOnlyList<ComposeProblem> Problems => _page.ProblemsFor(Container);
+
+    public bool HasProblems => Problems.Count > 0;
+
+    public string ProblemsText => string.Join("\n", Problems.Select(p => p.Text));
+
+    internal void ProblemsChanged()
+    {
+        OnPropertyChanged(nameof(Problems));
+        OnPropertyChanged(nameof(HasProblems));
+        OnPropertyChanged(nameof(ProblemsText));
+    }
+
     [ObservableProperty]
     public partial bool IsSelected { get; set; }
 
@@ -212,6 +226,10 @@ public sealed partial class ContainerRow : DockerTreeItem
 
     [RelayCommand]
     void OpenImage() => _page.OpenImage(this);
+
+    /// <summary>Claude Code, with its state, compose problems and last log lines in the prompt.</summary>
+    [RelayCommand]
+    Task AskClaude() => _page.AskClaudeAsync(this);
 }
 
 /// <summary>A compose project: its containers under it, started, stopped and deleted together (Docker Desktop's stack).</summary>
@@ -269,9 +287,19 @@ public sealed partial class StackRow : DockerTreeItem
 
     public string TreeText => $"{RunningCount}/{Children.Count} running";
 
+    /// <summary>The solution's compose file's problems, on its own stack.</summary>
+    public IReadOnlyList<ComposeProblem> Problems => IsThisSolution ? _page.ComposeProblems : [];
+
+    public bool HasProblems => Problems.Count > 0;
+
+    public string ProblemsText => string.Join("\n", Problems.Select(p => p.Text));
+
     /// <summary>The stack's numbers follow its containers.</summary>
     internal void Refresh()
     {
+        OnPropertyChanged(nameof(Problems));
+        OnPropertyChanged(nameof(HasProblems));
+        OnPropertyChanged(nameof(ProblemsText));
         OnPropertyChanged(nameof(TreeText));
         OnPropertyChanged(nameof(RunningCount));
         OnPropertyChanged(nameof(IsUp));
@@ -417,6 +445,17 @@ public sealed partial class ContainersPage : ObservableObject
 
     public bool HasComposeFile => ComposeFile is not null;
 
+    /// <summary>What the solution's compose file gets wrong (a service that reaches another through localhost...).</summary>
+    public IReadOnlyList<ComposeProblem> ComposeProblems { get; private set; } = [];
+
+    public bool HasComposeProblems => ComposeProblems.Count > 0;
+
+    /// <summary>The problems of a container's service, when compose started it from the solution's file.</summary>
+    internal IReadOnlyList<ComposeProblem> ProblemsFor(DockerContainer container) =>
+        container.Service is { } service && _explorer.Host.SolutionDirectory is { } dir && Compose.IsInFolder(container.WorkingDir, dir)
+            ? ComposeProblems.Where(p => p.Service == service).ToList()
+            : [];
+
     public string ComposeFileName => ComposeFile is { } file ? Path.GetFileName(file) : "";
 
     [ObservableProperty]
@@ -449,6 +488,11 @@ public sealed partial class ContainersPage : ObservableObject
                 row.ClearStats();
         }
         var solution = _explorer.Host.SolutionDirectory;
+        ComposeProblems = ComposeFile is { } composeFile ? Compose.Inspect(composeFile) : [];
+        OnPropertyChanged(nameof(ComposeProblems));
+        OnPropertyChanged(nameof(HasComposeProblems));
+        foreach (var row in _rows.Values)
+            row.ProblemsChanged();
         foreach (var stack in _stacks.Values)
             stack.Children.Clear();
         foreach (var row in _rows.Values.Where(r => r.Container.Project is not null))
@@ -638,6 +682,8 @@ public sealed partial class ContainersPage : ObservableObject
     }
 
     internal void OpenImage(ContainerRow row) => _explorer.OpenImage(row.Container.Image);
+
+    internal Task AskClaudeAsync(ContainerRow row) => _explorer.AskClaudeAsync(row);
 
     [RelayCommand]
     Task StartSelected() => _explorer.ActAsync("start", Selected.Where(r => !r.IsUp).ToList());

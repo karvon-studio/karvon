@@ -1,10 +1,17 @@
+using Avalonia.Threading;
+using Bengine.Introspection.Servers;
 using CommunityToolkit.Mvvm.Input;
+using VSL.Claude.Tools;
+using VSL.Docker;
 using VSL.ViewModels;
 
 namespace VSL.ViewModels;
 
-/// <summary>Claude Code tool window: runs in the solution folder and sees the active editor and selection.</summary>
-public partial class MainViewModel
+/// <summary>
+/// Claude Code tool window: runs in the solution folder and sees the active editor and selection, and uses VSL's tools
+/// (the Database Explorer's data sources, the Docker engine) as the user's own.
+/// </summary>
+public partial class MainViewModel : IClaudeToolHost
 {
     static readonly HashSet<string> SkippedFolders = new(StringComparer.Ordinal) { "bin", "obj", ".git", ".vs", ".idea", "node_modules" };
 
@@ -15,7 +22,17 @@ public partial class MainViewModel
 
     ClaudeViewModel CreateClaude()
     {
-        var claude = new ClaudeViewModel(Settings, ClaudeWorkingDirectory, ClaudeEditorContextNow, ClaudeFiles);
+        var claude = new ClaudeViewModel(Settings, ClaudeWorkingDirectory, ClaudeEditorContextNow, ClaudeFiles)
+        {
+            Tools = Settings.ClaudeVslTools ? VslTools.Create(this, this, EnsureServers) : null,
+            McpServers = ClaudeMcpServers,
+        };
+        // Another account has other servers (its own .claude.json).
+        claude.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(ClaudeViewModel.SelectedAccount))
+                Mcp?.Refresh();
+        };
         claude.OpenFileRequested += (path, line) =>
         {
             if (line is { } l && l > 0)
@@ -32,6 +49,20 @@ public partial class MainViewModel
         claude.AttentionRequested += () => ShowToolWindow(ToolWindows.Claude);
         return claude;
     }
+
+    string? IClaudeToolHost.SolutionDirectory => Solution?.Directory;
+
+    IReadOnlyList<ServerProfile> IClaudeToolHost.DataSources() => DatabaseServers.List();
+
+    /// <summary>The explorer's passwords are the UI thread's.</summary>
+    Task<string?> IClaudeToolHost.PasswordForAsync(ServerProfile server) =>
+        Dispatcher.UIThread.InvokeAsync<string?>(() => _database is { } explorer ? explorer.PasswordFor(server) : server.Password).GetTask();
+
+    DockerEngine IClaudeToolHost.Docker => Docker?.Engine ?? (_claudeDocker ??= DockerEngine.Find());
+
+    DockerEngine? _claudeDocker;
+
+    bool IClaudeToolHost.AllContainers => Settings.ClaudeAllContainers;
 
     string ClaudeWorkingDirectory() => Solution?.Directory ?? Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
 
@@ -93,6 +124,8 @@ public partial class MainViewModel
     async Task OnClaudeSolutionChangedAsync()
     {
         _claudeFiles = null;
+        // Another folder has its own .mcp.json, and its own servers in Claude Code's settings.
+        Mcp?.Refresh();
         if (_claude is { } claude)
             await claude.OnWorkingDirectoryChangedAsync();
     }

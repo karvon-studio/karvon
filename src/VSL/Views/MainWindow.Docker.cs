@@ -9,12 +9,48 @@ namespace VSL.Views;
 /// </summary>
 public partial class MainWindow
 {
-    void InitializeDockerExplorer() =>
+    void InitializeDockerExplorer()
+    {
         DockerExplorerTab.PropertyChanged += (_, e) =>
         {
             if (e.Property == TabItem.IsSelectedProperty && DockerExplorerTab.IsSelected)
                 EnsureDockerExplorer();
         };
+        ServersTab.PropertyChanged += (_, e) =>
+        {
+            if (e.Property == TabItem.IsSelectedProperty && ServersTab.IsSelected)
+                EnsureServers();
+        };
+        McpTab.PropertyChanged += (_, e) =>
+        {
+            if (e.Property == TabItem.IsSelectedProperty && McpTab.IsSelected)
+                EnsureMcp();
+        };
+    }
+
+    /// <summary>The MCP Servers tool window, made the first time it shows: a VSL that never opens it reads no agent's settings.</summary>
+    internal Mcp.Views.McpExplorerView? EnsureMcp()
+    {
+        if (McpHost.Content is Mcp.Views.McpExplorerView view)
+            return view;
+        if (Vm is not { } vm || _closing)
+            return null;
+        view = new Mcp.Views.McpExplorerView { DataContext = vm.EnsureMcp() };
+        McpHost.Content = view;
+        return view;
+    }
+
+    /// <summary>The Servers tool window, made the first time it shows: a VSL that never opens it reads no ~/.ssh/config.</summary>
+    internal Servers.Views.ServersExplorerView? EnsureServers()
+    {
+        if (ServersHost.Content is Servers.Views.ServersExplorerView view)
+            return view;
+        if (Vm is not { } vm || _closing)
+            return null;
+        view = new Servers.Views.ServersExplorerView { DataContext = vm.EnsureServers() };
+        ServersHost.Content = view;
+        return view;
+    }
 
     internal DockerExplorerView? EnsureDockerExplorer()
     {

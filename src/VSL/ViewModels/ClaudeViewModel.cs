@@ -108,6 +108,15 @@ public sealed partial class ClaudeViewModel : ObservableObject, IAsyncDisposable
     /// <summary>A web link in an answer was clicked.</summary>
     public event Action<string>? OpenUrlRequested;
 
+    /// <summary>
+    /// The host's own tools for Claude (VSL: the Database Explorer's data sources and the Docker engine), given to each CLI
+    /// it starts; null for none.
+    /// </summary>
+    public ClaudeToolServer? Tools { get; set; }
+
+    /// <summary>For a session's folder: a file of MCP servers the session gets beside its own (--mcp-config), or null.</summary>
+    public Func<string, string?>? McpServers { get; set; }
+
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsCliMissing))]
     public partial string? CliPath { get; set; }
@@ -179,7 +188,7 @@ public sealed partial class ClaudeViewModel : ObservableObject, IAsyncDisposable
         try
         {
             await StopSessionAsync();
-            var session = await ClaudeSession.StartAsync(new ClaudeStartOptions(CliPath!, cwd, SelectedModel?.Value, PermissionMode, _resumeId, SelectedAccount));
+            var session = await ClaudeSession.StartAsync(new ClaudeStartOptions(CliPath!, cwd, SelectedModel?.Value, PermissionMode, _resumeId, SelectedAccount, Tools, McpServersFor(cwd)));
             session.Event += ev => Dispatcher.UIThread.Post(() => Handle(session, ev));
             _session = session;
             _sessionCwd = cwd;
@@ -551,16 +560,33 @@ public sealed partial class ClaudeViewModel : ObservableObject, IAsyncDisposable
                     FilesChanged?.Invoke();
                 break;
 
+            case ClaudePermissionRequest request when PermissionMode == "plan" && Tools?.Plan(request.ToolName, request.Input) is { Access: ToolAccess.Write or ToolAccess.Destructive }:
+                // Planning changes nothing: a database or container change waits for the plan to be accepted.
+                _ = RespondAsync(request, ClaudePermissionDecision.Deny(
+                    "Plan mode: VSL does not change databases or containers while Claude plans. Put the change in the plan for the user instead."));
+                break;
+
             case ClaudePermissionRequest request:
                 AddPermissionCard(request);
                 UpdateStatus();
                 AttentionRequested?.Invoke();
                 break;
 
+            case ClaudeNotice { Text: "Conversation compacted" }:
+                Items.Add(new CompactChatItem());
+                ContextTokens = null;
+                break;
+
+            case ClaudeCompactSummary summary:
+                // The boundary comes first; its summary folds under it.
+                if (Items.Count > 0 && Items[^1] is CompactChatItem { HasSummary: false } compacted)
+                    compacted.Summary = summary.Text;
+                else
+                    Items.Add(new CompactChatItem { Summary = summary.Text });
+                break;
+
             case ClaudeNotice notice:
                 Items.Add(new NoticeChatItem(notice.Text, notice.IsError));
-                if (notice.Text == "Conversation compacted")
-                    ContextTokens = null;
                 break;
 
             case ClaudeRateLimits limits when live:
@@ -660,6 +686,19 @@ public sealed partial class ClaudeViewModel : ObservableObject, IAsyncDisposable
 
     string Relative(string? path) => path is null ? "" : RelativeTo(_sessionCwd ?? _workingDirectory(), path);
 
+    /// <summary>The host's file of MCP servers for a session; a file that cannot be written leaves them out.</summary>
+    string? McpServersFor(string cwd)
+    {
+        try
+        {
+            return McpServers?.Invoke(cwd);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            return null;
+        }
+    }
+
     /// <summary>A path inside <paramref name="folder"/> relative to it; any other path as it is.</summary>
     internal static string RelativeTo(string folder, string path)
     {
@@ -746,6 +785,8 @@ public sealed partial class ClaudeViewModel : ObservableObject, IAsyncDisposable
                     : [];
                 return new ToolChatItem(tool.Id, tool.Name, "Update Todos", null, null) { Todos = todos };
             }
+            case var _ when Tools?.Plan(tool.Name, input) is { } own:
+                return new ToolChatItem(tool.Id, tool.Name, own.Title, own.Subject, null) { Code = own.Code };
             default:
             {
                 var title = tool.Name;
@@ -814,6 +855,10 @@ public sealed partial class ClaudeViewModel : ObservableObject, IAsyncDisposable
             tool.IsExpanded = !tool.IsExpanded;
         else if (item is ThinkingChatItem thinking)
             thinking.IsExpanded = !thinking.IsExpanded;
+        else if (item is UserChatItem { IsLong: true } user)
+            user.IsExpanded = !user.IsExpanded;
+        else if (item is CompactChatItem { HasSummary: true } compact)
+            compact.IsExpanded = !compact.IsExpanded;
     }
 
     [RelayCommand]
@@ -860,6 +905,9 @@ public sealed partial class ClaudeViewModel : ObservableObject, IAsyncDisposable
     {
         var input = request.Input;
         string? Str(string name) => ClaudeJson.Str(input, name);
+        // VSL's own tools ask for one call at a time: "don't ask again" would let a later DROP through with an UPDATE.
+        if (Tools?.Plan(request.ToolName, input) is { } own)
+            return new PermissionChatItem(request, own.Question, null) { Code = own.Code, Description = own.Warning ?? own.Subject };
         var sessionLabel = SessionLabel(request.Suggestions);
         var file = Str("file_path") ?? Str("notebook_path");
         var name = file is null ? null : Path.GetFileName(file);

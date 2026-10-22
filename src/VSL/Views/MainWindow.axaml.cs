@@ -101,6 +101,8 @@ public partial class MainWindow : Window, IDialogService
             await vm.ShutdownClaudeAsync();
             await vm.ShutdownBuildServersAsync();
             vm.ShutdownDocker();
+            vm.ShutdownServers();
+            vm.ShutdownMcp();
             _closingConfirmed = true;
             Close();
         }

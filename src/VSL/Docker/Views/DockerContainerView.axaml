@@ -94,6 +94,14 @@
         </StackPanel>
       </Grid>
 
+      <!-- What the solution's compose file gets wrong for its service -->
+      <Border Name="ProblemsBanner" IsVisible="{Binding Row.HasProblems}" Background="#33302010" BorderBrush="#6B5A2A" BorderThickness="1" CornerRadius="6" Padding="12,8">
+        <Grid ColumnDefinitions="Auto,*">
+          <v:VsIcon Kind="Warning" Width="15" Height="15" VerticalAlignment="Top" Margin="0,1,8,0" />
+          <SelectableTextBlock Grid.Column="1" Text="{Binding Row.ProblemsText}" TextWrapping="Wrap" Foreground="#E3B341" />
+        </Grid>
+      </Border>
+
       <!-- Tabs -->
       <Border BorderBrush="#3F3F46" BorderThickness="0,0,0,1">
         <StackPanel Orientation="Horizontal" Margin="4,0,0,0">

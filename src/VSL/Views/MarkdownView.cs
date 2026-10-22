@@ -280,7 +280,7 @@ public sealed partial class MarkdownView : Decorator
             FontSize = 12,
             Margin = new Thickness(10, code.Language.Length > 0 ? 22 : 8, 10, 8),
         };
-        var grid = new Grid { Children = { new ScrollViewer { HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Auto, VerticalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled, Content = body }, copy } };
+        var grid = new Grid { Children = { Sideways(body), copy } };
         if (code.Language.Length > 0)
             grid.Children.Add(new TextBlock { Text = code.Language, FontSize = 11, Foreground = MutedBrush, Margin = new Thickness(10, 5, 0, 0) });
         return new Border { Background = CodeBackground, CornerRadius = new CornerRadius(5), BorderBrush = RuleBrush, BorderThickness = new Thickness(1), Child = grid };
@@ -332,11 +332,18 @@ public sealed partial class MarkdownView : Decorator
                 grid.Children.Add(cell);
             }
         }
-        return new ScrollViewer
-        {
-            HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Auto,
-            VerticalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled,
-            Content = new Border { BorderBrush = RuleBrush, BorderThickness = new Thickness(1, 1, 0, 0), Child = grid, HorizontalAlignment = HorizontalAlignment.Left },
-        };
+        return Sideways(new Border { BorderBrush = RuleBrush, BorderThickness = new Thickness(1, 1, 0, 0), Child = grid, HorizontalAlignment = HorizontalAlignment.Left });
     }
+
+    /// <summary>
+    /// A code block's or table's horizontal scrolling. Its scroll bar takes a row of its own under the content: the
+    /// theme's bar would float over the last line of code, or the last row of a table, and hide it.
+    /// </summary>
+    internal static ScrollViewer Sideways(Control content) => new()
+    {
+        HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Auto,
+        VerticalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled,
+        AllowAutoHide = false,
+        Content = content,
+    };
 }

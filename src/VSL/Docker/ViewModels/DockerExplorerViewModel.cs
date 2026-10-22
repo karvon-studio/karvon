@@ -579,6 +579,43 @@ public sealed partial class DockerExplorerViewModel : ObservableObject, IDisposa
         });
     }
 
+    /// <summary>
+    /// Claude Code about a container: its state, what the compose file gets wrong for it and its last log lines (secrets
+    /// hidden), in the prompt, ready to send.
+    /// </summary>
+    internal async Task AskClaudeAsync(ContainerRow row)
+    {
+        var lines = new List<string>();
+        try
+        {
+            await Engine.RunAsync(["logs", "--tail", "60", row.Container.Id], onLine: line =>
+            {
+                lock (lines)
+                    lines.Add(line);
+            });
+        }
+        catch (DockerException ex)
+        {
+            Report(ex);
+        }
+        Host.AskClaude(ClaudePrompt(row, lines));
+    }
+
+    /// <summary>The prompt about a container, with its last log lines.</summary>
+    internal static string ClaudePrompt(ContainerRow row, IEnumerable<string> logLines)
+    {
+        var c = row.Container;
+        var lines = logLines.Select(l => l.TrimEnd('\r')).Where(l => l.Length > 0).TakeLast(60).Select(Claude.Tools.Redaction.Text).ToList();
+        var prompt = new System.Text.StringBuilder();
+        prompt.Append($"The Docker container {c.Name} (image {c.Image}{(c.Project is { } p ? $", compose project {p}, service {c.Service}" : "")}) is {row.StateText.ToLowerInvariant()}.");
+        foreach (var problem in row.Problems)
+            prompt.Append("\nThe compose file: ").Append(problem.Text);
+        if (lines.Count > 0)
+            prompt.Append("\nIts last log lines:\n```\n").Append(string.Join("\n", lines)).Append("\n```");
+        prompt.Append(row.IsFailing || row.HasProblems ? "\nWhy does it fail, and how do I fix it?" : "\n");
+        return prompt.ToString();
+    }
+
     /// <summary>The image a container runs, by the reference it was started with.</summary>
     internal void OpenImage(string reference)
     {

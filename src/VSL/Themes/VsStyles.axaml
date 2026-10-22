@@ -184,6 +184,11 @@
     <Setter Property="Background" Value="#2D2D30" />
   </Style>
 
+  <!-- A side tool group folded to its activity bar (VS Code: clicking the icon in front hides the side bar) -->
+  <Style Selector="TabControl.collapsed /template/ ContentPresenter#PART_SelectedContentHost">
+    <Setter Property="IsVisible" Value="False" />
+  </Style>
+
   <Style Selector="TextBlock.toolTitle">
     <Setter Property="FontSize" Value="12" />
     <Setter Property="Foreground" Value="#D0D0D0" />

@@ -11,13 +11,17 @@ public sealed record ClaudeStartOptions(
     string? Model = null,
     string? PermissionMode = null,
     string? Resume = null,
-    ClaudeAccount? Account = null);
+    ClaudeAccount? Account = null,
+    ClaudeToolServer? Tools = null,
+    string? McpConfigFile = null);
 
 /// <summary>
 /// One running Claude Code CLI in headless streaming mode (the interface the Agent SDK uses): JSON lines on
 /// stdin/stdout, prompts as user messages, permission prompts as can_use_tool control requests answered by VSL,
 /// and control requests (initialize, interrupt, set_permission_mode, set_model, remote_control) with matching responses.
 /// The CLI echoes each prompt as it takes it up; those VSL did not send come from claude.ai (Remote Control).
+/// With <see cref="ClaudeStartOptions.Tools"/> it also serves VSL's own tools (an "sdk" MCP server): calls that only
+/// read are allowed here, the others ask as any tool does.
 /// </summary>
 public sealed class ClaudeSession : IAsyncDisposable
 {
@@ -32,6 +36,8 @@ public sealed class ClaudeSession : IAsyncDisposable
     readonly Task _reader;
     readonly TaskCompletionSource<bool> _exited = new(TaskCreationOptions.RunContinuationsAsynchronously);
     readonly TaskCompletionSource<bool> _stderrDone = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    readonly CancellationTokenSource _toolCalls = new();
+    ClaudeToolServer? _tools;
     int _requestCounter;
     bool _disposed;
 
@@ -93,6 +99,15 @@ public sealed class ClaudeSession : IAsyncDisposable
             args.AddRange(["--model", model]);
         if (options.Resume is { Length: > 0 } resume)
             args.AddRange(["--resume", resume]);
+        // VSL's tools, and the servers of the other agents' configurations given to it, beside the user's own MCP servers.
+        if (options.Tools is not null || options.McpConfigFile is not null)
+        {
+            args.Add("--mcp-config");
+            if (options.Tools is not null)
+                args.Add(ClaudeToolServer.McpConfig);
+            if (options.McpConfigFile is { } file)
+                args.Add(file);
+        }
         return args;
     }
 
@@ -116,7 +131,7 @@ public sealed class ClaudeSession : IAsyncDisposable
         psi.Environment["PWD"] = options.WorkingDirectory;
         options.Account?.Apply(psi.Environment);
         var process = Process.Start(psi) ?? throw new InvalidOperationException("Claude Code could not be started.");
-        var session = new ClaudeSession(process) { SessionId = options.Resume };
+        var session = new ClaudeSession(process) { SessionId = options.Resume, _tools = options.Tools };
         try
         {
             using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
@@ -297,7 +312,8 @@ public sealed class ClaudeSession : IAsyncDisposable
             }
             return;
         }
-        if (ClaudeProtocol.Str(root, "type") == "user" && root.TryGetProperty("isReplay", out var replay) && replay.ValueKind == JsonValueKind.True)
+        if (ClaudeProtocol.Str(root, "type") == "user" && root.TryGetProperty("isReplay", out var replay) && replay.ValueKind == JsonValueKind.True
+            && !(root.TryGetProperty("isCompactSummary", out var summary) && summary.ValueKind == JsonValueKind.True))
         {
             // The echo of a prompt VSL sent (shown when it was sent), or one sent from claude.ai.
             if (ClaudeProtocol.Str(root, "uuid") is { } uuid && _sent.TryRemove(uuid, out _)
@@ -309,11 +325,64 @@ public sealed class ClaudeSession : IAsyncDisposable
                     Event?.Invoke(new ClaudeRemotePrompt(text, user.Images));
             return;
         }
+        if (ClaudeProtocol.Str(root, "type") == "control_request" && root.TryGetProperty("request", out var control)
+            && ClaudeProtocol.Str(control, "subtype") == "mcp_message" && control.TryGetProperty("message", out var message))
+        {
+            _ = AnswerMcpAsync(ClaudeProtocol.Str(root, "request_id"), ClaudeProtocol.Str(control, "server_name"), message.Clone());
+            return;
+        }
         foreach (var ev in ClaudeProtocol.Parse(root))
         {
             if (ev is ClaudeInit init)
                 SessionId = init.SessionId;
+            // Reading or building through VSL's tools needs no approval (as Read and Grep need none).
+            if (ev is ClaudePermissionRequest request && _tools?.Plan(request.ToolName, request.Input) is { Access: ToolAccess.Read or ToolAccess.Run })
+            {
+                _ = AllowQuietlyAsync(request);
+                continue;
+            }
             Event?.Invoke(ev);
+        }
+    }
+
+    async Task AllowQuietlyAsync(ClaudePermissionRequest request)
+    {
+        try
+        {
+            await RespondToPermissionAsync(request.RequestId, ClaudePermissionDecision.AllowOnce(request.Input));
+        }
+        catch (InvalidOperationException)
+        {
+            // The CLI exited meanwhile.
+        }
+    }
+
+    /// <summary>A JSON-RPC message for VSL's MCP server, answered when the tool is done (a query may take a while).</summary>
+    async Task AnswerMcpAsync(string? requestId, string? serverName, JsonElement message)
+    {
+        var id = message.TryGetProperty("id", out var idValue) ? System.Text.Json.Nodes.JsonNode.Parse(idValue.GetRawText()) : null;
+        System.Text.Json.Nodes.JsonObject response;
+        try
+        {
+            response = _tools is { } tools && serverName == ClaudeToolServer.Name
+                ? await tools.HandleAsync(message, _toolCalls.Token)
+                : ClaudeToolServer.Failure(id, -32601, $"There is no MCP server {serverName} in VSL.");
+        }
+        catch (Exception ex)
+        {
+            response = ClaudeToolServer.Failure(id, -32603, ex.Message);
+        }
+        try
+        {
+            await WriteAsync(new
+            {
+                type = "control_response",
+                response = new { subtype = "success", request_id = requestId, response = new { mcp_response = response } },
+            });
+        }
+        catch (InvalidOperationException)
+        {
+            // The CLI exited meanwhile.
         }
     }
 
@@ -339,6 +408,7 @@ public sealed class ClaudeSession : IAsyncDisposable
         if (_disposed)
             return;
         _disposed = true;
+        _toolCalls.Cancel();
         try
         {
             if (!_process.HasExited)

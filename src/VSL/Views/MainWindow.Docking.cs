@@ -16,16 +16,23 @@ public enum DockSide
 /// <summary>
 /// Tool window docking: drag a tool window's tab onto the Dock Left / Right / Bottom guides (or use its context
 /// menu) to move it between the three tool groups. Empty groups collapse; the layout, the groups' sizes and the
-/// tabs in front are remembered.
+/// tabs in front are remembered. The side groups show their tool windows as VS Code's activity bar, an icon each;
+/// clicking the icon in front folds the group to its bar, and any icon opens it again.
 /// </summary>
 public partial class MainWindow
 {
     const double DragThreshold = 8;
 
+    /// <summary>A side group folded to its activity bar: the icons (44) and the group's border.</summary>
+    const double ActivityBarWidth = 45;
+
     TabItem? _dragItem;
     Point _dragStart;
     bool _dragging;
     DockSide? _dropTarget;
+    bool _pressedInFront;
+    bool _leftCollapsed, _rightCollapsed;
+    double _leftWidth = DefaultLeftWidth, _rightWidth = DefaultRightWidth;
 
     readonly List<FloatingToolWindow> _floatingTools = [];
 
@@ -63,7 +70,53 @@ public partial class MainWindow
 
     /// <summary>True when the tool window is the front tab of its group.</summary>
     public bool IsToolWindowShowing(string toolWindow) =>
-        ToolGroups.Any(g => g.IsVisible && g.SelectedItem is TabItem { Tag: string id } && id == toolWindow);
+        ToolGroups.Any(g => g.IsVisible && !g.Classes.Contains("collapsed") && g.SelectedItem is TabItem { Tag: string id } && id == toolWindow);
+
+    /// <summary>The side group a tool window's tab is in (left or right), or null.</summary>
+    DockSide? SideGroupOf(TabItem item) => LeftTabs.Items.Contains(item) ? DockSide.Left : RightTabs.Items.Contains(item) ? DockSide.Right : null;
+
+    public bool IsCollapsed(DockSide side) => side switch
+    {
+        DockSide.Left => _leftCollapsed,
+        DockSide.Right => _rightCollapsed,
+        _ => false,
+    };
+
+    /// <summary>A tool window's tab as its group shows them: an activity bar icon at the sides, a named tab at the bottom or in its own window.</summary>
+    void ApplyToolTabTheme(TabItem item)
+    {
+        var side = SideGroupOf(item);
+        item.Theme = this.FindResource(side is null ? "VsToolTab" : "VsActivityTab") as Avalonia.Styling.ControlTheme;
+        item.Classes.Set("right", side == DockSide.Right);
+    }
+
+    /// <summary>Folds a side group to its activity bar (VS Code's side bar hidden), or opens it again at the width it had.</summary>
+    public void SetCollapsed(DockSide side, bool collapsed, bool remember = true)
+    {
+        if (side == DockSide.Bottom || IsCollapsed(side) == collapsed)
+            return;
+        var column = MainGrid.ColumnDefinitions[side == DockSide.Left ? 0 : 4];
+        if (collapsed && column.Width.IsAbsolute && column.Width.Value > ActivityBarWidth)
+        {
+            if (side == DockSide.Left)
+                _leftWidth = column.Width.Value;
+            else
+                _rightWidth = column.Width.Value;
+        }
+        else if (!collapsed)
+            column.Width = new GridLength(Math.Max(side == DockSide.Left ? _leftWidth : _rightWidth, 160));
+        if (side == DockSide.Left)
+            _leftCollapsed = collapsed;
+        else
+            _rightCollapsed = collapsed;
+        UpdateDockLayout();
+        if (remember && Vm is { } vm)
+        {
+            vm.Settings.Layout.LeftCollapsed = _leftCollapsed;
+            vm.Settings.Layout.RightCollapsed = _rightCollapsed;
+            vm.Settings.Save();
+        }
+    }
 
     void InitializeDocking()
     {
@@ -74,6 +127,7 @@ public partial class MainWindow
             item.AddHandler(PointerReleasedEvent, OnToolTabReleased, RoutingStrategies.Tunnel);
             item.AddHandler(PointerCaptureLostEvent, (_, _) => EndDrag(), RoutingStrategies.Bubble);
             item.ContextRequested += OnToolTabContextRequested;
+            ApplyToolTabTheme(item);
         }
         UpdateDockLayout();
     }
@@ -108,6 +162,10 @@ public partial class MainWindow
             columns[4].Width = new GridLength(Math.Max(right, 80));
         if (BottomTabs.ItemCount > 0 && layout.BottomHeight is { } bottom)
             LeftGrid.RowDefinitions[2].Height = new GridLength(Math.Max(bottom, 60));
+        if (layout.LeftCollapsed && LeftTabs.ItemCount > 0)
+            SetCollapsed(DockSide.Left, true, remember: false);
+        if (layout.RightCollapsed && RightTabs.ItemCount > 0)
+            SetCollapsed(DockSide.Right, true, remember: false);
         if (layout.Width is > 0 and var width && layout.Height is > 0 and var height)
         {
             Width = width;
@@ -123,10 +181,13 @@ public partial class MainWindow
         var layout = vm.Settings.Layout;
         double? Size(GridLength length, double actual) => length.IsAbsolute && length.Value > 0 ? length.Value : actual > 0 ? actual : null;
         var columns = MainGrid.ColumnDefinitions;
+        // A folded group keeps the width it opens at.
         if (LeftTabs.ItemCount > 0)
-            layout.LeftWidth = Size(columns[0].Width, columns[0].ActualWidth);
+            layout.LeftWidth = _leftCollapsed ? _leftWidth : Size(columns[0].Width, columns[0].ActualWidth);
         if (RightTabs.ItemCount > 0)
-            layout.RightWidth = Size(columns[4].Width, columns[4].ActualWidth);
+            layout.RightWidth = _rightCollapsed ? _rightWidth : Size(columns[4].Width, columns[4].ActualWidth);
+        layout.LeftCollapsed = _leftCollapsed && LeftTabs.ItemCount > 0;
+        layout.RightCollapsed = _rightCollapsed && RightTabs.ItemCount > 0;
         if (BottomTabs.ItemCount > 0)
             layout.BottomHeight = Size(LeftGrid.RowDefinitions[2].Height, LeftGrid.RowDefinitions[2].ActualHeight);
         foreach (var side in Enum.GetValues<DockSide>())
@@ -155,6 +216,8 @@ public partial class MainWindow
         if (ToolTabs.FirstOrDefault(t => (string?)t.Tag == id) is { } item && ToolGroups.FirstOrDefault(g => g.Items.Contains(item)) is { } group)
         {
             group.SelectedItem = item;
+            if (SideGroupOf(item) is { } side)
+                SetCollapsed(side, false);
             FloatingWindowOf(id)?.Activate();
         }
     }
@@ -191,6 +254,7 @@ public partial class MainWindow
         if (from.SelectedItem is null && from.ItemCount > 0)
             from.SelectedIndex = 0;
         window.Tabs.Items.Add(item);
+        ApplyToolTabTheme(item);
         window.Tabs.SelectedItem = item;
         window.UpdateTitle();
         _floatingTools.Add(window);
@@ -236,7 +300,10 @@ public partial class MainWindow
             return;
         from.Items.Remove(item);
         to.Items.Add(item);
+        ApplyToolTabTheme(item);
         to.SelectedItem = item;
+        if (side != DockSide.Bottom)
+            SetCollapsed(side, false, remember);
         if (from.SelectedItem is null && from.ItemCount > 0)
             from.SelectedIndex = 0;
         CloseEmptyFloatingTools();
@@ -258,13 +325,20 @@ public partial class MainWindow
         var right = RightTabs.ItemCount > 0;
         var bottom = BottomTabs.ItemCount > 0;
 
-        columns[0].Width = left ? (columns[0].Width.Value > 0 ? columns[0].Width : new GridLength(DefaultLeftWidth)) : new GridLength(0);
-        columns[1].Width = new GridLength(left ? 4 : 0);
-        LeftDock.IsVisible = LeftSplitter.IsVisible = left;
+        // A folded group is its activity bar only, with no splitter.
+        columns[0].Width = !left ? new GridLength(0) : _leftCollapsed ? new GridLength(ActivityBarWidth)
+            : columns[0].Width.Value > ActivityBarWidth ? columns[0].Width : new GridLength(Math.Max(_leftWidth, 160));
+        columns[1].Width = new GridLength(left && !_leftCollapsed ? 4 : 0);
+        LeftDock.IsVisible = left;
+        LeftSplitter.IsVisible = left && !_leftCollapsed;
+        LeftTabs.Classes.Set("collapsed", _leftCollapsed);
 
-        columns[4].Width = right ? (columns[4].Width.Value > 0 ? columns[4].Width : new GridLength(DefaultRightWidth)) : new GridLength(0);
-        columns[3].Width = new GridLength(right ? 4 : 0);
-        RightDock.IsVisible = RightSplitter.IsVisible = right;
+        columns[4].Width = !right ? new GridLength(0) : _rightCollapsed ? new GridLength(ActivityBarWidth)
+            : columns[4].Width.Value > ActivityBarWidth ? columns[4].Width : new GridLength(Math.Max(_rightWidth, 160));
+        columns[3].Width = new GridLength(right && !_rightCollapsed ? 4 : 0);
+        RightDock.IsVisible = right;
+        RightSplitter.IsVisible = right && !_rightCollapsed;
+        RightTabs.Classes.Set("collapsed", _rightCollapsed);
 
         rows[2].Height = bottom ? (rows[2].Height.Value > 0 ? rows[2].Height : new GridLength(DefaultBottomHeight)) : new GridLength(0);
         rows[1].Height = new GridLength(bottom ? 4 : 0);
@@ -275,6 +349,8 @@ public partial class MainWindow
     {
         if (sender is TabItem item && e.GetCurrentPoint(this).Properties.IsLeftButtonPressed)
         {
+            // The icon in front, clicked again, folds its group (decided on release, when it was not a drag).
+            _pressedInFront = item.IsSelected && SideGroupOf(item) is not null;
             _dragItem = item;
             _dragStart = e.GetPosition(this);
             _dragging = false;
@@ -305,6 +381,8 @@ public partial class MainWindow
     {
         if (!_dragging || _dragItem is null)
         {
+            if (_dragItem is { } clicked && SideGroupOf(clicked) is { } group)
+                SetCollapsed(group, _pressedInFront && !IsCollapsed(group));
             _dragItem = null;
             return;
         }
@@ -377,10 +455,12 @@ public partial class MainWindow
     /// <summary>Window > Reset Window Layout: every tool window back to its default group and size.</summary>
     public void ResetWindowLayout()
     {
+        _leftCollapsed = _rightCollapsed = false;
+        (_leftWidth, _rightWidth) = (DefaultLeftWidth, DefaultRightWidth);
         MainGrid.ColumnDefinitions[0].Width = new GridLength(DefaultLeftWidth);
         MainGrid.ColumnDefinitions[4].Width = new GridLength(DefaultRightWidth);
         LeftGrid.RowDefinitions[2].Height = new GridLength(DefaultBottomHeight);
-        foreach (var id in new[] { ToolWindows.SolutionExplorer, ToolWindows.TestExplorer, ToolWindows.GitChanges, ToolWindows.DatabaseExplorer, ToolWindows.DockerExplorer, ToolWindows.Claude })
+        foreach (var id in new[] { ToolWindows.SolutionExplorer, ToolWindows.TestExplorer, ToolWindows.GitChanges, ToolWindows.DatabaseExplorer, ToolWindows.DockerExplorer, ToolWindows.Servers, ToolWindows.Mcp, ToolWindows.Claude })
             MoveToolWindow(id, DockSide.Right);
         foreach (var id in new[] { ToolWindows.ErrorList, ToolWindows.Output, ToolWindows.FindResults, ToolWindows.Locals, ToolWindows.Watch, ToolWindows.CallStack, ToolWindows.Terminal })
             MoveToolWindow(id, DockSide.Bottom);

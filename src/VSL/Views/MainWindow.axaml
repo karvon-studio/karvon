@@ -5,6 +5,10 @@
         xmlns:v="using:VSL.Views"
         xmlns:dv="using:VSL.Docker.Views"
         xmlns:dvm="using:VSL.Docker.ViewModels"
+        xmlns:sv="using:VSL.Servers.Views"
+        xmlns:svm="using:VSL.Servers.ViewModels"
+        xmlns:mv="using:VSL.Mcp.Views"
+        xmlns:mvm="using:VSL.Mcp.ViewModels"
         xmlns:ae="https://github.com/avaloniaui/avaloniaedit"
         x:Class="VSL.Views.MainWindow"
         x:DataType="vm:MainViewModel"
@@ -122,6 +126,8 @@
           </MenuItem.Header>
         </MenuItem>
         <MenuItem Header="Doc_ker Explorer" Command="{Binding ShowDockerExplorerCommand}" />
+        <MenuItem Header="Ser_vers" Command="{Binding ShowServersCommand}" />
+        <MenuItem Header="_MCP Servers" Command="{Binding ShowMcpCommand}" />
         <MenuItem Command="{Binding ShowClaudeCommand}">
           <MenuItem.Header>
             <Grid ColumnDefinitions="*,Auto">
@@ -337,7 +343,13 @@
     <Grid Name="MainGrid" ColumnDefinitions="0,0,*,4,400">
       <!-- Left dock group: empty until a tool window is docked there -->
       <Border Name="LeftDock" Grid.Column="0" Background="{StaticResource VsToolWindowBrush}" BorderBrush="{StaticResource VsBorderBrush}" BorderThickness="0,0,1,0">
-        <TabControl Name="LeftTabs" TabStripPlacement="Bottom" Padding="0" ItemContainerTheme="{StaticResource VsToolTab}" />
+        <TabControl Name="LeftTabs" TabStripPlacement="Left" Padding="0" ItemContainerTheme="{StaticResource VsActivityTab}">
+          <TabControl.ItemsPanel>
+            <ItemsPanelTemplate>
+              <StackPanel Background="{StaticResource VsEnvironmentBrush}" />
+            </ItemsPanelTemplate>
+          </TabControl.ItemsPanel>
+        </TabControl>
       </Border>
       <GridSplitter Name="LeftSplitter" Grid.Column="1" ResizeDirection="Columns" />
 
@@ -577,10 +589,14 @@
 
       <GridSplitter Name="RightSplitter" Grid.Column="3" ResizeDirection="Columns" />
 
-      <!-- Right dock group (Solution Explorer, Test Explorer, Git Changes by default) -->
+      <!-- Right dock group (Solution Explorer, Test Explorer, Git Changes... by default), its tool windows as an activity bar -->
       <Border Name="RightDock" Grid.Column="4" Background="{StaticResource VsToolWindowBrush}" BorderBrush="{StaticResource VsBorderBrush}" BorderThickness="1,0,0,0">
-        <TabControl Name="RightTabs" TabStripPlacement="Bottom" Padding="0"
-                    ItemContainerTheme="{StaticResource VsToolTab}">
+        <TabControl Name="RightTabs" TabStripPlacement="Right" Padding="0" ItemContainerTheme="{StaticResource VsActivityTab}">
+          <TabControl.ItemsPanel>
+            <ItemsPanelTemplate>
+              <StackPanel Background="{StaticResource VsEnvironmentBrush}" />
+            </ItemsPanelTemplate>
+          </TabControl.ItemsPanel>
           <TabItem Header="Solution Explorer" Tag="SolutionExplorer">
             <DockPanel>
               <Border DockPanel.Dock="Top" Background="{StaticResource VsEnvironmentBrush}">
@@ -699,7 +715,7 @@
           </TabItem>
 
           <!-- Git Changes -->
-          <TabItem Header="Git Changes" Tag="GitChanges">
+          <TabItem Header="Git Changes" Tag="GitChanges" v:ToolWindowTabs.Badge="{Binding GitChangeCount}">
             <DockPanel>
               <Border DockPanel.Dock="Top" Background="{StaticResource VsEnvironmentBrush}">
                 <TextBlock Classes="toolTitle" Text="Git Changes" />
@@ -842,6 +858,14 @@
           <TabItem Name="DockerExplorerTab" Header="Docker Explorer" Tag="DockerExplorer">
             <ContentControl Name="DockerExplorerHost" />
           </TabItem>
+          <!-- Servers (SSH), made the first time it shows -->
+          <TabItem Name="ServersTab" Header="Servers" Tag="Servers">
+            <ContentControl Name="ServersHost" />
+          </TabItem>
+          <!-- MCP Servers, made the first time it shows -->
+          <TabItem Name="McpTab" Header="MCP Servers" Tag="Mcp">
+            <ContentControl Name="McpHost" />
+          </TabItem>
           <TabItem Header="Claude Code" Tag="Claude">
             <v:ClaudeView Name="ClaudePanel" DataContext="{Binding Claude}" />
           </TabItem>
@@ -853,6 +877,22 @@
         <ContentControl.ContentTemplate>
           <DataTemplate x:DataType="dvm:DockerExplorerViewModel">
             <dv:DockerOverlay />
+          </DataTemplate>
+        </ContentControl.ContentTemplate>
+      </ContentControl>
+
+      <ContentControl Name="ServersOverlayHost" Grid.ColumnSpan="5" ZIndex="98" Content="{Binding Servers}">
+        <ContentControl.ContentTemplate>
+          <DataTemplate x:DataType="svm:ServersExplorerViewModel">
+            <sv:ServersOverlay />
+          </DataTemplate>
+        </ContentControl.ContentTemplate>
+      </ContentControl>
+
+      <ContentControl Name="McpOverlayHost" Grid.ColumnSpan="5" ZIndex="98" Content="{Binding Mcp}">
+        <ContentControl.ContentTemplate>
+          <DataTemplate x:DataType="mvm:McpExplorerViewModel">
+            <mv:McpOverlay />
           </DataTemplate>
         </ContentControl.ContentTemplate>
       </ContentControl>

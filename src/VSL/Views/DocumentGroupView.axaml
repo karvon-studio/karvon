@@ -4,6 +4,10 @@
              xmlns:v="using:VSL.Views"
              xmlns:dvm="using:VSL.Docker.ViewModels"
              xmlns:dv="using:VSL.Docker.Views"
+             xmlns:svm="using:VSL.Servers.ViewModels"
+             xmlns:sv="using:VSL.Servers.Views"
+             xmlns:mvm="using:VSL.Mcp.ViewModels"
+             xmlns:mv="using:VSL.Mcp.Views"
              x:Class="VSL.Views.DocumentGroupView"
              x:DataType="vm:DocumentGroup">
   <UserControl.Styles>
@@ -65,6 +69,21 @@
                           ShowPreview="{Binding $parent[Window].((vm:MainViewModel)DataContext).MarkdownPreview}"
                           PreviewBelow="{Binding $parent[Window].((vm:MainViewModel)DataContext).MarkdownPreviewBelow}" />
           </DockPanel>
+        </Border>
+      </DataTemplate>
+      <DataTemplate DataType="mvm:McpServerDocument" x:DataType="mvm:McpServerDocument">
+        <Border Classes="docframe" BorderBrush="#007ACC" BorderThickness="0,2,0,0">
+          <mv:McpServerPageView DataContext="{Binding Page}" />
+        </Border>
+      </DataTemplate>
+      <DataTemplate DataType="mvm:McpBuiltInDocument" x:DataType="mvm:McpBuiltInDocument">
+        <Border Classes="docframe" BorderBrush="#007ACC" BorderThickness="0,2,0,0">
+          <mv:McpBuiltInView />
+        </Border>
+      </DataTemplate>
+      <DataTemplate DataType="svm:ServerDocument" x:DataType="svm:ServerDocument">
+        <Border Classes="docframe" BorderBrush="#007ACC" BorderThickness="0,2,0,0">
+          <sv:ServerPageView DataContext="{Binding Page}" />
         </Border>
       </DataTemplate>
       <DataTemplate DataType="dvm:DockerDocument" x:DataType="dvm:DockerDocument">

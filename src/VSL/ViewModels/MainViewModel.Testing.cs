@@ -14,6 +14,7 @@ public partial class MainViewModel
 {
     readonly Dictionary<Guid, TestNode> _testCases = [];
     readonly Dictionary<Guid, TestCase> _discovered = [];
+    int _testRuns;
     List<Guid> _lastRun = [];
     VsTestHost? _testHost;
     CancellationTokenSource? _testCts;
@@ -81,7 +82,7 @@ public partial class MainViewModel
     void CancelTestRun() => _testCts?.Cancel();
 
     /// <summary>Builds, (re)discovers and runs the given tests (null = all), streaming results into the tree.</summary>
-    async Task RunTestsAsync(IReadOnlyList<Guid>? ids, bool debug = false)
+    async Task RunTestsAsync(IReadOnlyList<Guid>? ids, bool debug = false, Func<TestCase, bool>? match = null)
     {
         ShowToolWindow(ToolWindows.TestExplorer);
         IsTesting = true;
@@ -89,13 +90,14 @@ public partial class MainViewModel
         {
             if (!await DiscoverTestsAsync() || _testHost is not { } host)
                 return;
-            var cases = (ids is null ? _discovered.Values : ids.Where(_discovered.ContainsKey).Select(id => _discovered[id])).ToList();
+            var cases = (ids is null ? _discovered.Values : ids.Where(_discovered.ContainsKey).Select(id => _discovered[id])).Where(c => match?.Invoke(c) != false).ToList();
             if (cases.Count == 0)
             {
                 TestSummary = "No tests to run.";
                 return;
             }
             _lastRun = cases.Select(c => c.Id).ToList();
+            _testRuns++;
             foreach (var c in cases)
                 _testCases[c.Id].SetResult(TestState.NotRun, TimeSpan.Zero, null, null, null);
             SetStatus($"Running {cases.Count} test(s)...", StatusKind.Busy);

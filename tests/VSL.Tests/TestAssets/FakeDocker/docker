@@ -211,6 +211,14 @@ def main():
         fail(f"docker: unknown command: {' '.join(ARGS)}")
 
 
+def compose_labels(c):
+    """The labels compose puts on its containers, as inspect shows them."""
+    if not c.get("project"):
+        return {}
+    return {"com.docker.compose.project": c["project"], "com.docker.compose.service": c.get("service") or "",
+            "com.docker.compose.project.working_dir": c.get("workdir") or ""}
+
+
 def inspect(state, kind, refs):
     items = []
     for ref in refs:
@@ -222,7 +230,7 @@ def inspect(state, kind, refs):
             items.append({"Id": c["id"], "Name": "/" + c["name"], "Created": "2026-10-20T05:00:00Z",
                           "State": {"Status": c["state"], "Running": c["state"] == "running", "ExitCode": c.get("exit", 0),
                                     "StartedAt": "2026-10-20T08:00:00Z", "FinishedAt": "2026-10-20T09:00:00Z"},
-                          "Config": {"Image": c["image"], "Env": c.get("env", []), "Cmd": [c.get("command", "sh")], "Labels": {}},
+                          "Config": {"Image": c["image"], "Env": c.get("env", []), "Cmd": [c.get("command", "sh")], "Labels": compose_labels(c)},
                           "Mounts": [{"Type": m.get("type", "volume"), "Name": m["name"] if m.get("type", "volume") == "volume" else "",
                                       "Source": m.get("source", f"/var/lib/docker/volumes/{m['name']}/_data"), "Destination": m["destination"], "RW": True}
                                      for m in c.get("mounts", [])],

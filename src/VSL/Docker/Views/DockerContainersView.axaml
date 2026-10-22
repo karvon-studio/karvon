@@ -52,6 +52,17 @@
               <Run Text="{Binding ComposeFileName}" FontWeight="SemiBold" />
             </TextBlock>
             <TextBlock Text="{Binding ComposeBusyText}" IsVisible="{Binding IsComposeBusy}" Classes="dkMuted" FontSize="11" />
+            <!-- What the file gets wrong: a service that reaches another through localhost... -->
+            <ItemsControl Name="ComposeProblems" ItemsSource="{Binding ComposeProblems}" IsVisible="{Binding HasComposeProblems}" Margin="0,6,0,0">
+              <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="dvm:ComposeProblem">
+                  <Grid ColumnDefinitions="Auto,*" Margin="0,2,0,0">
+                    <v:VsIcon Kind="Warning" Width="13" Height="13" VerticalAlignment="Top" Margin="0,2,6,0" />
+                    <SelectableTextBlock Grid.Column="1" Text="{Binding Text}" TextWrapping="Wrap" FontSize="12" Foreground="#E3B341" />
+                  </Grid>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
           </StackPanel>
           <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8" Margin="16,0,0,0">
             <Button Name="ComposeUpButton" Classes="dkPrimary" Command="{Binding ComposeUpCommand}" IsEnabled="{Binding !IsComposeBusy}" ToolTip.Tip="docker compose up -d">
@@ -164,6 +175,7 @@
                           <Border Classes="pill blue" IsVisible="{Binding IsThisSolution}">
                             <TextBlock Text="This solution" />
                           </Border>
+                          <v:VsIcon Kind="Warning" Width="14" Height="14" IsVisible="{Binding HasProblems}" ToolTip.Tip="{Binding ProblemsText}" />
                         </StackPanel>
                         <TextBlock Text="{Binding StateText}" FontSize="11" Classes="dkMuted" IsVisible="{Binding IsIdle}" />
                         <TextBlock Text="{Binding BusyText}" FontSize="11" Foreground="#79A6F6" IsVisible="{Binding IsBusy}" />
@@ -206,9 +218,12 @@
                                 Classes.paused="{Binding StateKind, Converter={x:Static ObjectConverters.Equal}, ConverterParameter=paused}"
                                 Classes.failing="{Binding StateKind, Converter={x:Static ObjectConverters.Equal}, ConverterParameter=failing}" />
                       <StackPanel VerticalAlignment="Center" Spacing="1">
-                        <Button Classes="dkLink plain" Command="{Binding OpenCommand}" ToolTip.Tip="View details">
-                          <TextBlock Text="{Binding Name}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
-                        </Button>
+                        <StackPanel Orientation="Horizontal" Spacing="6">
+                          <Button Classes="dkLink plain" Command="{Binding OpenCommand}" ToolTip.Tip="View details">
+                            <TextBlock Text="{Binding Name}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                          </Button>
+                          <v:VsIcon Kind="Warning" Width="13" Height="13" IsVisible="{Binding HasProblems}" ToolTip.Tip="{Binding ProblemsText}" VerticalAlignment="Center" />
+                        </StackPanel>
                         <TextBlock Text="{Binding StateText}" FontSize="11" Classes="dkMuted" IsVisible="{Binding IsIdle}" />
                         <TextBlock Text="{Binding BusyText}" FontSize="11" Foreground="#79A6F6" IsVisible="{Binding IsBusy}" />
                       </StackPanel>
@@ -249,6 +264,7 @@
                             <MenuItem Header="Pause" Command="{Binding PauseResumeCommand}" IsVisible="{Binding IsRunning}" />
                             <MenuItem Header="Resume" Command="{Binding PauseResumeCommand}" IsVisible="{Binding IsPaused}" />
                             <MenuItem Header="Open in browser" Command="{Binding OpenPortCommand}" IsVisible="{Binding HasPorts}" />
+                            <MenuItem Header="Ask Claude" Command="{Binding AskClaudeCommand}" />
                             <MenuItem Header="Copy container ID" Click="OnCopy" Tag="{Binding Container.Id}" />
                           </MenuFlyout>
                         </Button.Flyout>

@@ -15,6 +15,8 @@ public partial class MainViewModel
     readonly Dictionary<(string Project, string Configuration), string> _targetPaths = [];
     DebugSession? _session;
     int _stoppedThread;
+    string _stopReason = "";
+    string? _stopText;
     string? _debuggedProject;
 
     public BreakpointStore Breakpoints { get; } = new();
@@ -331,6 +333,7 @@ public partial class MainViewModel
         if (_session is not { } session)
             return;
         _stoppedThread = threadId;
+        (_stopReason, _stopText) = (reason, text);
         Mode = DebugMode.Break;
         SetStatus(reason == "exception" ? $"Exception thrown: {text}" : "Break mode", StatusKind.Running);
         if (reason == "exception")

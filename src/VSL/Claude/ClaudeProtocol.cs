@@ -79,6 +79,9 @@ public sealed record ClaudeRateWindow(string Name, double Utilization, DateTimeO
 /// <summary>A system message worth showing (permission denied, compaction, API retry...).</summary>
 public sealed record ClaudeNotice(string Text, bool IsError) : ClaudeEvent;
 
+/// <summary>The summary a compaction put in place of the conversation (stored as a user turn, not typed by the user).</summary>
+public sealed record ClaudeCompactSummary(string Text) : ClaudeEvent;
+
 /// <summary>The CLI process ended.</summary>
 public sealed record ClaudeExited(int ExitCode, string Stderr) : ClaudeEvent;
 
@@ -165,6 +168,13 @@ public static partial class ClaudeProtocol
                 break;
 
             case "user" when root.TryGetProperty("message", out var user) && user.TryGetProperty("content", out var userContent):
+                if (Bool(root, "isCompactSummary"))
+                {
+                    yield return new ClaudeCompactSummary(userContent.ValueKind == JsonValueKind.String
+                        ? userContent.GetString() ?? ""
+                        : string.Join("\n", userContent.EnumerateArray().Where(b => Str(b, "type") == "text").Select(b => Str(b, "text"))));
+                    break;
+                }
                 if (userContent.ValueKind == JsonValueKind.String)
                 {
                     yield return new ClaudeUserText(userContent.GetString() ?? "", [], ParentToolUseId(root));

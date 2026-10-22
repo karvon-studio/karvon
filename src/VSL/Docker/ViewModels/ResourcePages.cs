@@ -4,24 +4,6 @@ using CommunityToolkit.Mvvm.Input;
 
 namespace VSL.Docker.ViewModels;
 
-/// <summary>The open solution's compose file, and which containers compose started there.</summary>
-public static class Compose
-{
-    public static readonly IReadOnlyList<string> FileNames = ["compose.yaml", "compose.yml", "docker-compose.yml", "docker-compose.yaml"];
-
-    public static string? FileIn(string folder) => FileNames.Select(name => Path.Combine(folder, name)).FirstOrDefault(File.Exists);
-
-    /// <summary>Compose ran in the folder (or a folder inside it).</summary>
-    public static bool IsInFolder(string? workingDir, string folder)
-    {
-        if (string.IsNullOrEmpty(workingDir))
-            return false;
-        var dir = Path.GetFullPath(workingDir).TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar;
-        var root = Path.GetFullPath(folder).TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar;
-        return dir.StartsWith(root, StringComparison.Ordinal);
-    }
-}
-
 /// <summary>A row of the Images table.</summary>
 public sealed partial class ImageRow : DockerTreeItem
 {

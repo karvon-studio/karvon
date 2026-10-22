@@ -130,9 +130,12 @@
               <TextBlock Grid.Column="1" Margin="6,0,0,0" VerticalAlignment="Center" TextTrimming="CharacterEllipsis">
                 <Run Text="{Binding Name}" /><Run Text="  " /><Run Text="{Binding TreeText}" Foreground="#9D9D9D" />
               </TextBlock>
-              <Border Grid.Column="2" Classes="pill blue" IsVisible="{Binding IsThisSolution}" Margin="6,0,0,0" Padding="6,0">
-                <TextBlock Text="This solution" FontSize="10" />
-              </Border>
+              <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="4" Margin="6,0,0,0">
+                <v:VsIcon Kind="Warning" Width="13" Height="13" IsVisible="{Binding HasProblems}" ToolTip.Tip="{Binding ProblemsText}" />
+                <Border Classes="pill blue" IsVisible="{Binding IsThisSolution}" Padding="6,0">
+                  <TextBlock Text="This solution" FontSize="10" />
+                </Border>
+              </StackPanel>
               <StackPanel Grid.Column="3" Classes="rowActions" Orientation="Horizontal" Margin="4,0,0,0">
                 <Button Classes="tbi" Command="{Binding StartStopCommand}" IsEnabled="{Binding IsIdle}" ToolTip.Tip="{Binding StartStopTip}">
                   <Panel>
@@ -145,7 +148,7 @@
           </TreeDataTemplate>
 
           <DataTemplate DataType="dvm:ContainerRow">
-            <Grid Classes="dkNode" ColumnDefinitions="Auto,*,Auto" ToolTip.Tip="{Binding Image}">
+            <Grid Classes="dkNode" ColumnDefinitions="Auto,*,Auto,Auto" ToolTip.Tip="{Binding Image}">
               <Grid.ContextMenu>
                 <ContextMenu>
                   <MenuItem Header="Open" Command="{Binding OpenCommand}" FontWeight="SemiBold" />
@@ -160,6 +163,7 @@
                   <Separator />
                   <MenuItem Header="Open in Browser" Command="{Binding OpenPortCommand}" IsVisible="{Binding HasPorts}" />
                   <MenuItem Header="Open Image" Command="{Binding OpenImageCommand}" />
+                  <MenuItem Header="Ask Claude" Command="{Binding AskClaudeCommand}" />
                   <MenuItem Header="Copy Container ID" Click="OnCopy" Tag="{Binding Container.Id}" />
                   <MenuItem Header="Copy Name" Click="OnCopy" Tag="{Binding Name}" />
                 </ContextMenu>
@@ -171,7 +175,8 @@
               <TextBlock Grid.Column="1" Margin="6,0,0,0" VerticalAlignment="Center" TextTrimming="CharacterEllipsis">
                 <Run Text="{Binding Name}" /><Run Text="  " /><Run Text="{Binding TreeText}" Foreground="#9D9D9D" /><Run Text="  " /><Run Text="{Binding BusyText}" Foreground="#79A6F6" />
               </TextBlock>
-              <StackPanel Grid.Column="2" Classes="rowActions" Orientation="Horizontal" Margin="4,0,0,0">
+              <v:VsIcon Grid.Column="2" Kind="Warning" Width="13" Height="13" Margin="4,0,0,0" IsVisible="{Binding HasProblems}" ToolTip.Tip="{Binding ProblemsText}" />
+              <StackPanel Grid.Column="3" Classes="rowActions" Orientation="Horizontal" Margin="4,0,0,0">
                 <Button Classes="tbi" Command="{Binding StartStopCommand}" IsEnabled="{Binding IsIdle}" ToolTip.Tip="{Binding StartStopTip}">
                   <Panel>
                     <v:VsIcon Kind="DockerStop" IsVisible="{Binding IsUp}" />

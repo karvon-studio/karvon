@@ -5,8 +5,8 @@ It speaks the same JSON lines as `claude --input-format stream-json --output-for
 control requests, streams text, asks for permission with can_use_tool, and ends turns with a result. Every line
 it receives (and its arguments) is appended to <workspace>.fake-claude.log so tests can check what VSL sent. What it does
 for a prompt depends on a keyword in it: endpoint (the README screenshot), agent, write, edit, bash, ask, plan,
-background, slow, phone (a prompt then comes from claude.ai, with Remote Control on), bridge (Remote Control drops);
-anything else gets a Markdown answer.
+background, slow, phone (a prompt then comes from claude.ai, with Remote Control on), bridge (Remote Control drops),
+vsltools (VSL's own MCP server: a query, a change, a destructive change); anything else gets a Markdown answer.
 """
 import json
 import os
@@ -255,6 +255,46 @@ def allowed(decision):
     return decision.get("behavior") == "allow"
 
 
+def mcp(server, method, params=None, notify=False):
+    """A JSON-RPC message for an "sdk" MCP server (one the host serves), as Claude Code sends them; its answer is logged."""
+    request_id = str(uuid.uuid4())
+    message = {"jsonrpc": "2.0", "method": method}
+    if params is not None:
+        message["params"] = params
+    if not notify:
+        message["id"] = counter[0] = counter[0] + 1
+    out({"type": "control_request", "request_id": request_id, "request": {"subtype": "mcp_message", "server_name": server, "message": message}})
+    while True:
+        reply = read()
+        if reply.get("type") == "control_response" and reply["response"]["request_id"] == request_id:
+            answer = reply["response"]["response"]["mcp_response"]
+            log("mcp", {"method": method, "response": answer})
+            return answer
+        if reply.get("type") == "control_request":
+            handle_control(reply)
+
+
+def sdk_servers():
+    if "--mcp-config" not in ARGS:
+        return []
+    config = json.loads(ARGS[ARGS.index("--mcp-config") + 1])
+    return [name for name, server in config.get("mcpServers", {}).items() if server.get("type") == "sdk"]
+
+
+def vsl_tool(tool_id, name, tool_input):
+    """A call to one of VSL's tools: asked as any tool (VSL answers reads itself), then run through its server."""
+    full = "mcp__vsl__" + name
+    tool_use(tool_id, full, tool_input)
+    decision = permission(full, tool_input, [{"type": "addRules", "rules": [{"toolName": full}], "behavior": "allow", "destination": "localSettings"}], tool_id)
+    if not allowed(decision):
+        tool_result(tool_id, decision.get("message", "denied"), True)
+        return None
+    answer = mcp("vsl", "tools/call", {"name": name, "arguments": tool_input})
+    text = answer["result"]["content"][0]["text"]
+    tool_result(tool_id, text, answer["result"].get("isError", False))
+    return text
+
+
 def subagent_step(parent, tool_id, name, tool_input, result_text):
     out({"type": "assistant", "message": {"id": next_id(), "role": "assistant",
          "content": [{"type": "tool_use", "id": tool_id, "name": name, "input": tool_input}]},
@@ -424,6 +464,15 @@ def turn(prompt, content, sent=None):
         decision = permission("ExitPlanMode", {"plan": plan}, [], "toolu_plan")
         tool_result("toolu_plan", "approved" if allowed(decision) else "rejected", not allowed(decision))
         stream_text("Plan approved." if allowed(decision) else "Back to planning.")
+        result("ok")
+    elif "vsltools" in p and "vsl" in sdk_servers():
+        mcp("vsl", "initialize", {"protocolVersion": "2025-11-25", "capabilities": {}, "clientInfo": {"name": "claude-code", "version": "2.1.308"}})
+        mcp("vsl", "notifications/initialized", notify=True)
+        mcp("vsl", "tools/list")
+        vsl_tool("toolu_q1", "db_query", {"connection": "shop", "sql": "SELECT email FROM users ORDER BY id"})
+        vsl_tool("toolu_q2", "db_query", {"connection": "shop", "sql": "UPDATE users SET age = 32 WHERE id = 1"})
+        vsl_tool("toolu_q3", "db_query", {"connection": "shop", "sql": "DELETE FROM users"})
+        stream_text("Done with the database.")
         result("ok")
     elif "phone" in p:
         stream_text("Open the Claude app: this conversation is there.")

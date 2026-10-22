@@ -9,11 +9,29 @@ namespace VSL.ViewModels;
 /// <summary>A row in the Claude Code conversation.</summary>
 public abstract class ChatItem : ObservableObject;
 
-public sealed class UserChatItem(string text, string? context, IReadOnlyList<ClaudeAttachment>? images = null) : ChatItem
+public sealed partial class UserChatItem(string text, string? context, IReadOnlyList<ClaudeAttachment>? images = null) : ChatItem
 {
+    const int PreviewLines = 8;
+    const int PreviewChars = 800;
+
     public string Text { get; } = text;
 
     public bool HasText => Text.Length > 0;
+
+    /// <summary>A long prompt (a pasted log, a stack trace, a file) shows its first lines until it is expanded.</summary>
+    public bool IsLong => Text.Length > PreviewChars + 200 || Text.Count(c => c == '\n') >= PreviewLines + 2;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ShownText))]
+    public partial bool IsExpanded { get; set; }
+
+    public string ShownText => !IsLong || IsExpanded ? Text : Preview();
+
+    string Preview()
+    {
+        var preview = string.Join("\n", Text.Split('\n').Take(PreviewLines));
+        return (preview.Length > PreviewChars ? preview[..PreviewChars] : preview).TrimEnd() + " …";
+    }
 
     public IReadOnlyList<ClaudeAttachment> Images { get; } = images ?? [];
 
@@ -357,6 +375,19 @@ public sealed class ClaudeAttachment(string name, string mediaType, byte[] data)
         [0x52, 0x49, 0x46, 0x46, _, _, _, _, 0x57, 0x45, 0x42, 0x50, ..] => "image/webp",
         _ => null,
     };
+}
+
+/// <summary>The conversation was compacted: the summary that replaced it, folded until it is opened.</summary>
+public sealed partial class CompactChatItem : ChatItem
+{
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasSummary))]
+    public partial string Summary { get; set; } = "";
+
+    public bool HasSummary => Summary.Length > 0;
+
+    [ObservableProperty]
+    public partial bool IsExpanded { get; set; }
 }
 
 public sealed class NoticeChatItem(string text, bool isError) : ChatItem

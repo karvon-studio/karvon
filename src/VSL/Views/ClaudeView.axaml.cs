@@ -29,8 +29,7 @@ public partial class ClaudeView : UserControl
             if (HistoryList.SelectedItem is ClaudeConversation conversation)
                 _vm?.ResumeConversationCommand.Execute(conversation);
         };
-        ChatScroll.ScrollChanged += (_, _) =>
-            _stickToBottom = ChatScroll.Offset.Y >= ChatScroll.Extent.Height - ChatScroll.Viewport.Height - 48;
+        ChatScroll.ScrollChanged += OnChatScrollChanged;
         DataContextChanged += (_, _) =>
         {
             Attach(DataContext as ClaudeViewModel);
@@ -195,6 +194,33 @@ public partial class ClaudeView : UserControl
     }
 
     void OnStreamingTextChanged(object? sender, PropertyChangedEventArgs e) => ScrollToEndIfFollowing();
+
+    /// <summary>Within a few lines of the conversation's end.</summary>
+    bool IsAtBottom => ChatScroll.Offset.Y >= ChatScroll.Extent.Height - ChatScroll.Viewport.Height - 48;
+
+    /// <summary>
+    /// Only the user's scrolling decides whether the conversation follows its end: when it grows (an answer streams,
+    /// an old conversation lays out, the panel shows or is resized) one that followed still does, so a resumed
+    /// conversation opens at its last message.
+    /// </summary>
+    void OnChatScrollChanged(object? sender, ScrollChangedEventArgs e)
+    {
+        if (e.ExtentDelta.Y != 0 || e.ViewportDelta.Y != 0)
+        {
+            if (_stickToBottom && !IsAtBottom)
+                ChatScroll.ScrollToEnd();
+        }
+        else if (e.OffsetDelta.Y != 0)
+            _stickToBottom = IsAtBottom;
+        JumpToBottomButton.IsVisible = !_stickToBottom && !IsAtBottom;
+    }
+
+    void OnJumpToBottom(object? sender, RoutedEventArgs e)
+    {
+        _stickToBottom = true;
+        JumpToBottomButton.IsVisible = false;
+        ChatScroll.ScrollToEnd();
+    }
 
     void ScrollToEndIfFollowing()
     {

@@ -24,6 +24,10 @@
     <PackageReference Include="TextMateSharp.Grammars" Version="2.0.4" />
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2" />
     <PackageReference Include="Markdig" Version="0.37.0" />
+    <PackageReference Include="YamlDotNet" Version="16.3.0" />
+    <!-- MCP Servers: talks to the servers of .mcp.json, Claude Code, Codex and Gemini CLI; Codex keeps them in TOML. -->
+    <PackageReference Include="ModelContextProtocol.Core" Version="2.2.0" />
+    <PackageReference Include="Tomlyn" Version="0.19.0" />
     <PackageReference Include="Microsoft.VisualStudio.SolutionPersistence" Version="1.0.52" />
     <PackageReference Include="Microsoft.TestPlatform.TranslationLayer" Version="18.7.0" />
     <PackageReference Include="Exclr8.Terminal" Version="1.0.9" />

@@ -41,6 +41,8 @@ public sealed class VsIcon : Control
         "Sparkle", "FileCode", "ChevronUp", "GitCommit", "Repo", "Globe", "ShieldOff", "Remote",
         "Docker", "DockerContainer", "DockerStack", "DockerImage", "DockerVolume", "DockerNetwork", "DockerPlay", "DockerStop", "DockerRestart",
         "DockerPause", "DockerDelete", "DockerMore", "DockerLink", "DockerBack", "DockerTerminal", "DockerLogs", "DockerStats", "DockerInspect",
+        "ToolExplorer", "ToolTests", "ToolGit", "ToolDatabase", "ToolErrors", "ToolOutput", "ToolFind", "ToolLocals", "ToolCallStack", "ToolTerminal",
+        "ToolServers", "ToolMcp",
     ];
 
     public string? Kind
@@ -493,6 +495,44 @@ public sealed class VsIcon : Control
             case "Remote":
                 // A phone with a signal: Remote Control.
                 Line(dc, "M6.5 2h7A1.5 1.5 0 0 1 15 3.5v17a1.5 1.5 0 0 1-1.5 1.5h-7A1.5 1.5 0 0 1 5 20.5v-17A1.5 1.5 0 0 1 6.5 2z M9 18.5h2 M18 9a4 4 0 0 1 0 6 M20.5 6.5a7.5 7.5 0 0 1 0 11", fg, 1.8);
+                break;
+            // The side tool groups' activity bar (VS Code's): monochrome outlines, the tool window in front in white.
+            case "ToolExplorer":
+                Line(dc, "M15 2H8.5A1.5 1.5 0 0 0 7 3.5v13A1.5 1.5 0 0 0 8.5 18h10a1.5 1.5 0 0 0 1.5-1.5V7z M15 2v5h5 M4 7v12.5A1.5 1.5 0 0 0 5.5 21H15", fg, 1.6);
+                break;
+            case "ToolTests":
+                Line(dc, "M9.5 2.5v6.2L4 19a1.6 1.6 0 0 0 1.4 2.5h13.2A1.6 1.6 0 0 0 20 19l-5.5-10.3V2.5 M8 2.5h8 M6.6 15h10.8", fg, 1.6);
+                break;
+            case "ToolGit":
+                Line(dc, "M6 3.5v11 M6 20.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5z M18 8.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5z M18 8.5c0 5-6 4-11.2 7.6", fg, 1.6);
+                break;
+            case "ToolDatabase":
+                Line(dc, "M12 2.5c4.7 0 8 1.3 8 2.8s-3.3 2.8-8 2.8-8-1.3-8-2.8 3.3-2.8 8-2.8z M4 5.3v13.4c0 1.5 3.3 2.8 8 2.8s8-1.3 8-2.8V5.3 M4 12c0 1.5 3.3 2.8 8 2.8s8-1.3 8-2.8", fg, 1.6);
+                break;
+            case "ToolErrors":
+                Line(dc, "M12 2.5a9.5 9.5 0 1 0 0 19 9.5 9.5 0 0 0 0-19z M15 9l-6 6 M9 9l6 6", fg, 1.6);
+                break;
+            case "ToolOutput":
+                Line(dc, "M4 4.5h16v15H4z M7.5 9h9 M7.5 12.5h9 M7.5 16h5", fg, 1.6);
+                break;
+            case "ToolFind":
+                Line(dc, "M10.5 3.5a7 7 0 1 0 0 14 7 7 0 0 0 0-14z M15.5 15.5L21 21", fg, 1.7);
+                break;
+            case "ToolLocals":
+                Line(dc, "M8 3H7a2 2 0 0 0-2 2v4.5a2 2 0 0 1-2 2.5 2 2 0 0 1 2 2.5V19a2 2 0 0 0 2 2h1 M16 3h1a2 2 0 0 1 2 2v4.5a2 2 0 0 0 2 2.5 2 2 0 0 0-2 2.5V19a2 2 0 0 1-2 2h-1", fg, 1.6);
+                break;
+            case "ToolCallStack":
+                Line(dc, "M4 4.5h16v4H4z M4 10.5h16v4H4z M4 16.5h16v4H4z", fg, 1.6);
+                break;
+            case "ToolServers":
+                Line(dc, "M4.5 3.5h15a1 1 0 0 1 1 1v5a1 1 0 0 1-1 1h-15a1 1 0 0 1-1-1v-5a1 1 0 0 1 1-1z M4.5 13.5h15a1 1 0 0 1 1 1v5a1 1 0 0 1-1 1h-15a1 1 0 0 1-1-1v-5a1 1 0 0 1 1-1z M7.5 7h.01 M7.5 17h.01 M11 7h6 M11 17h6", fg, 1.6);
+                break;
+            case "ToolMcp":
+                // A plug: what an MCP server is to an agent.
+                Line(dc, "M8.5 2.5v5 M15.5 2.5v5 M5 7.5h14v3.5a7 7 0 0 1-14 0z M12 18v3.5", fg, 1.6);
+                break;
+            case "ToolTerminal":
+                Line(dc, "M3.5 4.5h17v15h-17z M7 9.5l3 2.5-3 2.5 M12.5 15h4.5", fg, 1.6);
                 break;
             // Docker Explorer: the whale, its sections, and Docker Desktop's row actions (monochrome, as there).
             case "Docker":

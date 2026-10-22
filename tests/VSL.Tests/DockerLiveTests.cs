@@ -18,7 +18,8 @@ public class DockerLiveTests
     public async Task The_explorer_follows_the_real_engine()
     {
         Assert.SkipUnless(Environment.GetEnvironmentVariable("VSL_DOCKER_LIVE") == "1", "Set VSL_DOCKER_LIVE=1 to try the Docker Explorer against the local engine.");
-        var engine = DockerEngine.Find();
+        // The real engine itself: every other test finds the fake one (TestEnvironment).
+        var engine = new DockerEngine("docker");
         var name = "vsl-live-" + Guid.NewGuid().ToString("N")[..8];
         var host = new TestDockerHost(null);
         var vm = new DockerExplorerViewModel(engine, host);

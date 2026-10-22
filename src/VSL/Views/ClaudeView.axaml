@@ -100,6 +100,30 @@
       <Setter Property="Foreground" Value="#4DAAFC" />
       <Setter Property="Padding" Value="0,2" />
     </Style>
+    <!-- Show more / less under a long prompt; a chevron that points up once it is open -->
+    <Style Selector="Button.row.more">
+      <Setter Property="Foreground" Value="#9D9D9D" />
+    </Style>
+    <Style Selector="v|VsIcon.up">
+      <Setter Property="RenderTransform" Value="rotate(180deg)" />
+    </Style>
+    <!-- Jump to bottom: a round button over the conversation's lower right corner -->
+    <Style Selector="Button.jump">
+      <Setter Property="Width" Value="32" />
+      <Setter Property="Height" Value="32" />
+      <Setter Property="Padding" Value="0" />
+      <Setter Property="CornerRadius" Value="16" />
+      <Setter Property="Background" Value="#2D2D30" />
+      <Setter Property="BorderBrush" Value="#55808080" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="Foreground" Value="#D0D0D0" />
+      <Setter Property="HorizontalContentAlignment" Value="Center" />
+      <Setter Property="VerticalContentAlignment" Value="Center" />
+    </Style>
+    <Style Selector="Button.jump:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="#3E3E42" />
+      <Setter Property="BorderBrush" Value="#80808080" />
+    </Style>
     <!-- Prompt toolbar chips, as in the VS extension: rounded, outlined, the mode tinted in its color. -->
     <Style Selector="Button.chip">
       <Setter Property="Height" Value="26" />
@@ -588,7 +612,7 @@
     <Panel>
       <!-- ===== Conversation ===== -->
       <ScrollViewer Name="ChatScroll" HorizontalScrollBarVisibility="Disabled">
-        <ItemsControl Name="ChatItems" ItemsSource="{Binding Items}" Margin="14,6,14,10">
+        <ItemsControl Name="ChatItems" ItemsSource="{Binding Items}" Margin="14,6,14,28">
           <ItemsControl.DataTemplates>
             <DataTemplate DataType="vm:UserChatItem" x:DataType="vm:UserChatItem">
               <Border Classes="user" Margin="0,12,0,4">
@@ -607,7 +631,15 @@
                       </DataTemplate>
                     </ItemsControl.ItemTemplate>
                   </ItemsControl>
-                  <SelectableTextBlock Text="{Binding Text}" IsVisible="{Binding HasText}" TextWrapping="Wrap" FontSize="13" />
+                  <SelectableTextBlock Text="{Binding ShownText}" IsVisible="{Binding HasText}" TextWrapping="Wrap" FontSize="13" />
+                  <Button Classes="row more" IsVisible="{Binding IsLong}" HorizontalAlignment="Left"
+                          Command="{Binding $parent[UserControl].((vm:ClaudeViewModel)DataContext).ToggleExpandCommand}" CommandParameter="{Binding}">
+                    <StackPanel Orientation="Horizontal" Spacing="5">
+                      <v:VsIcon Kind="Chevron" Width="10" Height="10" Classes.up="{Binding IsExpanded}" />
+                      <TextBlock Text="{v:L 'Show more'}" IsVisible="{Binding !IsExpanded}" FontSize="12" />
+                      <TextBlock Text="{v:L 'Show less'}" IsVisible="{Binding IsExpanded}" FontSize="12" />
+                    </StackPanel>
+                  </Button>
                   <Border Classes="chip" IsVisible="{Binding HasContext}" HorizontalAlignment="Left">
                     <StackPanel Orientation="Horizontal" Spacing="4">
                       <v:VsIcon Kind="file" Width="11" Height="11" />
@@ -833,12 +865,37 @@
               </Border>
             </DataTemplate>
 
+            <DataTemplate DataType="vm:CompactChatItem" x:DataType="vm:CompactChatItem">
+              <StackPanel Margin="0,14,0,4" Spacing="6">
+                <Grid ColumnDefinitions="*,Auto,*">
+                  <Border Height="1" Background="#3F3F46" VerticalAlignment="Center" />
+                  <Button Grid.Column="1" Classes="row" Margin="8,0" IsEnabled="{Binding HasSummary}" ToolTip.Tip="{v:L 'The summary that replaced the earlier messages'}"
+                          Command="{Binding $parent[UserControl].((vm:ClaudeViewModel)DataContext).ToggleExpandCommand}" CommandParameter="{Binding}">
+                    <StackPanel Orientation="Horizontal" Spacing="5">
+                      <v:VsIcon Kind="Chevron" Width="10" Height="10" Classes.up="{Binding IsExpanded}" IsVisible="{Binding HasSummary}" />
+                      <TextBlock Text="{v:L 'Conversation compacted'}" Classes="muted" FontSize="12" />
+                    </StackPanel>
+                  </Button>
+                  <Border Grid.Column="2" Height="1" Background="#3F3F46" VerticalAlignment="Center" />
+                </Grid>
+                <Border IsVisible="{Binding IsExpanded}" BorderBrush="#3F3F46" BorderThickness="1" CornerRadius="5" Padding="12,4,12,8" Background="#1F1F21">
+                  <v:MarkdownView Markdown="{Binding Summary}" />
+                </Border>
+              </StackPanel>
+            </DataTemplate>
+
             <DataTemplate DataType="vm:NoticeChatItem" x:DataType="vm:NoticeChatItem">
               <TextBlock Text="{Binding Text}" Classes="muted" Classes.error="{Binding IsError}" TextWrapping="Wrap" FontSize="12" Margin="0,8,0,0" />
             </DataTemplate>
           </ItemsControl.DataTemplates>
         </ItemsControl>
       </ScrollViewer>
+
+      <!-- Back to the last message, once the user scrolled up -->
+      <Button Name="JumpToBottomButton" Classes="jump" IsVisible="False" Click="OnJumpToBottom" ToolTip.Tip="{v:L 'Jump to bottom'}"
+              HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,20,10">
+        <v:VsIcon Kind="Chevron" Width="14" Height="14" />
+      </Button>
 
       <!-- ===== Empty conversation ===== -->
       <StackPanel IsVisible="{Binding IsEmpty}" VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="10" Margin="24" MaxWidth="320" IsHitTestVisible="False">

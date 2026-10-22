@@ -60,15 +60,42 @@ Working on solutions needs the .NET 10 SDK. VSL downloads `roslyn-language-serve
   run with ports, volumes and variables, clean up), volumes and networks. A container's page: its logs as they come
   (colors, timestamps, search), inspect, bind mounts, a shell in it and live stats charts. It follows the engine's
   events, says why when the engine is not running, and knows the solution: its stack first, Compose up / down for
-  its compose file, database containers opened in the Database Explorer, Ask Claude why a container failed.
+  its compose file and what the file gets wrong (a service that reaches another through `localhost`), database
+  containers opened in the Database Explorer, Ask Claude why a container fails (with its last log lines, secrets
+  hidden).
+- **Servers** (View > Servers): the machines of `~/.ssh/config` (Include, ProxyJump and wildcards as OpenSSH reads
+  them) and those you add, in groups, with whether VSL is connected and how fast each answers. A machine's page: its
+  state (system, uptime, CPU, memory, disks), a terminal (your `ssh`), its files (upload by dropping them, open one in
+  the editor and saving puts it back, asking when it changed there), its systemd services (start, stop, restart) and
+  its logs (the journal, a unit's or a file's, followed as they come, secrets hidden), Ask Claude about them. A new
+  host key is shown to compare before it is trusted; passwords and passphrases are asked once and can go to the system
+  keyring; a production machine asks before every change, yours and Claude's.
+- **MCP Servers** (View > MCP Servers): the MCP servers of every agent's configuration in one tree, this folder's
+  `.mcp.json`, Claude Code's (every project's and this folder's), Codex's `config.toml` and Gemini CLI's, with VSL's own
+  tools first. A server connects when you open it (never at start) and shows its tools, resources and prompts; its page
+  runs a tool with a form made from its schema, reads a resource, gets a prompt, and logs everything said (its stderr
+  too). Add and edit servers (a program, with its environment, or a URL, with its headers) in each file's own format,
+  keeping the rest of it; `${VAR}` stays as written. The Claude Code sessions VSL starts get the servers you switch on
+  for them, beside those Claude Code reads itself.
 - **Terminal**: your `$SHELL` in a real pty, in the solution folder.
 - **NuGet**: browse, install, update and uninstall across your configured feeds.
 - **Claude Code** (Ctrl+Esc): drives your installed `claude` CLI, so your login, settings and MCP servers apply.
   Streamed answers, tool calls with inline diffs, approvals, questions and plans, modes (Bypass permissions among
   them) and effort, usage, MCP servers, images, `/` commands and `@` files, past conversations, conversations that
   keep working in the background, Remote Control (go on from claude.ai or the Claude app), Ask Claude from Solution
-  Explorer; English or O‘zbekcha.
-- **Layout**: drag tool windows to dock or float them; tab groups (Window > New Vertical / Horizontal Tab Group),
+  Explorer; English or O‘zbekcha. Old conversations open at their last message, compaction summaries and long
+  prompts fold.
+  Claude gets VSL's own tools (`mcp__vsl__*`, an MCP server inside VSL): the build and the tests (`run_build`,
+  `build_errors`, `run_tests`, `test_failures`), the debugger where it stopped (`debug_state`, `debug_locals`,
+  `debug_evaluate`, `debug_control`), the editor (`editor_selection`, `open_document`, `code_diagnostics`,
+  `find_in_files`), the Database Explorer's data sources (`db_connections`, `db_schema`, `db_query`, `db_explain`),
+  the solution's containers (`container_list`, `container_logs`, `container_inspect`, `container_restart`,
+  `compose_up`, `container_remove`) and the Servers (`server_list`, `server_logs`, `server_exec`), with your own
+  connections and passwords, which it never sees. Reading, building,
+  testing and stepping run at once; a change asks first, one call at a time (destructive SQL says so), read-only data
+  sources refuse changes, and secrets in logs and variables are hidden.
+- **Layout**: tool windows at the sides as VS Code's activity bar (an icon each, Git Changes with a badge; click the
+  icon in front to fold the side), drag them to dock or float them; tab groups (Window > New Vertical / Horizontal Tab Group),
   Window > Split, floating documents, tabs dragged to reorder; documents, groups, layout and startup project are
   restored per solution.
   Keyboard shortcuts follow Visual Studio (Help > Keyboard Shortcuts).

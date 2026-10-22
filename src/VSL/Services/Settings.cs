@@ -20,6 +20,10 @@ public sealed class Settings
         public double? RightWidth { get; set; }
         public double? BottomHeight { get; set; }
 
+        /// <summary>A side group folded to its activity bar.</summary>
+        public bool LeftCollapsed { get; set; }
+        public bool RightCollapsed { get; set; }
+
         /// <summary>Dock side ("Left", "Right", "Bottom") → the tool window in front.</summary>
         public Dictionary<string, string> SelectedTools { get; set; } = [];
 
@@ -54,6 +58,12 @@ public sealed class Settings
 
     /// <summary>Remote Control was left on: each conversation's CLI turns it on as it starts.</summary>
     public bool ClaudeRemoteControl { get; set; }
+
+    /// <summary>Claude Code gets VSL's tools: the Database Explorer's data sources and the Docker engine (mcp__vsl__*).</summary>
+    public bool ClaudeVslTools { get; set; } = true;
+
+    /// <summary>VSL's Docker tools see every container, not only the open solution's compose project.</summary>
+    public bool ClaudeAllContainers { get; set; }
 
     /// <summary>The Claude Code panel's language: "en" or "uz" (English when not set).</summary>
     public string? UiLanguage { get; set; }
