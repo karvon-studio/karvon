@@ -35,7 +35,7 @@ public class ClaudeIdeToolsTests
         window.Show();
         await vm.OpenSolutionAsync(sln);
         var server = VslTools.Create(vm, vm);
-        Assert.Equal(22, server.Tools.Count);
+        Assert.Equal(23, server.Tools.Count);
         var program = SampleSolution.PathOf(sln, "Web/Program.cs");
 
         // The build, as Build > Build Solution, and its errors.
@@ -105,6 +105,24 @@ public class ClaudeIdeToolsTests
         Assert.Equal("The session has ended.", await Text(server, "debug_control", new { action = "stop" }));
         Assert.True((await Call(server, "debug_locals", new { })).IsError);
         doc.Host.ToggleBreakpoint(2);
+
+        // The app, as Ctrl+F5 runs it: where it listens and what it printed, then stopped; never twice.
+        Assert.Equal(ToolAccess.Write, server.Plan(ClaudeToolServer.Prefix + "app_control", JsonSerializer.SerializeToElement(new { action = "start" }))!.Access);
+        Assert.Equal(ToolAccess.Read, server.Plan(ClaudeToolServer.Prefix + "app_control", JsonSerializer.SerializeToElement(new { action = "status" }))!.Access);
+        Assert.StartsWith("Web is not running", await Text(server, "app_control", new { action = "status" }));
+        Assert.Contains("is not a runnable project", (await Call(server, "app_control", new { action = "start", project = "Tests" })).Text);
+        var running = await Text(server, "app_control", new { action = "start", project = "Web" });
+        Assert.Contains("Web is running", running);
+        Assert.Contains("Listening on http://localhost:5280.", running);
+        Assert.Contains("Now listening on: http://localhost:5280", running);
+        Assert.True(vm.IsRunning);
+        Assert.True((await Call(server, "app_control", new { action = "start" })).IsError);
+        Assert.Contains("Listening on http://localhost:5280.", await Text(server, "app_control", new { action = "restart" }));
+        var ended = await Text(server, "app_control", new { action = "stop", lines = 2 });
+        Assert.StartsWith("Web is not running: it exited with code", ended);
+        Assert.Contains("has exited with code", ended);
+        Assert.False(vm.IsRunning);
+        Assert.Equal("Nothing is running.", (await Call(server, "app_control", new { action = "stop" })).Text);
         Assert.True(await vm.CloseSolutionCoreAsync());
         window.Close();
     }

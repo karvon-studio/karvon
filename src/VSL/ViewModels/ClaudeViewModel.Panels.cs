@@ -389,6 +389,26 @@ public sealed partial class ClaudeViewModel
         await RefreshMcpAsync();
     }
 
+    /// <summary>Claude Code signs in to one of its MCP servers (its own OAuth, in the browser); what to tell the user.</summary>
+    public async Task<string> AuthenticateMcpAsync(string name)
+    {
+        try
+        {
+            var session = await EnsureSessionAsync();
+            var result = await session.McpAuthenticateAsync(name);
+            if (ClaudeJson.Str(result, "authUrl") is { Length: > 0 } url)
+            {
+                OpenUrlRequested?.Invoke(url);
+                return $"Finish signing in to {name} in your browser: Claude Code keeps the sign-in, and its sessions use {name}.";
+            }
+            return $"Claude Code is signed in to {name}.";
+        }
+        catch (Exception ex) when (ex is InvalidOperationException or IOException or OperationCanceledException or System.ComponentModel.Win32Exception)
+        {
+            return $"Claude Code could not sign in to {name}: {ex.Message}";
+        }
+    }
+
     [RelayCommand]
     async Task ReconnectMcp(McpServerItem? server)
     {
@@ -444,22 +464,35 @@ public sealed partial class ClaudeViewModel
             draft.Errors.Add(draft.Transport == "stdio" ? "Enter the command that starts the server." : "Enter the server's URL.");
         if (draft.Errors.Count > 0)
             return;
-        List<string> args = ["mcp", "add", "--scope", draft.Scope.Value, "--transport", draft.Transport, name];
-        if (draft.Transport == "stdio")
+        if (await AddMcpServerAsync(name, draft.Transport, target, draft.Scope.Value) is { } problem)
+        {
+            draft.Errors.Add(problem);
+            return;
+        }
+        McpDraft = null;
+        McpMessage = $"Added {name}.";
+        await RefreshMcpAsync();
+    }
+
+    /// <summary>
+    /// `claude mcp add` (a command for stdio, a URL otherwise) in a scope ("local", "project", "user"), then a fresh CLI
+    /// (when idle) so the server connects; why it was not added, or null.
+    /// </summary>
+    public async Task<string?> AddMcpServerAsync(string name, string transport, string target, string scope)
+    {
+        if (CliPath is null)
+            return "Claude Code is not installed.";
+        List<string> args = ["mcp", "add", "--scope", scope, "--transport", transport, name];
+        if (transport == "stdio")
             args.AddRange(["--", .. SplitCommandLine(target)]);
         else
             args.Add(target);
         var (exit, output) = await RunCliAsync(args);
         if (exit != 0)
-        {
-            draft.Errors.Add(output.Trim().Length > 0 ? output.Trim() : $"claude mcp add exited with code {exit}.");
-            return;
-        }
-        McpDraft = null;
-        McpMessage = $"Added {name}.";
+            return output.Trim().Length > 0 ? output.Trim() : $"claude mcp add exited with code {exit}.";
         if (!IsRunning)
             await StopSessionAsync();
-        await RefreshMcpAsync();
+        return null;
     }
 
     async Task<(int Exit, string Output)> RunCliAsync(IReadOnlyList<string> args)

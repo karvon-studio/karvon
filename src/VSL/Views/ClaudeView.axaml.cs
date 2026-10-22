@@ -37,6 +37,9 @@ public partial class ClaudeView : UserControl
                 _vm?.WarmUp();
         };
         AttachedToVisualTree += (_, _) => _vm?.WarmUp();
+        // Another tab, then this one again: the conversation lays out anew; it comes back where it was.
+        ChatScroll.DetachedFromVisualTree += (_, _) => _offsetAway = ChatScroll.Offset;
+        ChatScroll.AttachedToVisualTree += (_, _) => Settle(_offsetAway);
 
         // Images and files can be dropped anywhere on the panel.
         DragDrop.SetAllowDrop(this, true);
@@ -201,32 +204,63 @@ public partial class ClaudeView : UserControl
     /// <summary>
     /// Only the user's scrolling decides whether the conversation follows its end: when it grows (an answer streams,
     /// an old conversation lays out, the panel shows or is resized) one that followed still does, so a resumed
-    /// conversation opens at its last message.
+    /// conversation opens at its last message. Its messages are made as they come into view, so their heights (and the
+    /// conversation's) settle as it scrolls: VSL's own scrolling to the end, until it settles, is not the user's.
     /// </summary>
     void OnChatScrollChanged(object? sender, ScrollChangedEventArgs e)
     {
-        if (e.ExtentDelta.Y != 0 || e.ViewportDelta.Y != 0)
+        // A code block's own (sideways) scroll viewer says so too, as the conversation is laid out: not the conversation's.
+        if (!ReferenceEquals(e.Source, ChatScroll))
+            return;
+        if (e.OffsetDelta.Y != 0 && !_scrollingToEnd)
+            _stickToBottom = IsAtBottom;
+        else if ((e.ExtentDelta.Y != 0 || e.ViewportDelta.Y != 0) && _stickToBottom && !IsAtBottom)
+            ScrollToEnd();
+        JumpToBottomButton.IsVisible = !_stickToBottom && !IsAtBottom;
+    }
+
+    bool _scrollingToEnd;
+    Avalonia.Vector _offsetAway;
+
+    /// <summary>Back in view: its layout is not the user's scrolling; then the end (when it followed it) or where it was.</summary>
+    void Settle(Avalonia.Vector offset)
+    {
+        _scrollingToEnd = true;
+        Dispatcher.UIThread.Post(() =>
         {
+            _scrollingToEnd = false;
+            if (_stickToBottom)
+                ScrollToEnd();
+            else
+                ChatScroll.Offset = offset;
+        }, DispatcherPriority.Background);
+    }
+
+    /// <summary>To the end, the layout it causes included (the last messages made, their heights known).</summary>
+    void ScrollToEnd()
+    {
+        _scrollingToEnd = true;
+        ChatScroll.ScrollToEnd();
+        Dispatcher.UIThread.Post(() =>
+        {
+            _scrollingToEnd = false;
             if (_stickToBottom && !IsAtBottom)
                 ChatScroll.ScrollToEnd();
-        }
-        else if (e.OffsetDelta.Y != 0)
-            _stickToBottom = IsAtBottom;
-        JumpToBottomButton.IsVisible = !_stickToBottom && !IsAtBottom;
+        }, DispatcherPriority.Background);
     }
 
     void OnJumpToBottom(object? sender, RoutedEventArgs e)
     {
         _stickToBottom = true;
         JumpToBottomButton.IsVisible = false;
-        ChatScroll.ScrollToEnd();
+        ScrollToEnd();
     }
 
     void ScrollToEndIfFollowing()
     {
         if (!_stickToBottom)
             return;
-        Dispatcher.UIThread.Post(() => ChatScroll.ScrollToEnd(), DispatcherPriority.Background);
+        Dispatcher.UIThread.Post(ScrollToEnd, DispatcherPriority.Background);
     }
 
     void OnPromptKeyDown(object? sender, KeyEventArgs e)

@@ -61,6 +61,9 @@ public sealed class GitRepository
 
     public string Relative(string path) => System.IO.Path.GetRelativePath(Root, path);
 
+    /// <summary>git init in <paramref name="directory"/> (Create Git Repository), main its first branch.</summary>
+    public static Task<GitResult> InitAsync(string directory) => RunAsync(directory, ["init", "--initial-branch=main"]);
+
     /// <summary>git clone into <paramref name="directory"/> (which must not exist or be empty), streaming progress.</summary>
     public static async Task<GitResult> CloneAsync(string url, string directory, Action<string>? output = null)
     {

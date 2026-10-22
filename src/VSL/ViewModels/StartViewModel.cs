@@ -136,14 +136,33 @@ public sealed partial class StartViewModel : ObservableObject
     bool _syncingClonePath;
 
     public StartViewModel(Settings settings, Func<DateTime>? now = null,
-        Func<CancellationToken, Task<IReadOnlyList<ProjectTemplate>>>? loadTemplates = null)
+        Func<CancellationToken, Task<IReadOnlyList<ProjectTemplate>>>? loadTemplates = null, string? addToSolution = null)
     {
         _settings = settings;
         _now = now ?? (() => DateTime.Now);
         _loadTemplates = loadTemplates ?? TemplateCatalog.LoadAsync;
-        Location = settings.NewProjectLocation is { Length: > 0 } location ? location : DefaultReposDirectory;
+        AddToSolution = addToSolution;
+        Location = addToSolution is not null ? Path.GetDirectoryName(addToSolution)!
+            : settings.NewProjectLocation is { Length: > 0 } location ? location : DefaultReposDirectory;
+        // A project added to a solution gets a folder of its own in the location, as VS makes it.
+        SolutionInSameDirectory = addToSolution is not null;
         RefreshRecent();
     }
+
+    /// <summary>
+    /// Add > New Project: the solution the new project goes into. The wizard then starts at the templates, has no solution
+    /// name, and makes only the project (<see cref="CreatedProjects"/>); the solution adds it.
+    /// </summary>
+    public string? AddToSolution { get; }
+
+    public bool IsAddingToSolution => AddToSolution is not null;
+
+    public bool IsCreatingSolution => AddToSolution is null;
+
+    public string NewProjectTitle => IsAddingToSolution ? "Add a new project" : "Create a new project";
+
+    /// <summary>The project files Add > New Project made.</summary>
+    public IReadOnlyList<string> CreatedProjects { get; private set; } = [];
 
     public static string DefaultReposDirectory =>
         Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "source", "repos");
@@ -299,7 +318,16 @@ public sealed partial class StartViewModel : ObservableObject
     void ContinueWithoutCode() => ContinueRequested?.Invoke();
 
     [RelayCommand]
-    void Back() => Page = Page switch
+    void Back()
+    {
+        // Adding a project starts at the templates: back from there is cancel.
+        if (IsAddingToSolution && Page == StartPage.NewProject)
+            ContinueRequested?.Invoke();
+        else
+            Page = BackFrom(Page);
+    }
+
+    static StartPage BackFrom(StartPage page) => page switch
     {
         StartPage.Configure => StartPage.NewProject,
         StartPage.AdditionalInformation => StartPage.Configure,
@@ -517,7 +545,7 @@ public sealed partial class StartViewModel : ObservableObject
 
     public string? ConfigureError => Page == StartPage.NewProject && ProjectName.Length == 0
         ? null
-        : ProjectCreator.Validate(ProjectName, Location, SolutionName, SolutionInSameDirectory);
+        : ProjectCreator.Validate(ProjectName, Location, IsAddingToSolution ? ProjectName : SolutionName, SolutionInSameDirectory);
 
     NewProjectRequest? Request => SelectedTemplate is { } t
         ? new NewProjectRequest(t.Template, ProjectName, Location, SolutionName, SolutionInSameDirectory,
@@ -557,7 +585,16 @@ public sealed partial class StartViewModel : ObservableObject
         BusyText = $"Creating {request.ProjectName}...";
         try
         {
-            var solution = await ProjectCreator.CreateAsync(request, line => Avalonia.Threading.Dispatcher.UIThread.Post(() => Log.Add(line)));
+            void Logged(string line) => Avalonia.Threading.Dispatcher.UIThread.Post(() => Log.Add(line));
+            if (IsAddingToSolution)
+            {
+                CreatedProjects = await ProjectCreator.CreateProjectAsync(request, Logged);
+                _settings.AddRecentTemplate(request.Template.Identity);
+                _settings.Save();
+                Choose(CreatedProjects[0]);
+                return;
+            }
+            var solution = await ProjectCreator.CreateAsync(request, Logged);
             _settings.NewProjectLocation = request.Location;
             _settings.AddRecentTemplate(request.Template.Identity);
             _settings.Save();

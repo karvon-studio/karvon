@@ -90,5 +90,11 @@ public partial class MainViewModel : IMcpHost
 
     void IMcpHost.AskClaude(string prompt) => ((Docker.ViewModels.IDockerHost)this).AskClaude(prompt);
 
+    void IMcpHost.OpenUrl(string url) => OpenBrowser(url);
+
+    Task<string> IMcpHost.SignInWithClaudeAsync(string name) => Claude.AuthenticateMcpAsync(name);
+
+    Bengine.Introspection.Servers.ICredentialStore? IMcpHost.Keyring => Bengine.Introspection.Servers.CredentialStores.System;
+
     void IMcpHost.Status(string text) => SetStatus(text);
 }

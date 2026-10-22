@@ -48,6 +48,11 @@ public partial class MainViewModel
     [RelayCommand(CanExecute = nameof(CanRunTests))]
     Task RunAllTests() => RunTestsAsync(null);
 
+    /// <summary>Run Tests on a test project in Solution Explorer: its tests only.</summary>
+    [RelayCommand(CanExecute = nameof(CanRunTests))]
+    Task RunProjectTests(Workspace.ProjectInfo? project) => project is null ? Task.CompletedTask
+        : RunTestsAsync(null, match: c => c.Source.StartsWith(project.Directory + "/", StringComparison.Ordinal));
+
     [RelayCommand(CanExecute = nameof(CanRunTests))]
     Task RunFailedTests() => RunTestsAsync(_testCases.Where(kv => kv.Value.State == TestState.Failed).Select(kv => kv.Key).ToList());
 

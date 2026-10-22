@@ -613,6 +613,12 @@
       <!-- ===== Conversation ===== -->
       <ScrollViewer Name="ChatScroll" HorizontalScrollBarVisibility="Disabled">
         <ItemsControl Name="ChatItems" ItemsSource="{Binding Items}" Margin="14,6,14,28">
+          <!-- Only the messages in view are made: a long conversation opens (and comes back from another tab) at once. -->
+          <ItemsControl.ItemsPanel>
+            <ItemsPanelTemplate>
+              <VirtualizingStackPanel />
+            </ItemsPanelTemplate>
+          </ItemsControl.ItemsPanel>
           <ItemsControl.DataTemplates>
             <DataTemplate DataType="vm:UserChatItem" x:DataType="vm:UserChatItem">
               <Border Classes="user" Margin="0,12,0,4">

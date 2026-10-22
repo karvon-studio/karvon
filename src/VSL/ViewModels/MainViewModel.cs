@@ -30,6 +30,7 @@ public static class ToolWindows
     public const string DockerExplorer = "DockerExplorer";
     public const string Servers = "Servers";
     public const string Mcp = "Mcp";
+    public const string Skills = "Skills";
 }
 
 public enum StatusKind
@@ -53,6 +54,13 @@ public interface IDialogService
     Task<NewItemChoice?> ChooseNewItemAsync(string title, string folder, ItemTemplate initial);
     /// <summary>Files to add (Add Existing Item); empty when cancelled.</summary>
     Task<IReadOnlyList<string>> PickFilesAsync(string title);
+    /// <summary>Add > Existing Project: project files; empty when cancelled.</summary>
+    Task<IReadOnlyList<string>> PickProjectsAsync() => PickFilesAsync("Add Existing Project");
+    /// <summary>Add > New Project: the "Add a new project" wizard for <paramref name="solution"/>; the project files it made, empty when cancelled.</summary>
+    Task<IReadOnlyList<string>> CreateProjectAsync(string solution) => Task.FromResult<IReadOnlyList<string>>([]);
+    /// <summary>Add > Project Reference: the projects <paramref name="project"/> is to reference, or null when cancelled.</summary>
+    Task<IReadOnlyList<string>?> ChooseProjectReferencesAsync(string project, IReadOnlyList<ProjectReferenceChoice> projects) =>
+        Task.FromResult<IReadOnlyList<string>?>(null);
 }
 
 public partial class MainViewModel : ObservableObject
@@ -62,6 +70,7 @@ public partial class MainViewModel : ObservableObject
     RoslynClient? _lsp;
     CancellationTokenSource? _buildCts;
     ProcessRunner? _runProcess;
+    int? _lastExitCode;
 
     public MainViewModel()
     {
@@ -71,7 +80,7 @@ public partial class MainViewModel : ObservableObject
         BuildOutput = new OutputChannel("Build");
         DebugOutput = new OutputChannel("Debug");
         ServerOutput = new OutputChannel("Language Server");
-        OutputChannels = [BuildOutput, DebugOutput, ServerOutput, GitOutput, PackageManagerOutput, DockerOutput];
+        OutputChannels = [BuildOutput, DebugOutput, ServerOutput, GitOutput, PackageManagerOutput, DockerOutput, ClaudeOutput];
         SelectedOutput = BuildOutput;
         InitializeDebugging();
         EditorHost.DefaultZoom = Math.Clamp(Settings.EditorZoom, EditorHost.MinZoom, EditorHost.MaxZoom);
@@ -285,6 +294,7 @@ public partial class MainViewModel : ObservableObject
             }
 
             Solution = solution;
+            NoteStructureRead(solution);
             ExplorerRoots.Add(solution.Root);
             Settings.AddRecent(path);
             OnPropertyChanged(nameof(RecentSolutions));
@@ -471,17 +481,19 @@ public partial class MainViewModel : ObservableObject
         await StartLanguageServerAsync();
     }
 
-    async Task RestoreAsync(IReadOnlyList<string> projects)
+    async Task<bool> RestoreAsync(IReadOnlyList<string> projects)
     {
         if (Solution is null)
-            return;
+            return false;
         var targets = projects.Count > 0 ? projects : [Solution.FilePath];
+        var ok = true;
         foreach (var target in targets)
         {
             BuildOutput.Append($"Restoring packages for {target}...");
             using var runner = ProcessRunner.Start(DotnetCli.Executable, ["restore", target], Solution.Directory, BuildOutput.Append);
-            await runner.WaitAsync();
+            ok &= await runner.WaitAsync() == 0;
         }
+        return ok;
     }
 
     // ---- Documents ---------------------------------------------------------------------------------------------
@@ -620,25 +632,7 @@ public partial class MainViewModel : ObservableObject
     }
 
     /// <summary>After install/uninstall: reload project files so Solution Explorer's Dependencies are current.</summary>
-    async Task OnPackagesChangedAsync()
-    {
-        if (Solution is null)
-            return;
-        var startup = StartupProject?.FilePath;
-        var profile = LaunchProfile;
-        var reloaded = await SolutionLoader.LoadAsync(Solution.FilePath);
-        Solution = reloaded;
-        StartupProjects.Clear();
-        foreach (var p in reloaded.Projects.Where(p => p.IsRunnable))
-            StartupProjects.Add(p);
-        StartupProject = StartupProjects.FirstOrDefault(p => p.FilePath == startup) ?? StartupProjects.FirstOrDefault();
-        if (profile is not null && LaunchProfiles.Contains(profile))
-            LaunchProfile = profile;
-        reloaded.Root.RefreshGitBadges();
-        ExplorerRoots.Clear();
-        ExplorerRoots.Add(reloaded.Root);
-        _targetPaths.Clear();
-    }
+    Task OnPackagesChangedAsync() => ReloadSolutionAsync();
 
     // ---- Solution Explorer context menu ----------------------------------------------------------------------
 
@@ -650,6 +644,14 @@ public partial class MainViewModel : ObservableObject
 
     [RelayCommand]
     Task CleanProject(ProjectInfo? project) => project is null ? Task.CompletedTask : RunBuildAsync("clean", "Clean", project.FilePath);
+
+    /// <summary>Pack: the project's NuGet package (dotnet pack), in bin/&lt;configuration&gt;.</summary>
+    [RelayCommand]
+    Task PackProject(ProjectInfo? project) => project is null ? Task.CompletedTask : RunBuildAsync("pack", "Pack", project.FilePath);
+
+    /// <summary>Publish to a folder (dotnet publish): bin/&lt;configuration&gt;/&lt;framework&gt;/publish, as VS's folder profile.</summary>
+    [RelayCommand]
+    Task PublishProject(ProjectInfo? project) => project is null ? Task.CompletedTask : RunBuildAsync("publish", "Publish", project.FilePath);
 
     [RelayCommand]
     void SetStartupProject(ProjectInfo? project)
@@ -956,7 +958,7 @@ public partial class MainViewModel : ObservableObject
         var sw = Stopwatch.StartNew();
         BuildOutput.Append($"{title} started at {DateTime.Now:HH:mm}...");
 
-        var args = new List<string> { verb == "clean" ? "clean" : "build", target ?? solution.FilePath, "-c", Configuration, "-nologo", "-v:minimal", "-clp:NoSummary;ForceNoAlign" };
+        var args = new List<string> { verb is "clean" or "pack" or "publish" ? verb : "build", target ?? solution.FilePath, "-c", Configuration, "-nologo", "-v:minimal", "-clp:NoSummary;ForceNoAlign" };
         if (verb == "rebuild")
             args.Add("--no-incremental");
 
@@ -989,7 +991,7 @@ public partial class MainViewModel : ObservableObject
         var errors = _buildErrors.Count(e => e.Severity == DiagnosticSeverity.Error);
         var warnings = _buildErrors.Count(e => e.Severity == DiagnosticSeverity.Warning);
         var ok = exitCode == 0;
-        var verbLabel = verb == "clean" ? "Clean" : verb == "rebuild" ? "Rebuild All" : "Build";
+        var verbLabel = verb switch { "clean" => "Clean", "rebuild" => "Rebuild All", "pack" => "Pack", "publish" => "Publish", _ => "Build" };
         BuildOutput.Append($"========== {verbLabel}: {(ok ? "succeeded" : "failed")}, {errors} error(s), {warnings} warning(s), {succeeded} project(s) built ==========");
         BuildOutput.Append($"========== {verbLabel} completed at {DateTime.Now:HH:mm} and took {sw.Elapsed.TotalSeconds:0.000} seconds ==========");
         SetStatus(ok ? $"{verbLabel} succeeded" : $"{verbLabel} failed", IsRunning || IsDebugging ? StatusKind.Running : StatusKind.Ready);
@@ -1045,6 +1047,7 @@ public partial class MainViewModel : ObservableObject
         SelectedOutput = DebugOutput;
         ShowToolWindow(ToolWindows.Output);
         DebugOutput.Append($"> dotnet {string.Join(' ', args)}");
+        _lastExitCode = null;
         IsRunning = true;
         SetStatus($"Running {project.Name}", StatusKind.Running);
 
@@ -1063,6 +1066,7 @@ public partial class MainViewModel : ObservableObject
         _runProcess = runner;
         var exit = await runner.WaitAsync();
         DebugOutput.Append($"The program '{project.Name}' has exited with code {exit} (0x{exit:x}).");
+        _lastExitCode = exit;
         if (_runProcess == runner)
             _runProcess = null;
         runner.Dispose();
@@ -1101,15 +1105,7 @@ public partial class MainViewModel : ObservableObject
     }
 
     [RelayCommand]
-    async Task RefreshExplorer()
-    {
-        if (Solution is null)
-            return;
-        var reloaded = await SolutionLoader.LoadAsync(Solution.FilePath);
-        reloaded.Root.RefreshGitBadges();
-        ExplorerRoots.Clear();
-        ExplorerRoots.Add(reloaded.Root);
-    }
+    Task RefreshExplorer() => ReloadSolutionAsync();
 
     /// <summary>Selects the active document in Solution Explorer (VS: "Sync with Active Document").</summary>
     public ExplorerNode? SyncWithActiveDocument()

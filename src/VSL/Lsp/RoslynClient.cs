@@ -60,6 +60,8 @@ public sealed class RoslynClient : IAsyncDisposable
     public static async Task<RoslynClient> StartAsync(RoslynServerInstall install, string solutionPath, string logDir, CancellationToken ct)
     {
         Directory.CreateDirectory(logDir);
+        // Build hosts a server left behind (VSL killed, or one that exited by itself before VSL ended them).
+        _ = Task.Run(() => Services.ProcessTree.KillOrphans(RoslynServerLocator.InstallRoot, "BuildHost", "Microsoft.CodeAnalysis.LanguageServer"));
         var psi = new ProcessStartInfo(install.Executable)
         {
             RedirectStandardInput = true,
@@ -287,6 +289,10 @@ public sealed class RoslynClient : IAsyncDisposable
         contentChanges = changes.Select(c => c.Range is { } r ? (object)new { range = r, text = c.Text } : new { text = c.Text }).ToArray(),
     });
 
+    /// <summary>Projects the solution has now (added, or a project file renamed): Roslyn loads them beside those it has.</summary>
+    public Task OpenProjectsAsync(IEnumerable<string> projects) =>
+        _rpc.NotifyAsync("project/open", new { projects = projects.Select(ToUri).ToArray() });
+
     public Task DidSaveAsync(string path) => _rpc.NotifyAsync("textDocument/didSave", new { textDocument = new { uri = ToUri(path) } });
 
     public Task DidCloseAsync(string path) => _rpc.NotifyAsync("textDocument/didClose", new { textDocument = new { uri = ToUri(path) } });
@@ -444,6 +450,8 @@ public sealed class RoslynClient : IAsyncDisposable
     public async ValueTask DisposeAsync()
     {
         _watch.Dispose();
+        // Its build hosts, before it goes: they outlive a server that exits by itself.
+        var tree = Services.ProcessTree.Descendants(_process.Id);
         try
         {
             using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
@@ -459,10 +467,13 @@ public sealed class RoslynClient : IAsyncDisposable
         {
             if (!_process.HasExited)
                 _process.Kill(entireProcessTree: true);
+            using var exited = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+            await _process.WaitForExitAsync(exited.Token);
         }
-        catch (InvalidOperationException)
+        catch (Exception ex) when (ex is InvalidOperationException or OperationCanceledException)
         {
         }
+        Services.ProcessTree.Kill(tree);
         _process.Dispose();
     }
 }

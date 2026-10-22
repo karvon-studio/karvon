@@ -101,6 +101,17 @@ public class SolutionExplorerTests
         public Task<NewItemChoice?> ChooseNewItemAsync(string title, string folder, ItemTemplate initial) => Task.FromResult(NextItem);
 
         public Task<IReadOnlyList<string>> PickFilesAsync(string title) => Task.FromResult(NextFiles);
+
+        /// <summary>What the "Add a new project" wizard makes.</summary>
+        public IReadOnlyList<string> NextProjects { get; set; } = [];
+
+        /// <summary>The Reference Manager's answer, from what it offers.</summary>
+        public Func<IReadOnlyList<ProjectReferenceChoice>, IReadOnlyList<string>?>? References { get; set; }
+
+        public Task<IReadOnlyList<string>> CreateProjectAsync(string solution) => Task.FromResult(NextProjects);
+
+        public Task<IReadOnlyList<string>?> ChooseProjectReferencesAsync(string project, IReadOnlyList<ProjectReferenceChoice> projects) =>
+            Task.FromResult(References?.Invoke(projects));
     }
 
     /// <summary>A copy of the sample sources (no restore needed: these tests only touch files).</summary>
@@ -118,6 +129,9 @@ public class SolutionExplorerTests
     }
 
     static IEnumerable<string> Headers(IEnumerable<object> items) => items.OfType<MenuItem>().Select(m => (string)m.Header!);
+
+    static IEnumerable<object> Submenu(IEnumerable<object> items, string header) =>
+        items.OfType<MenuItem>().Single(m => (string?)m.Header == header).Items.OfType<object>();
 
     [AvaloniaFact]
     public async Task Restores_the_whole_solution_state_from_the_dot_vs_folder()
@@ -226,7 +240,9 @@ public class SolutionExplorerTests
         var projectMenu = window.ExplorerMenuItems(web);
         Assert.Contains("Edit Project File", Headers(projectMenu));
         var add = projectMenu.OfType<MenuItem>().Single(m => (string?)m.Header == "Add");
-        Assert.Equal(["New Item...", "Existing Item...", "New Folder", "Class...", "Razor Component..."], Headers(add.Items.OfType<object>()));
+        Assert.Equal(["New Item...", "Existing Item...", "New Folder", "New EditorConfig", "Project Reference...", "Class...", "Razor Component..."], Headers(add.Items.OfType<object>()));
+        Assert.Equal(["New Item...", "Existing Item...", "New Folder", "New EditorConfig", "Class...", "Razor Component..."],
+            Headers(Submenu(window.ExplorerMenuItems(web.Children.First(n => n.Kind == NodeKind.Folder)), "Add")));
         var program = web.Children.First(n => n.Name == "Program.cs");
         Assert.Contains("Rename", Headers(window.ExplorerMenuItems(program)));
         Assert.Contains("Delete", Headers(window.ExplorerMenuItems(program)));
@@ -298,6 +314,137 @@ public class SolutionExplorerTests
         Assert.True(models.IsExpanded);
 
         Assert.True(await vm.CloseSolutionCoreAsync());
+    }
+
+    [AvaloniaFact]
+    public async Task Changes_the_solution_like_visual_studio()
+    {
+        var sln = CopySample();
+        var dir = Path.GetDirectoryName(sln)!;
+        var vm = NewViewModel();
+        var window = new MainWindow { DataContext = vm, Width = 1280, Height = 800 };
+        window.Show();
+        await vm.OpenSolutionAsync(sln);
+        var dialogs = new ScriptedDialogs();
+        vm.Dialogs = dialogs;
+        vm.MoveToTrash = _ => Task.FromResult(false);
+        ExplorerNode Root() => vm.ExplorerRoots[0];
+        ExplorerNode Node(params string[] names) => names.Aggregate(Root(), (node, name) => node.Children.Single(c => c.Name == name));
+        Node("Web").IsExpanded = true;
+
+        // The solution's context menu, as VS has it.
+        var menu = window.ExplorerMenuItems(Root());
+        foreach (var header in new[] { "Ask Claude", "Build Solution", "Rebuild Solution", "Clean Solution", "Run Tests", "Manage NuGet Packages for Solution...",
+                     "Restore NuGet Packages", "Add", "Set Startup Project", "Create Git Repository", "Edit Solution File", "Rename", "Open in Terminal", "Copy Full Path" })
+            Assert.Contains(header, Headers(menu));
+        Assert.Equal(["New Project...", "Existing Project...", "New Item...", "Existing Item...", "New Solution Folder"], Headers(Submenu(menu, "Add")));
+        Assert.Equal(["✓ Web"], Headers(Submenu(menu, "Set Startup Project")));
+        foreach (var header in new[] { "Rename", "Remove", "Manage User Secrets", "Publish to Folder", "Pack" })
+            Assert.Contains(header, Headers(window.ExplorerMenuItems(Node("Web"))));
+        Assert.Contains("Run Tests", Headers(window.ExplorerMenuItems(Node("Tests"))));
+
+        // New Solution Folder: NewFolder1, renamed in place.
+        var folder = (await vm.AddSolutionFolderAsync(Root()))!;
+        Assert.Equal("NewFolder1", folder.Name);
+        TextBox? RenameBox(ExplorerNode node) => (window.ExplorerTree.TreeContainerFromItem(node) as Control)?
+            .GetVisualDescendants().OfType<TextBox>().FirstOrDefault(b => b.Classes.Contains("rename") && b.IsVisible);
+        await WaitUntil(() => RenameBox(folder) is { IsFocused: true }, TimeSpan.FromSeconds(5));
+        var box = RenameBox(folder)!;
+        box.Text = "libs";
+        box.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Enter, Source = box });
+        await WaitUntil(() => Root().Children.Any(c => c.Name == "libs"), TimeSpan.FromSeconds(5));
+        Assert.Equal(NodeKind.SolutionFolder, Node("libs").Kind);
+        Assert.DoesNotContain(Root().Children, c => c.Name == "NewFolder1");
+        // What was expanded stays expanded when the solution is read again.
+        Assert.True(Node("Web").IsExpanded);
+        Assert.Contains("\"libs\", \"libs\"", File.ReadAllText(sln));
+
+        // Add > New Project in it: the wizard's project, in the solution and selected; an existing one already there is not added twice.
+        var lib = Path.Combine(dir, "Lib", "Lib.csproj");
+        Directory.CreateDirectory(Path.GetDirectoryName(lib)!);
+        File.WriteAllText(lib, "<Project Sdk=\"Microsoft.NET.Sdk\"><PropertyGroup><TargetFramework>net10.0</TargetFramework></PropertyGroup></Project>");
+        dialogs.NextProjects = [lib];
+        Assert.Equal([lib], await vm.AddNewProjectAsync(Node("libs")));
+        Assert.Equal(lib, Node("libs", "Lib").Path);
+        Assert.Equal(lib, (window.ExplorerTree.SelectedItem as ExplorerNode)?.Path);
+        Assert.Contains(vm.Solution!.Projects, p => p.FilePath == lib);
+        dialogs.NextFiles = [lib];
+        Assert.Empty(await vm.AddExistingProjectsAsync(Root()));
+
+        // Solution items: a new item is a file of the solution's folder in Solution Items, open; renamed and removed there.
+        dialogs.NextItem = new NewItemChoice(ItemTemplates.TextFile, "notes");
+        Assert.Equal(Path.Combine(dir, "notes.txt"), await vm.AddNewItemAsync(Root()));
+        Assert.Equal("notes.txt", vm.ActiveEditor?.FileName);
+        Assert.Equal(["notes.txt", "README.md"], Node("Solution Items").Children.Select(c => c.Name).Order());
+        Assert.All(Node("Solution Items").Children, c => Assert.True(c.IsSolutionItem));
+        Assert.Equal(["Open", "Compare with Unmodified", "Rename", "Remove", "Delete"], Headers(window.ExplorerMenuItems(Node("Solution Items", "README.md"))).Skip(1).Take(5));
+        Assert.True(await vm.RenameInSolutionAsync(Node("Solution Items", "notes.txt"), "todo.txt"));
+        Assert.True(File.Exists(Path.Combine(dir, "todo.txt")));
+        Assert.Equal("todo.txt", vm.ActiveEditor?.FileName);
+        Assert.Contains("todo.txt = todo.txt", File.ReadAllText(sln));
+        Assert.True(MainViewModel.IsInSolution(Node("Solution Items", "todo.txt")));
+        Assert.True(await vm.RemoveFromSolutionAsync(Node("Solution Items", "todo.txt")));
+        Assert.Equal(["README.md"], Node("Solution Items").Children.Select(c => c.Name));
+        Assert.True(File.Exists(Path.Combine(dir, "todo.txt")));
+
+        // Add > Project Reference: the Reference Manager offers the other projects; dotnet add reference makes it.
+        IReadOnlyList<ProjectReferenceChoice> offered = [];
+        dialogs.References = choices =>
+        {
+            offered = choices;
+            return [.. choices.Where(c => c.IsReferenced).Select(c => c.Path), lib];
+        };
+        Assert.True(await vm.EditProjectReferencesAsync(Node("Web").Project));
+        Assert.Equal(["Components", "Lib", "Tests"], offered.Select(c => c.Name).Order());
+        Assert.Contains(lib, vm.Solution!.Projects.Single(p => p.Name == "Web").ProjectReferences);
+        Assert.True(Node("Web").IsExpanded);
+
+        // Rename on a project: its project file, the solution's entry and the references to it.
+        Assert.True(await vm.RenameInSolutionAsync(Node("libs", "Lib"), "Library"));
+        var library = Path.Combine(dir, "Lib", "Library.csproj");
+        Assert.True(File.Exists(library));
+        Assert.False(File.Exists(lib));
+        Assert.Equal(library, Node("libs", "Library").Path);
+        Assert.Contains(library, vm.Solution!.Projects.Single(p => p.Name == "Web").ProjectReferences);
+        Assert.Contains(@"..\Lib\Library.csproj", File.ReadAllText(Path.Combine(dir, "Web", "Web.csproj")));
+        Assert.True(await vm.RemoveProjectReferenceAsync(vm.Solution!.Projects.Single(p => p.Name == "Web"), library));
+        Assert.DoesNotContain(library, vm.Solution!.Projects.Single(p => p.Name == "Web").ProjectReferences);
+
+        // Remove: out of the solution after asking; the files stay.
+        dialogs.Confirmations.Clear();
+        Assert.True(await vm.RemoveFromSolutionAsync(Node("libs", "Library")));
+        Assert.True(await vm.RemoveFromSolutionAsync(Node("libs")));
+        Assert.Equal(["'Library' will be removed.", "'libs' and all its contents will be removed."], dialogs.Confirmations);
+        Assert.DoesNotContain(Root().Children, c => c.Name == "libs");
+        Assert.True(File.Exists(library));
+
+        // A change made outside Solution Explorer (dotnet sln, git, an editor) shows by itself.
+        await SolutionEditor.AddFolderAsync(sln, null, "docs");
+        await WaitUntil(() => Root().Children.Any(c => c.Name == "docs"), TimeSpan.FromSeconds(10));
+        Assert.Contains(Root().Children, c => c.Name == "docs");
+
+        // Manage User Secrets: an id for the project, its secrets.json open (in the tests' home, not the user's).
+        var secrets = await vm.ManageUserSecretsAsync(Node("Web").Project);
+        Assert.NotNull(secrets);
+        Assert.StartsWith(VSL.Mcp.McpConfigs.Home, secrets);
+        Assert.Equal(secrets, vm.ActiveEditor?.FilePath);
+        Assert.Contains("<UserSecretsId>", File.ReadAllText(Path.Combine(dir, "Web", "Web.csproj")));
+
+        // Create Git Repository, where there is none: git init, a .gitignore for .NET, Git Changes.
+        Assert.True(await vm.CreateGitRepositoryAsync());
+        Assert.True(Directory.Exists(Path.Combine(dir, ".git")));
+        Assert.Contains("[Bb]in/", File.ReadAllText(Path.Combine(dir, ".gitignore")));
+        Assert.DoesNotContain("Create Git Repository", Headers(window.ExplorerMenuItems(Root())));
+
+        // Rename on the solution: its file and its .vs state, opened again under the new name.
+        Assert.True(await vm.RenameInSolutionAsync(Root(), "Shop"));
+        Assert.Equal(Path.Combine(dir, "Shop.sln"), vm.Solution!.FilePath);
+        Assert.False(File.Exists(sln));
+        Assert.True(Directory.Exists(Path.Combine(dir, ".vs", "Shop")));
+        Assert.Equal("Solution 'Shop'", Root().Name);
+
+        Assert.True(await vm.CloseSolutionCoreAsync());
+        window.Close();
     }
 }
 

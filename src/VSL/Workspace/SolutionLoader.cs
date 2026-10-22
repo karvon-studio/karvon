@@ -51,19 +51,19 @@ public static class SolutionLoader
                 .Select(f => FolderNode(f));
             var projs = model.SolutionProjects.Where(p => p.Parent == folder)
                 .OrderBy(p => p.ActualDisplayName, StringComparer.OrdinalIgnoreCase)
-                .Select(p => ProjectNode(byPath[Path.GetFullPath(Path.Combine(dir, p.FilePath.Replace('\\', '/')))]));
+                .Select(p => ProjectNode(byPath[Path.GetFullPath(Path.Combine(dir, p.FilePath.Replace('\\', '/')))], folder?.Path));
             return folders.Concat(projs);
         }
 
         ExplorerNode FolderNode(SolutionFolderModel f)
         {
-            var node = new ExplorerNode(NodeKind.SolutionFolder, f.ActualDisplayName);
+            var node = new ExplorerNode(NodeKind.SolutionFolder, f.ActualDisplayName) { SolutionFolder = f.Path };
             foreach (var child in ChildrenOf(f))
                 node.Children.Add(child);
             foreach (var file in f.Files ?? [])
             {
                 var full = Path.GetFullPath(Path.Combine(dir, file.Replace('\\', '/')));
-                node.Children.Add(new ExplorerNode(NodeKind.File, Path.GetFileName(full), full));
+                node.Children.Add(new ExplorerNode(NodeKind.File, Path.GetFileName(full), full) { SolutionFolder = f.Path });
             }
             return node;
         }
@@ -91,8 +91,9 @@ public static class SolutionLoader
         return new SolutionInfo { FilePath = projectPath, Projects = [project], Root = root };
     }
 
-    public static ExplorerNode ProjectNode(ProjectInfo project) =>
-        new(NodeKind.Project, project.Name, project.FilePath, () => ProjectChildren(project)) { Project = project };
+    /// <summary>A project's node; <paramref name="solutionFolder"/> is the solution folder it is in (null: the solution itself).</summary>
+    public static ExplorerNode ProjectNode(ProjectInfo project, string? solutionFolder = null) =>
+        new(NodeKind.Project, project.Name, project.FilePath, () => ProjectChildren(project)) { Project = project, SolutionFolder = solutionFolder };
 
     static IEnumerable<ExplorerNode> ProjectChildren(ProjectInfo project)
     {

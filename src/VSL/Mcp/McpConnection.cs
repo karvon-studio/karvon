@@ -1,5 +1,6 @@
 using System.Text.Json;
 using ModelContextProtocol;
+using ModelContextProtocol.Authentication;
 using ModelContextProtocol.Client;
 using ModelContextProtocol.Protocol;
 using VSL.Claude.Tools;
@@ -22,10 +23,13 @@ public sealed record McpReply(string Text, bool IsError = false);
 /// VSL's own connection to one MCP server, made when the server is opened (never at start: npx may download it first):
 /// what it offers (tools, resources, prompts), calls to them, and a log of everything said, the server's stderr with it.
 /// </summary>
-public sealed class McpConnection(McpServerDefinition server, string? workingDirectory) : IAsyncDisposable
+public sealed class McpConnection(McpServerDefinition server, string? workingDirectory, McpSignIn? signIn = null) : IAsyncDisposable
 {
     const int MaxLog = 2000;
     static readonly TimeSpan Timeout = TimeSpan.FromMinutes(2);
+
+    /// <summary>Time to sign in in the browser.</summary>
+    static readonly TimeSpan SignInTimeout = TimeSpan.FromMinutes(5);
     static readonly JsonSerializerOptions Pretty = new(McpJsonUtilities.DefaultOptions) { WriteIndented = true };
 
     readonly SemaphoreSlim _gate = new(1, 1);
@@ -57,9 +61,21 @@ public sealed class McpConnection(McpServerDefinition server, string? workingDir
 
     public bool IsConnected => Status == McpStatus.Connected;
 
+    /// <summary>The browser is open at the server's sign-in page.</summary>
+    public bool IsSigningIn { get; private set; }
+
+    /// <summary>A URL that can be signed in to (stdio servers have their environment instead).</summary>
+    public bool CanSignIn => Server.IsHttp && signIn is not null;
+
+    /// <summary>VSL has its tokens (it signed in before): the next connection uses them.</summary>
+    public bool IsSignedIn => CanSignIn && Tokens!.HasTokens;
+
+    McpTokens? Tokens => Server.Url is { } url && signIn is not null ? signIn.TokensFor(McpConfigs.Expand(url)) : null;
+
     public string StatusText => Status switch
     {
         McpStatus.Connected => "connected · " + Counts,
+        McpStatus.Connecting when IsSigningIn => "signing in: finish in your browser…",
         McpStatus.Connecting => "connecting…",
         McpStatus.NeedsSignIn => "needs sign-in",
         McpStatus.Failed => "failed: " + Error,
@@ -84,18 +100,35 @@ public sealed class McpConnection(McpServerDefinition server, string? workingDir
         }
     }
 
-    /// <summary>Connects again (ending the old connection): the handshake, then what the server offers.</summary>
-    public async Task ConnectAsync(CancellationToken cancellationToken = default)
+    /// <summary>
+    /// Connects again (ending the old connection): the handshake, then what the server offers. A server that wants a
+    /// sign-in gets the tokens VSL has for it; without them it waits for <see cref="SignInAsync"/> (no browser opens by itself).
+    /// </summary>
+    public Task ConnectAsync(CancellationToken cancellationToken = default) => ConnectAsync(interactive: false, cancellationToken);
+
+    /// <summary>Signs in in the browser (OAuth: the server's sign-in page, then back to VSL), then connects with the tokens.</summary>
+    public Task SignInAsync(CancellationToken cancellationToken = default) => ConnectAsync(interactive: true, cancellationToken);
+
+    /// <summary>Forgets the tokens (here and in the keyring) and disconnects.</summary>
+    public async Task SignOutAsync()
+    {
+        Tokens?.Forget();
+        await DisconnectAsync();
+        Write("info", "signed out");
+    }
+
+    async Task ConnectAsync(bool interactive, CancellationToken cancellationToken)
     {
         await _gate.WaitAsync(cancellationToken);
         try
         {
             await CloseAsync();
             var server = McpConfigs.Expand(Server);
+            IsSigningIn = interactive && CanSignIn;
             SetStatus(McpStatus.Connecting, null);
-            Write("info", "connecting over " + server.Transport);
+            Write("info", (IsSigningIn ? "signing in, then connecting over " : "connecting over ") + server.Transport);
             using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-            timeout.CancelAfter(Timeout);
+            timeout.CancelAfter(IsSigningIn ? SignInTimeout : Timeout);
             try
             {
                 IClientTransport transport = server.IsHttp
@@ -105,6 +138,7 @@ public sealed class McpConnection(McpServerDefinition server, string? workingDir
                         Endpoint = new Uri(server.Url!),
                         AdditionalHeaders = server.Headers.ToDictionary(),
                         TransportMode = server.IsSse ? HttpTransportMode.Sse : HttpTransportMode.AutoDetect,
+                        OAuth = await OAuthForAsync(server, IsSigningIn, timeout.Token),
                     })
                     : new StdioClientTransport(new StdioClientTransportOptions
                     {
@@ -132,23 +166,27 @@ public sealed class McpConnection(McpServerDefinition server, string? workingDir
                 Tools = capabilities.Tools is null ? [] : [.. (await client.ListToolsAsync(cancellationToken: timeout.Token)).Select(t => t.ProtocolTool)];
                 Resources = capabilities.Resources is null ? [] : [.. (await client.ListResourcesAsync(cancellationToken: timeout.Token)).Select(r => r.ProtocolResource)];
                 Prompts = capabilities.Prompts is null ? [] : [.. (await client.ListPromptsAsync(cancellationToken: timeout.Token)).Select(p => p.ProtocolPrompt)];
+                IsSigningIn = false;
                 SetStatus(McpStatus.Connected, null);
                 Write("info", StatusText);
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
             {
+                IsSigningIn = false;
                 await CloseAsync();
                 SetStatus(McpStatus.NotConnected, null);
             }
             // Whatever a server (or the program that is not one) does wrong ends here: its status says so.
             catch (Exception ex)
             {
-                var message = ex is OperationCanceledException ? "it did not answer within two minutes" : Describe(ex);
+                var signingIn = IsSigningIn;
+                IsSigningIn = false;
+                var message = ex is OperationCanceledException ? signingIn ? "the sign-in was not finished within five minutes" : "it did not answer within two minutes" : Explain(Describe(ex));
                 Write("error", message);
                 await CloseAsync();
-                var signIn = message.Contains("401", StringComparison.Ordinal) || message.Contains("403", StringComparison.Ordinal)
+                var wantsSignIn = ex is SignInNeededException || ex.GetBaseException() is SignInNeededException || message.Contains("401", StringComparison.Ordinal) || message.Contains("403", StringComparison.Ordinal)
                     || message.Contains("Unauthorized", StringComparison.OrdinalIgnoreCase);
-                SetStatus(signIn ? McpStatus.NeedsSignIn : McpStatus.Failed, signIn ? "the server wants you to sign in" : message);
+                SetStatus(wantsSignIn && !signingIn ? McpStatus.NeedsSignIn : McpStatus.Failed, wantsSignIn && !signingIn ? "the server wants you to sign in" : message);
             }
         }
         finally
@@ -156,6 +194,44 @@ public sealed class McpConnection(McpServerDefinition server, string? workingDir
             _gate.Release();
         }
     }
+
+    /// <summary>A sign-in is needed, and the connection was not asked to open the browser.</summary>
+    sealed class SignInNeededException() : Exception("the server wants you to sign in");
+
+    /// <summary>
+    /// OAuth for a URL: the tokens VSL has (refreshed when they expire); a sign-in in the browser only when asked to.
+    /// Without tokens and without that, none (the 401 says it needs a sign-in, and no client is registered for nothing).
+    /// </summary>
+    async Task<ClientOAuthOptions?> OAuthForAsync(McpServerDefinition server, bool interactive, CancellationToken cancellationToken)
+    {
+        if (signIn is null || Tokens is not { } tokens)
+            return null;
+        if (interactive)
+            // A sign-in starts afresh: its client is registered for this sign-in's redirect.
+            tokens.Forget();
+        else if (!tokens.HasTokens)
+            return null;
+        var loopback = new LoopbackSignIn(server.Name, signIn.OpenBrowser, server.OAuthClientId is null ? null : server.OAuthCallbackPort);
+        var issuers = await McpDiscovery.IssuersAsync(new Uri(server.Url!), cancellationToken);
+        return new ClientOAuthOptions
+        {
+            RedirectUri = loopback.RedirectUri,
+            // A client given out for it (Claude Code's oauth.clientId); otherwise VSL registers one.
+            ClientId = server.OAuthClientId,
+            DynamicClientRegistration = server.OAuthClientId is null
+                ? new DynamicClientRegistrationOptions { ClientName = "VSL", ClientUri = new Uri("https://github.com/nbkabdulakhadov/VSL") } : null,
+            TokenCache = tokens,
+            AuthServerSelector = servers => McpDiscovery.Select(servers, issuers),
+            AuthorizationCallbackHandler = interactive ? loopback.AuthorizeAsync : (_, _) => throw new SignInNeededException(),
+        };
+    }
+
+    /// <summary>A server that lets in only the apps it knows says no to VSL's registration: what to do instead.</summary>
+    static string Explain(string message) =>
+        message.Contains("Dynamic client registration failed with status Forbidden", StringComparison.Ordinal)
+        || message.Contains("Dynamic client registration failed with status Unauthorized", StringComparison.Ordinal)
+            ? "it does not let VSL register to sign in: it lets in only the apps it knows (Claude Code may be one: Sign in with Claude Code), or the client it gave you (oauth.clientId in Claude Code's settings)."
+            : message;
 
     /// <summary>The message, and what lies under it ("Failed to connect transport." says little; "No such file" says why).</summary>
     static string Describe(Exception ex)

@@ -9,6 +9,8 @@
         xmlns:svm="using:VSL.Servers.ViewModels"
         xmlns:mv="using:VSL.Mcp.Views"
         xmlns:mvm="using:VSL.Mcp.ViewModels"
+        xmlns:kv="using:VSL.Skills.Views"
+        xmlns:kvm="using:VSL.Skills.ViewModels"
         xmlns:ae="https://github.com/avaloniaui/avaloniaedit"
         x:Class="VSL.Views.MainWindow"
         x:DataType="vm:MainViewModel"
@@ -128,6 +130,7 @@
         <MenuItem Header="Doc_ker Explorer" Command="{Binding ShowDockerExplorerCommand}" />
         <MenuItem Header="Ser_vers" Command="{Binding ShowServersCommand}" />
         <MenuItem Header="_MCP Servers" Command="{Binding ShowMcpCommand}" />
+        <MenuItem Header="S_kills" Command="{Binding ShowSkillsCommand}" />
         <MenuItem Command="{Binding ShowClaudeCommand}">
           <MenuItem.Header>
             <Grid ColumnDefinitions="*,Auto">
@@ -866,6 +869,10 @@
           <TabItem Name="McpTab" Header="MCP Servers" Tag="Mcp">
             <ContentControl Name="McpHost" />
           </TabItem>
+          <!-- Skills, made the first time it shows -->
+          <TabItem Name="SkillsTab" Header="Skills" Tag="Skills">
+            <ContentControl Name="SkillsHost" />
+          </TabItem>
           <TabItem Header="Claude Code" Tag="Claude">
             <v:ClaudeView Name="ClaudePanel" DataContext="{Binding Claude}" />
           </TabItem>
@@ -893,6 +900,14 @@
         <ContentControl.ContentTemplate>
           <DataTemplate x:DataType="mvm:McpExplorerViewModel">
             <mv:McpOverlay />
+          </DataTemplate>
+        </ContentControl.ContentTemplate>
+      </ContentControl>
+
+      <ContentControl Name="SkillsOverlayHost" Grid.ColumnSpan="5" ZIndex="98" Content="{Binding Skills}">
+        <ContentControl.ContentTemplate>
+          <DataTemplate x:DataType="kvm:SkillsExplorerViewModel">
+            <kv:SkillsOverlay />
           </DataTemplate>
         </ContentControl.ContentTemplate>
       </ContentControl>

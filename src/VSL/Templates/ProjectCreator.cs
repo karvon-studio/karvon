@@ -47,14 +47,7 @@ public static class ProjectCreator
     public static async Task<string> CreateAsync(NewProjectRequest request, Action<string> log, CancellationToken ct = default, bool restore = true)
     {
         Directory.CreateDirectory(request.Location);
-        List<string> args = ["new", request.Template.ShortName, "--name", request.ProjectName, "--output", request.ProjectDirectory];
-        if (!restore)
-            args.Add("--no-restore");
-        if (request.Template.Language is { } language)
-            args.AddRange(["--language", language]);
-        foreach (var (option, value) in request.Options)
-            args.AddRange(option.Arguments(value));
-        await RunAsync(args, request.Location, log, ct);
+        await RunAsync(TemplateArguments(request, restore), request.Location, log, ct);
 
         // Multi-project templates (e.g. Blazor with WebAssembly) bring their own solution.
         var templateSolution = Solutions(request.ProjectDirectory).FirstOrDefault();
@@ -68,15 +61,44 @@ public static class ProjectCreator
         if (templateSolution is not null && templateSolution != solution)
             File.Delete(templateSolution);
 
-        var projects = Directory.EnumerateFiles(request.ProjectDirectory, "*", SearchOption.AllDirectories)
-            .Where(f => ProjectExtensions.Contains(Path.GetExtension(f), StringComparer.OrdinalIgnoreCase))
-            .Where(f => !f.Split(Path.DirectorySeparatorChar).Any(part => part is "bin" or "obj"))
-            .Order(StringComparer.Ordinal)
-            .ToList();
+        var projects = ProjectsIn(request.ProjectDirectory);
         if (projects.Count > 0)
             await RunAsync(["sln", solution, "add", "--in-root", .. projects], request.SolutionDirectory, log, ct);
         return solution;
     }
+
+    /// <summary>
+    /// Add > New Project: runs the template into a folder of an open solution and returns the project files it made, for
+    /// the solution to add. A multi-project template's own solution is not kept: its projects go into the open one.
+    /// </summary>
+    public static async Task<IReadOnlyList<string>> CreateProjectAsync(NewProjectRequest request, Action<string> log, CancellationToken ct = default, bool restore = true)
+    {
+        Directory.CreateDirectory(request.Location);
+        await RunAsync(TemplateArguments(request, restore), request.Location, log, ct);
+        foreach (var solution in Solutions(request.ProjectDirectory).ToList())
+            File.Delete(solution);
+        var projects = ProjectsIn(request.ProjectDirectory);
+        return projects.Count > 0 ? projects : throw new InvalidOperationException("The template did not make a project file.");
+    }
+
+    static List<string> TemplateArguments(NewProjectRequest request, bool restore)
+    {
+        List<string> args = ["new", request.Template.ShortName, "--name", request.ProjectName, "--output", request.ProjectDirectory];
+        if (!restore)
+            args.Add("--no-restore");
+        if (request.Template.Language is { } language)
+            args.AddRange(["--language", language]);
+        foreach (var (option, value) in request.Options)
+            args.AddRange(option.Arguments(value));
+        return args;
+    }
+
+    static List<string> ProjectsIn(string directory) =>
+        Directory.EnumerateFiles(directory, "*", SearchOption.AllDirectories)
+            .Where(f => ProjectExtensions.Contains(Path.GetExtension(f), StringComparer.OrdinalIgnoreCase))
+            .Where(f => !f.Split(Path.DirectorySeparatorChar).Any(part => part is "bin" or "obj"))
+            .Order(StringComparer.Ordinal)
+            .ToList();
 
     static IEnumerable<string> Solutions(string directory) =>
         Directory.Exists(directory)

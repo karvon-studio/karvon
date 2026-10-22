@@ -43,6 +43,9 @@ public static class ItemTemplates
 
     public static ItemTemplate RazorComponent => All.First(t => t.Extension == ".razor");
 
+    /// <summary>What Add New Item suggests for a solution item.</summary>
+    public static ItemTemplate TextFile => All.First(t => t.Extension == ".txt");
+
     /// <summary>"Class1.cs", "Class2.cs"...: the first name not taken in <paramref name="folder"/>, as VS suggests.</summary>
     public static string SuggestName(ItemTemplate template, string folder)
     {

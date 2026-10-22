@@ -65,8 +65,23 @@ public sealed class Settings
     /// <summary>Claude Code gets VSL's tools: the Database Explorer's data sources and the Docker engine (mcp__vsl__*).</summary>
     public bool ClaudeVslTools { get; set; } = true;
 
+    /// <summary>What Claude does with VSL's tools shows in VSL: a query's results, a container's logs, the build, a search...</summary>
+    public bool ClaudeShowToolActivity { get; set; } = true;
+
     /// <summary>VSL's Docker tools see every container, not only the open solution's compose project.</summary>
     public bool ClaudeAllContainers { get; set; }
+
+    /// <summary>Where the skills marketplace finds skills: github:owner/repo[/folder][@ref], a registry's URL, or a registry on disk.</summary>
+    public List<string> SkillSources { get; set; } = ["github:anthropics/skills"];
+
+    /// <summary>The skills marketplace shows Agensi's (agensi.io), read from its MCP server.</summary>
+    public bool SkillsAgensi { get; set; } = true;
+
+    /// <summary>The memory file the others (AGENTS.md, GEMINI.md) are generated from.</summary>
+    public string SkillsMemorySource { get; set; } = "CLAUDE.md";
+
+    /// <summary>The generated memory files are written again when their source changes (never those written by hand).</summary>
+    public bool SkillsSyncMemoryFiles { get; set; } = true;
 
     /// <summary>The Claude Code panel's language: "en" or "uz" (English when not set).</summary>
     public string? UiLanguage { get; set; }

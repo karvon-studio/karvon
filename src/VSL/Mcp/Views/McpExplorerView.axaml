@@ -91,6 +91,9 @@
                 <Separator />
                 <MenuItem Header="Connect Again" Command="{Binding ConnectAgainCommand}" />
                 <MenuItem Header="Disconnect" Command="{Binding DisconnectCommand}" IsVisible="{Binding IsConnected}" />
+                <MenuItem Header="Sign In…" Command="{Binding SignInCommand}" IsVisible="{Binding CanSignIn}" />
+                <MenuItem Header="Sign Out" Command="{Binding SignOutCommand}" IsVisible="{Binding IsSignedIn}" />
+                <MenuItem Header="Sign In with Claude Code" Command="{Binding SignInWithClaudeCommand}" IsVisible="{Binding CanSignInWithClaude}" />
                 <MenuItem Header="Ask Claude Why" Command="{Binding AskClaudeCommand}" IsVisible="{Binding HasFailed}" />
                 <Separator />
                 <MenuItem Header="Edit…" Command="{Binding EditCommand}" />

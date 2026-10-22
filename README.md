@@ -37,8 +37,14 @@ Working on solutions needs the .NET 10 SDK. VSL downloads `roslyn-language-serve
   Markdown files open with a live preview to the right or below (VS 2022's Markdown editor), following the editor's scrolling.
 - **Solutions**: `.sln`, `.slnx` or a lone project file; Solution Explorer with VS file nesting, Dependencies and
   [Material Icon Theme](https://github.com/material-extensions/vscode-material-icon-theme) icons. Add New Item
-  (Ctrl+Shift+A: class, interface, record, Razor component...), Existing Item, New Folder, Rename in place (F2) and
-  Delete; it follows files changed on disk.
+  (Ctrl+Shift+A: class, interface, record, Razor component...), Existing Item, New Folder, New EditorConfig, Rename in
+  place (F2) and Delete; it follows files changed on disk. The solution's own menu as VS's: Add > New Project (the new
+  project wizard), Existing Project, New Solution Folder, solution items (New / Existing Item, listed in Solution Items),
+  Remove (Del) and Rename for projects (the project file and the references to it), solution folders, solution items
+  and the solution itself; Run Tests, Restore NuGet Packages, Set Startup Project, Create Git Repository, Edit
+  Solution File. On projects: Pack, Publish to Folder, Add > Project Reference (Reference Manager), Manage User
+  Secrets; in Dependencies, Remove for packages and project references. A solution or project file changed elsewhere
+  (an editor, git, `dotnet sln`) is read again, keeping what is expanded.
 - **Build and run**: Build / Rebuild / Clean, Error List, launch profiles, Ctrl+F5; offers to trust the ASP.NET Core
   HTTPS development certificate.
 - **Debug** (F5, netcoredbg): breakpoints that follow edits, Step Over / Into / Out, Locals, Watch, Call Stack, data tips,
@@ -77,6 +83,16 @@ Working on solutions needs the .NET 10 SDK. VSL downloads `roslyn-language-serve
   too). Add and edit servers (a program, with its environment, or a URL, with its headers) in each file's own format,
   keeping the rest of it; `${VAR}` stays as written. The Claude Code sessions VSL starts get the servers you switch on
   for them, beside those Claude Code reads itself.
+- **Skills** (View > Skills): the skills Claude Code loads (the folder's `.claude/skills`, yours, the plugins'), each
+  with its checks (the name matches its folder and the rules, the description says when to use it, linked files exist,
+  scripts can run), "Try a prompt" (whether a prompt gives an agent a reason to load it) and its files; New Skill from a
+  template. The subagents, commands and hooks of the folder and yours. AGENTS.md and GEMINI.md written from CLAUDE.md
+  (with the folder's skills, which those agents do not load themselves) and kept in step, never over a file written by
+  hand without asking. A marketplace of skills from GitHub repositories, teams' registries and
+  [Agensi](https://www.agensi.io) (chosen by source, searched, free or paid) shows what a skill asks for (the tools it
+  allows, its scripts and their text, the network) before it is installed, updated or removed; Agensi's skills are
+  licensed to run through Agensi, so "Use in Claude Code" gives Claude Code its MCP server and the skill loads on demand
+  (a paid one is bought only when you agree).
 - **Terminal**: your `$SHELL` in a real pty, in the solution folder.
 - **NuGet**: browse, install, update and uninstall across your configured feeds.
 - **Claude Code** (Ctrl+Esc): drives your installed `claude` CLI, so your login, settings and MCP servers apply.
@@ -86,8 +102,9 @@ Working on solutions needs the .NET 10 SDK. VSL downloads `roslyn-language-serve
   Explorer; English or O‘zbekcha. Old conversations open at their last message, compaction summaries and long
   prompts fold.
   Claude gets VSL's own tools (`mcp__vsl__*`, an MCP server inside VSL): the build and the tests (`run_build`,
-  `build_errors`, `run_tests`, `test_failures`), the debugger where it stopped (`debug_state`, `debug_locals`,
-  `debug_evaluate`, `debug_control`), the editor (`editor_selection`, `open_document`, `code_diagnostics`,
+  `build_errors`, `run_tests`, `test_failures`), running the app as Ctrl+F5 does (`app_control`: start, stop, restart,
+  its URLs and output), the debugger where it stopped (`debug_state`, `debug_locals`, `debug_evaluate`,
+  `debug_control`), the editor (`editor_selection`, `open_document`, `code_diagnostics`,
   `find_in_files`), the Database Explorer's data sources (`db_connections`, `db_schema`, `db_query`, `db_explain`),
   the solution's containers (`container_list`, `container_logs`, `container_inspect`, `container_restart`,
   `compose_up`, `container_remove`) and the Servers (`server_list`, `server_logs`, `server_exec`), with your own

@@ -13,6 +13,12 @@ using static VSL.Claude.Tools.ToolInput;
 
 namespace VSL.Claude.Tools;
 
+/// <summary>What <c>db_query</c> ran, and its result sets: VSL shows them in a Query Tool of the data source.</summary>
+public sealed record DbQueryRun(ServerProfile Server, string? Database, string Sql, IReadOnlyList<QueryResult> Results);
+
+/// <summary>What <c>db_explain</c> explained, and the plan: VSL shows it in a Query Tool of the data source.</summary>
+public sealed record DbPlanRun(ServerProfile Server, string? Database, string Sql, QueryPlan Plan);
+
 /// <summary>
 /// The Database Explorer's data sources, by name, for Claude (through Bengine, as the explorer itself). The user's own
 /// connections and passwords are used and never shown; a read-only data source is read-only on the server too, and
@@ -259,7 +265,7 @@ sealed class DbQueryTool(IClaudeToolHost host) : DatabaseTool(host)
             foreach (var row in result.Rows)
                 text.AppendLine(string.Join(" | ", row.Select(Cell)));
         }
-        return new ClaudeToolOutput(text.ToString().TrimEnd());
+        return new ClaudeToolOutput(text.ToString().TrimEnd()) { Detail = new DbQueryRun(server, Str(input, "database"), sql, results) };
     }
 }
 
@@ -326,6 +332,6 @@ sealed class DbExplainTool(IClaudeToolHost host) : DatabaseTool(host)
             foreach (var warning in node.Warnings)
                 text.AppendLine($"{indent}     ! {warning}");
         }
-        return new ClaudeToolOutput(text.ToString().TrimEnd());
+        return new ClaudeToolOutput(text.ToString().TrimEnd()) { Detail = new DbPlanRun(server, Str(input, "database"), sql, plan) };
     }
 }

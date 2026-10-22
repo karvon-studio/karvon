@@ -36,9 +36,14 @@ public partial class MainViewModel
         Solution?.Projects.Where(p => path == p.Directory || path.StartsWith(p.Directory + "/", StringComparison.Ordinal))
             .MaxBy(p => p.Directory.Length);
 
-    /// <summary>Add > New Item... (Ctrl+Shift+A): the Add New Item dialog, then the new file opens.</summary>
+    /// <summary>
+    /// Add > New Item... (Ctrl+Shift+A): the Add New Item dialog, then the new file opens. On the solution or a solution
+    /// folder it is a solution item.
+    /// </summary>
     public async Task<string?> AddNewItemAsync(ExplorerNode? node, ItemTemplate? template = null)
     {
+        if (node is { Kind: NodeKind.Solution or NodeKind.SolutionFolder } && HasSolutionFile)
+            return await AddNewSolutionItemAsync(node, template);
         if (Dialogs is null || FolderOf(node ?? ExplorerTarget()) is not { } folder)
             return null;
         var owner = ProjectContaining(folder)?.Name ?? Solution?.Name ?? "";
@@ -48,6 +53,16 @@ public partial class MainViewModel
 
     /// <summary>Writes a new item from a template, shows it in Solution Explorer and opens it.</summary>
     public string? CreateItem(string folder, ItemTemplate template, string name)
+    {
+        if (WriteItem(folder, template, name) is not { } path)
+            return null;
+        ShowInExplorer(path);
+        OpenDocument(path);
+        return path;
+    }
+
+    /// <summary>A new item's file from a template; null, with the reason in the status bar, when it cannot be written.</summary>
+    string? WriteItem(string folder, ItemTemplate template, string name)
     {
         var fileName = ItemTemplates.FileName(template, name);
         if (ItemTemplates.Validate(folder, fileName) is { } error)
@@ -66,8 +81,6 @@ public partial class MainViewModel
             SetStatus(ex.Message);
             return null;
         }
-        ShowInExplorer(path);
-        OpenDocument(path);
         return path;
     }
 
@@ -93,9 +106,11 @@ public partial class MainViewModel
         return created;
     }
 
-    /// <summary>Add > Existing Item... (Shift+Alt+A): copies the chosen files into the folder.</summary>
+    /// <summary>Add > Existing Item... (Shift+Alt+A): copies the chosen files into the folder; the solution lists them where they are.</summary>
     public async Task<IReadOnlyList<string>> AddExistingItemsAsync(ExplorerNode? node)
     {
+        if (node is { Kind: NodeKind.Solution or NodeKind.SolutionFolder } && HasSolutionFile)
+            return await AddExistingSolutionItemsAsync(node);
         if (Dialogs is null || FolderOf(node ?? ExplorerTarget()) is not { } folder)
             return [];
         var added = new List<string>();
@@ -122,10 +137,11 @@ public partial class MainViewModel
         return added;
     }
 
-    /// <summary>Starts renaming a file or folder in place (F2).</summary>
+    /// <summary>Starts renaming in place (F2): a file or folder, and in a solution file the solution, a solution folder or a project.</summary>
     public void BeginRename(ExplorerNode? node)
     {
-        if (node is { Kind: NodeKind.File or NodeKind.Folder, Path: not null })
+        if (node is { Kind: NodeKind.File or NodeKind.Folder, Path: not null }
+            || node is { Kind: NodeKind.Solution or NodeKind.SolutionFolder or NodeKind.Project } && HasSolutionFile)
             ExplorerRenameRequested?.Invoke(node);
     }
 
@@ -136,6 +152,12 @@ public partial class MainViewModel
     public bool Rename(ExplorerNode node, string newName)
     {
         newName = newName.Trim();
+        // What the solution file lists is renamed there too.
+        if (node.Kind is NodeKind.Solution or NodeKind.SolutionFolder or NodeKind.Project || node.IsSolutionItem)
+        {
+            _ = RenameInSolutionAsync(node, newName);
+            return true;
+        }
         if (node.Path is not { } path || node.Kind is not (NodeKind.File or NodeKind.Folder) || newName == node.Name)
             return false;
         var directory = Path.GetDirectoryName(path)!;
@@ -147,7 +169,15 @@ public partial class MainViewModel
         var moves = new List<(string From, string To)> { (path, Path.Combine(directory, newName)) };
         foreach (var nested in node.Children.Where(c => c.Kind == NodeKind.File && c.Path is not null && c.Name.StartsWith(node.Name, StringComparison.Ordinal)))
             moves.Add((nested.Path!, Path.Combine(directory, newName + nested.Name[node.Name.Length..])));
+        if (!MovePaths(moves))
+            return false;
+        ShowInExplorer(moves[0].To);
+        return true;
+    }
 
+    /// <summary>Moves files and folders on disk; the open documents at or under them move along, keeping unsaved edits.</summary>
+    bool MovePaths(IReadOnlyList<(string From, string To)> moves)
+    {
         // Open documents at or under the moved paths, reopened at the new place afterwards.
         string? MovedTo(string file)
         {
@@ -196,12 +226,14 @@ public partial class MainViewModel
         }
         if (ActiveDocument is null && Documents.Count > 0)
             ActiveDocument = Documents[0];
-        ShowInExplorer(moves[0].To);
         SaveSession();
         return true;
     }
 
-    /// <summary>Delete (Del): to the trash when the desktop has one (VS uses the Recycle Bin), after confirming.</summary>
+    /// <summary>
+    /// Delete (Del): to the trash when the desktop has one (VS uses the Recycle Bin), after confirming. A solution item
+    /// leaves the solution too.
+    /// </summary>
     public async Task<bool> DeleteAsync(ExplorerNode? node)
     {
         if (Dialogs is null || node is not { Kind: NodeKind.File or NodeKind.Folder, Path: { } path })
@@ -236,6 +268,8 @@ public partial class MainViewModel
             }
         }
         ReloadExplorerFolders(paths);
+        if (node.IsSolutionItem && await EditSolutionAsync(solution => SolutionEditor.RemoveFileAsync(solution, node.SolutionFolder!, path)))
+            await ReloadSolutionAsync();
         SaveSession();
         return true;
     }

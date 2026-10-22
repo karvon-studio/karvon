@@ -32,6 +32,15 @@ public interface IMcpHost
 
     void AskClaude(string prompt);
 
+    /// <summary>A server's sign-in page, in the browser.</summary>
+    void OpenUrl(string url);
+
+    /// <summary>Claude Code signs in to one of its servers (the apps a server lets in may be Claude Code and not VSL).</summary>
+    Task<string> SignInWithClaudeAsync(string name);
+
+    /// <summary>Where the servers' sign-in tokens are kept; null for this session only.</summary>
+    Bengine.Introspection.Servers.ICredentialStore? Keyring { get; }
+
     /// <summary>A line in the status bar ("Saved in ...").</summary>
     void Status(string text);
 }
@@ -94,7 +103,7 @@ public sealed partial class McpServerNode : McpTreeNode
     public McpServerNode(McpExplorerViewModel explorer, McpServerDefinition definition, string? workingDirectory)
     {
         _explorer = explorer;
-        Connection = new McpConnection(definition, workingDirectory);
+        Connection = new McpConnection(definition, workingDirectory, explorer.SignIn);
         Definition = definition;
         Connection.Changed += () => Dispatcher.UIThread.Post(Update);
         Update();
@@ -131,6 +140,16 @@ public sealed partial class McpServerNode : McpTreeNode
 
     public bool HasFailed => Connection.Status is McpStatus.Failed or McpStatus.NeedsSignIn;
 
+    public bool NeedsSignIn => Connection.Status == McpStatus.NeedsSignIn;
+
+    /// <summary>A URL: it can be signed in to (again) from the tree.</summary>
+    public bool CanSignIn => Connection.CanSignIn && !Connection.IsSigningIn;
+
+    public bool IsSignedIn => Connection.IsSignedIn;
+
+    /// <summary>One of Claude Code's own servers, at a URL: Claude Code can sign in to it (when VSL may not).</summary>
+    public bool CanSignInWithClaude => McpConfigs.ClaudeReadsItself(Definition.Origin) && Definition.IsHttp && HasFailed;
+
     /// <summary>Its tools, resources and prompts once connected; before, a row that says how it is (and lets it expand).</summary>
     public ObservableCollection<McpTreeNode> Children { get; } = [];
 
@@ -148,6 +167,10 @@ public sealed partial class McpServerNode : McpTreeNode
         OnPropertyChanged(nameof(DotKind));
         OnPropertyChanged(nameof(IsConnected));
         OnPropertyChanged(nameof(HasFailed));
+        OnPropertyChanged(nameof(NeedsSignIn));
+        OnPropertyChanged(nameof(CanSignIn));
+        OnPropertyChanged(nameof(IsSignedIn));
+        OnPropertyChanged(nameof(CanSignInWithClaude));
         OnPropertyChanged(nameof(ToolTip));
         var rows = new List<McpTreeNode>();
         if (Connection.IsConnected)
@@ -172,6 +195,15 @@ public sealed partial class McpServerNode : McpTreeNode
 
     [RelayCommand]
     Task Disconnect() => Connection.DisconnectAsync();
+
+    [RelayCommand]
+    Task SignIn() => Connection.SignInAsync();
+
+    [RelayCommand]
+    Task SignOut() => Connection.SignOutAsync();
+
+    [RelayCommand]
+    async Task SignInWithClaude() => _explorer.Host.Status(await _explorer.Host.SignInWithClaudeAsync(Name));
 
     [RelayCommand]
     Task Edit() => _explorer.EditAsync(this);
@@ -285,11 +317,15 @@ public sealed partial class McpExplorerViewModel : ObservableObject, IDisposable
     public McpExplorerViewModel(IMcpHost host)
     {
         Host = host;
+        SignIn = new McpSignIn(uri => host.OpenUrl(uri.ToString()), host.Keyring);
         Configs = new McpConfigs(host.ConfigDirectory, host.Workspace, host.ClaudeFile);
         Refresh();
     }
 
     internal IMcpHost Host { get; }
+
+    /// <summary>The browser and the keyring the servers sign in with.</summary>
+    internal McpSignIn SignIn { get; }
 
     internal McpConfigs Configs { get; private set; }
 

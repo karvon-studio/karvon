@@ -44,6 +44,27 @@ sealed class TestMcpHost(string? workspace) : IMcpHost
 
     public void AskClaude(string prompt) => Prompts.Add(prompt);
 
+    public List<string> Urls { get; } = [];
+
+    /// <summary>The browser: what a test does with a sign-in page (by default nothing).</summary>
+    public Action<string>? Browser { get; set; }
+
+    public void OpenUrl(string url)
+    {
+        Urls.Add(url);
+        Browser?.Invoke(url);
+    }
+
+    public Bengine.Introspection.Servers.ICredentialStore? Keyring { get; set; }
+
+    public List<string> ClaudeSignIns { get; } = [];
+
+    public Task<string> SignInWithClaudeAsync(string name)
+    {
+        ClaudeSignIns.Add(name);
+        return Task.FromResult($"Finish signing in to {name} in your browser.");
+    }
+
     public void Status(string text) => Statuses.Add(text);
 }
 
@@ -273,6 +294,190 @@ public class McpTests
 
         using var none = JsonDocument.Parse("""{ "type": "object" }""");
         Assert.True(McpForm.ForTool(none.RootElement).IsEmpty);
+    }
+
+    /// <summary>A keyring of the test's own.</summary>
+    sealed class TestKeyring : Bengine.Introspection.Servers.ICredentialStore
+    {
+        public Dictionary<string, string> Secrets { get; } = [];
+
+        public string Name => "test keyring";
+
+        public string? Get(string key) => Secrets.GetValueOrDefault(key);
+
+        public bool Set(string key, string label, string secret)
+        {
+            Secrets[key] = secret;
+            return true;
+        }
+
+        public void Delete(string key) => Secrets.Remove(key);
+    }
+
+    /// <summary>The browser: the sign-in page signs in at once and redirects back to VSL's listener, which says so.</summary>
+    static void Browse(string url, List<string> pages) => _ = Task.Run(async () =>
+    {
+        using var http = new HttpClient(new HttpClientHandler { AllowAutoRedirect = false });
+        var signIn = await http.GetAsync(url);
+        Assert.Equal(System.Net.HttpStatusCode.Redirect, signIn.StatusCode);
+        var back = await http.GetStringAsync(signIn.Headers.Location!);
+        lock (pages)
+            pages.Add(back);
+    });
+
+    /// <summary>The fake OAuth server (oauth_server.py) with its options: its process, its port, what it was asked.</summary>
+    static async Task<(System.Diagnostics.Process Process, int Port, List<string> Said)> OAuthServerAsync(params string[] options)
+    {
+        var process = System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("python3", ["-I", Path.Combine(AppContext.BaseDirectory, "TestAssets", "FakeMcp", "oauth_server.py"), .. options])
+        {
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+        })!;
+        var said = new List<string>();
+        process.ErrorDataReceived += (_, e) =>
+        {
+            lock (said)
+                said.Add(e.Data ?? "");
+        };
+        process.BeginErrorReadLine();
+        return (process, int.Parse((await process.StandardOutput.ReadLineAsync())!, System.Globalization.CultureInfo.InvariantCulture), said);
+    }
+
+    static int FreePort()
+    {
+        var probe = new System.Net.Sockets.TcpListener(System.Net.IPAddress.Loopback, 0);
+        probe.Start();
+        var port = ((System.Net.IPEndPoint)probe.LocalEndpoint).Port;
+        probe.Stop();
+        return port;
+    }
+
+    [AvaloniaFact]
+    public async Task Sign_in_uses_the_client_a_server_gave_out_and_its_issuer_as_its_metadata_writes_it()
+    {
+        Home();
+        var (oauth, port, said) = await OAuthServerAsync("--client", "given-client", "--issuer-slash");
+        McpExplorerViewModel? vm = null;
+        try
+        {
+            // As Claude Code's settings keep it: the client the server gave out, on its port.
+            var callback = FreePort();
+            var workspace = Folder("vsl-mcp-ws");
+            Write(Path.Combine(workspace, ".mcp.json"), JsonSerializer.Serialize(new
+            {
+                mcpServers = new { given = new { type = "http", url = $"http://127.0.0.1:{port}/mcp", oauth = new { clientId = "given-client", callbackPort = callback } } },
+            }));
+            var pages = new List<string>();
+            var host = new TestMcpHost(workspace) { Keyring = new TestKeyring() };
+            host.Browser = page => Browse(page, pages);
+            vm = new McpExplorerViewModel(host);
+            var given = vm.Find("given")!;
+            Assert.Equal(("given-client", callback), (given.Definition.OAuthClientId, given.Definition.OAuthCallbackPort));
+            await given.SignInCommand.ExecuteAsync(null);
+            Assert.True(given.IsConnected, given.StatusText + "\n" + string.Join("\n", said));
+            // No client was registered; the redirect is the client's own.
+            Assert.DoesNotContain(said, l => l.Contains("/register", StringComparison.Ordinal));
+            Assert.Equal($"http://localhost:{callback}/callback", System.Web.HttpUtility.ParseQueryString(new Uri(Assert.Single(host.Urls)).Query)["redirect_uri"]);
+        }
+        finally
+        {
+            vm?.Dispose();
+            oauth.Kill();
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task A_server_that_lets_in_only_the_apps_it_knows_is_signed_in_with_claude_code()
+    {
+        Home();
+        var (oauth, port, _) = await OAuthServerAsync("--client", "someone-else");
+        McpExplorerViewModel? vm = null;
+        try
+        {
+            var workspace = Folder("vsl-mcp-ws");
+            Write(Path.Combine(workspace, ".mcp.json"), JsonSerializer.Serialize(new { mcpServers = new { known = new { type = "http", url = $"http://127.0.0.1:{port}/mcp" } } }));
+            var host = new TestMcpHost(workspace) { Keyring = new TestKeyring() };
+            vm = new McpExplorerViewModel(host);
+            var known = vm.Find("known")!;
+            await known.SignInCommand.ExecuteAsync(null);
+            Assert.Equal("failed: it does not let VSL register to sign in: it lets in only the apps it knows (Claude Code may be one: Sign in with Claude Code), "
+                + "or the client it gave you (oauth.clientId in Claude Code's settings).", known.StatusText);
+            Assert.Empty(host.Urls);
+            Assert.True(known.CanSignInWithClaude);
+            await known.SignInWithClaudeCommand.ExecuteAsync(null);
+            Assert.Equal(["known"], host.ClaudeSignIns);
+            Assert.Equal("Finish signing in to known in your browser.", host.Statuses[^1]);
+        }
+        finally
+        {
+            vm?.Dispose();
+            oauth.Kill();
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task A_server_that_wants_a_sign_in_signs_in_in_the_browser_and_keeps_the_tokens()
+    {
+        Home();
+        var (oauth, port, said) = await OAuthServerAsync();
+        var vms = new List<McpExplorerViewModel>();
+        try
+        {
+            var url = $"http://127.0.0.1:{port}/mcp";
+            var workspace = Folder("vsl-mcp-ws");
+            Write(Path.Combine(workspace, ".mcp.json"), JsonSerializer.Serialize(new { mcpServers = new { signed = new { type = "http", url } } }));
+            var keyring = new TestKeyring();
+            var pages = new List<string>();
+            var host = new TestMcpHost(workspace) { Keyring = keyring };
+            host.Browser = page => Browse(page, pages);
+            McpExplorerViewModel Explorer()
+            {
+                var vm = new McpExplorerViewModel(host);
+                vms.Add(vm);
+                return vm;
+            }
+
+            // Expanded, it says it wants a sign-in; no browser opens by itself.
+            var vm = Explorer();
+            var signed = vm.Find("signed")!;
+            signed.IsExpanded = true;
+            await WaitUntil(() => signed.HasFailed, TimeSpan.FromSeconds(30));
+            Assert.Equal("needs sign-in", signed.StatusText);
+            Assert.True(signed.NeedsSignIn && signed.CanSignIn && !signed.IsSignedIn);
+            Assert.Empty(host.Urls);
+
+            // Sign in: the browser at the server's sign-in page, back to VSL, connected; the tokens in the keyring.
+            var signingIn = signed.SignInCommand.ExecuteAsync(null);
+            await WaitUntil(() => signed.IsConnected || signingIn.IsCompleted, TimeSpan.FromSeconds(30));
+            await signingIn;
+            Assert.True(signed.IsConnected, signed.StatusText + "\n" + signed.Connection.LogText + "\n" + string.Join("\n", said) + "\nbrowser: " + string.Join(", ", host.Urls));
+            Assert.Equal(["whoami"], signed.Children.OfType<McpItemNode>().Select(c => c.Name));
+            Assert.StartsWith($"http://127.0.0.1:{port}/authorize?", Assert.Single(host.Urls));
+            Assert.Contains("Signed in to signed. You can close this tab and go back to VSL.", Assert.Single(pages));
+            var stored = keyring.Secrets[$"vsl-mcp/oauth:{url}"];
+            Assert.Contains("at-", stored);
+            Assert.True(signed.IsSignedIn);
+
+            // VSL again: the kept tokens connect without a sign-in.
+            vm.Dispose();
+            var again = Explorer().Find("signed")!;
+            again.IsExpanded = true;
+            await WaitUntil(() => again.IsConnected || again.HasFailed, TimeSpan.FromSeconds(30));
+            Assert.True(again.IsConnected, again.StatusText);
+            Assert.Single(host.Urls);
+
+            // Signed out: the tokens go, and it wants a sign-in again.
+            await again.SignOutCommand.ExecuteAsync(null);
+            Assert.Empty(keyring.Secrets);
+            await again.ConnectAgainCommand.ExecuteAsync(null);
+            Assert.Equal("needs sign-in", again.StatusText);
+        }
+        finally
+        {
+            foreach (var vm in vms)
+                vm.Dispose();
+            oauth.Kill();
+        }
     }
 
     // A page's log is the UI thread's: on it, as in VSL.

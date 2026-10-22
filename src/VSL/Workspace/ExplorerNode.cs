@@ -40,6 +40,15 @@ public partial class ExplorerNode : ObservableObject
     public string? Path { get; }
     public string? Detail { get; init; }
     public ProjectInfo? Project { get; init; }
+
+    /// <summary>
+    /// The solution folder this node is or is in, by its path in the solution ("/Solution Items/", "/src/libs/"): a
+    /// solution folder's own, a project's or a solution item's parent. Null for everything else.
+    /// </summary>
+    public string? SolutionFolder { get; init; }
+
+    /// <summary>A file listed in the solution (in a solution folder) rather than found in a project's folder.</summary>
+    public bool IsSolutionItem => Kind == NodeKind.File && SolutionFolder is not null;
     public ObservableCollection<ExplorerNode> Children { get; } = [];
 
     public string DisplayName => Detail is null ? Name : $"{Name} {Detail}";

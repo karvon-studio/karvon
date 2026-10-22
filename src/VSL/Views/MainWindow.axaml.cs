@@ -40,6 +40,7 @@ public partial class MainWindow : Window, IDialogService
                 AttachDocumentWell(vm);
                 AttachDatabaseExplorer(vm);
                 vm.ToolWindowRequested += OnToolWindowRequested;
+                vm.ToolWindowBesideRequested += OnToolWindowBesideRequested;
                 ApplySavedDockLayout(vm);
                 vm.BreakModeEntered += () =>
                 {
@@ -103,6 +104,7 @@ public partial class MainWindow : Window, IDialogService
             vm.ShutdownDocker();
             vm.ShutdownServers();
             vm.ShutdownMcp();
+            vm.ShutdownSkills();
             _closingConfirmed = true;
             Close();
         }
@@ -312,6 +314,54 @@ public partial class MainWindow : Window, IDialogService
         return files.Select(f => f.TryGetLocalPath()).OfType<string>().ToList();
     }
 
+    public async Task<IReadOnlyList<string>> PickProjectsAsync()
+    {
+        var files = await StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
+        {
+            Title = "Add Existing Project",
+            AllowMultiple = true,
+            FileTypeFilter =
+            [
+                new FilePickerFileType("Project Files") { Patterns = ["*.csproj", "*.fsproj", "*.vbproj"] },
+                new FilePickerFileType("All files") { Patterns = ["*"] },
+            ],
+        });
+        return files.Select(f => f.TryGetLocalPath()).OfType<string>().ToList();
+    }
+
+    /// <summary>Add > New Project: the new project wizard, adding to <paramref name="solution"/> (templates, name and location, options).</summary>
+    public async Task<IReadOnlyList<string>> CreateProjectAsync(string solution)
+    {
+        if (Vm is not { } vm)
+            return [];
+        var startVm = new StartViewModel(vm.Settings, addToSolution: solution);
+        var start = new StartWindow { DataContext = startVm, Title = "Add a new project" };
+        startVm.ShowNewProjectCommand.Execute(null);
+        return await start.ShowDialog<string?>(this) is null ? [] : startVm.CreatedProjects;
+    }
+
+    /// <summary>Add > Project Reference: VS's Reference Manager, the solution's projects with those referenced checked.</summary>
+    public async Task<IReadOnlyList<string>?> ChooseProjectReferencesAsync(string project, IReadOnlyList<ProjectReferenceChoice> projects)
+    {
+        var boxes = projects.Select(p => new CheckBox { Content = p.Name, IsChecked = p.IsReferenced, Tag = p.Path, [ToolTip.TipProperty] = p.Path }).ToList();
+        var list = new StackPanel { Spacing = 2 };
+        foreach (var box in boxes)
+            list.Children.Add(box);
+        Control body = projects.Count == 0
+            ? new TextBlock { Text = "The solution has no other project to reference.", MaxWidth = 420, TextWrapping = TextWrapping.Wrap }
+            : new StackPanel
+            {
+                Spacing = 8,
+                Children =
+                {
+                    new TextBlock { Text = "Projects", FontWeight = FontWeight.SemiBold },
+                    new ScrollViewer { Content = list, MaxHeight = 360, MinWidth = 380 },
+                },
+            };
+        var dialog = CreateDialog($"Reference Manager - {project}", body, ("OK", true), ("Cancel", false));
+        return await dialog.ShowDialog<bool?>(this) == true ? boxes.Where(b => b.IsChecked == true).Select(b => (string)b.Tag!).ToList() : null;
+    }
+
     public Task<bool?> ConfirmAsync(string title, string message)
     {
         var dialog = CreateDialog(title, new TextBlock { Text = message, TextWrapping = TextWrapping.Wrap, MaxWidth = 420 },
@@ -501,44 +551,100 @@ public partial class MainWindow : Window, IDialogService
             _ => null,
         };
         var items = new List<object>();
-        MenuItem AddMenu()
+        var inSolution = vm.HasSolutionFile;
+        MenuItem Menu(string header, IEnumerable<object> children, bool enabled = true)
         {
-            var add = new MenuItem { Header = "Add" };
-            add.Items.Add(Item("New Item...", () => _ = vm.AddNewItemAsync(node), "Ctrl+Shift+A"));
-            add.Items.Add(Item("Existing Item...", () => _ = vm.AddExistingItemsAsync(node), "Shift+Alt+A"));
-            add.Items.Add(Item("New Folder", () => vm.AddNewFolder(node)));
-            add.Items.Add(new Separator());
-            add.Items.Add(Item("Class...", () => _ = vm.AddNewItemAsync(node, ItemTemplates.Class)));
-            add.Items.Add(Item("Razor Component...", () => _ = vm.AddNewItemAsync(node, ItemTemplates.RazorComponent)));
-            return add;
+            var menu = new MenuItem { Header = header, IsEnabled = enabled };
+            foreach (var child in children)
+                menu.Items.Add(child);
+            return menu;
         }
+        // Add on a project or a folder: files into its folder (and on a project, its project references).
+        MenuItem AddMenu(ProjectInfo? project) => Menu("Add",
+        [
+            Item("New Item...", () => _ = vm.AddNewItemAsync(node), "Ctrl+Shift+A"),
+            Item("Existing Item...", () => _ = vm.AddExistingItemsAsync(node), "Shift+Alt+A"),
+            Item("New Folder", () => vm.AddNewFolder(node)),
+            Item("New EditorConfig", () => _ = vm.AddEditorConfigAsync(node)),
+            new Separator(),
+            .. project is null ? Array.Empty<object>() : [Item("Project Reference...", () => _ = vm.EditProjectReferencesAsync(project)), new Separator()],
+            Item("Class...", () => _ = vm.AddNewItemAsync(node, ItemTemplates.Class)),
+            Item("Razor Component...", () => _ = vm.AddNewItemAsync(node, ItemTemplates.RazorComponent)),
+        ]);
+        // Add on the solution or a solution folder: projects, solution items, solution folders.
+        MenuItem SolutionAddMenu() => Menu("Add",
+        [
+            Item("New Project...", () => _ = vm.AddNewProjectAsync(node), enabled: inSolution),
+            Item("Existing Project...", () => _ = vm.AddExistingProjectsAsync(node), enabled: inSolution),
+            new Separator(),
+            Item("New Item...", () => _ = vm.AddNewItemAsync(node), "Ctrl+Shift+A", enabled: inSolution),
+            Item("Existing Item...", () => _ = vm.AddExistingItemsAsync(node), "Shift+Alt+A", enabled: inSolution),
+            Item("New Solution Folder", () => _ = vm.AddSolutionFolderAsync(node), enabled: inSolution),
+        ]);
+        var owner = node.Kind is NodeKind.Dependencies or NodeKind.DependencyGroup or NodeKind.Package or NodeKind.ProjectReference or NodeKind.Framework
+            && vm.ExplorerRoots.FirstOrDefault() is { } root ? OwnerOf(root, node) : null;
         switch (node.Kind)
         {
             case NodeKind.Solution:
-                items.Add(Item("Build Solution", () => vm.BuildSolutionCommand.Execute(null)));
+                items.Add(Item("Build Solution", () => vm.BuildSolutionCommand.Execute(null), "Ctrl+Shift+B"));
                 items.Add(Item("Rebuild Solution", () => vm.RebuildSolutionCommand.Execute(null)));
                 items.Add(Item("Clean Solution", () => vm.CleanSolutionCommand.Execute(null)));
+                items.Add(Item("Run Tests", () => vm.RunAllTestsCommand.Execute(null), enabled: vm.RunAllTestsCommand.CanExecute(null)));
                 items.Add(new Separator());
                 items.Add(Item("Manage NuGet Packages for Solution...", () => vm.ManageNuGetPackagesCommand.Execute(null)));
+                items.Add(Item("Restore NuGet Packages", () => _ = vm.RestorePackagesAsync()));
+                items.Add(new Separator());
+                items.Add(SolutionAddMenu());
+                items.Add(Menu("Set Startup Project", vm.StartupProjects.Select(p =>
+                    (object)Item((p == vm.StartupProject ? "✓ " : "   ") + p.Name, () => vm.SetStartupProjectCommand.Execute(p))).ToList(), vm.StartupProjects.Count > 0));
+                items.Add(new Separator());
+                if (!vm.HasGit)
+                    items.Add(Item("Create Git Repository", () => _ = vm.CreateGitRepositoryAsync()));
+                items.Add(Item("Edit Solution File", () => vm.OpenDocument(path!), enabled: inSolution));
+                items.Add(Item("Rename", () => vm.BeginRename(node), "F2", enabled: inSolution));
+                break;
+            case NodeKind.SolutionFolder:
+                items.Add(SolutionAddMenu());
+                items.Add(new Separator());
+                items.Add(Item("Rename", () => vm.BeginRename(node), "F2", enabled: inSolution));
+                items.Add(Item("Remove", () => _ = vm.RemoveFromSolutionAsync(node), "Delete", enabled: inSolution));
                 break;
             case NodeKind.Project when node.Project is { } project:
                 items.Add(Item("Build", () => vm.BuildProjectCommand.Execute(project)));
                 items.Add(Item("Rebuild", () => vm.RebuildProjectCommand.Execute(project)));
                 items.Add(Item("Clean", () => vm.CleanProjectCommand.Execute(project)));
+                if (project.IsTestProject)
+                    items.Add(Item("Run Tests", () => vm.RunProjectTestsCommand.Execute(project), enabled: vm.RunProjectTestsCommand.CanExecute(project)));
+                items.Add(Item("Pack", () => vm.PackProjectCommand.Execute(project)));
+                items.Add(Item("Publish to Folder", () => vm.PublishProjectCommand.Execute(project)));
                 items.Add(new Separator());
-                items.Add(AddMenu());
+                items.Add(AddMenu(project));
                 items.Add(Item("Manage NuGet Packages...", () => vm.ManageNuGetPackagesCommand.Execute(project)));
+                if (project.IsRunnable)
+                    items.Add(Item("Manage User Secrets", () => _ = vm.ManageUserSecretsAsync(project)));
                 items.Add(Item("Set as Startup Project", () => vm.SetStartupProjectCommand.Execute(project), enabled: project.IsRunnable));
                 items.Add(new Separator());
                 items.Add(Item("Edit Project File", () => vm.EditProjectFile(project)));
+                items.Add(Item("Rename", () => vm.BeginRename(node), "F2", enabled: inSolution));
+                items.Add(Item("Remove", () => _ = vm.RemoveFromSolutionAsync(node), "Delete", enabled: inSolution));
                 break;
-            case NodeKind.Dependencies or NodeKind.DependencyGroup or NodeKind.Package:
-                var owner = vm.Solution?.Projects.FirstOrDefault(p => vm.ExplorerRoots.FirstOrDefault()?.Children
-                    .Any(c => c.Project == p && Contains(c, node)) == true);
+            case NodeKind.Dependencies or NodeKind.DependencyGroup:
+                if (node.Kind == NodeKind.Dependencies || node.Name == "Projects")
+                    items.Add(Item("Add Project Reference...", () => _ = vm.EditProjectReferencesAsync(owner), enabled: owner is not null));
                 items.Add(Item("Manage NuGet Packages...", () => vm.ManageNuGetPackagesCommand.Execute(owner), enabled: owner is not null));
                 break;
+            case NodeKind.Package:
+                items.Add(Item("Manage NuGet Packages...", () => vm.ManageNuGetPackagesCommand.Execute(owner), enabled: owner is not null));
+                items.Add(new Separator());
+                items.Add(Item("Remove", () => _ = vm.RemovePackageAsync(owner!, node.Name), enabled: owner is not null));
+                break;
+            case NodeKind.ProjectReference when path is not null:
+                items.Add(Item("Open Project File", () => vm.OpenDocument(path)));
+                items.Add(new Separator());
+                items.Add(Item("Remove", () => _ = vm.RemoveProjectReferenceAsync(owner!, path), enabled: owner is not null));
+                break;
             case NodeKind.Folder when path is not null:
-                items.Add(AddMenu());
+                items.Add(AddMenu(null));
                 items.Add(new Separator());
                 items.Add(Item("Rename", () => vm.BeginRename(node), "F2"));
                 items.Add(Item("Delete", () => _ = vm.DeleteAsync(node), "Delete"));
@@ -552,7 +658,14 @@ public partial class MainWindow : Window, IDialogService
                 }, enabled: vm.HasGit));
                 items.Add(new Separator());
                 items.Add(Item("Rename", () => vm.BeginRename(node), "F2"));
-                items.Add(Item("Delete", () => _ = vm.DeleteAsync(node), "Delete"));
+                if (node.IsSolutionItem)
+                {
+                    // In the solution, not in a project: Remove takes it out of the solution, Delete off the disk too.
+                    items.Add(Item("Remove", () => _ = vm.RemoveFromSolutionAsync(node), "Delete", enabled: inSolution));
+                    items.Add(Item("Delete", () => _ = vm.DeleteAsync(node)));
+                }
+                else
+                    items.Add(Item("Delete", () => _ = vm.DeleteAsync(node), "Delete"));
                 break;
         }
         if (folder is not null)
@@ -565,11 +678,11 @@ public partial class MainWindow : Window, IDialogService
         }
         if (path is not null)
             items.Add(Item("Copy Full Path", () => _ = Clipboard?.SetTextAsync(path)));
-        // Ask Claude: the file, folder or project (its folder) as an @mention in the prompt, as in the VS extension.
+        // Ask Claude: the file, folder, project or solution (its folder) as an @mention in the prompt, as in the VS extension.
         var mention = node.Kind switch
         {
             NodeKind.File or NodeKind.Folder => path,
-            NodeKind.Project => folder,
+            NodeKind.Project or NodeKind.Solution => folder,
             _ => null,
         };
         if (mention is not null)
@@ -583,12 +696,26 @@ public partial class MainWindow : Window, IDialogService
 
         static bool Contains(ExplorerNode parent, ExplorerNode target) =>
             parent.Children.Any(c => c == target || Contains(c, target));
+
+        // The project a dependency is under, in a solution folder or not.
+        static ProjectInfo? OwnerOf(ExplorerNode at, ExplorerNode target)
+        {
+            foreach (var child in at.Children)
+            {
+                if (child.Kind == NodeKind.Project && Contains(child, target))
+                    return child.Project;
+                if (child.Kind == NodeKind.SolutionFolder && OwnerOf(child, target) is { } found)
+                    return found;
+            }
+            return null;
+        }
     }
 
     /// <summary>Renames a node in place, as VS does: a text box over its name with the base name selected.</summary>
     void BeginExplorerRename(ExplorerNode node)
     {
-        node.EditName = node.Name;
+        // The solution's row says "Solution 'Name'"; its name is the file's.
+        node.EditName = node.Kind == NodeKind.Solution && node.Path is { } solution ? Path.GetFileNameWithoutExtension(solution) : node.Name;
         node.IsRenaming = true;
         SelectExplorerNode(node);
         Dispatcher.UIThread.Post(() =>
@@ -658,7 +785,8 @@ public partial class MainWindow : Window, IDialogService
         }
         if (e.Key == Key.Delete && e.KeyModifiers == KeyModifiers.None && ExplorerTree.SelectedItem is ExplorerNode deleted && Vm is { } deleteVm)
         {
-            _ = deleteVm.DeleteAsync(deleted);
+            // A project, a solution folder or a solution item leaves the solution (VS's Remove); files and folders go to the trash.
+            _ = MainViewModel.IsInSolution(deleted) ? deleteVm.RemoveFromSolutionAsync(deleted) : deleteVm.DeleteAsync(deleted);
             e.Handled = true;
             return;
         }

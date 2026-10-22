@@ -214,7 +214,7 @@
     <!-- ===== Create a new project ===== -->
     <Grid IsVisible="{Binding IsNewProject}" ColumnDefinitions="300,36,*">
       <DockPanel>
-        <TextBlock DockPanel.Dock="Top" Classes="pageTitle" Text="Create a new project" />
+        <TextBlock DockPanel.Dock="Top" Classes="pageTitle" Text="{Binding NewProjectTitle}" />
         <TextBlock DockPanel.Dock="Top" Classes="section" FontSize="15" Text="Recent project templates" />
         <TextBlock DockPanel.Dock="Top" Classes="gray" TextWrapping="Wrap" Margin="0,10,0,0" IsVisible="{Binding !RecentTemplates.Count}"
                    Text="A list of your recently accessed templates will be displayed here." />
@@ -313,9 +313,11 @@
           <Button Grid.Column="1" Classes="secondary" MinWidth="36" Padding="8,4" Margin="6,0,0,0" Content="..." ToolTip.Tip="Browse"
                   Command="{Binding BrowseLocationCommand}" />
         </Grid>
-        <TextBlock Classes="label" Text="Solution name" />
-        <TextBox Text="{Binding SolutionName}" IsEnabled="{Binding CanEditSolutionName}" />
-        <CheckBox IsChecked="{Binding SolutionInSameDirectory}" Content="Place solution and project in the same directory" Margin="0,12,0,0" />
+        <StackPanel IsVisible="{Binding IsCreatingSolution}">
+          <TextBlock Classes="label" Text="Solution name" />
+          <TextBox Text="{Binding SolutionName}" IsEnabled="{Binding CanEditSolutionName}" />
+          <CheckBox IsChecked="{Binding SolutionInSameDirectory}" Content="Place solution and project in the same directory" Margin="0,12,0,0" />
+        </StackPanel>
         <TextBlock Text="{Binding CreatedInText}" Classes="gray" TextWrapping="Wrap" Margin="0,16,0,0" />
         <TextBlock Text="{Binding ConfigureError}" Foreground="{StaticResource VsErrorBrush}" TextWrapping="Wrap" Margin="0,8,0,0"
                    IsVisible="{Binding ConfigureError, Converter={x:Static ObjectConverters.IsNotNull}}" />

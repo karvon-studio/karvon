@@ -853,6 +853,53 @@ public sealed partial class QueryDocumentViewModel : DocumentViewModel, IAsyncDi
 
     private void Log(string text, MessageKind kind) => Messages.Add(new MessageLine(DateTime.Now, text, kind));
 
+    /// <summary>
+    /// What a statement run elsewhere gave (by Claude, through VSL's tools), shown as if it ran here: the statement in the
+    /// editor, its result sets, and in the messages who ran it and what it did. It is not run again.
+    /// </summary>
+    public void ShowRun(string sql, IReadOnlyList<Bengine.Introspection.Model.QueryResult> results, string by)
+    {
+        QueryText = sql;
+        Log($"{by}: {OneLine(sql)}", MessageKind.Statement);
+        var fresh = new List<ResultSetViewModel>();
+        foreach (var result in results)
+        {
+            if (result.IsQuery)
+            {
+                fresh.Add(new ResultSetViewModel($"Result {++_resultCounter}", sql, result));
+                Log($"{result.Rows.Count:N0} row(s) retrieved{(result.Truncated ? " (limited)" : string.Empty)} in {result.ElapsedMilliseconds:N0} ms", MessageKind.Success);
+            }
+            else
+            {
+                Log(result.RowsAffected >= 0 ? $"{result.RowsAffected:N0} row(s) affected in {result.ElapsedMilliseconds:N0} ms" : $"Completed in {result.ElapsedMilliseconds:N0} ms",
+                    MessageKind.Success);
+            }
+        }
+        if (fresh.Count > 0)
+        {
+            var keep = Results.Where(r => r.IsPinned).ToList();
+            Results.Clear();
+            foreach (var result in keep.Concat(fresh))
+            {
+                Results.Add(result);
+            }
+        }
+        SelectedResult = fresh.Count > 0 ? fresh[^1] : Output;
+        Status = $"{by}: {results.Count} statement result(s)";
+    }
+
+    /// <summary>A plan explained elsewhere (by Claude), in this console's Plan tab.</summary>
+    public void ShowPlan(string sql, Bengine.Introspection.Plans.QueryPlan plan, string by)
+    {
+        QueryText = sql;
+        Log($"{by}: {(plan.Analyzed ? "EXPLAIN ANALYZE " : "EXPLAIN ")}{OneLine(sql)}", MessageKind.Statement);
+        Plan = new PlanResultViewModel(plan, sql);
+        RebuildTabs();
+        SelectedResult = Plan;
+        Status = Plan.Summary;
+        Log(Plan.Summary, MessageKind.Success);
+    }
+
     private static string OneLine(string sql)
     {
         var flat = string.Join(' ', sql.Split(['\r', '\n', '\t'], StringSplitOptions.RemoveEmptyEntries).Select(s => s.Trim())).Trim();

@@ -10,11 +10,18 @@ docker does when the daemon is not running.
 import json
 import os
 import random
+import select
 import sys
 import time
 
 STATE = os.environ.get("VSL_FAKE_DOCKER_STATE", "")
 ARGS = sys.argv[1:]
+PARENT = os.getppid()
+
+
+def orphaned():
+    """The VSL (or test) that started a follow is gone: so is the follow, as the real one's pipe would end."""
+    return os.getppid() != PARENT
 
 
 def load():
@@ -263,7 +270,7 @@ def stats(state, once):
                                          "BlockIO": "4.1MB / 0B", "PIDs": "7"}))
         sys.stdout.write("\x1b[H" + "\n".join(frame) + "\n")
         sys.stdout.flush()
-        if once:
+        if once or orphaned():
             return
         time.sleep(0.3)
 
@@ -275,6 +282,8 @@ def events():
         for e in state.get("events", [])[seen:]:
             out(json.dumps(e))
         seen = len(state.get("events", []))
+        if orphaned():
+            return
         time.sleep(0.05)
 
 
@@ -295,7 +304,7 @@ def logs(rest):
         sys.stdout.flush()
         sys.stderr.flush()
         printed = len(lines)
-        if not follow or c["state"] != "running":
+        if not follow or c["state"] != "running" or orphaned():
             return
         time.sleep(0.1)
 
@@ -393,6 +402,9 @@ def shell(state, rest):
     while True:
         sys.stdout.write("$ ")
         sys.stdout.flush()
+        while not select.select([sys.stdin], [], [], 0.5)[0]:
+            if orphaned():
+                return
         line = sys.stdin.readline()
         if not line or line.strip() == "exit":
             return

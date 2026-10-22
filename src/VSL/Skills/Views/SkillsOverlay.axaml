@@ -1,0 +1,66 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:v="using:VSL.Views"
+             xmlns:kvm="using:VSL.Skills.ViewModels"
+             xmlns:dvm="using:VSL.Docker.ViewModels"
+             x:Class="VSL.Skills.Views.SkillsOverlay"
+             x:DataType="kvm:SkillsExplorerViewModel">
+  <UserControl.Styles>
+    <StyleInclude Source="avares://VSL/Docker/Views/DockerStyles.axaml" />
+  </UserControl.Styles>
+
+  <!-- Over the window: the Skills explorer's dialogs and errors. Clicks pass through otherwise. -->
+  <Panel>
+    <Panel Name="DialogLayer" IsVisible="{Binding HasDialog}" Background="#99000000">
+      <ContentControl Content="{Binding Dialog}" HorizontalAlignment="Center" VerticalAlignment="Center">
+        <ContentControl.DataTemplates>
+          <DataTemplate DataType="dvm:InputDialog">
+            <Border Classes="dkCard" Width="440" Padding="22,18" Background="#2B2B2F">
+              <StackPanel Spacing="12">
+                <TextBlock Text="{Binding Title}" FontSize="16" FontWeight="SemiBold" />
+                <StackPanel Spacing="5">
+                  <TextBlock Text="{Binding Label}" Classes="dkMuted" />
+                  <TextBox Name="SkillNameBox" Classes="dkField" Text="{Binding Text}" PlaceholderText="{Binding Placeholder}" />
+                </StackPanel>
+                <StackPanel Spacing="5" IsVisible="{Binding HasChoices}">
+                  <TextBlock Text="Where" Classes="dkMuted" />
+                  <ComboBox ItemsSource="{Binding Choices}" SelectedItem="{Binding Choice}" HorizontalAlignment="Stretch" />
+                </StackPanel>
+                <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">
+                  <Button Classes="dkOutline" Command="{Binding CancelCommand}" Content="Cancel" IsCancel="True" />
+                  <Button Classes="dkPrimary" Command="{Binding ConfirmCommand}" Content="{Binding ConfirmText}" IsDefault="True" />
+                </StackPanel>
+              </StackPanel>
+            </Border>
+          </DataTemplate>
+          <DataTemplate DataType="dvm:ConfirmDialog">
+            <Border Classes="dkCard" Width="460" Padding="22,18" Background="#2B2B2F">
+              <StackPanel Spacing="14">
+                <TextBlock Text="{Binding Title}" FontSize="16" FontWeight="SemiBold" TextWrapping="Wrap" />
+                <TextBlock Text="{Binding Message}" TextWrapping="Wrap" Classes="dkMuted" />
+                <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">
+                  <Button Classes="dkOutline" Command="{Binding CancelCommand}" Content="Cancel" IsCancel="True" />
+                  <Button Classes="dkPrimary" Classes.dkDanger="{Binding IsDanger}" Command="{Binding ConfirmCommand}" Content="{Binding ConfirmText}" IsDefault="True" />
+                </StackPanel>
+              </StackPanel>
+            </Border>
+          </DataTemplate>
+        </ContentControl.DataTemplates>
+      </ContentControl>
+    </Panel>
+
+    <Border IsVisible="{Binding HasError}" HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="16" MaxWidth="480"
+            Background="#3D1C1E" BorderBrush="#7A2E32" BorderThickness="1" CornerRadius="6" BoxShadow="0 4 16 0 #80000000">
+      <Grid ColumnDefinitions="Auto,*,Auto" Margin="12,10,6,10">
+        <v:VsIcon Kind="Error" Width="16" Height="16" VerticalAlignment="Top" Margin="0,1,10,0" />
+        <StackPanel Grid.Column="1" Spacing="3">
+          <TextBlock Text="Skills" FontWeight="SemiBold" Foreground="#FFB4AE" />
+          <SelectableTextBlock Text="{Binding Error}" TextWrapping="Wrap" Foreground="#FFB4AE" />
+        </StackPanel>
+        <Button Grid.Column="2" Classes="dkIcon" Width="24" Height="24" VerticalAlignment="Top" Command="{Binding DismissErrorCommand}" ToolTip.Tip="Dismiss">
+          <v:VsIcon Kind="Close" Width="12" Height="12" />
+        </Button>
+      </Grid>
+    </Border>
+  </Panel>
+</UserControl>

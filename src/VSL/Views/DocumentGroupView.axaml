@@ -8,6 +8,8 @@
              xmlns:sv="using:VSL.Servers.Views"
              xmlns:mvm="using:VSL.Mcp.ViewModels"
              xmlns:mv="using:VSL.Mcp.Views"
+             xmlns:kvm="using:VSL.Skills.ViewModels"
+             xmlns:kv="using:VSL.Skills.Views"
              x:Class="VSL.Views.DocumentGroupView"
              x:DataType="vm:DocumentGroup">
   <UserControl.Styles>
@@ -69,6 +71,16 @@
                           ShowPreview="{Binding $parent[Window].((vm:MainViewModel)DataContext).MarkdownPreview}"
                           PreviewBelow="{Binding $parent[Window].((vm:MainViewModel)DataContext).MarkdownPreviewBelow}" />
           </DockPanel>
+        </Border>
+      </DataTemplate>
+      <DataTemplate DataType="kvm:SkillDocument" x:DataType="kvm:SkillDocument">
+        <Border Classes="docframe" BorderBrush="#007ACC" BorderThickness="0,2,0,0">
+          <kv:SkillPageView DataContext="{Binding Page}" />
+        </Border>
+      </DataTemplate>
+      <DataTemplate DataType="kvm:SkillsMarketplaceDocument" x:DataType="kvm:SkillsMarketplaceDocument">
+        <Border Classes="docframe" BorderBrush="#007ACC" BorderThickness="0,2,0,0">
+          <kv:SkillsMarketplaceView DataContext="{Binding Marketplace}" />
         </Border>
       </DataTemplate>
       <DataTemplate DataType="mvm:McpServerDocument" x:DataType="mvm:McpServerDocument">

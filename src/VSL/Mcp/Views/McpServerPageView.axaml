@@ -84,6 +84,19 @@
                     IsEnabled="{Binding CanSwitchForClaude}" ToolTip.Tip="{Binding ForClaudeTip}" />
         </StackPanel>
         <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6" VerticalAlignment="Top">
+          <Button Name="McpSignIn" Classes="dkPrimary" Command="{Binding SignInCommand}" IsVisible="{Binding Node.NeedsSignIn}">
+            <StackPanel Orientation="Horizontal" Spacing="6">
+              <v:VsIcon Kind="Globe" Width="13" Height="13" />
+              <TextBlock Text="Sign in" VerticalAlignment="Center" />
+            </StackPanel>
+          </Button>
+          <Button Classes="dkOutline" Command="{Binding Node.SignInWithClaudeCommand}" IsVisible="{Binding Node.CanSignInWithClaude}"
+                  ToolTip.Tip="Claude Code signs in to it with its own client (some servers let in only the apps they know)">
+            <StackPanel Orientation="Horizontal" Spacing="6">
+              <v:VsIcon Kind="Claude" Width="13" Height="13" />
+              <TextBlock Text="Sign in with Claude Code" VerticalAlignment="Center" />
+            </StackPanel>
+          </Button>
           <Button Classes="dkOutline" Command="{Binding AskClaudeCommand}" IsVisible="{Binding Node.HasFailed}">
             <StackPanel Orientation="Horizontal" Spacing="6">
               <v:VsIcon Kind="Claude" Width="13" Height="13" />

@@ -4,8 +4,8 @@ namespace VSL.Tests;
 
 /// <summary>
 /// Before any test runs: VSL's Docker Explorer and Claude's Docker tools find the fake engine, the Servers and the MCP
-/// Servers read homes of the tests' own (never the user's ~/.ssh or ~/.claude.json), and no secret goes to the user's
-/// keyring.
+/// Servers read homes of the tests' own (never the user's ~/.ssh or ~/.claude.json), no secret goes to the user's
+/// keyring, and packages come from nuget.org only.
 /// </summary>
 static class TestEnvironment
 {
@@ -27,6 +27,10 @@ static class TestEnvironment
             Directory.CreateDirectory(home);
             Environment.SetEnvironmentVariable("VSL_USER_HOME", home);
         }
+        // Every restore and build the tests start (MSBuild reads its properties from the environment) uses nuget.org only:
+        // a private feed of the machine's that cannot be reached would hold each restore until it gives up.
+        if (Environment.GetEnvironmentVariable("RestoreConfigFile") is null)
+            Environment.SetEnvironmentVariable("RestoreConfigFile", Path.Combine(AppContext.BaseDirectory, "TestAssets", "BlazorSample", "nuget.config"));
         Environment.SetEnvironmentVariable("BENGINE_KEYRING", "off");
     }
 }

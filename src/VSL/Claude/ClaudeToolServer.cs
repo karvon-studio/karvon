@@ -31,6 +31,9 @@ public sealed record ClaudeToolPlan(ToolAccess Access, string Title, string? Sub
 
 public sealed record ClaudeToolOutput(string Text, bool IsError = false)
 {
+    /// <summary>What the call produced for the host to show (a query's result sets, the matches of a search); never sent to Claude.</summary>
+    public object? Detail { get; init; }
+
     public static ClaudeToolOutput Error(string message) => new(message, true);
 }
 
@@ -64,6 +67,9 @@ public sealed class ClaudeToolServer(IReadOnlyList<IClaudeTool> tools, string in
     readonly ConcurrentDictionary<string, CancellationTokenSource> _running = new();
 
     public IReadOnlyList<IClaudeTool> Tools { get; } = tools;
+
+    /// <summary>A call ran (on the thread it ran on), with its input and what it gave: the host shows it where the user would have done it.</summary>
+    public event Action<IClaudeTool, JsonElement, ClaudeToolOutput>? Called;
 
     /// <summary>The <c>--mcp-config</c> value that adds the server beside the user's own.</summary>
     public static string McpConfig => new JsonObject { ["mcpServers"] = new JsonObject { [Name] = new JsonObject { ["type"] = "sdk", ["name"] = Name } } }.ToJsonString();
@@ -159,6 +165,7 @@ public sealed class ClaudeToolServer(IReadOnlyList<IClaudeTool> tools, string in
             {
                 _running.TryRemove(key, out _);
             }
+            Called?.Invoke(tool, input, result);
         }
         return new JsonObject
         {

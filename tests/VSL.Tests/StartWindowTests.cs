@@ -172,6 +172,46 @@ public class ProjectCreatorTests
     }
 
     [Fact]
+    public async Task Adds_a_project_to_an_open_solution()
+    {
+        SampleSolution.EnsureConfigIsolated();
+        var templates = await TemplateCatalog.LoadAsync(TestContext.Current.CancellationToken);
+        var sln = SolutionExplorerTests.CopySample();
+        var dir = Path.GetDirectoryName(sln)!;
+        var before = File.ReadAllText(sln);
+        var vm = new StartViewModel(new Settings(), loadTemplates: _ => Task.FromResult(templates), addToSolution: sln);
+        var cancelled = false;
+        vm.ContinueRequested += () => cancelled = true;
+
+        // VS's "Add a new project": the templates first, then a name and a folder in the solution's, no solution name.
+        vm.ShowNewProjectCommand.Execute(null);
+        await vm.EnsureTemplatesAsync();
+        Assert.Equal("Add a new project", vm.NewProjectTitle);
+        Assert.False(vm.IsCreatingSolution);
+        vm.SelectedTemplate = vm.Templates.First(t => t.Template.ShortName == "classlib" && t.Language == "C#");
+        vm.NextCommand.Execute(null);
+        Assert.Equal("ClassLibrary1", vm.ProjectName);
+        Assert.Equal(dir, vm.Location);
+        Assert.Null(vm.ConfigureError);
+        Assert.Equal($"Project will be created in \"{Path.Combine(dir, "ClassLibrary1")}{Path.DirectorySeparatorChar}\"", vm.CreatedInText);
+        vm.NextCommand.Execute(null);
+        await vm.CreateCommand.ExecuteAsync(null);
+
+        // Only the project: the solution adds it (Solution Explorer does).
+        Assert.Null(vm.Message);
+        Assert.Equal([Path.Combine(dir, "ClassLibrary1", "ClassLibrary1.csproj")], vm.CreatedProjects);
+        Assert.Empty(Directory.EnumerateFiles(Path.Combine(dir, "ClassLibrary1"), "*.sln*"));
+        Assert.Equal(before, File.ReadAllText(sln));
+
+        // Back from the templates is cancel.
+        var again = new StartViewModel(new Settings(), loadTemplates: _ => Task.FromResult(templates), addToSolution: sln);
+        again.ContinueRequested += () => cancelled = true;
+        again.ShowNewProjectCommand.Execute(null);
+        again.BackCommand.Execute(null);
+        Assert.True(cancelled);
+    }
+
+    [Fact]
     public async Task Multi_project_template_keeps_its_own_solution_in_the_same_directory()
     {
         var templates = await TemplateCatalog.LoadAsync(TestContext.Current.CancellationToken);

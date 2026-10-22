@@ -62,6 +62,9 @@ public partial class MainViewModel
                 : _testCases[id].Name, _testCases[id]))
             .ToList();
 
+    /// <summary>The exit code of the program Start Without Debugging ran last; null while it runs or before it ran.</summary>
+    internal int? LastExitCodeForClaude => _lastExitCode;
+
     internal DebugSession? DebugSessionForClaude => _session;
 
     internal int StoppedThreadForClaude => _stoppedThread;

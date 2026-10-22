@@ -11,6 +11,9 @@ using static VSL.Claude.Tools.ToolInput;
 
 namespace VSL.Claude.Tools;
 
+/// <summary>A match of <c>find_in_files</c>: VSL lists them in Find Results.</summary>
+public sealed record FoundText(string Path, int Line, int Column, string Text);
+
 /// <summary>
 /// VSL itself for Claude: the build and its errors, the tests, the debugger where it stopped, the editor. Each runs on the
 /// UI thread, as the Build menu, Test Explorer and the debugger do, so what Claude does shows in VSL as the user's own.
@@ -352,7 +355,7 @@ sealed class DebugControlTool(MainViewModel vm) : IdeTool(vm)
 
     public override string Description =>
         "Controls the debugger in VSL: start (debug the startup project, F5), continue, pause, stepOver, stepInto, stepOut or stop; "
-        + "returns where the program is afterwards. Starting and stopping ask the user first.";
+        + "returns where the program is afterwards. Starting and stopping ask the user first. To run it without the debugger, use app_control.";
 
     public override JsonObject InputSchema => Schema("""
         {"type":"object","properties":{"action":{"type":"string","enum":["start","continue","pause","stepOver","stepInto","stepOut","stop"]}},"required":["action"]}
@@ -412,6 +415,155 @@ sealed class DebugControlTool(MainViewModel vm) : IdeTool(vm)
             await Task.Delay(100, cancellationToken);
         return new ClaudeToolOutput(Vm.Mode == DebugMode.Design ? "The session has ended." : DebugReport.Describe(Vm, stack: false));
     }
+}
+
+/// <summary>
+/// <c>app_control</c>: Start Without Debugging (Ctrl+F5), Stop (Shift+F5), both, and how the program is doing: what it
+/// listens on and what it printed, as the Output window (Debug) shows it.
+/// </summary>
+sealed partial class AppControlTool(MainViewModel vm) : IdeTool(vm)
+{
+    static readonly string[] Actions = ["start", "stop", "restart", "status"];
+
+    public override string Name => "app_control";
+
+    public override string Description =>
+        "Runs the app in VSL as Debug > Start Without Debugging (Ctrl+F5) does: start builds and runs the startup project (or the "
+        + "project given, which becomes the startup project) with its launch profile, stop ends it (Shift+F5), restart does both, "
+        + "status tells whether it runs. Each returns the URLs it listens on and its latest output, which the Output window shows "
+        + "too. Use it rather than dotnet run in the shell: the app runs in VSL, where the user sees it and stops it. For "
+        + "breakpoints and stepping use debug_control.";
+
+    public override JsonObject InputSchema => Schema("""
+        {"type":"object","properties":{
+          "action":{"type":"string","enum":["start","stop","restart","status"]},
+          "project":{"type":"string","description":"start, restart: a runnable project's name; default the startup project."},
+          "profile":{"type":"string","description":"start, restart: a launch profile of the project (Properties/launchSettings.json); default the one chosen in VSL."},
+          "lines":{"type":"integer","description":"How many of the latest output lines to return; default 40."}},"required":["action"]}
+        """);
+
+    public override ClaudeToolPlan Plan(JsonElement input)
+    {
+        var action = Str(input, "action");
+        if (!Actions.Contains(action))
+            throw new InvalidOperationException("action is one of " + string.Join(", ", Actions) + ".");
+        var project = Str(input, "project") ?? Vm.StartupProject?.Name;
+        return action switch
+        {
+            "start" => new(ToolAccess.Write, "Start Without Debugging", project, $"Allow Claude to run {project ?? "the startup project"}?")
+            {
+                Warning = "It builds and runs the program, as Ctrl+F5 does.",
+            },
+            "restart" => new(ToolAccess.Write, "Restart", project, $"Allow Claude to restart {project ?? "the startup project"}?")
+            {
+                Warning = "It stops the program and builds and runs it again.",
+            },
+            "stop" => new(ToolAccess.Write, "Stop", Vm.StartupProject?.Name, "Allow Claude to stop the running program?"),
+            _ => new(ToolAccess.Read, "App", "status", ""),
+        };
+    }
+
+    protected override async Task<ClaudeToolOutput> RunAsync(JsonElement input, CancellationToken cancellationToken)
+    {
+        _ = SolutionDirectory;
+        var lines = Int(input, "lines", 40, 1, 500);
+        switch (Str(input, "action"))
+        {
+            case "status":
+                return new ClaudeToolOutput(Report(lines));
+            case "stop":
+                if (!Vm.IsRunning && Vm.Mode == DebugMode.Design)
+                    return ClaudeToolOutput.Error("Nothing is running.");
+                await StopAsync(cancellationToken);
+                return new ClaudeToolOutput(Report(lines));
+            case "restart":
+                if (Vm.IsRunning || Vm.Mode != DebugMode.Design)
+                    await StopAsync(cancellationToken);
+                return await StartAsync(input, lines, cancellationToken);
+            default:
+                if (Vm.IsRunning)
+                    return ClaudeToolOutput.Error($"{Vm.StartupProject?.Name ?? "The program"} is running already: restart it, or stop it first.");
+                if (Vm.Mode != DebugMode.Design)
+                    return ClaudeToolOutput.Error("A debug session is running: stop it first (debug_control stop).");
+                return await StartAsync(input, lines, cancellationToken);
+        }
+    }
+
+    async Task<ClaudeToolOutput> StartAsync(JsonElement input, int lines, CancellationToken cancellationToken)
+    {
+        if (Str(input, "project") is { } name)
+        {
+            if (Vm.StartupProjects.FirstOrDefault(p => p.Name.Equals(name, StringComparison.OrdinalIgnoreCase)) is not { } project)
+                return ClaudeToolOutput.Error($"{name} is not a runnable project of the solution. Runnable: {string.Join(", ", Vm.StartupProjects.Select(p => p.Name))}.");
+            Vm.StartupProject = project;
+        }
+        if (Str(input, "profile") is { } profile)
+        {
+            if (!Vm.LaunchProfiles.Contains(profile))
+                return ClaudeToolOutput.Error($"{Vm.StartupProject?.Name} has no launch profile {profile}. It has: {(Vm.LaunchProfiles.Count == 0 ? "none" : string.Join(", ", Vm.LaunchProfiles))}.");
+            Vm.LaunchProfile = profile;
+        }
+        if (!Vm.StartWithoutDebuggingCommand.CanExecute(null))
+            return ClaudeToolOutput.Error("VSL cannot run it now: open a solution with a startup project, and wait for any build.");
+        var run = Vm.StartWithoutDebuggingCommand.ExecuteAsync(null);
+        // Built and started: until it listens (a web host), ends, or has run a while; the build may take minutes.
+        var clock = System.Diagnostics.Stopwatch.StartNew();
+        TimeSpan? started = null;
+        while (!run.IsCompleted && clock.Elapsed < TimeSpan.FromMinutes(5))
+        {
+            if (Vm.IsRunning)
+            {
+                started ??= clock.Elapsed;
+                if (Listening().Count > 0 || clock.Elapsed - started > TimeSpan.FromSeconds(20))
+                    break;
+            }
+            await Task.Delay(200, cancellationToken);
+        }
+        // The last lines the program printed land on the UI thread after its exit is known.
+        await Task.Delay(200, cancellationToken);
+        if (run.IsCompleted && Vm.LastBuildForClaude is { Succeeded: false })
+            return ClaudeToolOutput.Error(BuildReport.Describe(Vm, warnings: false));
+        return new ClaudeToolOutput(Report(lines), !Vm.IsRunning && Vm.LastExitCodeForClaude is not (null or 0));
+    }
+
+    async Task StopAsync(CancellationToken cancellationToken)
+    {
+        await Vm.StopCommand.ExecuteAsync(null);
+        var clock = System.Diagnostics.Stopwatch.StartNew();
+        while ((Vm.IsRunning || Vm.Mode != DebugMode.Design) && clock.Elapsed < TimeSpan.FromSeconds(30))
+            await Task.Delay(100, cancellationToken);
+        await Task.Delay(200, cancellationToken);
+    }
+
+    /// <summary>Whether it runs, where it listens, and the latest lines of its output (secrets hidden).</summary>
+    string Report(int lines)
+    {
+        var name = Vm.StartupProject?.Name ?? "The program";
+        var profile = Vm.LaunchProfile is { } p ? $" (launch profile {p})" : "";
+        var text = new StringBuilder(Vm.IsRunning
+            ? $"{name} is running{profile}."
+            : Vm.Mode != DebugMode.Design
+                ? $"{name} is running under the debugger (see debug_state)."
+                : Vm.LastExitCodeForClaude is { } code
+                    ? $"{name} is not running: it exited with code {code}."
+                    : $"{name} is not running.");
+        if (Vm.IsRunning && Listening() is { Count: > 0 } urls)
+            text.Append(" Listening on ").Append(string.Join(", ", urls)).Append('.');
+        var output = Vm.DebugOutput.Document.Text.TrimEnd().Split('\n');
+        if (output is not [""])
+        {
+            text.Append($"\n\nOutput (last {Math.Min(lines, output.Length)} of {output.Length} lines):");
+            foreach (var line in output.TakeLast(lines))
+                text.Append('\n').Append(Redaction.Text(line.TrimEnd('\r')));
+        }
+        return text.ToString();
+    }
+
+    List<string> Listening() =>
+        ListeningLine().Matches(Vm.DebugOutput.Document.Text).Select(m => m.Groups[1].Value.TrimEnd('/')).Distinct().ToList();
+
+    [GeneratedRegex(@"Now listening on: (\S+)")]
+    private static partial Regex ListeningLine();
 }
 
 // ---- Editor -------------------------------------------------------------------------------------------------------
@@ -592,9 +744,12 @@ sealed class FindInFilesTool(MainViewModel vm) : IdeTool(vm)
         try
         {
             var (hits, more) = await Task.Run(() => Search(root, pattern, limit, cancellationToken), cancellationToken);
+            var found = hits.Select(h => h.Split(':', 4)).Where(p => p.Length == 4)
+                .Select(p => new FoundText(Path.Combine(root, p[0]), int.Parse(p[1], System.Globalization.CultureInfo.InvariantCulture), int.Parse(p[2], System.Globalization.CultureInfo.InvariantCulture), p[3].TrimStart()))
+                .ToList();
             if (hits.Count == 0)
-                return new ClaudeToolOutput("No matches.");
-            return new ClaudeToolOutput(string.Join("\n", hits) + (more ? $"\n(only the first {limit} matches)" : ""));
+                return new ClaudeToolOutput("No matches.") { Detail = found };
+            return new ClaudeToolOutput(string.Join("\n", hits) + (more ? $"\n(only the first {limit} matches)" : "")) { Detail = found };
         }
         catch (RegexMatchTimeoutException)
         {

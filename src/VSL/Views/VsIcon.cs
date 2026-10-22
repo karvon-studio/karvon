@@ -42,7 +42,7 @@ public sealed class VsIcon : Control
         "Docker", "DockerContainer", "DockerStack", "DockerImage", "DockerVolume", "DockerNetwork", "DockerPlay", "DockerStop", "DockerRestart",
         "DockerPause", "DockerDelete", "DockerMore", "DockerLink", "DockerBack", "DockerTerminal", "DockerLogs", "DockerStats", "DockerInspect",
         "ToolExplorer", "ToolTests", "ToolGit", "ToolDatabase", "ToolErrors", "ToolOutput", "ToolFind", "ToolLocals", "ToolCallStack", "ToolTerminal",
-        "ToolServers", "ToolMcp",
+        "ToolServers", "ToolMcp", "ToolSkills",
     ];
 
     public string? Kind
@@ -526,6 +526,10 @@ public sealed class VsIcon : Control
                 break;
             case "ToolServers":
                 Line(dc, "M4.5 3.5h15a1 1 0 0 1 1 1v5a1 1 0 0 1-1 1h-15a1 1 0 0 1-1-1v-5a1 1 0 0 1 1-1z M4.5 13.5h15a1 1 0 0 1 1 1v5a1 1 0 0 1-1 1h-15a1 1 0 0 1-1-1v-5a1 1 0 0 1 1-1z M7.5 7h.01 M7.5 17h.01 M11 7h6 M11 17h6", fg, 1.6);
+                break;
+            case "ToolSkills":
+                // An open book: a skill's instructions.
+                Line(dc, "M12 6.5c-2-1.6-4.8-2.2-8.5-2v13c3.7-.2 6.5.4 8.5 2 2-1.6 4.8-2.2 8.5-2v-13c-3.7-.2-6.5.4-8.5 2z M12 6.5v13", fg, 1.6);
                 break;
             case "ToolMcp":
                 // A plug: what an MCP server is to an agent.

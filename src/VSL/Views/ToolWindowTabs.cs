@@ -29,6 +29,7 @@ public static class ToolWindowTabs
         ToolWindows.DockerExplorer => "Docker",
         ToolWindows.Servers => "ToolServers",
         ToolWindows.Mcp => "ToolMcp",
+        ToolWindows.Skills => "ToolSkills",
         ToolWindows.Claude => "Claude",
         ToolWindows.ErrorList => "ToolErrors",
         ToolWindows.Output => "ToolOutput",

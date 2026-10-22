@@ -26,6 +26,23 @@ public partial class MainWindow
             if (e.Property == TabItem.IsSelectedProperty && McpTab.IsSelected)
                 EnsureMcp();
         };
+        SkillsTab.PropertyChanged += (_, e) =>
+        {
+            if (e.Property == TabItem.IsSelectedProperty && SkillsTab.IsSelected)
+                EnsureSkills();
+        };
+    }
+
+    /// <summary>The Skills tool window, made the first time it shows.</summary>
+    internal Skills.Views.SkillsExplorerView? EnsureSkills()
+    {
+        if (SkillsHost.Content is Skills.Views.SkillsExplorerView view)
+            return view;
+        if (Vm is not { } vm || _closing)
+            return null;
+        view = new Skills.Views.SkillsExplorerView { DataContext = vm.EnsureSkills() };
+        SkillsHost.Content = view;
+        return view;
     }
 
     /// <summary>The MCP Servers tool window, made the first time it shows: a VSL that never opens it reads no agent's settings.</summary>

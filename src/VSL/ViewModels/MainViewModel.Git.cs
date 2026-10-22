@@ -147,6 +147,9 @@ public partial class MainViewModel
     {
         if (_gitWatcher != watcher)
             return;
+        // The solution or a project file changed outside Solution Explorer (an editor, git, dotnet sln, Claude): read again.
+        if (ChangesStructure(files))
+            await ReloadSolutionAsync();
         ReloadExplorerFolders(files);
         await RefreshGitAsync();
         foreach (var doc in Editors.Where(d => files.Contains(d.FilePath)).ToList())

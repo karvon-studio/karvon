@@ -38,6 +38,12 @@ public sealed record McpServerDefinition(McpOrigin Origin, string Name)
     /// <summary>A URL that speaks only the older SSE transport (type "sse", or Gemini CLI's <c>url</c>).</summary>
     public bool IsSse { get; init; }
 
+    /// <summary>The OAuth client the server gave out for it (Claude Code's <c>oauth.clientId</c>): no client registers then.</summary>
+    public string? OAuthClientId { get; init; }
+
+    /// <summary>The port that client's redirect is on (<c>oauth.callbackPort</c>): http://localhost:port/callback.</summary>
+    public int? OAuthCallbackPort { get; init; }
+
     /// <summary>The same name can be in several files: each is a server of its own.</summary>
     public string Key => $"{Origin}:{Name}";
 
@@ -173,6 +179,8 @@ public sealed partial class McpConfigs(string configDirectory, string? workspace
             Headers = Map(entry, "headers"),
             // Gemini CLI's url is SSE (httpUrl is streamable HTTP); the others say "type": "sse".
             IsSse = url is not null && (Str(entry, "type") == "sse" || IsGemini(origin) && httpUrl is null),
+            OAuthClientId = entry.TryGetProperty("oauth", out var oauth) && oauth.ValueKind == JsonValueKind.Object ? Str(oauth, "clientId") : null,
+            OAuthCallbackPort = oauth.ValueKind == JsonValueKind.Object && oauth.TryGetProperty("callbackPort", out var port) && port.TryGetInt32(out var number) ? number : null,
         };
     }
 

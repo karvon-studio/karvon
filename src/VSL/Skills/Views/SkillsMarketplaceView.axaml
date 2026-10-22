@@ -1,0 +1,167 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:v="using:VSL.Views"
+             xmlns:kvm="using:VSL.Skills.ViewModels"
+             x:Class="VSL.Skills.Views.SkillsMarketplaceView"
+             x:DataType="kvm:SkillsMarketplaceViewModel"
+             Background="#1E1E1E">
+  <UserControl.Styles>
+    <StyleInclude Source="avares://VSL/Docker/Views/DockerStyles.axaml" />
+    <Style Selector="TextBlock.section">
+      <Setter Property="FontSize" Value="11" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+      <Setter Property="Foreground" Value="#9D9D9D" />
+      <Setter Property="Margin" Value="0,16,0,6" />
+    </Style>
+    <Style Selector="TextBlock.label">
+      <Setter Property="FontWeight" Value="SemiBold" />
+      <Setter Property="Width" Value="80" />
+    </Style>
+    <Style Selector="TextBlock.warn">
+      <Setter Property="Foreground" Value="#E8A84B" />
+    </Style>
+    <Style Selector="ListBox.items">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderBrush" Value="#3F3F46" />
+      <Setter Property="BorderThickness" Value="0,0,1,0" />
+    </Style>
+    <Style Selector="ListBox.items ListBoxItem">
+      <Setter Property="Padding" Value="10,6" />
+    </Style>
+  </UserControl.Styles>
+
+  <DockPanel Margin="20,14,20,10">
+    <StackPanel DockPanel.Dock="Top" Spacing="6">
+      <StackPanel Orientation="Horizontal" Spacing="10">
+        <v:VsIcon Kind="Package" Width="20" Height="20" Foreground="#4DAAFC" />
+        <TextBlock Text="Skills Marketplace" FontSize="19" FontWeight="SemiBold" VerticalAlignment="Center" />
+      </StackPanel>
+      <TextBlock Classes="dkMuted" FontSize="12" TextWrapping="Wrap"
+                 Text="Skills from GitHub repositories (github:owner/repo[/folder][@ref]), teams' registries (a registry.json's URL, or its folder) and Agensi (agensi.io). Read what a skill asks for before you install or use it." />
+      <ToggleButton Classes="dkOutline" HorizontalAlignment="Left" IsChecked="{Binding IsEditingSources}" Padding="10,3" Margin="0,2,0,0">
+        <TextBlock Text="{Binding SourcesLabel}" />
+      </ToggleButton>
+      <StackPanel Spacing="6" IsVisible="{Binding IsEditingSources}">
+        <CheckBox Content="Agensi (agensi.io): free and paid skills, used in Claude Code through Agensi's MCP server" IsChecked="{Binding UsesAgensi}" />
+        <TextBox Name="MarketSources" Classes="dkField" Text="{Binding Sources}" AcceptsReturn="True" MinHeight="54" FontFamily="{StaticResource VsCodeFont}" FontSize="12"
+                 VerticalContentAlignment="Top" PlaceholderText="github:anthropics/skills" />
+        <Button Classes="dkPrimary" HorizontalAlignment="Left" Command="{Binding SaveSourcesCommand}" Content="Save and read again" />
+      </StackPanel>
+      <Grid ColumnDefinitions="*,Auto,Auto,Auto,Auto" Margin="0,4,0,0">
+        <TextBox Name="MarketSearch" Classes="dkField" Text="{Binding Search}" PlaceholderText="Search skills by what they do" />
+        <ComboBox Name="MarketSource" Grid.Column="1" Margin="8,0,0,0" MinWidth="170" ItemsSource="{Binding SourceNames}" SelectedItem="{Binding Source}" ToolTip.Tip="Source" />
+        <ComboBox Grid.Column="2" Margin="8,0,0,0" MinWidth="110" ItemsSource="{x:Static kvm:SkillsMarketplaceViewModel.Filters}" SelectedItem="{Binding Filter}" />
+        <ComboBox Grid.Column="3" Margin="8,0,0,0" MinWidth="150" ItemsSource="{Binding Categories}" SelectedItem="{Binding Category}" />
+        <Button Grid.Column="4" Margin="8,0,0,0" Classes="dkIcon" Command="{Binding RefreshCommand}" ToolTip.Tip="Read the sources again">
+          <v:VsIcon Kind="Refresh" />
+        </Button>
+      </Grid>
+      <SelectableTextBlock Text="{Binding Status}" IsVisible="{Binding HasStatus}" Classes="dkMuted" FontSize="12" TextWrapping="Wrap" />
+    </StackPanel>
+
+    <Grid ColumnDefinitions="340,*" Margin="0,10,0,0">
+      <ListBox Name="MarketList" Classes="items" ItemsSource="{Binding Shown}" SelectedItem="{Binding Selected}">
+        <ListBox.ItemTemplate>
+          <DataTemplate x:DataType="kvm:SkillsMarketRow">
+            <StackPanel Spacing="1">
+              <DockPanel>
+                <Border DockPanel.Dock="Right" Classes="pill" Classes.green="{Binding IsGreen}" Classes.blue="{Binding IsBlue}" IsVisible="{Binding HasBadge}">
+                  <TextBlock Text="{Binding Badge}" FontSize="10" />
+                </Border>
+                <TextBlock Text="{Binding Skill.Name}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+              </DockPanel>
+              <TextBlock Text="{Binding Skill.Description}" Classes="dkMuted" FontSize="11.5" TextWrapping="Wrap" MaxLines="2" TextTrimming="CharacterEllipsis" />
+              <TextBlock Text="{Binding Meta}" Classes="dkMuted" FontSize="11" TextTrimming="CharacterEllipsis" />
+            </StackPanel>
+          </DataTemplate>
+        </ListBox.ItemTemplate>
+      </ListBox>
+
+      <ScrollViewer Grid.Column="1" HorizontalScrollBarVisibility="Disabled">
+        <ContentControl Margin="16,0,8,0" Content="{Binding Detail}">
+          <ContentControl.ContentTemplate>
+            <DataTemplate x:DataType="kvm:SkillsMarketDetail">
+              <Grid>
+                <Grid.ColumnDefinitions>
+                  <ColumnDefinition Width="*" MaxWidth="760" />
+                </Grid.ColumnDefinitions>
+                <StackPanel Spacing="4">
+                  <TextBlock Text="{Binding Name}" FontSize="18" FontWeight="SemiBold" />
+                  <TextBlock Text="{Binding Meta}" Classes="dkMuted" FontSize="12" TextWrapping="Wrap" />
+                  <SelectableTextBlock Text="{Binding Description}" TextWrapping="Wrap" Margin="0,4,0,0" />
+
+                  <TextBlock Classes="section" Text="USE IT" IsVisible="{Binding IsLicensed}" />
+                  <TextBlock Text="{Binding LicensedText}" Classes="dkMuted" FontSize="12" TextWrapping="Wrap" IsVisible="{Binding IsLicensed}" />
+                  <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,6,0,0" IsVisible="{Binding IsLicensed}">
+                    <Button Name="MarketUseInClaude" Classes="dkPrimary" Command="{Binding UseInClaudeCommand}">
+                      <StackPanel Orientation="Horizontal" Spacing="6">
+                        <v:VsIcon Kind="Claude" Width="13" Height="13" />
+                        <TextBlock Text="Use in Claude Code" VerticalAlignment="Center" />
+                      </StackPanel>
+                    </Button>
+                    <Button Classes="dkOutline" Command="{Binding OpenPageCommand}" Content="Open on agensi.io" />
+                  </StackPanel>
+                  <SelectableTextBlock Text="{Binding Result}" TextWrapping="Wrap" IsVisible="{Binding IsLicensed}" />
+
+                  <TextBlock Classes="section" Text="WHAT IT ASKS FOR" />
+                  <DockPanel>
+                    <TextBlock Classes="label" Text="Tools" />
+                    <TextBlock Text="{Binding Tools}" TextWrapping="Wrap" />
+                  </DockPanel>
+                  <DockPanel>
+                    <TextBlock Classes="label" Text="Network" />
+                    <TextBlock Name="MarketNetwork" Text="{Binding Network}" Classes.warn="{Binding UsesNetwork}" TextWrapping="Wrap" />
+                  </DockPanel>
+                  <DockPanel IsVisible="{Binding IsLicensed}">
+                    <TextBlock Classes="label" Text="Needs" />
+                    <TextBlock Text="{Binding Requires}" TextWrapping="Wrap" />
+                  </DockPanel>
+                  <DockPanel IsVisible="{Binding HasFiles}">
+                    <TextBlock Classes="label" Text="Scripts" />
+                    <TextBlock Text="{Binding ScriptsText}" Classes.warn="{Binding HasScripts}" TextWrapping="Wrap" />
+                  </DockPanel>
+                  <ItemsControl ItemsSource="{Binding Scripts}" Margin="80,2,0,0" IsVisible="{Binding HasFiles}">
+                    <ItemsControl.ItemTemplate>
+                      <DataTemplate x:DataType="kvm:SkillScript">
+                        <StackPanel Spacing="4" Margin="0,2">
+                          <ToggleButton Classes="dkOutline" IsChecked="{Binding IsShown}" HorizontalAlignment="Left" Padding="8,2" FontSize="12">
+                            <TextBlock Text="{Binding Path, StringFormat='Show {0}'}" />
+                          </ToggleButton>
+                          <TextBox Text="{Binding Text}" IsReadOnly="True" AcceptsReturn="True" IsVisible="{Binding IsShown}" MaxHeight="260"
+                                   FontFamily="{StaticResource VsCodeFont}" FontSize="12" Background="#181818" />
+                        </StackPanel>
+                      </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                  </ItemsControl>
+                  <DockPanel IsVisible="{Binding HasFiles}">
+                    <TextBlock Classes="label" Text="Files" />
+                    <TextBlock Text="{Binding FilesText}" TextWrapping="Wrap" />
+                  </DockPanel>
+
+                  <!-- A licensed skill's page at its source -->
+                  <TextBlock Classes="section" Text="ITS PAGE" IsVisible="{Binding IsLicensed}" />
+                  <v:MarkdownView Markdown="{Binding Page}" IsVisible="{Binding IsLicensed}" />
+
+                  <TextBlock Classes="section" Text="INSTALL" IsVisible="{Binding IsNew}" />
+                  <TextBlock Classes="section" Text="INSTALLED" IsVisible="{Binding IsInstalled}" />
+                  <TextBlock Text="{Binding InstalledText}" Classes="dkMuted" FontSize="12" TextWrapping="Wrap" IsVisible="{Binding IsInstalled}" />
+                  <StackPanel Orientation="Horizontal" Spacing="18" IsVisible="{Binding IsNew}">
+                    <RadioButton Name="MarketForFolder" GroupName="SkillPlace" Content="This folder (.claude/skills)" IsChecked="{Binding ForFolder}" IsEnabled="{Binding CanChooseFolder}" />
+                    <RadioButton GroupName="SkillPlace" Content="Every project (your skills)" IsChecked="{Binding ForUser}" />
+                  </StackPanel>
+                  <TextBlock Classes="dkMuted" FontSize="11" TextWrapping="Wrap" IsVisible="{Binding HasFiles}"
+                             Text="Claude Code loads it from there by itself; AGENTS.md lists the folder's skills for the other agents." />
+                  <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,6,0,0" IsVisible="{Binding HasFiles}">
+                    <Button Name="MarketInstall" Classes="dkPrimary" Command="{Binding InstallCommand}" Content="{Binding InstallText}" />
+                    <Button Classes="dkOutline" Command="{Binding RemoveCommand}" IsVisible="{Binding IsInstalled}" Content="Remove…" />
+                  </StackPanel>
+                  <SelectableTextBlock Name="MarketResult" Text="{Binding Result}" TextWrapping="Wrap" IsVisible="{Binding HasFiles}" />
+                </StackPanel>
+              </Grid>
+            </DataTemplate>
+          </ContentControl.ContentTemplate>
+        </ContentControl>
+      </ScrollViewer>
+    </Grid>
+  </DockPanel>
+</UserControl>

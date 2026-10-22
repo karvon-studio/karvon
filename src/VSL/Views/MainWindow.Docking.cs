@@ -228,6 +228,19 @@ public partial class MainWindow
         }
     }
 
+    /// <summary>
+    /// A tool window shown beside what the user is looking at: not when its group has <paramref name="keep"/> in front (the
+    /// Claude conversation, which stays in view), nor when the group is folded to its bar.
+    /// </summary>
+    void OnToolWindowBesideRequested(string id, string keep)
+    {
+        if (ToolTabs.FirstOrDefault(t => (string?)t.Tag == id) is not { } item || ToolGroups.FirstOrDefault(g => g.Items.Contains(item)) is not { } group)
+            return;
+        if (group.SelectedItem is TabItem { Tag: string front } && front == keep || SideGroupOf(item) is { } side && IsCollapsed(side))
+            return;
+        OnToolWindowRequested(id, []);
+    }
+
     /// <summary>Floats the saved floating tool windows once this window is on screen.</summary>
     void FloatPendingToolWindows()
     {
@@ -541,7 +554,7 @@ public partial class MainWindow
         MainGrid.ColumnDefinitions[0].Width = new GridLength(DefaultLeftWidth);
         MainGrid.ColumnDefinitions[4].Width = new GridLength(DefaultRightWidth);
         LeftGrid.RowDefinitions[2].Height = new GridLength(DefaultBottomHeight);
-        string[] right = [ToolWindows.SolutionExplorer, ToolWindows.TestExplorer, ToolWindows.GitChanges, ToolWindows.DatabaseExplorer, ToolWindows.DockerExplorer, ToolWindows.Servers, ToolWindows.Mcp, ToolWindows.Claude];
+        string[] right = [ToolWindows.SolutionExplorer, ToolWindows.TestExplorer, ToolWindows.GitChanges, ToolWindows.DatabaseExplorer, ToolWindows.DockerExplorer, ToolWindows.Servers, ToolWindows.Mcp, ToolWindows.Skills, ToolWindows.Claude];
         string[] bottom = [ToolWindows.ErrorList, ToolWindows.Output, ToolWindows.FindResults, ToolWindows.Locals, ToolWindows.Watch, ToolWindows.CallStack, ToolWindows.Terminal];
         foreach (var id in right)
             MoveToolWindow(id, DockSide.Right);

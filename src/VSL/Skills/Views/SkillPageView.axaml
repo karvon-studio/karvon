@@ -1,0 +1,84 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:v="using:VSL.Views"
+             xmlns:k="using:VSL.Skills"
+             xmlns:kvm="using:VSL.Skills.ViewModels"
+             x:Class="VSL.Skills.Views.SkillPageView"
+             x:DataType="kvm:SkillPageViewModel"
+             Background="#1E1E1E">
+  <UserControl.Styles>
+    <StyleInclude Source="avares://VSL/Docker/Views/DockerStyles.axaml" />
+    <Style Selector="TextBlock.section">
+      <Setter Property="FontSize" Value="11" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+      <Setter Property="Foreground" Value="#9D9D9D" />
+      <Setter Property="Margin" Value="0,16,0,6" />
+    </Style>
+  </UserControl.Styles>
+
+  <!-- A skill: what it is for, its checks, "Try a prompt", its files -->
+  <ScrollViewer HorizontalScrollBarVisibility="Disabled">
+    <Grid Margin="20,14,20,24">
+      <Grid.ColumnDefinitions>
+        <ColumnDefinition Width="*" MaxWidth="820" />
+      </Grid.ColumnDefinitions>
+      <StackPanel Spacing="4">
+        <Grid ColumnDefinitions="*,Auto">
+          <StackPanel Orientation="Horizontal" Spacing="10">
+            <v:VsIcon Kind="Sparkle" Width="20" Height="20" />
+            <TextBlock Name="SkillName" Text="{Binding Skill.Name}" FontSize="19" FontWeight="SemiBold" VerticalAlignment="Center" />
+          </StackPanel>
+          <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6" VerticalAlignment="Top">
+            <Button Classes="dkOutline" Command="{Binding AskClaudeCommand}" IsVisible="{Binding HasProblems}">
+              <StackPanel Orientation="Horizontal" Spacing="6">
+                <v:VsIcon Kind="Claude" Width="13" Height="13" />
+                <TextBlock Text="Ask Claude to fix it" VerticalAlignment="Center" />
+              </StackPanel>
+            </Button>
+            <Button Name="SkillEdit" Classes="dkPrimary" Command="{Binding EditCommand}" Content="Edit SKILL.md" />
+            <Button Classes="dkIcon" Command="{Binding RemoveCommand}" IsVisible="{Binding CanRemove}" ToolTip.Tip="Remove…">
+              <v:VsIcon Kind="Trash" />
+            </Button>
+          </StackPanel>
+        </Grid>
+        <TextBlock Classes="dkMuted" FontSize="12" Text="{Binding WhereLine}" TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding WhereLine}" />
+        <SelectableTextBlock Text="{Binding Description}" TextWrapping="Wrap" Margin="0,6,0,0" />
+        <TextBlock Classes="dkMuted" FontSize="12" Text="{Binding LoadedBy}" TextWrapping="Wrap" Margin="0,4,0,0" />
+
+        <TextBlock Classes="section" Text="CHECKS" />
+        <ItemsControl Name="SkillChecks" ItemsSource="{Binding Checks}">
+          <ItemsControl.ItemTemplate>
+            <DataTemplate x:DataType="k:SkillCheck">
+              <Grid ColumnDefinitions="22,*" Margin="0,2">
+                <Panel>
+                  <TextBlock Text="✓" Foreground="#3FB950" FontWeight="Bold" IsVisible="{Binding Passed}" />
+                  <TextBlock Text="✕" Foreground="#F85149" FontWeight="Bold" IsVisible="{Binding !Passed}" />
+                </Panel>
+                <TextBlock Grid.Column="1" Text="{Binding Text}" TextWrapping="Wrap" />
+              </Grid>
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+
+        <TextBlock Classes="section" Text="TRY A PROMPT" />
+        <TextBlock Classes="dkMuted" FontSize="12" TextWrapping="Wrap"
+                   Text="Agents choose a skill by its name and description. VSL says whether a prompt gives them a reason to choose this one (a hint, not the agent's decision)." />
+        <Grid ColumnDefinitions="*,Auto" Margin="0,6,0,0">
+          <TextBox Name="SkillPrompt" Classes="dkField" Text="{Binding Prompt}" PlaceholderText="A prompt you would give an agent" KeyDown="OnPromptKeyDown" />
+          <Button Name="SkillTry" Grid.Column="1" Classes="dkPrimary" Margin="8,0,0,0" Command="{Binding TryCommand}" Content="Try" />
+        </Grid>
+        <SelectableTextBlock Name="SkillVerdict" Text="{Binding Verdict}" TextWrapping="Wrap" IsVisible="{Binding HasVerdict}" Margin="0,6,0,0" />
+
+        <TextBlock Classes="section" Text="FILES" />
+        <ItemsControl ItemsSource="{Binding Files}">
+          <ItemsControl.ItemTemplate>
+            <DataTemplate x:DataType="kvm:SkillFile">
+              <Button Classes="dkLink plain" HorizontalAlignment="Left" Content="{Binding Name}" ToolTip.Tip="{Binding Path}"
+                      Command="{Binding $parent[UserControl].((kvm:SkillPageViewModel)DataContext).OpenFileCommand}" CommandParameter="{Binding}" />
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+      </StackPanel>
+    </Grid>
+  </ScrollViewer>
+</UserControl>
