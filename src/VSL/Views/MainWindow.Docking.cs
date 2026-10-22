@@ -15,9 +15,10 @@ public enum DockSide
 
 /// <summary>
 /// Tool window docking: drag a tool window's tab onto the Dock Left / Right / Bottom guides (or use its context
-/// menu) to move it between the three tool groups. Empty groups collapse; the layout, the groups' sizes and the
-/// tabs in front are remembered. The side groups show their tool windows as VS Code's activity bar, an icon each;
-/// clicking the icon in front folds the group to its bar, and any icon opens it again.
+/// menu) to move it between the three tool groups, or onto a tab strip (an activity bar, the bottom tabs) to put it
+/// there, between two tabs. Empty groups collapse; the layout, the tabs' order, the groups' sizes and the tabs in
+/// front are remembered. The side groups show their tool windows as VS Code's activity bar, an icon each; clicking the
+/// icon in front folds the group to its bar, and any icon opens it again.
 /// </summary>
 public partial class MainWindow
 {
@@ -30,7 +31,9 @@ public partial class MainWindow
     Point _dragStart;
     bool _dragging;
     DockSide? _dropTarget;
+    (DockSide Side, int Index)? _stripTarget;
     bool _pressedInFront;
+    object? _frontBeforePress;
     bool _leftCollapsed, _rightCollapsed;
     double _leftWidth = DefaultLeftWidth, _rightWidth = DefaultRightWidth;
 
@@ -151,6 +154,9 @@ public partial class MainWindow
         }
 
         var layout = vm.Settings.Layout;
+        foreach (var (sideName, order) in layout.ToolOrder)
+            if (Enum.TryParse<DockSide>(sideName, out var side))
+                Arrange(GroupOf(side), order);
         foreach (var side in Enum.GetValues<DockSide>())
             if (layout.SelectedTools.TryGetValue(side.ToString(), out var id)
                 && GroupOf(side).Items.OfType<TabItem>().FirstOrDefault(t => (string?)t.Tag == id) is { } tab)
@@ -292,17 +298,22 @@ public partial class MainWindow
             MoveToolWindow(item, side, remember: true);
     }
 
-    void MoveToolWindow(TabItem item, DockSide side, bool remember)
+    /// <summary>
+    /// Moves a tool window to a group (at the end, or at <paramref name="index"/>: between two tabs) and selects it there;
+    /// within its own group it only changes places, the tab in front staying in front.
+    /// </summary>
+    void MoveToolWindow(TabItem item, DockSide side, bool remember, int? index = null)
     {
         var from = ToolGroups.FirstOrDefault(g => g.Items.Contains(item));
         var to = GroupOf(side);
-        if (from is null || from == to)
+        if (from is null || from == to && (index is null || index == to.Items.IndexOf(item)))
             return;
+        var front = from == to && to.SelectedItem != item ? to.SelectedItem : item;
         from.Items.Remove(item);
-        to.Items.Add(item);
+        to.Items.Insert(Math.Clamp(index ?? to.Items.Count, 0, to.Items.Count), item);
         ApplyToolTabTheme(item);
-        to.SelectedItem = item;
-        if (side != DockSide.Bottom)
+        to.SelectedItem = front;
+        if (side != DockSide.Bottom && from != to)
             SetCollapsed(side, false, remember);
         if (from.SelectedItem is null && from.ItemCount > 0)
             from.SelectedIndex = 0;
@@ -312,8 +323,28 @@ public partial class MainWindow
         {
             vm.Settings.ToolLayout[id] = side.ToString();
             vm.Settings.Layout.FloatingTools.Remove(id);
+            foreach (var group in Enum.GetValues<DockSide>())
+                vm.Settings.Layout.ToolOrder[group.ToString()] = [.. GroupOf(group).Items.OfType<TabItem>().Select(t => t.Tag).OfType<string>()];
             vm.Settings.Save();
         }
+    }
+
+    /// <summary>Puts a group's tabs in an order (those it does not name after, as they were), the one in front staying so.</summary>
+    static void Arrange(TabControl group, IReadOnlyList<string> order)
+    {
+        var tabs = group.Items.OfType<TabItem>().ToList();
+        var rank = order.Distinct().Select((id, i) => (id, i)).ToDictionary(x => x.id, x => x.i);
+        var arranged = tabs.OrderBy(t => t.Tag is string id && rank.TryGetValue(id, out var i) ? i : int.MaxValue).ThenBy(tabs.IndexOf).ToList();
+        if (arranged.SequenceEqual(tabs))
+            return;
+        var front = group.SelectedItem;
+        for (var i = 0; i < arranged.Count; i++)
+            if (!ReferenceEquals(group.Items[i], arranged[i]))
+            {
+                group.Items.Remove(arranged[i]);
+                group.Items.Insert(i, arranged[i]);
+            }
+        group.SelectedItem = front;
     }
 
     /// <summary>Shows groups that hold tool windows and collapses empty ones (and their splitters).</summary>
@@ -351,6 +382,8 @@ public partial class MainWindow
         {
             // The icon in front, clicked again, folds its group (decided on release, when it was not a drag).
             _pressedInFront = item.IsSelected && SideGroupOf(item) is not null;
+            // Pressed, a tab comes to the front; dragged to another place on its strip, the one before stays there.
+            _frontBeforePress = ToolGroups.FirstOrDefault(g => g.Items.Contains(item))?.SelectedItem;
             _dragItem = item;
             _dragStart = e.GetPosition(this);
             _dragging = false;
@@ -369,8 +402,14 @@ public partial class MainWindow
             _dragging = true;
             e.Pointer.Capture(_dragItem);
             DockOverlay.IsVisible = true;
+            // A drag is not a click: the tab in front before the press comes back while it is dragged.
+            if (ToolGroups.FirstOrDefault(g => g.Items.Contains(_dragItem)) is { } group && _frontBeforePress is TabItem front && group.Items.Contains(front))
+                group.SelectedItem = front;
         }
-        _dropTarget = ZoneAt(DockOverlay.PointToClient(_dragItem.PointToScreen(e.GetPosition(_dragItem))));
+        var point = DockOverlay.PointToClient(_dragItem.PointToScreen(e.GetPosition(_dragItem)));
+        // Over a tab strip the tab goes between two tabs; elsewhere, to the guide it is over.
+        _stripTarget = StripAt(point, _dragItem);
+        _dropTarget = _stripTarget is null ? ZoneAt(point) : null;
         DockZoneLeft.Classes.Set("hot", _dropTarget == DockSide.Left);
         DockZoneRight.Classes.Set("hot", _dropTarget == DockSide.Right);
         DockZoneBottom.Classes.Set("hot", _dropTarget == DockSide.Bottom);
@@ -388,10 +427,13 @@ public partial class MainWindow
         }
         var item = _dragItem;
         var target = _dropTarget;
+        var strip = _stripTarget;
         var screen = item.PointToScreen(e.GetPosition(item));
         e.Pointer.Capture(null);
         EndDrag();
-        if (target is { } side)
+        if (strip is { } place)
+            MoveToolWindow(item, place.Side, remember: true, place.Index);
+        else if (target is { } side)
             MoveToolWindow(item, side, remember: true);
         else if (!new Rect(Bounds.Size).Contains(this.PointToClient(screen)))
             // Dropped outside the main window: the tool window floats there, as in Visual Studio.
@@ -404,9 +446,48 @@ public partial class MainWindow
         _dragItem = null;
         _dragging = false;
         _dropTarget = null;
+        _stripTarget = null;
+        ToolDropMarker.IsVisible = false;
         DockOverlay.IsVisible = false;
         foreach (var zone in new[] { DockZoneLeft, DockZoneRight, DockZoneBottom })
             zone.Classes.Set("hot", false);
+    }
+
+    /// <summary>
+    /// The tab strip under the point (a side group's activity bar, the bottom group's tabs) and the place in it the
+    /// dragged tab would take, shown by the marker between two tabs; null elsewhere.
+    /// </summary>
+    (DockSide Side, int Index)? StripAt(Point p, TabItem dragged)
+    {
+        foreach (var side in Enum.GetValues<DockSide>())
+        {
+            var group = GroupOf(side);
+            var tabs = group.Items.OfType<TabItem>().Where(t => t.IsEffectivelyVisible).ToList();
+            if (!group.IsEffectivelyVisible || tabs.Count == 0)
+                continue;
+            var boxes = tabs.Select(t => t.TranslatePoint(default, DockOverlay) is { } at ? new Rect(at, t.Bounds.Size) : default).ToList();
+            if (group.TranslatePoint(default, DockOverlay) is not { } origin)
+                continue;
+            var vertical = side != DockSide.Bottom;
+            var strip = boxes.Aggregate((a, b) => a.Union(b));
+            // The whole bar's length: below the last icon is the end.
+            strip = vertical ? new Rect(strip.X, origin.Y, strip.Width, group.Bounds.Height) : new Rect(origin.X, strip.Y, group.Bounds.Width, strip.Height);
+            if (!strip.Contains(p))
+                continue;
+            var others = tabs.Select((t, i) => (Tab: t, Box: boxes[i])).Where(x => x.Tab != dragged).ToList();
+            var index = others.Count(x => vertical ? x.Box.Center.Y < p.Y : x.Box.Center.X < p.X);
+            var edge = index < others.Count ? vertical ? others[index].Box.Top : others[index].Box.Left
+                : others.Count > 0 ? vertical ? others[^1].Box.Bottom : others[^1].Box.Right : vertical ? strip.Top : strip.Left;
+            ToolDropMarker.Width = vertical ? strip.Width - 8 : 2;
+            ToolDropMarker.Height = vertical ? 2 : strip.Height - 6;
+            Canvas.SetLeft(ToolDropMarker, vertical ? strip.X + 4 : edge - 1);
+            Canvas.SetTop(ToolDropMarker, vertical ? edge - 1 : strip.Y + 3);
+            ToolDropMarker.IsVisible = true;
+            // Its index among all the group's tabs once it is taken out of its place.
+            return (side, index);
+        }
+        ToolDropMarker.IsVisible = false;
+        return null;
     }
 
     DockSide? ZoneAt(Point p)
@@ -460,10 +541,14 @@ public partial class MainWindow
         MainGrid.ColumnDefinitions[0].Width = new GridLength(DefaultLeftWidth);
         MainGrid.ColumnDefinitions[4].Width = new GridLength(DefaultRightWidth);
         LeftGrid.RowDefinitions[2].Height = new GridLength(DefaultBottomHeight);
-        foreach (var id in new[] { ToolWindows.SolutionExplorer, ToolWindows.TestExplorer, ToolWindows.GitChanges, ToolWindows.DatabaseExplorer, ToolWindows.DockerExplorer, ToolWindows.Servers, ToolWindows.Mcp, ToolWindows.Claude })
+        string[] right = [ToolWindows.SolutionExplorer, ToolWindows.TestExplorer, ToolWindows.GitChanges, ToolWindows.DatabaseExplorer, ToolWindows.DockerExplorer, ToolWindows.Servers, ToolWindows.Mcp, ToolWindows.Claude];
+        string[] bottom = [ToolWindows.ErrorList, ToolWindows.Output, ToolWindows.FindResults, ToolWindows.Locals, ToolWindows.Watch, ToolWindows.CallStack, ToolWindows.Terminal];
+        foreach (var id in right)
             MoveToolWindow(id, DockSide.Right);
-        foreach (var id in new[] { ToolWindows.ErrorList, ToolWindows.Output, ToolWindows.FindResults, ToolWindows.Locals, ToolWindows.Watch, ToolWindows.CallStack, ToolWindows.Terminal })
+        foreach (var id in bottom)
             MoveToolWindow(id, DockSide.Bottom);
+        Arrange(RightTabs, right);
+        Arrange(BottomTabs, bottom);
         UpdateDockLayout();
         if (Vm is { } vm)
         {

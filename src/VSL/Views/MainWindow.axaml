@@ -913,6 +913,10 @@
         <Border Name="DockZoneBottom" Classes="dockzone" VerticalAlignment="Bottom" Height="200" Margin="270,0">
           <TextBlock Text="Dock Bottom" />
         </Border>
+        <!-- Where a tab dragged over a tab strip (an activity bar, the bottom tabs) goes -->
+        <Canvas Name="ToolDropLayer">
+          <Border Name="ToolDropMarker" Background="#3794FF" CornerRadius="1" IsVisible="False" />
+        </Canvas>
       </Panel>
     </Grid>
   </DockPanel>

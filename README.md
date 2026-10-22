@@ -95,7 +95,7 @@ Working on solutions needs the .NET 10 SDK. VSL downloads `roslyn-language-serve
   testing and stepping run at once; a change asks first, one call at a time (destructive SQL says so), read-only data
   sources refuse changes, and secrets in logs and variables are hidden.
 - **Layout**: tool windows at the sides as VS Code's activity bar (an icon each, Git Changes with a badge; click the
-  icon in front to fold the side), drag them to dock or float them; tab groups (Window > New Vertical / Horizontal Tab Group),
+  icon in front to fold the side), drag them to another place on the bar, to dock or to float them; tab groups (Window > New Vertical / Horizontal Tab Group),
   Window > Split, floating documents, tabs dragged to reorder; documents, groups, layout and startup project are
   restored per solution.
   Keyboard shortcuts follow Visual Studio (Help > Keyboard Shortcuts).

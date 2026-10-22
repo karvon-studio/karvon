@@ -86,6 +86,81 @@ public class ActivityBarTests
         window.Close();
     }
 
+    /// <summary>Drags a control (in steps, as a hand does) to a point of the window, and lets it go there.</summary>
+    static void Drag(Window window, Control control, Point to)
+    {
+        var from = control.TranslatePoint(new Point(control.Bounds.Width / 2, control.Bounds.Height / 2), window)!.Value;
+        window.MouseDown(from, MouseButton.Left);
+        for (var step = 1; step <= 6; step++)
+            window.MouseMove(from + (to - from) * (step / 6.0), RawInputModifiers.LeftMouseButton);
+        window.MouseUp(to, MouseButton.Left);
+    }
+
+    static Point At(Window window, Control control, double x, double y) => control.TranslatePoint(new Point(x, y), window)!.Value;
+
+    static string[] Order(TabControl group) => [.. group.Items.OfType<TabItem>().Select(t => (string)t.Tag!)];
+
+    [AvaloniaFact]
+    public async Task Tool_windows_are_dragged_into_another_place_on_their_bar_or_another_strip()
+    {
+        var vm = NewViewModel();
+        var window = new MainWindow { DataContext = vm, Width = 1400, Height = 900 };
+        window.Show();
+        window.ResetWindowLayout();
+        await WaitUntil(() => false, TimeSpan.FromMilliseconds(200));
+        var rightTabs = window.FindControl<TabControl>("RightTabs")!;
+        var bottomTabs = window.FindControl<TabControl>("BottomTabs")!;
+        var solution = Tab(window, ToolWindows.SolutionExplorer);
+        var docker = Tab(window, ToolWindows.DockerExplorer);
+        var claude = Tab(window, ToolWindows.Claude);
+        Assert.Equal(ToolWindows.SolutionExplorer, Order(rightTabs)[0]);
+        Assert.True(solution.IsSelected);
+
+        // Docker Explorer's icon, dragged above Solution Explorer's: first on the bar; the window in front stays so.
+        Drag(window, docker, At(window, solution, 22, 6));
+        Assert.Equal([ToolWindows.DockerExplorer, ToolWindows.SolutionExplorer], Order(rightTabs)[..2]);
+        Assert.True(solution.IsSelected);
+        Assert.False(window.IsCollapsed(DockSide.Right));
+        Assert.Equal(Order(rightTabs), vm.Settings.Layout.ToolOrder["Right"]);
+        Assert.Equal(DockSide.Right, window.SideOf(ToolWindows.DockerExplorer));
+
+        // While it is dragged, a line shows where it would go.
+        var marker = window.FindControl<Border>("ToolDropMarker")!;
+        var start = At(window, claude, 22, 22);
+        window.MouseDown(start, MouseButton.Left);
+        window.MouseMove(start + new Point(0, -20), RawInputModifiers.LeftMouseButton);
+        window.MouseMove(At(window, docker, 22, 4), RawInputModifiers.LeftMouseButton);
+        Assert.True(marker.IsVisible);
+        Assert.Equal(36, marker.Width, 1);
+        await WaitUntil(() => false, TimeSpan.FromMilliseconds(100));
+        Snapshot(window, "activity-bar-dragging");
+        window.MouseMove(At(window, claude, 22, 22), RawInputModifiers.LeftMouseButton);
+        window.MouseUp(At(window, claude, 22, 22), MouseButton.Left);
+        Assert.False(marker.IsVisible);
+        Assert.Equal(ToolWindows.Claude, Order(rightTabs)[^1]);
+
+        // Below the last icon is the end of the bar.
+        Drag(window, solution, At(window, claude, 22, claude.Bounds.Height + 60));
+        Assert.Equal(ToolWindows.SolutionExplorer, Order(rightTabs)[^1]);
+
+        // Dropped between two of the bottom tabs, a tool window goes there, a named tab in front.
+        var output = Tab(window, ToolWindows.Output);
+        Drag(window, docker, At(window, output, 3, output.Bounds.Height / 2));
+        Assert.Equal(DockSide.Bottom, window.SideOf(ToolWindows.DockerExplorer));
+        Assert.Equal(Order(bottomTabs).ToList().IndexOf(ToolWindows.Output) - 1, Order(bottomTabs).ToList().IndexOf(ToolWindows.DockerExplorer));
+        Assert.True(docker.IsSelected);
+        Assert.Equal("VsToolTab", ThemeKey(window, docker));
+        await WaitUntil(() => false, TimeSpan.FromMilliseconds(100));
+        Snapshot(window, "activity-bar-reordered");
+
+        // Reset Window Layout: every tab back in its place, in the first order.
+        window.ResetWindowLayout();
+        Assert.Equal([ToolWindows.SolutionExplorer, ToolWindows.TestExplorer, ToolWindows.GitChanges, ToolWindows.DatabaseExplorer, ToolWindows.DockerExplorer, ToolWindows.Servers, ToolWindows.Mcp, ToolWindows.Claude],
+            Order(rightTabs));
+        Assert.Empty(vm.Settings.Layout.ToolOrder);
+        window.Close();
+    }
+
     static string ThemeKey(Window window, TabItem item) =>
         ReferenceEquals(item.Theme, window.FindResource("VsActivityTab")) ? "VsActivityTab" : ReferenceEquals(item.Theme, window.FindResource("VsToolTab")) ? "VsToolTab" : "?";
 }

@@ -27,6 +27,9 @@ public sealed class Settings
         /// <summary>Dock side ("Left", "Right", "Bottom") → the tool window in front.</summary>
         public Dictionary<string, string> SelectedTools { get; set; } = [];
 
+        /// <summary>Dock side → its tool windows in the order they were dragged to (the default order otherwise).</summary>
+        public Dictionary<string, List<string>> ToolOrder { get; set; } = [];
+
         /// <summary>Floating tool windows: tool window id → [x, y, width, height] of its window.</summary>
         public Dictionary<string, double[]> FloatingTools { get; set; } = [];
 
