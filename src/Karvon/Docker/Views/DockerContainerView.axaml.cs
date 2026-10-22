@@ -5,6 +5,7 @@ using Avalonia.Interactivity;
 using Avalonia.Threading;
 using Karvon.Docker.ViewModels;
 using Karvon.Editor;
+using Karvon.Ui;
 
 namespace Karvon.Docker.Views;
 
@@ -20,8 +21,8 @@ public partial class DockerContainerView : UserControl
     public DockerContainerView()
     {
         InitializeComponent();
-        DockerViews.SetUpReadOnly(LogsEditor);
-        DockerViews.SetUpJson(InspectEditor);
+        ExplorerViews.SetUpReadOnly(LogsEditor);
+        ExplorerViews.SetUpJson(InspectEditor);
         LogsEditor.TextArea.TextView.LineTransformers.Add(new OutputColorizer(() => _vm?.Logs));
     }
 
@@ -84,9 +85,9 @@ public partial class DockerContainerView : UserControl
         }, DispatcherPriority.Background);
     }
 
-    void OnCopy(object? sender, RoutedEventArgs e) => DockerViews.Copy(this, (sender as Control)?.Tag as string);
+    void OnCopy(object? sender, RoutedEventArgs e) => ExplorerViews.Copy(this, (sender as Control)?.Tag as string);
 
-    void OnCopyLogs(object? sender, RoutedEventArgs e) => DockerViews.Copy(this, _vm?.Logs.Document.Text);
+    void OnCopyLogs(object? sender, RoutedEventArgs e) => ExplorerViews.Copy(this, _vm?.Logs.Document.Text);
 
     /// <summary>Enter selects the next match after the caret (wrapping round), Shift+Enter the one before.</summary>
     void OnLogSearchKeyDown(object? sender, KeyEventArgs e)

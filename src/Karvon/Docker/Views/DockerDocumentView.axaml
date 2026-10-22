@@ -7,7 +7,7 @@
              x:DataType="dvm:DockerDocument"
              Background="#1E1E1E">
   <UserControl.Styles>
-    <StyleInclude Source="avares://Karvon/Docker/Views/DockerStyles.axaml" />
+    <StyleInclude Source="avares://Karvon/Themes/ExplorerStyles.axaml" />
   </UserControl.Styles>
 
   <Panel>

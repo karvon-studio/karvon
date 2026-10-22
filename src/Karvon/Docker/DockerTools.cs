@@ -2,11 +2,38 @@ using System.Text;
 using System.Text.Encodings.Web;
 using System.Text.Json;
 using System.Text.Json.Nodes;
-using Karvon.Docker;
+using Karvon.Claude;
+using Karvon.Claude.Tools;
 using Karvon.Docker.ViewModels;
 using static Karvon.Claude.Tools.ToolInput;
 
-namespace Karvon.Claude.Tools;
+namespace Karvon.Docker;
+
+/// <summary>What the container tools use of Karvon: the solution's folder and the Docker engine.</summary>
+public interface IDockerToolHost
+{
+    /// <summary>The open solution's folder (its compose project), or null.</summary>
+    string? SolutionDirectory { get; }
+
+    DockerEngine Docker { get; }
+
+    /// <summary>Every container of the engine, not only those of the solution's compose project.</summary>
+    bool AllContainers { get; }
+}
+
+/// <summary>Claude Code's container tools.</summary>
+public static class DockerClaudeTools
+{
+    public static IEnumerable<IClaudeTool> Create(IDockerToolHost host) =>
+    [
+        new ContainerListTool(host),
+        new ContainerLogsTool(host),
+        new ContainerInspectTool(host),
+        new ContainerRestartTool(host),
+        new ComposeUpTool(host),
+        new ContainerRemoveTool(host),
+    ];
+}
 
 /// <summary>
 /// The solution's containers for Claude, through the docker (or podman) command line: those compose started in the

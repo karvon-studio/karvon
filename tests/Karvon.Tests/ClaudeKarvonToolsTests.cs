@@ -15,8 +15,12 @@ using static Karvon.Tests.UiTests;
 namespace Karvon.Tests;
 
 /// <summary>A data source list (never the user's) and a fake docker, as Karvon gives them to its tools.</summary>
-sealed class TestToolHost(string? solution, DockerEngine docker, params ServerProfile[] servers) : IClaudeToolHost
+sealed class TestToolHost(string? solution, DockerEngine docker, params ServerProfile[] servers) : Karvon.Database.IDatabaseToolHost, Karvon.Docker.IDockerToolHost
 {
+    /// <summary>Karvon's tools over this host: the databases', (with <paramref name="explorer"/>) the servers', the containers'.</summary>
+    public ClaudeToolServer Tools(Func<Karvon.Servers.ViewModels.ServersExplorerViewModel>? explorer = null) => KarvonTools.Create(null,
+        [.. Karvon.Database.DatabaseClaudeTools.Create(this), .. explorer is null ? [] : Karvon.Servers.ServerClaudeTools.Create(explorer), .. Karvon.Docker.DockerClaudeTools.Create(this)]);
+
     public string? SolutionDirectory { get; } = solution;
 
     public IReadOnlyList<ServerProfile> DataSources() => servers;
@@ -77,7 +81,7 @@ public class ClaudeKarvonToolsTests
         var file = TestToolHost.NewDatabase();
         var (docker, _, _) = FakeDocker.Create();
         var host = new TestToolHost(dir, new DockerEngine(docker), new ServerProfile { Name = "shop", Provider = DatabaseProvider.Sqlite, FilePath = file });
-        var vm = new ClaudeViewModel(new Karvon.Services.Settings(), () => dir, () => null, () => [], () => FakeClaude.Executable) { Tools = KarvonTools.Create(host) };
+        var vm = new ClaudeViewModel(new Karvon.Services.Settings(), () => dir, () => null, () => [], () => FakeClaude.Executable) { Tools = host.Tools() };
         var window = new Window { Width = 560, Height = 900, Content = new ClaudeView { DataContext = vm } };
         window.Show();
         await WaitUntil(() => vm.Commands.Count > 0, TimeSpan.FromSeconds(10));
@@ -135,7 +139,7 @@ public class ClaudeKarvonToolsTests
         var host = new TestToolHost(null, new DockerEngine(docker),
             new ServerProfile { Name = "shop", Provider = DatabaseProvider.Sqlite, FilePath = file, Comment = "Server=x;Password=hunter2" },
             new ServerProfile { Name = "reports", Provider = DatabaseProvider.Sqlite, FilePath = file, ReadOnly = true });
-        var server = KarvonTools.Create(host);
+        var server = host.Tools();
 
         var connections = Text(await Call(server, "db_connections", new { }));
         Assert.Contains("shop: Sqlite, " + file + ", writable", connections);
@@ -180,7 +184,7 @@ public class ClaudeKarvonToolsTests
         sample["containers"]![2]!["logs"]!.AsArray().Add("connecting to postgres://shop:not-a-secret@db:5432/shop");
         var (docker, state, _) = FakeDocker.Create(sample);
         var host = new TestToolHost(solution, new DockerEngine(docker));
-        var server = KarvonTools.Create(host);
+        var server = host.Tools();
 
         // The solution's compose project only: the cache and the others are another project's.
         var list = Text(await Call(server, "container_list", new { }));

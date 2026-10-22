@@ -10,6 +10,7 @@ using Karvon.Docker.ViewModels;
 using Karvon.Servers;
 using Karvon.Servers.ViewModels;
 using Karvon.Servers.Views;
+using Karvon.Ui;
 using static Karvon.Tests.UiTests;
 
 namespace Karvon.Tests;
@@ -253,7 +254,7 @@ public class ServersTests
         var explorer = new ServersExplorerViewModel(host);
         explorer.SetProduction(explorer.Find("prod-1")!, true);
         var (docker, _, _) = FakeDocker.Create();
-        var server = KarvonTools.Create(new TestToolHost(null, new Docker.DockerEngine(docker)), servers: () => explorer);
+        var server = new TestToolHost(null, new Docker.DockerEngine(docker)).Tools(() => explorer);
         var message = JsonSerializer.SerializeToElement(new { jsonrpc = "2.0", id = 1, method = "tools/call", @params = new { name = "server_list", arguments = new { } } });
         var list = (await server.HandleAsync(message, CancellationToken.None))["result"]!["content"]![0]!["text"]!.GetValue<string>();
         Assert.Equal("lab: tester@127.0.0.1:1\nprod-1: " + Environment.UserName + "@127.0.0.1:1, production (every command asks the user)", list);

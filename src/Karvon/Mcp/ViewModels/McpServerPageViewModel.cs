@@ -5,6 +5,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using ModelContextProtocol.Protocol;
 using Karvon.ViewModels;
+using Karvon.Ui;
 
 namespace Karvon.Mcp.ViewModels;
 
@@ -342,7 +343,7 @@ public sealed partial class McpServerPageViewModel : ObservableObject, IDisposab
         where TItem : class
     {
         var kept = source.Select(s => items.FirstOrDefault(i => itemKey(i) == keyOf(s)) ?? make(s)).ToList();
-        Docker.ViewModels.ContainersPage.Sync(items, kept);
+        ObservableSync.Sync(items, kept);
     }
 
     void OnLogged(string line) => Log.Append(line);

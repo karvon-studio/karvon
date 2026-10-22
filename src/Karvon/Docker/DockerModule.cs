@@ -77,7 +77,7 @@ public sealed partial class DockerModule : KarvonModule, IDockerHost, IDockerToo
         Overlay = Explorer = null;
     }
 
-    public override IEnumerable<IClaudeTool> ClaudeTools() => KarvonTools.DockerTools(this);
+    public override IEnumerable<IClaudeTool> ClaudeTools() => DockerClaudeTools.Create(this);
 
     public override async Task ShowClaudeToolAsync(string tool, JsonElement input, ClaudeToolOutput output)
     {

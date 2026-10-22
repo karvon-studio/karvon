@@ -1,12 +1,12 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:ui="using:Karvon.Ui"
              xmlns:v="using:Karvon.Views"
              xmlns:kvm="using:Karvon.Skills.ViewModels"
-             xmlns:dvm="using:Karvon.Docker.ViewModels"
              x:Class="Karvon.Skills.Views.SkillsOverlay"
              x:DataType="kvm:SkillsExplorerViewModel">
   <UserControl.Styles>
-    <StyleInclude Source="avares://Karvon/Docker/Views/DockerStyles.axaml" />
+    <StyleInclude Source="avares://Karvon/Themes/ExplorerStyles.axaml" />
   </UserControl.Styles>
 
   <!-- Over the window: the Skills explorer's dialogs and errors. Clicks pass through otherwise. -->
@@ -14,7 +14,7 @@
     <Panel Name="DialogLayer" IsVisible="{Binding HasDialog}" Background="#99000000">
       <ContentControl Content="{Binding Dialog}" HorizontalAlignment="Center" VerticalAlignment="Center">
         <ContentControl.DataTemplates>
-          <DataTemplate DataType="dvm:InputDialog">
+          <DataTemplate DataType="ui:InputDialog">
             <Border Classes="dkCard" Width="440" Padding="22,18" Background="#2B2B2F">
               <StackPanel Spacing="12">
                 <TextBlock Text="{Binding Title}" FontSize="16" FontWeight="SemiBold" />
@@ -33,7 +33,7 @@
               </StackPanel>
             </Border>
           </DataTemplate>
-          <DataTemplate DataType="dvm:ConfirmDialog">
+          <DataTemplate DataType="ui:ConfirmDialog">
             <Border Classes="dkCard" Width="460" Padding="22,18" Background="#2B2B2F">
               <StackPanel Spacing="14">
                 <TextBlock Text="{Binding Title}" FontSize="16" FontWeight="SemiBold" TextWrapping="Wrap" />

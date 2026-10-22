@@ -17,6 +17,7 @@ public partial class App : Application
     {
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
+            Modules.ModuleCatalog.Create = BuiltInModules.Create;
             var vm = new MainViewModel();
             var solution = StartupArgs.FirstOrDefault(SolutionLoader.CanOpen);
             if (solution is not null && File.Exists(solution))

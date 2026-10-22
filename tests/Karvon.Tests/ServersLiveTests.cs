@@ -121,7 +121,7 @@ public class ServersLiveTests
 
             // Claude: a command through Karvon's connection; on a production machine it is destructive.
             var (docker, _, _) = FakeDocker.Create();
-            var tools = KarvonTools.Create(new TestToolHost(null, new Docker.DockerEngine(docker)), servers: () => explorer);
+            var tools = new TestToolHost(null, new Docker.DockerEngine(docker)).Tools(() => explorer);
             var message = JsonSerializer.SerializeToElement(new { jsonrpc = "2.0", id = 1, method = "tools/call", @params = new { name = "server_exec", arguments = new { server = "live", command = "uname -s" } } });
             Assert.Equal("Exit code 0.\nLinux", (await tools.HandleAsync(message, CancellationToken.None))["result"]!["content"]![0]!["text"]!.GetValue<string>());
 

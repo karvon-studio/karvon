@@ -8,6 +8,7 @@ using Karvon.Mcp;
 using Karvon.Mcp.ViewModels;
 using Karvon.Mcp.Views;
 using Karvon.ViewModels;
+using Karvon.Ui;
 using static Karvon.Tests.UiTests;
 
 namespace Karvon.Tests;
@@ -525,7 +526,7 @@ public class McpTests
             },
         }));
         var (docker, _, _) = FakeDocker.Create();
-        var host = new TestMcpHost(workspace) { BuiltInTools = KarvonTools.Create(new TestToolHost(null, new Docker.DockerEngine(docker))).Tools };
+        var host = new TestMcpHost(workspace) { BuiltInTools = new TestToolHost(null, new Docker.DockerEngine(docker)).Tools().Tools };
         var vm = new McpExplorerViewModel(host);
         var page = new ContentControl();
         var window = new Window
@@ -631,7 +632,7 @@ public class McpTests
 
             // Removed (it asks first): its page closes.
             var removing = vm.Find("shared")!.RemoveCommand.ExecuteAsync(null);
-            Assert.IsType<Docker.ViewModels.ConfirmDialog>(vm.Dialog).Confirm();
+            Assert.IsType<ConfirmDialog>(vm.Dialog).Confirm();
             await removing;
             Assert.Null(vm.Find("shared"));
             Assert.Single(host.Open);

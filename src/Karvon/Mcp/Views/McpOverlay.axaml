@@ -1,12 +1,12 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:ui="using:Karvon.Ui"
              xmlns:v="using:Karvon.Views"
              xmlns:mvm="using:Karvon.Mcp.ViewModels"
-             xmlns:dvm="using:Karvon.Docker.ViewModels"
              x:Class="Karvon.Mcp.Views.McpOverlay"
              x:DataType="mvm:McpExplorerViewModel">
   <UserControl.Styles>
-    <StyleInclude Source="avares://Karvon/Docker/Views/DockerStyles.axaml" />
+    <StyleInclude Source="avares://Karvon/Themes/ExplorerStyles.axaml" />
     <Style Selector="TextBox.lines">
       <Setter Property="AcceptsReturn" Value="True" />
       <Setter Property="FontFamily" Value="{StaticResource VsCodeFont}" />
@@ -66,7 +66,7 @@
               </StackPanel>
             </Border>
           </DataTemplate>
-          <DataTemplate DataType="dvm:ConfirmDialog">
+          <DataTemplate DataType="ui:ConfirmDialog">
             <Border Classes="dkCard" Width="460" Padding="22,18" Background="#2B2B2F">
               <StackPanel Spacing="14">
                 <TextBlock Text="{Binding Title}" FontSize="16" FontWeight="SemiBold" TextWrapping="Wrap" />

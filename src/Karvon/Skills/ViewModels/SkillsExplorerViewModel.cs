@@ -2,9 +2,9 @@ using System.Collections.ObjectModel;
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-using Karvon.Docker.ViewModels;
 using Karvon.Services;
 using Karvon.ViewModels;
+using Karvon.Ui;
 
 namespace Karvon.Skills.ViewModels;
 
@@ -171,7 +171,7 @@ public sealed partial class SkillsExplorerViewModel : ObservableObject, IDisposa
     /// <summary>The dialog over the window (a new skill's name, a confirmation), or null.</summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasDialog))]
-    public partial DockerDialog? Dialog { get; set; }
+    public partial OverlayDialog? Dialog { get; set; }
 
     public bool HasDialog => Dialog is not null;
 
@@ -371,7 +371,7 @@ public sealed partial class SkillsExplorerViewModel : ObservableObject, IDisposa
 
     // ---- Dialogs -----------------------------------------------------------------------------------------------
 
-    internal async Task<T?> ShowAsync<T>(T dialog) where T : DockerDialog
+    internal async Task<T?> ShowAsync<T>(T dialog) where T : OverlayDialog
     {
         while (Dialog is { } open)
             await open.Result;

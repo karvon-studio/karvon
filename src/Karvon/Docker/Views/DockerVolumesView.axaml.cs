@@ -2,6 +2,7 @@ using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Karvon.Docker.ViewModels;
+using Karvon.Ui;
 
 namespace Karvon.Docker.Views;
 
@@ -9,7 +10,7 @@ public partial class DockerVolumesView : UserControl
 {
     public DockerVolumesView() => InitializeComponent();
 
-    void OnCopy(object? sender, RoutedEventArgs e) => DockerViews.Copy(this, (sender as Control)?.Tag as string);
+    void OnCopy(object? sender, RoutedEventArgs e) => ExplorerViews.Copy(this, (sender as Control)?.Tag as string);
 
     void OnRowDoubleTapped(object? sender, TappedEventArgs e)
     {

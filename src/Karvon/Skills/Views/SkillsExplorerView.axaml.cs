@@ -4,8 +4,8 @@ using Avalonia.Controls.Primitives;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.VisualTree;
-using Karvon.Docker.Views;
 using Karvon.Skills.ViewModels;
+using Karvon.Ui;
 
 namespace Karvon.Skills.Views;
 
@@ -46,5 +46,5 @@ public partial class SkillsExplorerView : UserControl
         return command is not null;
     }
 
-    void OnCopy(object? sender, RoutedEventArgs e) => DockerViews.Copy(this, (sender as Control)?.Tag as string);
+    void OnCopy(object? sender, RoutedEventArgs e) => ExplorerViews.Copy(this, (sender as Control)?.Tag as string);
 }

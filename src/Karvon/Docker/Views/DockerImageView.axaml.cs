@@ -2,6 +2,7 @@ using System.ComponentModel;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
 using Karvon.Docker.ViewModels;
+using Karvon.Ui;
 
 namespace Karvon.Docker.Views;
 
@@ -12,7 +13,7 @@ public partial class DockerImageView : UserControl
     public DockerImageView()
     {
         InitializeComponent();
-        DockerViews.SetUpJson(InspectEditor);
+        ExplorerViews.SetUpJson(InspectEditor);
     }
 
     protected override void OnDataContextChanged(EventArgs e)
@@ -33,5 +34,5 @@ public partial class DockerImageView : UserControl
             InspectEditor.Text = _vm.InspectJson;
     }
 
-    void OnCopy(object? sender, RoutedEventArgs e) => DockerViews.Copy(this, (sender as Control)?.Tag as string);
+    void OnCopy(object? sender, RoutedEventArgs e) => ExplorerViews.Copy(this, (sender as Control)?.Tag as string);
 }

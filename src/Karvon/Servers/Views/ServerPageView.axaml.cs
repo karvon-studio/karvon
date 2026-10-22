@@ -4,9 +4,9 @@ using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Platform.Storage;
 using Avalonia.Threading;
-using Karvon.Docker.Views;
 using Karvon.Editor;
 using Karvon.Servers.ViewModels;
+using Karvon.Ui;
 
 namespace Karvon.Servers.Views;
 
@@ -18,7 +18,7 @@ public partial class ServerPageView : UserControl
     public ServerPageView()
     {
         InitializeComponent();
-        DockerViews.SetUpReadOnly(LogsEditor);
+        ExplorerViews.SetUpReadOnly(LogsEditor);
         LogsEditor.TextArea.TextView.LineTransformers.Add(new OutputColorizer(() => _vm?.Logs));
         FilesScroll.AddHandler(DragDrop.DragOverEvent, OnDragOver);
         FilesScroll.AddHandler(DragDrop.DragLeaveEvent, (_, _) => DropHint.IsVisible = false);

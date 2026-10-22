@@ -63,7 +63,7 @@ public sealed partial class ServersModule : KarvonModule, IServersHost
         Overlay = Explorer = null;
     }
 
-    public override IEnumerable<IClaudeTool> ClaudeTools() => KarvonTools.ServerTools(EnsureExplorer);
+    public override IEnumerable<IClaudeTool> ClaudeTools() => ServerClaudeTools.Create(EnsureExplorer);
 
     public override Task ShowClaudeToolAsync(string tool, JsonElement input, ClaudeToolOutput output)
     {

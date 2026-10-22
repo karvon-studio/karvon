@@ -1,11 +1,19 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using Avalonia.Threading;
-using Karvon.Servers;
+using Karvon.Claude;
+using Karvon.Claude.Tools;
 using Karvon.Servers.ViewModels;
 using static Karvon.Claude.Tools.ToolInput;
 
-namespace Karvon.Claude.Tools;
+namespace Karvon.Servers;
+
+/// <summary>Claude Code's server tools.</summary>
+public static class ServerClaudeTools
+{
+    public static IEnumerable<IClaudeTool> Create(Func<ServersExplorerViewModel> servers) =>
+        [new ServerListTool(servers), new ServerLogsTool(servers), new ServerExecTool(servers)];
+}
 
 /// <summary>
 /// The Servers explorer's machines for Claude, through Karvon's own SSH connections (the user's keys, and passwords asked in

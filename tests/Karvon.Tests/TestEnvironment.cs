@@ -12,6 +12,8 @@ static class TestEnvironment
     [ModuleInitializer]
     internal static void Isolate()
     {
+        // The modules the application comes with, as the application gives them.
+        Karvon.Modules.ModuleCatalog.Create = Karvon.BuiltInModules.Create;
         if (Environment.GetEnvironmentVariable("KARVON_DOCKER_PATH") is null)
             Environment.SetEnvironmentVariable("KARVON_DOCKER_PATH", FakeDocker.Create().Docker);
         if (Environment.GetEnvironmentVariable("KARVON_SSH_HOME") is null)

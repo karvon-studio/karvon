@@ -8,6 +8,7 @@ using Karvon.Skills;
 using Karvon.Skills.ViewModels;
 using Karvon.Skills.Views;
 using Karvon.ViewModels;
+using Karvon.Ui;
 using static Karvon.Tests.UiTests;
 
 namespace Karvon.Tests;

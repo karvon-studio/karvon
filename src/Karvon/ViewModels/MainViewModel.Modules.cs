@@ -135,7 +135,7 @@ public partial class MainViewModel : IWorkbench, IClaudeService
     }
 
     /// <summary>The chosen account's folder (CLAUDE_CONFIG_DIR or ~/.claude otherwise); always the home's in a home of the tests'.</summary>
-    string IClaudeService.ConfigDirectory => Environment.GetEnvironmentVariable("KARVON_USER_HOME") is not null ? Path.Combine(Karvon.Mcp.McpConfigs.Home, ".claude")
+    string IClaudeService.ConfigDirectory => Environment.GetEnvironmentVariable("KARVON_USER_HOME") is not null ? Path.Combine(UserHome.Path, ".claude")
         : _claude?.SelectedAccount?.ConfigDirectory ?? ClaudeCli.ConfigDirectory;
 
     /// <summary>The chosen account's settings (~/.claude.json for the default one); always the home's in a home of the tests'.</summary>

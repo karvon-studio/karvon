@@ -5,7 +5,7 @@
              x:Class="Karvon.Mcp.Views.McpExplorerView"
              x:DataType="mvm:McpExplorerViewModel">
   <UserControl.Styles>
-    <StyleInclude Source="avares://Karvon/Docker/Views/DockerStyles.axaml" />
+    <StyleInclude Source="avares://Karvon/Themes/ExplorerStyles.axaml" />
     <Style Selector="TreeView#Tree TreeViewItem /template/ ContentPresenter#PART_HeaderPresenter">
       <Setter Property="HorizontalAlignment" Value="Stretch" />
       <Setter Property="HorizontalContentAlignment" Value="Stretch" />

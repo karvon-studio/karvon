@@ -9,9 +9,28 @@ using Bengine.Introspection.Plans;
 using Bengine.Introspection.Servers;
 using Bengine.Introspection.Sql;
 using Bengine.Introspection.Tree;
+using Karvon.Claude;
+using Karvon.Claude.Tools;
 using static Karvon.Claude.Tools.ToolInput;
 
-namespace Karvon.Claude.Tools;
+namespace Karvon.Database;
+
+/// <summary>What the database tools use of Karvon: the Database Explorer's data sources and passwords.</summary>
+public interface IDatabaseToolHost
+{
+    /// <summary>The Database Explorer's data sources: the solution's own, or Bengine Data Studio's list with no solution open.</summary>
+    IReadOnlyList<ServerProfile> DataSources();
+
+    /// <summary>The password the Database Explorer would use: typed there this session, else the saved one.</summary>
+    Task<string?> PasswordForAsync(ServerProfile server);
+}
+
+/// <summary>Claude Code's database tools.</summary>
+public static class DatabaseClaudeTools
+{
+    public static IEnumerable<IClaudeTool> Create(IDatabaseToolHost host) =>
+        [new DbConnectionsTool(host), new DbSchemaTool(host), new DbQueryTool(host), new DbExplainTool(host)];
+}
 
 /// <summary>What <c>db_query</c> ran, and its result sets: Karvon shows them in a Query Tool of the data source.</summary>
 public sealed record DbQueryRun(ServerProfile Server, string? Database, string Sql, IReadOnlyList<QueryResult> Results);

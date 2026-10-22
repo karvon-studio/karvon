@@ -6,6 +6,7 @@ using Renci.SshNet.Common;
 using Renci.SshNet.Sftp;
 using Karvon.Terminal;
 using Karvon.ViewModels;
+using Karvon.Ui;
 
 namespace Karvon.Servers.ViewModels;
 
@@ -388,7 +389,7 @@ public sealed partial class ServerPageViewModel : ObservableObject, IDisposable
     [RelayCommand]
     async Task NewFolder()
     {
-        if (await _explorer.ShowAsync(new Docker.ViewModels.InputDialog("New folder", $"In {CurrentPath}", "folder", "Create")) is not { } dialog)
+        if (await _explorer.ShowAsync(new InputDialog("New folder", $"In {CurrentPath}", "folder", "Create")) is not { } dialog)
             return;
         await Change(sftp => sftp.CreateDirectoryAsync(Join(CurrentPath, dialog.Text.Trim())), "The folder could not be created");
     }
@@ -396,7 +397,7 @@ public sealed partial class ServerPageViewModel : ObservableObject, IDisposable
     [RelayCommand]
     async Task Rename(RemoteEntry? entry)
     {
-        if (entry is null || await _explorer.ShowAsync(new Docker.ViewModels.InputDialog($"Rename {entry.Name}", "New name", entry.Name, "Rename") { Text = entry.Name }) is not { } dialog
+        if (entry is null || await _explorer.ShowAsync(new InputDialog($"Rename {entry.Name}", "New name", entry.Name, "Rename") { Text = entry.Name }) is not { } dialog
             || dialog.Text.Trim() == entry.Name)
             return;
         await Change(sftp => sftp.RenameFileAsync(entry.Path, Join(Parent(entry.Path), dialog.Text.Trim()), CancellationToken.None), $"{entry.Name} could not be renamed");
@@ -472,7 +473,7 @@ public sealed partial class ServerPageViewModel : ObservableObject, IDisposable
     void ShowServices()
     {
         var filter = ServiceFilter.Trim();
-        Docker.ViewModels.ContainersPage.Sync(ShownServices, Services.Where(s => (!OnlyRunning || s.Service.IsRunning)
+        ObservableSync.Sync(ShownServices, Services.Where(s => (!OnlyRunning || s.Service.IsRunning)
             && (filter.Length == 0 || s.Service.Unit.Contains(filter, StringComparison.OrdinalIgnoreCase) || s.Service.Description.Contains(filter, StringComparison.OrdinalIgnoreCase))).ToList());
     }
 
@@ -491,7 +492,7 @@ public sealed partial class ServerPageViewModel : ObservableObject, IDisposable
             ServicesProblem = null;
             var services = RemoteCommands.ParseServices(result.Output);
             var rows = services.Select(s => Services.FirstOrDefault(r => r.Service.Unit == s.Unit) is { } row ? Update(row, s) : new ServiceRow(s)).ToList();
-            Docker.ViewModels.ContainersPage.Sync(Services, rows);
+            ObservableSync.Sync(Services, rows);
             ShowServices();
         }
         catch (ServerException ex)

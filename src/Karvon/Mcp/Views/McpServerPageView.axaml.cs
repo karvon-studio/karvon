@@ -1,7 +1,7 @@
 using Avalonia.Controls;
 using Avalonia.Threading;
-using Karvon.Docker.Views;
 using Karvon.Mcp.ViewModels;
+using Karvon.Ui;
 
 namespace Karvon.Mcp.Views;
 
@@ -13,7 +13,7 @@ public partial class McpServerPageView : UserControl
     public McpServerPageView()
     {
         InitializeComponent();
-        DockerViews.SetUpReadOnly(LogEditor);
+        ExplorerViews.SetUpReadOnly(LogEditor);
     }
 
     protected override void OnDataContextChanged(EventArgs e)

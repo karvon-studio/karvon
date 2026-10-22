@@ -3,10 +3,10 @@ using Avalonia.Input.Platform;
 using AvaloniaEdit;
 using Karvon.Editor;
 
-namespace Karvon.Docker.Views;
+namespace Karvon.Ui;
 
-/// <summary>What the Docker Explorer's views share: copying, and the read-only editors for logs and inspect.</summary>
-static class DockerViews
+/// <summary>What the explorers' views share: copying, and the read-only editors for logs and inspect.</summary>
+public static class ExplorerViews
 {
     public static void Copy(Control source, string? text)
     {

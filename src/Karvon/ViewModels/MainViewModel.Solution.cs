@@ -3,6 +3,7 @@ using System.Text.RegularExpressions;
 using System.Xml.Linq;
 using Karvon.Build;
 using Karvon.Git;
+using Karvon.Services;
 using Karvon.Workspace;
 
 namespace Karvon.ViewModels;
@@ -409,7 +410,7 @@ public partial class MainViewModel
             id = UserSecretsId(project.FilePath);
         if (id is null)
             return null;
-        var file = Path.Combine(Karvon.Mcp.McpConfigs.Home, ".microsoft", "usersecrets", id, "secrets.json");
+        var file = Path.Combine(UserHome.Path, ".microsoft", "usersecrets", id, "secrets.json");
         try
         {
             Directory.CreateDirectory(Path.GetDirectoryName(file)!);

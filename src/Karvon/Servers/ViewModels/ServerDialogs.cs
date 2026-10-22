@@ -1,10 +1,10 @@
 using CommunityToolkit.Mvvm.ComponentModel;
-using Karvon.Docker.ViewModels;
+using Karvon.Ui;
 
 namespace Karvon.Servers.ViewModels;
 
 /// <summary>A password or a passphrase, typed hidden, and whether to keep it in the system keyring.</summary>
-public sealed partial class SecretDialog(string title, string question, bool canSave) : DockerDialog(title, "Connect")
+public sealed partial class SecretDialog(string title, string question, bool canSave) : OverlayDialog(title, "Connect")
 {
     public string Question { get; } = question;
 
@@ -19,7 +19,7 @@ public sealed partial class SecretDialog(string title, string question, bool can
 }
 
 /// <summary>A host key Karvon has not seen: its fingerprint, to compare with the machine's before trusting it.</summary>
-public sealed class TrustDialog(string host, string endpoint, string keyType, string fingerprint) : DockerDialog($"Trust {host}?", "Trust and connect")
+public sealed class TrustDialog(string host, string endpoint, string keyType, string fingerprint) : OverlayDialog($"Trust {host}?", "Trust and connect")
 {
     public string Message { get; } =
         $"Karvon has not connected to {endpoint} before, and ~/.ssh/known_hosts does not have its key. If you can, compare its fingerprint "
@@ -31,7 +31,7 @@ public sealed class TrustDialog(string host, string endpoint, string keyType, st
 }
 
 /// <summary>Add Server / Edit: where the machine is, who signs in, its key, its group and whether it is production.</summary>
-public sealed partial class ServerFormDialog : DockerDialog
+public sealed partial class ServerFormDialog : OverlayDialog
 {
     public ServerFormDialog(ServerHost? existing, IReadOnlyList<string> groups) : base(existing is null ? "Add a server" : $"Edit {existing.Name}", existing is null ? "Add" : "Save")
     {

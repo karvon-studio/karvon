@@ -1,6 +1,7 @@
 using System.ComponentModel;
 using Avalonia.Controls;
 using Karvon.Docker.ViewModels;
+using Karvon.Ui;
 
 namespace Karvon.Docker.Views;
 
@@ -11,7 +12,7 @@ public partial class DockerNetworkView : UserControl
     public DockerNetworkView()
     {
         InitializeComponent();
-        DockerViews.SetUpJson(InspectEditor);
+        ExplorerViews.SetUpJson(InspectEditor);
     }
 
     protected override void OnDataContextChanged(EventArgs e)

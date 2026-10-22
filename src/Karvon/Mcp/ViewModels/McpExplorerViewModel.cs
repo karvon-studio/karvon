@@ -4,8 +4,8 @@ using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Karvon.Claude;
-using Karvon.Docker.ViewModels;
 using Karvon.ViewModels;
+using Karvon.Ui;
 
 namespace Karvon.Mcp.ViewModels;
 
@@ -343,7 +343,7 @@ public sealed partial class McpExplorerViewModel : ObservableObject, IDisposable
     /// <summary>The dialog over the window (the server form, a confirmation), or null.</summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasDialog))]
-    public partial DockerDialog? Dialog { get; set; }
+    public partial OverlayDialog? Dialog { get; set; }
 
     public bool HasDialog => Dialog is not null;
 
@@ -397,7 +397,7 @@ public sealed partial class McpExplorerViewModel : ObservableObject, IDisposable
         var tools = all.Where(t => filter.Length == 0 || t.Name.Contains(filter, StringComparison.OrdinalIgnoreCase))
             .Select(t => builtIn.Items.OfType<McpBuiltInToolNode>().FirstOrDefault(n => n.Name == t.Name) ?? new McpBuiltInToolNode(this, t))
             .Cast<McpTreeNode>().ToList();
-        ContainersPage.Sync(builtIn.Items, tools);
+        ObservableSync.Sync(builtIn.Items, tools);
         builtIn.CountText = all.Count == 0 ? "off" : $"{all.Count} tools";
         if (filter.Length == 0 || tools.Count > 0)
             roots.Add(builtIn);
@@ -406,13 +406,13 @@ public sealed partial class McpExplorerViewModel : ObservableObject, IDisposable
         {
             var node = Roots.OfType<McpGroupNode>().FirstOrDefault(g => g.Origin == group.Key)
                 ?? new McpGroupNode(this, McpConfigs.Describe(group.Key), Configs.FileOf(group.Key), group.Key);
-            ContainersPage.Sync(node.Items, group.OrderBy(n => n.Name, StringComparer.OrdinalIgnoreCase).Cast<McpTreeNode>().ToList());
+            ObservableSync.Sync(node.Items, group.OrderBy(n => n.Name, StringComparer.OrdinalIgnoreCase).Cast<McpTreeNode>().ToList());
             var count = node.Items.Count;
             node.CountText = count == 1 ? "1 server" : $"{count} servers";
             roots.Add(node);
         }
         roots.AddRange(_problems.Select(p => Roots.OfType<McpProblemNode>().FirstOrDefault(n => n.Text == p) ?? new McpProblemNode(p)));
-        ContainersPage.Sync(Roots, roots);
+        ObservableSync.Sync(Roots, roots);
     }
 
     [RelayCommand]
@@ -548,7 +548,7 @@ public sealed partial class McpExplorerViewModel : ObservableObject, IDisposable
 
     // ---- Dialogs -----------------------------------------------------------------------------------------------
 
-    internal async Task<T?> ShowAsync<T>(T dialog) where T : DockerDialog
+    internal async Task<T?> ShowAsync<T>(T dialog) where T : OverlayDialog
     {
         while (Dialog is { } open)
             await open.Result;

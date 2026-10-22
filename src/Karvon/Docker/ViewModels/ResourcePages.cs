@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Karvon.Ui;
 
 namespace Karvon.Docker.ViewModels;
 
@@ -212,7 +213,7 @@ public sealed partial class ImagesPage : ObservableObject
             ("created", true) => rows.OrderBy(r => r.Image.Created ?? DateTimeOffset.MinValue),
             _ => rows.OrderByDescending(r => r.Image.Created ?? DateTimeOffset.MinValue),
         };
-        ContainersPage.Sync(Rows, rows.ToList());
+        ObservableSync.Sync(Rows, rows.ToList());
         OnPropertyChanged(nameof(HasNoMatches));
         OnPropertyChanged(nameof(AllSelected));
     }
@@ -485,7 +486,7 @@ public sealed partial class VolumesPage : ObservableObject
             // Named volumes first: anonymous ones are 64 hex characters nobody reads.
             _ => rows.OrderBy(r => r.Volume.IsAnonymous).ThenBy(r => r.Name, StringComparer.OrdinalIgnoreCase),
         };
-        ContainersPage.Sync(Rows, rows.ToList());
+        ObservableSync.Sync(Rows, rows.ToList());
         OnPropertyChanged(nameof(HasNoMatches));
         OnPropertyChanged(nameof(AllSelected));
     }
@@ -703,7 +704,7 @@ public sealed partial class NetworksPage : ObservableObject
         var rows = _rows.Values.Where(r => search.Length == 0 || r.Name.Contains(search, StringComparison.OrdinalIgnoreCase)
                 || r.Driver.Contains(search, StringComparison.OrdinalIgnoreCase))
             .OrderBy(r => !r.Network.IsBuiltIn).ThenBy(r => r.Name, StringComparer.OrdinalIgnoreCase).ToList();
-        ContainersPage.Sync(Rows, rows);
+        ObservableSync.Sync(Rows, rows);
         OnPropertyChanged(nameof(HasNoMatches));
         OnPropertyChanged(nameof(AllSelected));
     }

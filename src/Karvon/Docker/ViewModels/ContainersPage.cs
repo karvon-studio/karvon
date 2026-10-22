@@ -2,6 +2,7 @@ using System.Collections.ObjectModel;
 using System.Globalization;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Karvon.Ui;
 
 namespace Karvon.Docker.ViewModels;
 
@@ -578,33 +579,10 @@ public sealed partial class ContainersPage : ObservableObject
             if (item.Item is StackRow { IsExpanded: true })
                 flat.AddRange(item.Children);
         }
-        Sync(Rows, flat);
+        ObservableSync.Sync(Rows, flat);
         OnPropertyChanged(nameof(HasNoMatches));
         OnPropertyChanged(nameof(CountText));
         OnPropertyChanged(nameof(AllSelected));
-    }
-
-    /// <summary>Makes <paramref name="target"/> show <paramref name="items"/> by moving, adding and removing, not by starting over.</summary>
-    internal static void Sync<T>(ObservableCollection<T> target, IReadOnlyList<T> items) where T : class
-    {
-        for (var i = 0; i < items.Count; i++)
-        {
-            if (i < target.Count && ReferenceEquals(target[i], items[i]))
-                continue;
-            var old = -1;
-            for (var j = i + 1; j < target.Count; j++)
-                if (ReferenceEquals(target[j], items[i]))
-                {
-                    old = j;
-                    break;
-                }
-            if (old >= 0)
-                target.Move(old, i);
-            else
-                target.Insert(i, items[i]);
-        }
-        while (target.Count > items.Count)
-            target.RemoveAt(target.Count - 1);
     }
 
     // ---- Commands ---------------------------------------------------------------------------------------------

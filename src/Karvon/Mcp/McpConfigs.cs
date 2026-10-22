@@ -70,8 +70,7 @@ public sealed partial class McpConfigs(string configDirectory, string? workspace
     static readonly JsonSerializerOptions Indented = new() { WriteIndented = true };
 
     /// <summary>The home the agents keep their files in: KARVON_USER_HOME (the tests'), else the user's.</summary>
-    public static string Home => Environment.GetEnvironmentVariable("KARVON_USER_HOME") is { Length: > 0 } home ? home
-        : Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+    public static string Home => Services.UserHome.Path;
 
     /// <summary>Codex's folder: CODEX_HOME, else ~/.codex (always the latter in a home of the tests').</summary>
     static string CodexHome => Environment.GetEnvironmentVariable("KARVON_USER_HOME") is null && Environment.GetEnvironmentVariable("CODEX_HOME") is { Length: > 0 } codex

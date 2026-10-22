@@ -3,6 +3,7 @@ using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Karvon.ViewModels;
+using Karvon.Ui;
 
 namespace Karvon.Docker.ViewModels;
 
@@ -153,7 +154,7 @@ public sealed partial class DockerExplorerViewModel : ObservableObject, IDisposa
     /// <summary>The dialog over the page (a confirmation, Run, Create), or null.</summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasDialog))]
-    public partial DockerDialog? Dialog { get; set; }
+    public partial OverlayDialog? Dialog { get; set; }
 
     public bool HasDialog => Dialog is not null;
 
@@ -470,7 +471,7 @@ public sealed partial class DockerExplorerViewModel : ObservableObject, IDisposa
         foreach (var stack in Containers.Stacks.OrderByDescending(s => s.IsThisSolution).ThenBy(s => s.Name, StringComparer.OrdinalIgnoreCase))
         {
             var children = stack.Children.Where(c => Match(stack.Name) || Match(c.Name)).OrderBy(c => c.Name, StringComparer.OrdinalIgnoreCase).ToList();
-            ContainersPage.Sync(stack.TreeChildren, children);
+            ObservableSync.Sync(stack.TreeChildren, children);
             if (children.Count > 0)
                 containers.Add(stack);
         }
@@ -483,7 +484,7 @@ public sealed partial class DockerExplorerViewModel : ObservableObject, IDisposa
 
         void Show(DockerSectionNode section, IEnumerable<DockerTreeItem> items, int count)
         {
-            ContainersPage.Sync(section.Items, items.ToList());
+            ObservableSync.Sync(section.Items, items.ToList());
             section.Count = count;
             // Searching opens the sections it finds something in.
             if (filter.Length > 0 && section.Items.Count > 0)
@@ -729,7 +730,7 @@ public sealed partial class DockerExplorerViewModel : ObservableObject, IDisposa
         }
     }
 
-    internal async Task<T?> ShowAsync<T>(T dialog) where T : DockerDialog
+    internal async Task<T?> ShowAsync<T>(T dialog) where T : OverlayDialog
     {
         Dialog = dialog;
         try

@@ -6,7 +6,7 @@
              x:DataType="kvm:SkillsMarketplaceViewModel"
              Background="#1E1E1E">
   <UserControl.Styles>
-    <StyleInclude Source="avares://Karvon/Docker/Views/DockerStyles.axaml" />
+    <StyleInclude Source="avares://Karvon/Themes/ExplorerStyles.axaml" />
     <Style Selector="TextBlock.section">
       <Setter Property="FontSize" Value="11" />
       <Setter Property="FontWeight" Value="SemiBold" />

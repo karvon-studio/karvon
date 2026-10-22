@@ -249,7 +249,7 @@ public sealed class DatabaseModule : KarvonModule, IDatabaseService, IDatabaseTo
 
     // ---- Claude Code ----------------------------------------------------------------------------------------------
 
-    public override IEnumerable<IClaudeTool> ClaudeTools() => KarvonTools.DatabaseTools(this);
+    public override IEnumerable<IClaudeTool> ClaudeTools() => DatabaseClaudeTools.Create(this);
 
     public override async Task ShowClaudeToolAsync(string tool, JsonElement input, ClaudeToolOutput output)
     {

@@ -1,5 +1,5 @@
 using CommunityToolkit.Mvvm.ComponentModel;
-using Karvon.Docker.ViewModels;
+using Karvon.Ui;
 
 namespace Karvon.Mcp.ViewModels;
 
@@ -13,7 +13,7 @@ public sealed record McpWhere(McpOrigin Origin, string Label, string File)
 /// Add MCP Server / Edit: its name, how Karvon reaches it (a program it starts, with its environment; or a URL, with its
 /// headers) and, for a new one, which file keeps it. ${VAR} stays in the file and is filled in when it connects.
 /// </summary>
-public sealed partial class McpServerFormDialog : DockerDialog
+public sealed partial class McpServerFormDialog : OverlayDialog
 {
     readonly Func<string, McpOrigin, bool> _isFree;
 

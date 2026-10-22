@@ -5,7 +5,7 @@
              x:Class="Karvon.Docker.Views.DockerExplorerView"
              x:DataType="dvm:DockerExplorerViewModel">
   <UserControl.Styles>
-    <StyleInclude Source="avares://Karvon/Docker/Views/DockerStyles.axaml" />
+    <StyleInclude Source="avares://Karvon/Themes/ExplorerStyles.axaml" />
     <Style Selector="TreeView#Tree TreeViewItem" x:DataType="dvm:DockerTreeItem">
       <Setter Property="IsExpanded" Value="{Binding IsTreeExpanded, Mode=TwoWay}" />
     </Style>

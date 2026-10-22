@@ -2,8 +2,8 @@ using System.Collections.ObjectModel;
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-using Karvon.Docker.ViewModels;
 using Karvon.ViewModels;
+using Karvon.Ui;
 
 namespace Karvon.Servers.ViewModels;
 
@@ -195,7 +195,7 @@ public sealed partial class ServersExplorerViewModel : ObservableObject, IServer
     /// <summary>The dialog over the window (a password, a host key, the server form, a confirmation), or null.</summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasDialog))]
-    public partial DockerDialog? Dialog { get; set; }
+    public partial OverlayDialog? Dialog { get; set; }
 
     public bool HasDialog => Dialog is not null;
 
@@ -242,11 +242,11 @@ public sealed partial class ServersExplorerViewModel : ObservableObject, IServer
         foreach (var group in groups)
         {
             var node = Groups.FirstOrDefault(g => g.Name == group.Key) ?? new ServerGroupNode(group.Key);
-            ContainersPage.Sync(node.Servers, group.OrderBy(n => n.Name, StringComparer.OrdinalIgnoreCase).ToList());
+            ObservableSync.Sync(node.Servers, group.OrderBy(n => n.Name, StringComparer.OrdinalIgnoreCase).ToList());
             node.Count = node.Servers.Count;
             nodes.Add(node);
         }
-        ContainersPage.Sync(Groups, nodes);
+        ObservableSync.Sync(Groups, nodes);
     }
 
     [RelayCommand]
@@ -319,7 +319,7 @@ public sealed partial class ServersExplorerViewModel : ObservableObject, IServer
     async Task<bool> IServerPrompts.TrustAsync(ServerHost host, string endpoint, string keyType, string fingerprint) =>
         await Dispatcher.UIThread.InvokeAsync(() => ShowAsync(new TrustDialog(host.Name, endpoint, keyType, fingerprint))) is not null;
 
-    internal async Task<T?> ShowAsync<T>(T dialog) where T : DockerDialog
+    internal async Task<T?> ShowAsync<T>(T dialog) where T : OverlayDialog
     {
         // One at a time: a second machine asking waits for the first dialog.
         while (Dialog is { } open)

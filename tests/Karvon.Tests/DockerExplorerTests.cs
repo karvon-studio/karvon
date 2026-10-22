@@ -10,6 +10,7 @@ using Avalonia.VisualTree;
 using Karvon.Docker;
 using Karvon.Docker.ViewModels;
 using Karvon.Docker.Views;
+using Karvon.Ui;
 using static Karvon.Tests.UiTests;
 
 namespace Karvon.Tests;
