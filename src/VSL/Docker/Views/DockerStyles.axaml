@@ -1,0 +1,327 @@
+<Styles xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:v="using:VSL.Views">
+  <!-- The Docker Explorer: Docker Desktop's dashboard (sidebar, cards, tables, pills) in Visual Studio's dark colors. -->
+  <Styles.Resources>
+    <SolidColorBrush x:Key="DkPage" Color="#1E1E1E" />
+    <SolidColorBrush x:Key="DkSidebar" Color="#252526" />
+    <SolidColorBrush x:Key="DkCard" Color="#252526" />
+    <SolidColorBrush x:Key="DkLine" Color="#333337" />
+    <SolidColorBrush x:Key="DkBorder" Color="#3F3F46" />
+    <SolidColorBrush x:Key="DkHover" Color="#2A2D2E" />
+    <SolidColorBrush x:Key="DkText" Color="#E6E6E6" />
+    <SolidColorBrush x:Key="DkMuted" Color="#9D9D9D" />
+    <SolidColorBrush x:Key="DkAccent" Color="#1D63ED" />
+    <SolidColorBrush x:Key="DkAccentHover" Color="#3A7BF0" />
+    <SolidColorBrush x:Key="DkLink" Color="#4DAAFC" />
+    <SolidColorBrush x:Key="DkGreen" Color="#3FB950" />
+    <SolidColorBrush x:Key="DkRed" Color="#F85149" />
+    <SolidColorBrush x:Key="DkAmber" Color="#D29922" />
+    <SolidColorBrush x:Key="DkGray" Color="#8B949E" />
+  </Styles.Resources>
+
+  <Style Selector="TextBlock.dkTitle">
+    <Setter Property="FontSize" Value="20" />
+    <Setter Property="FontWeight" Value="SemiBold" />
+    <Setter Property="Foreground" Value="{StaticResource DkText}" />
+  </Style>
+  <Style Selector="TextBlock.dkSubtitle">
+    <Setter Property="FontSize" Value="12" />
+    <Setter Property="Foreground" Value="{StaticResource DkMuted}" />
+    <Setter Property="Margin" Value="0,2,0,0" />
+  </Style>
+  <Style Selector="TextBlock.dkMuted, SelectableTextBlock.dkMuted">
+    <Setter Property="Foreground" Value="{StaticResource DkMuted}" />
+  </Style>
+  <Style Selector="TextBlock.dkMono, SelectableTextBlock.dkMono">
+    <Setter Property="FontFamily" Value="{StaticResource VsCodeFont}" />
+    <Setter Property="FontSize" Value="11.5" />
+  </Style>
+  <Style Selector="TextBlock.dkHeader">
+    <Setter Property="FontSize" Value="12" />
+    <Setter Property="Foreground" Value="{StaticResource DkMuted}" />
+    <Setter Property="VerticalAlignment" Value="Center" />
+  </Style>
+  <Style Selector="TextBlock.dkCell">
+    <Setter Property="VerticalAlignment" Value="Center" />
+    <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+    <Setter Property="Foreground" Value="#CCCCCC" />
+  </Style>
+
+  <!-- Sidebar -->
+  <Style Selector="Button.dkNav">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="BorderThickness" Value="0" />
+    <Setter Property="CornerRadius" Value="6" />
+    <Setter Property="Padding" Value="10,7" />
+    <Setter Property="Margin" Value="8,1" />
+    <Setter Property="HorizontalAlignment" Value="Stretch" />
+    <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+    <Setter Property="Foreground" Value="#CCCCCC" />
+  </Style>
+  <Style Selector="Button.dkNav:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="#2E2E32" />
+  </Style>
+  <Style Selector="Button.dkNav.selected /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="#1F2E4D" />
+  </Style>
+  <Style Selector="Button.dkNav.selected">
+    <Setter Property="Foreground" Value="#FFFFFF" />
+  </Style>
+  <Style Selector="Button.dkNav.selected v|VsIcon">
+    <Setter Property="Foreground" Value="#5B8DEF" />
+  </Style>
+
+  <!-- Cards (CPU / memory, compose banner, dialogs) -->
+  <Style Selector="Border.dkCard">
+    <Setter Property="Background" Value="{StaticResource DkCard}" />
+    <Setter Property="BorderBrush" Value="{StaticResource DkBorder}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="CornerRadius" Value="8" />
+    <Setter Property="Padding" Value="14,10" />
+  </Style>
+
+  <!-- Buttons: Docker Desktop's blue for the main action, outlined for the others -->
+  <Style Selector="Button.dkPrimary">
+    <Setter Property="Background" Value="{StaticResource DkAccent}" />
+    <Setter Property="Foreground" Value="White" />
+    <Setter Property="BorderThickness" Value="0" />
+    <Setter Property="CornerRadius" Value="5" />
+    <Setter Property="Padding" Value="12,5" />
+    <Setter Property="FontWeight" Value="SemiBold" />
+    <Setter Property="VerticalAlignment" Value="Center" />
+  </Style>
+  <Style Selector="Button.dkPrimary:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{StaticResource DkAccentHover}" />
+    <Setter Property="Foreground" Value="White" />
+  </Style>
+  <Style Selector="Button.dkPrimary:disabled /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="#2A3B5C" />
+    <Setter Property="Foreground" Value="#8A94A8" />
+  </Style>
+  <Style Selector="Button.dkPrimary v|VsIcon">
+    <Setter Property="Foreground" Value="White" />
+  </Style>
+  <Style Selector="Button.dkDanger">
+    <Setter Property="Background" Value="#B62324" />
+    <Setter Property="Foreground" Value="White" />
+    <Setter Property="BorderThickness" Value="0" />
+    <Setter Property="CornerRadius" Value="5" />
+    <Setter Property="Padding" Value="12,5" />
+    <Setter Property="FontWeight" Value="SemiBold" />
+  </Style>
+  <Style Selector="Button.dkDanger:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="#D1302F" />
+    <Setter Property="Foreground" Value="White" />
+  </Style>
+  <Style Selector="Button.dkOutline">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="Foreground" Value="#DDDDDD" />
+    <Setter Property="BorderBrush" Value="#55555B" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="CornerRadius" Value="5" />
+    <Setter Property="Padding" Value="11,4" />
+    <Setter Property="VerticalAlignment" Value="Center" />
+  </Style>
+  <Style Selector="Button.dkOutline:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="#2E2E32" />
+    <Setter Property="BorderBrush" Value="#6E6E75" />
+  </Style>
+  <Style Selector="Button.dkOutline:disabled">
+    <Setter Property="Opacity" Value="0.45" />
+  </Style>
+  <!-- Row actions: round, icon only, gray until hovered -->
+  <Style Selector="Button.dkIcon">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="BorderThickness" Value="0" />
+    <Setter Property="Width" Value="30" />
+    <Setter Property="Height" Value="30" />
+    <Setter Property="Padding" Value="0" />
+    <Setter Property="CornerRadius" Value="15" />
+    <Setter Property="HorizontalContentAlignment" Value="Center" />
+    <Setter Property="VerticalContentAlignment" Value="Center" />
+    <Setter Property="VerticalAlignment" Value="Center" />
+    <Setter Property="Foreground" Value="#B8B8B8" />
+  </Style>
+  <Style Selector="Button.dkIcon:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="#3A3A3F" />
+  </Style>
+  <Style Selector="Button.dkIcon:pointerover">
+    <Setter Property="Foreground" Value="White" />
+  </Style>
+  <Style Selector="Button.dkIcon:disabled">
+    <Setter Property="Opacity" Value="0.35" />
+  </Style>
+  <Style Selector="Button.dkIcon v|VsIcon">
+    <Setter Property="Width" Value="16" />
+    <Setter Property="Height" Value="16" />
+  </Style>
+  <!-- Links: names, images, ports -->
+  <Style Selector="Button.dkLink">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="BorderThickness" Value="0" />
+    <Setter Property="Padding" Value="0" />
+    <Setter Property="Foreground" Value="{StaticResource DkLink}" />
+    <Setter Property="Cursor" Value="Hand" />
+    <Setter Property="VerticalAlignment" Value="Center" />
+    <Setter Property="HorizontalAlignment" Value="Left" />
+  </Style>
+  <Style Selector="Button.dkLink:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="Foreground" Value="#7CC2FF" />
+  </Style>
+  <Style Selector="Button.dkLink:pointerover TextBlock">
+    <Setter Property="TextDecorations" Value="Underline" />
+  </Style>
+  <Style Selector="Button.dkLink.plain">
+    <Setter Property="Foreground" Value="#E6E6E6" />
+  </Style>
+  <Style Selector="Button.dkLink.plain:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Foreground" Value="White" />
+  </Style>
+
+  <!-- Search box with its icon -->
+  <Style Selector="TextBox.dkSearch">
+    <Setter Property="Height" Value="32" />
+    <Setter Property="MinHeight" Value="32" />
+    <Setter Property="Padding" Value="30,6,8,6" />
+    <Setter Property="CornerRadius" Value="5" />
+    <Setter Property="Background" Value="#2A2A2D" />
+    <Setter Property="BorderBrush" Value="#45454B" />
+    <Setter Property="VerticalContentAlignment" Value="Center" />
+  </Style>
+  <Style Selector="TextBox.dkField">
+    <Setter Property="Height" Value="30" />
+    <Setter Property="MinHeight" Value="30" />
+    <Setter Property="Padding" Value="8,5" />
+    <Setter Property="CornerRadius" Value="5" />
+    <Setter Property="Background" Value="#2A2A2D" />
+    <Setter Property="BorderBrush" Value="#45454B" />
+    <Setter Property="VerticalContentAlignment" Value="Center" />
+  </Style>
+
+  <!-- Tables: a header, then rows with a line between them and a highlight under the pointer -->
+  <Style Selector="Border.dkTableHeader">
+    <Setter Property="BorderBrush" Value="{StaticResource DkBorder}" />
+    <Setter Property="BorderThickness" Value="0,0,0,1" />
+    <Setter Property="Height" Value="36" />
+  </Style>
+  <Style Selector="Border.dkRow">
+    <Setter Property="BorderBrush" Value="{StaticResource DkLine}" />
+    <Setter Property="BorderThickness" Value="0,0,0,1" />
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="MinHeight" Value="46" />
+  </Style>
+  <Style Selector="Border.dkRow:pointerover">
+    <Setter Property="Background" Value="{StaticResource DkHover}" />
+  </Style>
+  <Style Selector="Border.dkRow.selected">
+    <Setter Property="Background" Value="#1A2740" />
+  </Style>
+  <Style Selector="Button.dkSort">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="BorderThickness" Value="0" />
+    <Setter Property="Padding" Value="0" />
+    <Setter Property="HorizontalAlignment" Value="Left" />
+    <Setter Property="VerticalAlignment" Value="Center" />
+    <Setter Property="Foreground" Value="{StaticResource DkMuted}" />
+  </Style>
+  <Style Selector="Button.dkSort:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="Foreground" Value="#E6E6E6" />
+  </Style>
+
+  <!-- State dots and pills -->
+  <Style Selector="v|VsIcon.state">
+    <Setter Property="Foreground" Value="{StaticResource DkGray}" />
+  </Style>
+  <Style Selector="v|VsIcon.state.running">
+    <Setter Property="Foreground" Value="{StaticResource DkGreen}" />
+  </Style>
+  <Style Selector="v|VsIcon.state.paused">
+    <Setter Property="Foreground" Value="{StaticResource DkAmber}" />
+  </Style>
+  <Style Selector="v|VsIcon.state.failing">
+    <Setter Property="Foreground" Value="{StaticResource DkRed}" />
+  </Style>
+  <Style Selector="Ellipse.dot">
+    <Setter Property="Fill" Value="{StaticResource DkGray}" />
+    <Setter Property="Width" Value="8" />
+    <Setter Property="Height" Value="8" />
+    <Setter Property="VerticalAlignment" Value="Center" />
+  </Style>
+  <Style Selector="Ellipse.dot.running">
+    <Setter Property="Fill" Value="{StaticResource DkGreen}" />
+  </Style>
+  <Style Selector="Ellipse.dot.paused">
+    <Setter Property="Fill" Value="{StaticResource DkAmber}" />
+  </Style>
+  <Style Selector="Ellipse.dot.failing">
+    <Setter Property="Fill" Value="{StaticResource DkRed}" />
+  </Style>
+  <Style Selector="Border.pill">
+    <Setter Property="CornerRadius" Value="10" />
+    <Setter Property="Padding" Value="8,1" />
+    <Setter Property="Background" Value="#33363B" />
+    <Setter Property="VerticalAlignment" Value="Center" />
+    <Setter Property="HorizontalAlignment" Value="Left" />
+  </Style>
+  <Style Selector="Border.pill TextBlock">
+    <Setter Property="FontSize" Value="11" />
+    <Setter Property="Foreground" Value="#CCCCCC" />
+  </Style>
+  <Style Selector="Border.pill.green">
+    <Setter Property="Background" Value="#1A3A24" />
+  </Style>
+  <Style Selector="Border.pill.green TextBlock">
+    <Setter Property="Foreground" Value="#56D364" />
+  </Style>
+  <Style Selector="Border.pill.blue">
+    <Setter Property="Background" Value="#1C2E50" />
+  </Style>
+  <Style Selector="Border.pill.blue TextBlock">
+    <Setter Property="Foreground" Value="#79A6F6" />
+  </Style>
+  <Style Selector="Border.pill.red">
+    <Setter Property="Background" Value="#3D1C1E" />
+  </Style>
+  <Style Selector="Border.pill.red TextBlock">
+    <Setter Property="Foreground" Value="#FF7B72" />
+  </Style>
+
+  <!-- Detail page tabs: text with a blue underline under the one shown -->
+  <Style Selector="Button.dkTab">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="BorderThickness" Value="0,0,0,2" />
+    <Setter Property="BorderBrush" Value="Transparent" />
+    <Setter Property="CornerRadius" Value="0" />
+    <Setter Property="Padding" Value="2,8" />
+    <Setter Property="Margin" Value="0,0,22,0" />
+    <Setter Property="Foreground" Value="{StaticResource DkMuted}" />
+  </Style>
+  <Style Selector="Button.dkTab:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="Foreground" Value="#E6E6E6" />
+  </Style>
+  <Style Selector="Button.dkTab.selected">
+    <Setter Property="BorderBrush" Value="#5B8DEF" />
+    <Setter Property="Foreground" Value="White" />
+  </Style>
+  <Style Selector="Button.dkTab.selected /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="BorderBrush" Value="#5B8DEF" />
+  </Style>
+
+  <Style Selector="CheckBox.dkCheck">
+    <Setter Property="MinWidth" Value="0" />
+    <Setter Property="MinHeight" Value="0" />
+    <Setter Property="Padding" Value="0" />
+    <Setter Property="VerticalAlignment" Value="Center" />
+    <Setter Property="HorizontalAlignment" Value="Center" />
+  </Style>
+  <Style Selector="ToggleSwitch.dkSwitch">
+    <Setter Property="OnContent" Value="" />
+    <Setter Property="OffContent" Value="" />
+    <Setter Property="MinWidth" Value="0" />
+    <Setter Property="VerticalAlignment" Value="Center" />
+  </Style>
+</Styles>

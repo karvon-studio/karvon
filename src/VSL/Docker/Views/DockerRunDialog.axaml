@@ -1,0 +1,110 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:v="using:VSL.Views"
+             xmlns:dvm="using:VSL.Docker.ViewModels"
+             x:Class="VSL.Docker.Views.DockerRunDialog"
+             x:DataType="dvm:RunDialog">
+  <!-- Docker Desktop's "Run a new container": the image, then optional settings -->
+  <Border Classes="dkCard" Width="560" Padding="22,18" Background="#2B2B2F">
+    <StackPanel Spacing="14">
+      <StackPanel Spacing="2">
+        <TextBlock Text="{Binding Title}" FontSize="16" FontWeight="SemiBold" />
+        <TextBlock Text="{Binding Image}" Classes="dkMuted dkMono" />
+      </StackPanel>
+      <Button Classes="dkLink" Command="{Binding ToggleOptionsCommand}">
+        <StackPanel Orientation="Horizontal" Spacing="6">
+          <v:VsIcon Kind="Chevron" Width="13" Height="13" Classes.collapsed="{Binding !ShowOptions}">
+            <v:VsIcon.Styles>
+              <Style Selector="v|VsIcon.collapsed">
+                <Setter Property="RenderTransform" Value="rotate(-90deg)" />
+              </Style>
+            </v:VsIcon.Styles>
+          </v:VsIcon>
+          <TextBlock Text="Optional settings" />
+        </StackPanel>
+      </Button>
+      <ScrollViewer IsVisible="{Binding ShowOptions}" MaxHeight="420" HorizontalScrollBarVisibility="Disabled">
+        <StackPanel Spacing="14">
+          <StackPanel Spacing="5">
+            <TextBlock Text="Container name" Classes="dkMuted" />
+            <TextBox Name="ContainerNameBox" Classes="dkField" Text="{Binding ContainerName}" PlaceholderText="A random name is assigned when empty" />
+          </StackPanel>
+
+          <StackPanel Spacing="6">
+            <Grid ColumnDefinitions="*,Auto">
+              <TextBlock Text="Ports" FontWeight="SemiBold" VerticalAlignment="Center" />
+              <Button Grid.Column="1" Classes="dkIcon" Width="24" Height="24" Command="{Binding AddPortCommand}" ToolTip.Tip="Add a port">
+                <v:VsIcon Kind="Plus" Width="12" Height="12" />
+              </Button>
+            </Grid>
+            <TextBlock Text="An empty host port leaves the container's port unpublished; 0 picks a free one." Classes="dkMuted" FontSize="11" TextWrapping="Wrap" />
+            <ItemsControl ItemsSource="{Binding Ports}">
+              <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="dvm:PortMapping">
+                  <Grid ColumnDefinitions="*,8,*,Auto" Margin="0,0,0,6">
+                    <TextBox Classes="dkField" Text="{Binding Host}" PlaceholderText="Host port" />
+                    <TextBox Grid.Column="2" Classes="dkField" Text="{Binding Container}" PlaceholderText="Container port (80/tcp)" IsReadOnly="{Binding IsExposed}" />
+                    <Button Grid.Column="3" Classes="dkIcon" Width="26" Height="26" Margin="4,0,0,0" ToolTip.Tip="Remove"
+                            Command="{Binding $parent[UserControl].((dvm:RunDialog)DataContext).RemovePortCommand}" CommandParameter="{Binding}">
+                      <v:VsIcon Kind="Close" Width="11" Height="11" />
+                    </Button>
+                  </Grid>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+          </StackPanel>
+
+          <StackPanel Spacing="6">
+            <Grid ColumnDefinitions="*,Auto">
+              <TextBlock Text="Volumes" FontWeight="SemiBold" VerticalAlignment="Center" />
+              <Button Grid.Column="1" Classes="dkIcon" Width="24" Height="24" Command="{Binding AddVolumeCommand}" ToolTip.Tip="Add a volume">
+                <v:VsIcon Kind="Plus" Width="12" Height="12" />
+              </Button>
+            </Grid>
+            <ItemsControl ItemsSource="{Binding Volumes}">
+              <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="dvm:VolumeMapping">
+                  <Grid ColumnDefinitions="*,8,*,Auto" Margin="0,0,0,6">
+                    <TextBox Classes="dkField" Text="{Binding Host}" PlaceholderText="Host path or volume name" />
+                    <TextBox Grid.Column="2" Classes="dkField" Text="{Binding Container}" PlaceholderText="Container path" />
+                    <Button Grid.Column="3" Classes="dkIcon" Width="26" Height="26" Margin="4,0,0,0" ToolTip.Tip="Remove"
+                            Command="{Binding $parent[UserControl].((dvm:RunDialog)DataContext).RemoveVolumeCommand}" CommandParameter="{Binding}">
+                      <v:VsIcon Kind="Close" Width="11" Height="11" />
+                    </Button>
+                  </Grid>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+          </StackPanel>
+
+          <StackPanel Spacing="6">
+            <Grid ColumnDefinitions="*,Auto">
+              <TextBlock Text="Environment variables" FontWeight="SemiBold" VerticalAlignment="Center" />
+              <Button Grid.Column="1" Classes="dkIcon" Width="24" Height="24" Command="{Binding AddVariableCommand}" ToolTip.Tip="Add a variable">
+                <v:VsIcon Kind="Plus" Width="12" Height="12" />
+              </Button>
+            </Grid>
+            <ItemsControl ItemsSource="{Binding Environment}">
+              <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="dvm:EnvironmentVariable">
+                  <Grid ColumnDefinitions="*,8,*,Auto" Margin="0,0,0,6">
+                    <TextBox Classes="dkField" Text="{Binding Name}" PlaceholderText="Variable" />
+                    <TextBox Grid.Column="2" Classes="dkField" Text="{Binding Value}" PlaceholderText="Value" />
+                    <Button Grid.Column="3" Classes="dkIcon" Width="26" Height="26" Margin="4,0,0,0" ToolTip.Tip="Remove"
+                            Command="{Binding $parent[UserControl].((dvm:RunDialog)DataContext).RemoveVariableCommand}" CommandParameter="{Binding}">
+                      <v:VsIcon Kind="Close" Width="11" Height="11" />
+                    </Button>
+                  </Grid>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+          </StackPanel>
+        </StackPanel>
+      </ScrollViewer>
+      <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">
+        <Button Classes="dkOutline" Command="{Binding CancelCommand}" Content="Cancel" IsCancel="True" />
+        <Button Name="RunConfirmButton" Classes="dkPrimary" Command="{Binding ConfirmCommand}" Content="Run" IsDefault="True" />
+      </StackPanel>
+    </StackPanel>
+  </Border>
+</UserControl>

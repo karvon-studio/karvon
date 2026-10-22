@@ -1,0 +1,108 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:v="using:VSL.Views"
+             xmlns:d="using:VSL.Docker"
+             xmlns:dvm="using:VSL.Docker.ViewModels"
+             xmlns:ae="using:AvaloniaEdit"
+             x:Class="VSL.Docker.Views.DockerImageView"
+             x:DataType="dvm:ImageDetailViewModel">
+  <DockPanel Margin="20,14,20,0">
+    <StackPanel DockPanel.Dock="Top" Spacing="12">
+      <Grid ColumnDefinitions="Auto,*,Auto">
+        <Button Classes="dkIcon" Command="{Binding BackCommand}" ToolTip.Tip="Back to Images (Esc)" VerticalAlignment="Top">
+          <v:VsIcon Kind="DockerBack" />
+        </Button>
+        <StackPanel Grid.Column="1" Margin="8,0,0,0" Spacing="5">
+          <StackPanel Orientation="Horizontal" Spacing="10">
+            <v:VsIcon Kind="DockerImage" Width="22" Height="22" Classes="state" Classes.running="{Binding Row.InUse}" />
+            <TextBlock Name="ImageName" Text="{Binding Row.Name}" FontSize="19" FontWeight="SemiBold" VerticalAlignment="Center" />
+            <Border Classes="pill blue">
+              <TextBlock Text="{Binding Row.Tag}" />
+            </Border>
+            <Border Classes="pill" Classes.green="{Binding Row.InUse}">
+              <TextBlock Text="{Binding Row.StatusText}" />
+            </Border>
+          </StackPanel>
+          <StackPanel Orientation="Horizontal" Spacing="18" Margin="32,0,0,0">
+            <StackPanel Orientation="Horizontal" Spacing="2">
+              <TextBlock Text="{Binding Row.ShortId}" Classes="dkMono dkMuted" VerticalAlignment="Center" />
+              <Button Classes="dkIcon" Width="22" Height="22" Click="OnCopy" Tag="{Binding Row.Image.Id}" ToolTip.Tip="Copy the image ID">
+                <v:VsIcon Kind="Copy" Width="12" Height="12" />
+              </Button>
+            </StackPanel>
+            <TextBlock Text="{Binding Row.SizeText}" Classes="dkMuted" VerticalAlignment="Center" />
+            <TextBlock Text="{Binding Row.CreatedText, StringFormat='Created {0}'}" Classes="dkMuted" VerticalAlignment="Center" />
+            <TextBlock Text="{Binding UsedByText}" Classes="dkMuted" VerticalAlignment="Center" />
+          </StackPanel>
+        </StackPanel>
+        <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="6" VerticalAlignment="Top">
+          <Button Classes="dkOutline" Command="{Binding PullCommand}" IsVisible="{Binding CanPull}" Content="Pull" ToolTip.Tip="Pull its newest version" />
+          <Button Name="RunButton" Classes="dkPrimary" Command="{Binding RunCommand}">
+            <StackPanel Orientation="Horizontal" Spacing="6">
+              <v:VsIcon Kind="DockerPlay" Width="13" Height="13" />
+              <TextBlock Text="Run" VerticalAlignment="Center" />
+            </StackPanel>
+          </Button>
+          <Button Classes="dkIcon" Command="{Binding DeleteCommand}" ToolTip.Tip="Delete">
+            <v:VsIcon Kind="DockerDelete" />
+          </Button>
+        </StackPanel>
+      </Grid>
+      <!-- The containers it runs as -->
+      <ItemsControl ItemsSource="{Binding UsedBy}" IsVisible="{Binding IsUsed}" Margin="40,0,0,0">
+        <ItemsControl.ItemsPanel>
+          <ItemsPanelTemplate>
+            <WrapPanel />
+          </ItemsPanelTemplate>
+        </ItemsControl.ItemsPanel>
+        <ItemsControl.ItemTemplate>
+          <DataTemplate x:DataType="dvm:ContainerRow">
+            <Button Classes="dkOutline" Margin="0,0,8,4" Padding="8,3"
+                    Command="{Binding $parent[UserControl].((dvm:ImageDetailViewModel)DataContext).OpenContainerCommand}" CommandParameter="{Binding}">
+              <StackPanel Orientation="Horizontal" Spacing="6">
+                <Ellipse Classes="dot" Classes.running="{Binding IsRunning}" Classes.failing="{Binding IsFailing}" />
+                <TextBlock Text="{Binding Name}" />
+              </StackPanel>
+            </Button>
+          </DataTemplate>
+        </ItemsControl.ItemTemplate>
+      </ItemsControl>
+      <Border BorderBrush="#3F3F46" BorderThickness="0,0,0,1">
+        <StackPanel Orientation="Horizontal" Margin="4,0,0,0">
+          <Button Classes="dkTab" Classes.selected="{Binding IsLayers}" Command="{Binding ShowTabCommand}" CommandParameter="layers" Content="Layers" />
+          <Button Classes="dkTab" Classes.selected="{Binding IsInspect}" Command="{Binding ShowTabCommand}" CommandParameter="inspect" Content="Inspect" />
+        </StackPanel>
+      </Border>
+    </StackPanel>
+    <Panel Margin="0,10,0,14">
+      <DockPanel IsVisible="{Binding IsLayers}">
+        <Border DockPanel.Dock="Top" Classes="dkTableHeader">
+          <Grid ColumnDefinitions="*,100,130">
+            <TextBlock Text="Created by" Classes="dkHeader" Margin="8,0,0,0" />
+            <TextBlock Grid.Column="1" Text="Size" Classes="dkHeader" />
+            <TextBlock Grid.Column="2" Text="Created" Classes="dkHeader" />
+          </Grid>
+        </Border>
+        <ScrollViewer HorizontalScrollBarVisibility="Disabled">
+          <ItemsControl Name="Layers" ItemsSource="{Binding Layers}">
+            <ItemsControl.ItemTemplate>
+              <DataTemplate x:DataType="d:DockerLayer">
+                <Border Classes="dkRow" MinHeight="34">
+                  <Grid ColumnDefinitions="*,100,130">
+                    <SelectableTextBlock Text="{Binding CreatedBy}" Classes="dkMono" TextWrapping="Wrap" VerticalAlignment="Center" Margin="8,6,16,6" />
+                    <TextBlock Grid.Column="1" Classes="dkCell" Text="{Binding Size, Converter={x:Static dvm:DockerConverters.Size}}" />
+                    <TextBlock Grid.Column="2" Classes="dkCell" Text="{Binding CreatedSince}" />
+                  </Grid>
+                </Border>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+        </ScrollViewer>
+      </DockPanel>
+      <Border IsVisible="{Binding IsInspect}" BorderBrush="#3F3F46" BorderThickness="1" CornerRadius="6" ClipToBounds="True">
+        <ae:TextEditor Name="InspectEditor" FontFamily="{StaticResource VsCodeFont}" FontSize="12" Background="#181818" Padding="10,6"
+                       HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto" />
+      </Border>
+    </Panel>
+  </DockPanel>
+</UserControl>

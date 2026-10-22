@@ -67,7 +67,7 @@ public partial class MainViewModel : ObservableObject
         BuildOutput = new OutputChannel("Build");
         DebugOutput = new OutputChannel("Debug");
         ServerOutput = new OutputChannel("Language Server");
-        OutputChannels = [BuildOutput, DebugOutput, ServerOutput, GitOutput, PackageManagerOutput];
+        OutputChannels = [BuildOutput, DebugOutput, ServerOutput, GitOutput, PackageManagerOutput, DockerOutput];
         SelectedOutput = BuildOutput;
         InitializeDebugging();
         EditorHost.DefaultZoom = Math.Clamp(Settings.EditorZoom, EditorHost.MinZoom, EditorHost.MaxZoom);
@@ -309,6 +309,7 @@ public partial class MainViewModel : ObservableObject
         if (_terminal is { } terminal)
             terminal.WorkingDirectory = solution.Directory;
         await OnClaudeSolutionChangedAsync();
+        await OnDockerSolutionChangedAsync();
         if (_state.ClaudeConversation is { } conversation)
             await Claude.RestoreConversationAsync(conversation);
         await StartLanguageServerAsync();
@@ -343,7 +344,8 @@ public partial class MainViewModel : ObservableObject
         if (_session is { } debugSession)
             await debugSession.TerminateAsync();
         _buildCts?.Cancel();
-        foreach (var doc in Editors)
+        // Every tab goes; those that follow something (the Docker Explorer's engine streams) stop following it.
+        foreach (var doc in Documents.ToList())
             doc.Dispose();
         Documents.Clear();
         ActiveDocument = null;

@@ -2,6 +2,8 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:VSL.ViewModels"
              xmlns:v="using:VSL.Views"
+             xmlns:dvm="using:VSL.Docker.ViewModels"
+             xmlns:dv="using:VSL.Docker.Views"
              x:Class="VSL.Views.DocumentGroupView"
              x:DataType="vm:DocumentGroup">
   <UserControl.Styles>
@@ -63,6 +65,11 @@
                           ShowPreview="{Binding $parent[Window].((vm:MainViewModel)DataContext).MarkdownPreview}"
                           PreviewBelow="{Binding $parent[Window].((vm:MainViewModel)DataContext).MarkdownPreviewBelow}" />
           </DockPanel>
+        </Border>
+      </DataTemplate>
+      <DataTemplate DataType="dvm:DockerExplorerViewModel" x:DataType="dvm:DockerExplorerViewModel">
+        <Border Classes="docframe" BorderBrush="#007ACC" BorderThickness="0,2,0,0">
+          <dv:DockerExplorerView />
         </Border>
       </DataTemplate>
       <DataTemplate DataType="vm:NuGetViewModel" x:DataType="vm:NuGetViewModel">

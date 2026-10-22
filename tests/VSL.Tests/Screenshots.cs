@@ -240,6 +240,42 @@ public class Screenshots
     }
 
     [AvaloniaFact]
+    public async Task Docker_explorer()
+    {
+        var (vm, window, dir) = await OpenDemoAsync();
+        // The demo's own compose stack, beside a cache and a migration that failed (the fake docker command line).
+        var compose = Path.Combine(dir, "compose.yaml");
+        File.WriteAllText(compose, "services:\n  web:\n    image: nginx\n");
+        var (docker, _, _) = FakeDocker.Create(FakeDocker.Sample(dir));
+        Environment.SetEnvironmentVariable("VSL_DOCKER_PATH", docker);
+        try
+        {
+            // Room for the dashboard: a smaller Error List and Solution Explorer.
+            window.FindControl<Grid>("LeftGrid")!.RowDefinitions[2].Height = new GridLength(120);
+            window.FindControl<Grid>("MainGrid")!.ColumnDefinitions[4].Width = new GridLength(260);
+            await vm.ShowDockerExplorerCommand.ExecuteAsync(null);
+            var explorer = vm.Documents.OfType<VSL.Docker.ViewModels.DockerExplorerViewModel>().Single();
+            await WaitUntil(() => explorer.Containers.AllRows.Count(r => r.Cpu is not null) == 4, TimeSpan.FromSeconds(10));
+            await Settle();
+            Save(window, "docker-explorer");
+
+            // A container's page, on its stats.
+            explorer.Containers.AllRows.Single(r => r.Name == "shop-api-1").OpenCommand.Execute(null);
+            var page = (VSL.Docker.ViewModels.ContainerDetailViewModel)explorer.Detail!;
+            page.ShowTabCommand.Execute("stats");
+            await WaitUntil(() => page.Row.CpuHistory.Count >= 12, TimeSpan.FromSeconds(15));
+            await Settle();
+            Save(window, "docker-container");
+            await CloseAsync(vm, window);
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable("VSL_DOCKER_PATH", null);
+            File.Delete(compose);
+        }
+    }
+
+    [AvaloniaFact]
     public async Task Start_window()
     {
         Assert.SkipWhen(OutputDirectory is null, "Set VSL_SCREENSHOTS to the output folder to render the README screenshots.");

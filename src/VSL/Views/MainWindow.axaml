@@ -119,6 +119,7 @@
             </Grid>
           </MenuItem.Header>
         </MenuItem>
+        <MenuItem Header="Doc_ker Explorer" Command="{Binding ShowDockerExplorerCommand}" />
         <MenuItem Command="{Binding ShowClaudeCommand}">
           <MenuItem.Header>
             <Grid ColumnDefinitions="*,Auto">

@@ -1,0 +1,63 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:v="using:VSL.Views"
+             xmlns:dvm="using:VSL.Docker.ViewModels"
+             xmlns:ae="using:AvaloniaEdit"
+             x:Class="VSL.Docker.Views.DockerNetworkView"
+             x:DataType="dvm:NetworkDetailViewModel">
+  <DockPanel Margin="20,14,20,0">
+    <StackPanel DockPanel.Dock="Top" Spacing="12">
+      <Grid ColumnDefinitions="Auto,*,Auto">
+        <Button Classes="dkIcon" Command="{Binding BackCommand}" ToolTip.Tip="Back to Networks (Esc)" VerticalAlignment="Top">
+          <v:VsIcon Kind="DockerBack" />
+        </Button>
+        <StackPanel Grid.Column="1" Margin="8,0,0,0" Spacing="5">
+          <StackPanel Orientation="Horizontal" Spacing="10">
+            <v:VsIcon Kind="DockerNetwork" Width="22" Height="22" Classes="state" Classes.running="{Binding Row.HasContainers}" />
+            <TextBlock Name="NetworkName" Text="{Binding Row.Name}" FontSize="19" FontWeight="SemiBold" VerticalAlignment="Center" />
+            <Border Classes="pill blue">
+              <TextBlock Text="{Binding Row.Driver}" />
+            </Border>
+          </StackPanel>
+          <StackPanel Orientation="Horizontal" Spacing="18" Margin="32,0,0,0">
+            <TextBlock Text="{Binding Row.ShortId}" Classes="dkMono dkMuted" />
+            <TextBlock Text="{Binding SubnetText}" Classes="dkMuted" />
+            <TextBlock Text="{Binding Row.Scope, StringFormat='Scope {0}'}" Classes="dkMuted" />
+          </StackPanel>
+        </StackPanel>
+        <Button Grid.Column="2" Classes="dkIcon" Command="{Binding DeleteCommand}" ToolTip.Tip="Delete" IsEnabled="{Binding Row.CanDelete}" VerticalAlignment="Top">
+          <v:VsIcon Kind="DockerDelete" />
+        </Button>
+      </Grid>
+      <Border BorderBrush="#3F3F46" BorderThickness="0,0,0,1">
+        <StackPanel Orientation="Horizontal" Margin="4,0,0,0">
+          <Button Classes="dkTab" Classes.selected="{Binding IsContainers}" Command="{Binding ShowTabCommand}" CommandParameter="containers" Content="Containers" />
+          <Button Classes="dkTab" Classes.selected="{Binding IsInspect}" Command="{Binding ShowTabCommand}" CommandParameter="inspect" Content="Inspect" />
+        </StackPanel>
+      </Border>
+    </StackPanel>
+    <Panel Margin="0,10,0,14">
+      <StackPanel IsVisible="{Binding IsContainers}">
+        <ItemsControl ItemsSource="{Binding Members}">
+          <ItemsControl.ItemTemplate>
+            <DataTemplate x:DataType="dvm:NetworkMember">
+              <Border Classes="dkRow" MinHeight="40">
+                <Grid ColumnDefinitions="*,200" Margin="8,0">
+                  <Button Classes="dkLink plain" Command="{Binding $parent[UserControl].((dvm:NetworkDetailViewModel)DataContext).OpenContainerCommand}" CommandParameter="{Binding}">
+                    <TextBlock Text="{Binding Name}" FontWeight="SemiBold" />
+                  </Button>
+                  <TextBlock Grid.Column="1" Text="{Binding Address}" Classes="dkMono dkMuted" VerticalAlignment="Center" />
+                </Grid>
+              </Border>
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+        <TextBlock Text="No container is on this network." Classes="dkMuted" Margin="8,14" IsVisible="{Binding HasNoMembers}" />
+      </StackPanel>
+      <Border IsVisible="{Binding IsInspect}" BorderBrush="#3F3F46" BorderThickness="1" CornerRadius="6" ClipToBounds="True">
+        <ae:TextEditor Name="InspectEditor" FontFamily="{StaticResource VsCodeFont}" FontSize="12" Background="#181818" Padding="10,6"
+                       HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto" />
+      </Border>
+    </Panel>
+  </DockPanel>
+</UserControl>

@@ -1,0 +1,131 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:v="using:VSL.Views"
+             xmlns:dvm="using:VSL.Docker.ViewModels"
+             xmlns:dv="using:VSL.Docker.Views"
+             x:Class="VSL.Docker.Views.DockerVolumesView"
+             x:DataType="dvm:VolumesPage">
+  <DockPanel Margin="26,20,26,0">
+    <StackPanel DockPanel.Dock="Top" Spacing="16">
+      <Grid ColumnDefinitions="*,Auto">
+        <StackPanel>
+          <TextBlock Classes="dkTitle" Text="Volumes" />
+          <TextBlock Classes="dkSubtitle" Text="Data your containers keep: it stays when a container is deleted." />
+        </StackPanel>
+        <Button Name="CreateVolumeButton" Grid.Column="1" Classes="dkPrimary" Command="{Binding CreateCommand}">
+          <StackPanel Orientation="Horizontal" Spacing="6">
+            <v:VsIcon Kind="Plus" Width="13" Height="13" />
+            <TextBlock Text="Create" VerticalAlignment="Center" />
+          </StackPanel>
+        </Button>
+      </Grid>
+      <Border Classes="dkCard" MaxWidth="433" HorizontalAlignment="Left" MinWidth="300">
+        <StackPanel Spacing="3">
+          <TextBlock Text="Volumes" Classes="dkMuted" FontSize="12" />
+          <TextBlock Text="{Binding TotalText}" FontSize="18" FontWeight="SemiBold" />
+        </StackPanel>
+      </Border>
+      <Panel Height="34">
+        <Panel Width="300" HorizontalAlignment="Left" IsVisible="{Binding !HasSelection}">
+          <TextBox Name="SearchBox" Classes="dkSearch" Text="{Binding Search}" PlaceholderText="Search" />
+          <v:VsIcon Kind="Search" Width="14" Height="14" Margin="10,0,0,0" HorizontalAlignment="Left" IsHitTestVisible="False" Foreground="#9D9D9D" />
+        </Panel>
+        <Border IsVisible="{Binding HasSelection}" Background="#1F2E4D" CornerRadius="6" Padding="12,0">
+          <Grid ColumnDefinitions="Auto,*,Auto">
+            <StackPanel Orientation="Horizontal" Spacing="10">
+              <TextBlock Text="{Binding SelectionText}" FontWeight="SemiBold" VerticalAlignment="Center" Margin="0,0,8,0" />
+              <Button Classes="dkOutline" Command="{Binding DeleteSelectedCommand}" Content="Delete" Foreground="#FF7B72" />
+            </StackPanel>
+            <Button Grid.Column="2" Classes="dkIcon" Width="26" Height="26" Command="{Binding ClearSelectionCommand}" ToolTip.Tip="Clear selection">
+              <v:VsIcon Kind="Close" Width="12" Height="12" />
+            </Button>
+          </Grid>
+        </Border>
+      </Panel>
+    </StackPanel>
+
+    <Grid RowDefinitions="Auto,*" Margin="0,12,0,0">
+      <Border Classes="dkTableHeader">
+        <dv:DockerColumns Layout="40,*200,100?3,100?1,120?2,100,80">
+          <CheckBox Classes="dkCheck" IsChecked="{Binding AllSelected}" ToolTip.Tip="Select all" />
+          <Button dv:DockerColumns.Column="1" Classes="dkSort" Command="{Binding SortByCommand}" CommandParameter="name">
+            <StackPanel Orientation="Horizontal" Spacing="4">
+              <TextBlock Text="Name" Classes="dkHeader" />
+              <TextBlock Text="{Binding NameSort}" Classes="dkHeader" />
+            </StackPanel>
+          </Button>
+          <TextBlock dv:DockerColumns.Column="2" Text="Status" Classes="dkHeader" />
+          <TextBlock dv:DockerColumns.Column="3" Text="Driver" Classes="dkHeader" />
+          <Button dv:DockerColumns.Column="4" Classes="dkSort" Command="{Binding SortByCommand}" CommandParameter="created">
+            <StackPanel Orientation="Horizontal" Spacing="4">
+              <TextBlock Text="Created" Classes="dkHeader" />
+              <TextBlock Text="{Binding CreatedSort}" Classes="dkHeader" />
+            </StackPanel>
+          </Button>
+          <Button dv:DockerColumns.Column="5" Classes="dkSort" Command="{Binding SortByCommand}" CommandParameter="size">
+            <StackPanel Orientation="Horizontal" Spacing="4">
+              <TextBlock Text="Size" Classes="dkHeader" />
+              <TextBlock Text="{Binding SizeSort}" Classes="dkHeader" />
+            </StackPanel>
+          </Button>
+          <TextBlock dv:DockerColumns.Column="6" Text="Actions" Classes="dkHeader" HorizontalAlignment="Right" Margin="0,0,12,0" />
+        </dv:DockerColumns>
+      </Border>
+      <ScrollViewer Grid.Row="1" HorizontalScrollBarVisibility="Disabled">
+        <StackPanel>
+          <ItemsControl Name="Table" ItemsSource="{Binding Rows}">
+            <ItemsControl.ItemTemplate>
+              <DataTemplate x:DataType="dvm:VolumeRow">
+                <Border Classes="dkRow" Classes.selected="{Binding IsSelected}" DoubleTapped="OnRowDoubleTapped">
+                  <dv:DockerColumns Layout="40,*200,100?3,100?1,120?2,100,80">
+                    <CheckBox Classes="dkCheck" IsChecked="{Binding IsSelected}" />
+                    <StackPanel dv:DockerColumns.Column="1" Orientation="Horizontal" Spacing="10">
+                      <v:VsIcon Kind="DockerVolume" Width="18" Height="18" Classes="state" Classes.running="{Binding InUse}" />
+                      <StackPanel VerticalAlignment="Center">
+                        <Button Classes="dkLink plain" Command="{Binding OpenCommand}" ToolTip.Tip="{Binding Name}">
+                          <TextBlock Text="{Binding Name}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                        </Button>
+                        <TextBlock Text="{Binding BusyText}" FontSize="11" Foreground="#79A6F6" IsVisible="{Binding IsBusy}" />
+                      </StackPanel>
+                    </StackPanel>
+                    <Border dv:DockerColumns.Column="2" Classes="pill green" IsVisible="{Binding InUse}">
+                      <TextBlock Text="{Binding StatusText}" />
+                    </Border>
+                    <TextBlock dv:DockerColumns.Column="3" Classes="dkCell" Text="{Binding Driver}" />
+                    <TextBlock dv:DockerColumns.Column="4" Classes="dkCell" Text="{Binding CreatedText}" />
+                    <TextBlock dv:DockerColumns.Column="5" Classes="dkCell" Text="{Binding SizeText}" />
+                    <StackPanel dv:DockerColumns.Column="6" Orientation="Horizontal" Spacing="2" HorizontalAlignment="Right" Margin="0,0,4,0">
+                      <Button Classes="dkIcon" ToolTip.Tip="More actions">
+                        <v:VsIcon Kind="DockerMore" />
+                        <Button.Flyout>
+                          <MenuFlyout Placement="BottomEdgeAlignedRight">
+                            <MenuItem Header="View details" Command="{Binding OpenCommand}" />
+                            <MenuItem Header="Copy name" Click="OnCopy" Tag="{Binding Name}" />
+                          </MenuFlyout>
+                        </Button.Flyout>
+                      </Button>
+                      <Button Classes="dkIcon" Command="{Binding DeleteCommand}" ToolTip.Tip="Delete" IsEnabled="{Binding !IsBusy}">
+                        <v:VsIcon Kind="DockerDelete" />
+                      </Button>
+                    </StackPanel>
+                  </dv:DockerColumns>
+                </Border>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+          <StackPanel IsVisible="{Binding IsEmpty}" HorizontalAlignment="Center" Margin="0,56,0,0" Spacing="8">
+            <v:VsIcon Kind="DockerVolume" Width="40" Height="40" Foreground="#5A6270" HorizontalAlignment="Center" />
+            <TextBlock Text="No volumes" FontSize="15" FontWeight="SemiBold" HorizontalAlignment="Center" />
+            <TextBlock Text="Containers that keep data make them; Create makes one to mount." Classes="dkMuted" HorizontalAlignment="Center" />
+          </StackPanel>
+          <StackPanel IsVisible="{Binding HasNoMatches}" HorizontalAlignment="Center" Margin="0,48,0,0" Spacing="8">
+            <TextBlock Text="No volumes match" FontSize="14" FontWeight="SemiBold" HorizontalAlignment="Center" />
+            <Button Classes="dkLink" HorizontalAlignment="Center" Command="{Binding ClearSearchCommand}">
+              <TextBlock Text="Clear the search" />
+            </Button>
+          </StackPanel>
+        </StackPanel>
+      </ScrollViewer>
+    </Grid>
+  </DockPanel>
+</UserControl>

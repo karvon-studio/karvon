@@ -38,7 +38,9 @@ public sealed class VsIcon : Control
         "Dependencies", "Package", "Framework", "cs", "razor", "css", "js", "json", "xml", "html", "sql", "md", "proto",
         "yaml", "image", "binary", "file", "CloneRepository", "OpenProject", "NewProject", "FsProject", "VbProject", "ArrowRight",
         "Claude", "History", "Send", "Copy", "Eye", "EyeOff", "Attach", "Hand", "CodeBrackets", "PlanDoc", "Bolt", "Gauge", "Plug", "Check",
-        "Sparkle", "FileCode", "ChevronUp", "GitCommit", "Repo", "Globe",
+        "Sparkle", "FileCode", "ChevronUp", "GitCommit", "Repo", "Globe", "ShieldOff", "Remote",
+        "Docker", "DockerContainer", "DockerStack", "DockerImage", "DockerVolume", "DockerNetwork", "DockerPlay", "DockerStop", "DockerRestart",
+        "DockerPause", "DockerDelete", "DockerMore", "DockerLink", "DockerBack", "DockerTerminal", "DockerLogs", "DockerStats", "DockerInspect",
     ];
 
     public string? Kind
@@ -491,6 +493,62 @@ public sealed class VsIcon : Control
             case "Remote":
                 // A phone with a signal: Remote Control.
                 Line(dc, "M6.5 2h7A1.5 1.5 0 0 1 15 3.5v17a1.5 1.5 0 0 1-1.5 1.5h-7A1.5 1.5 0 0 1 5 20.5v-17A1.5 1.5 0 0 1 6.5 2z M9 18.5h2 M18 9a4 4 0 0 1 0 6 M20.5 6.5a7.5 7.5 0 0 1 0 11", fg, 1.8);
+                break;
+            // Docker Explorer: the whale, its sections, and Docker Desktop's row actions (monochrome, as there).
+            case "Docker":
+                Line(dc, "M2.5 12.5h16.8c.8 0 1.5-.4 1.9-1.1.7.2 1.4 0 1.8-.5-.5-.6-1.3-.8-2-.6-.2-.9-.9-1.6-1.7-1.8-.5.9-.4 2.1.3 2.7 M2.5 12.5c.2 4.4 3.7 7.5 8.6 7.5 5.2 0 8.9-2.9 10.3-7.5", fg, 1.6);
+                Line(dc, "M5 9.4h2.7v2.7H5z M8.3 9.4H11v2.7H8.3z M11.6 9.4h2.7v2.7h-2.7z M8.3 6.1H11v2.7H8.3z M11.6 6.1h2.7v2.7h-2.7z M11.6 2.8h2.7v2.7h-2.7z", fg, 1.2);
+                break;
+            case "DockerContainer":
+                Line(dc, "M12 2.5l8.5 4.8v9.4L12 21.5l-8.5-4.8V7.3z M3.5 7.3L12 12l8.5-4.7 M12 12v9.5", fg, 1.7);
+                break;
+            case "DockerStack":
+                Line(dc, "M12 2.5l9 4.5-9 4.5-9-4.5z M3 12l9 4.5 9-4.5 M3 16.5L12 21l9-4.5", fg, 1.7);
+                break;
+            case "DockerImage":
+                Line(dc, "M4 4.5h16v15H4z M4 9.5h16 M4 14.5h16 M8 7h.5 M8 12h.5 M8 17h.5", fg, 1.7);
+                break;
+            case "DockerVolume":
+                Line(dc, "M4 6c0-1.7 3.6-3 8-3s8 1.3 8 3-3.6 3-8 3-8-1.3-8-3z M4 6v12c0 1.7 3.6 3 8 3s8-1.3 8-3V6 M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3", fg, 1.7);
+                break;
+            case "DockerNetwork":
+                Line(dc, "M12 3a2.5 2.5 0 1 0 0 5 2.5 2.5 0 1 0 0-5z M5 16a2.5 2.5 0 1 0 0 5 2.5 2.5 0 1 0 0-5z M19 16a2.5 2.5 0 1 0 0 5 2.5 2.5 0 1 0 0-5z M12 8v4 M12 12l-5.3 4.3 M12 12l5.3 4.3", fg, 1.7);
+                break;
+            case "DockerPlay":
+                Line(dc, "M7.5 4.8v14.4L19 12z", fg, 1.9);
+                break;
+            case "DockerStop":
+                Line(dc, "M6.5 6.5h11v11h-11z", fg, 1.9);
+                break;
+            case "DockerRestart":
+                Line(dc, "M20 12a8 8 0 1 1-2.3-5.7 M20 4.5V9h-4.5", fg, 1.9);
+                break;
+            case "DockerPause":
+                Line(dc, "M8.5 5.5v13 M15.5 5.5v13", fg, 2.2);
+                break;
+            case "DockerDelete":
+                Line(dc, "M4 6.5h16 M9 6.5V4h6v2.5 M6 6.5l1 13.5h10l1-13.5 M10 10.5v6 M14 10.5v6", fg, 1.7);
+                break;
+            case "DockerMore":
+                Fill(dc, "M8,2.4 A1.35,1.35 0 1 0 8,5.1 A1.35,1.35 0 1 0 8,2.4 Z M8,6.65 A1.35,1.35 0 1 0 8,9.35 A1.35,1.35 0 1 0 8,6.65 Z M8,10.9 A1.35,1.35 0 1 0 8,13.6 A1.35,1.35 0 1 0 8,10.9 Z", fg);
+                break;
+            case "DockerLink":
+                Line(dc, "M14 4h6v6 M20 4l-9 9 M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5", fg, 1.8);
+                break;
+            case "DockerBack":
+                Line(dc, "M19 12H5 M11 6l-6 6 6 6", fg, 1.9);
+                break;
+            case "DockerTerminal":
+                Line(dc, "M3.5 5h17v14h-17z M7 9.5l3 2.5-3 2.5 M12.5 15H17", fg, 1.7);
+                break;
+            case "DockerLogs":
+                Line(dc, "M5 4h14v16H5z M8.5 8.5h7 M8.5 12h7 M8.5 15.5h4", fg, 1.7);
+                break;
+            case "DockerStats":
+                Line(dc, "M3.5 20.5h17 M6 17v-4 M10.5 17V8 M15 17v-6 M19.5 17V5", fg, 1.9);
+                break;
+            case "DockerInspect":
+                Line(dc, "M9 4.5c-2 0-2.5 1-2.5 2.5v2.5c0 1.3-.8 2.5-2 2.5 1.2 0 2 1.2 2 2.5V17c0 1.5.5 2.5 2.5 2.5 M15 4.5c2 0 2.5 1 2.5 2.5v2.5c0 1.3.8 2.5 2 2.5-1.2 0-2 1.2-2 2.5V17c0 1.5-.5 2.5-2.5 2.5", fg, 1.7);
                 break;
             case "Globe":
                 Line(dc, "M12 2a10 10 0 1 0 0 20a10 10 0 1 0 0-20z M2 12h20 M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z", fg, 1.6);

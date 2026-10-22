@@ -15,13 +15,19 @@ namespace VSL.Terminal;
 /// </summary>
 public sealed class TerminalSession : IAsyncDisposable
 {
+    readonly string? _program;
+    readonly IReadOnlyList<string> _arguments;
     PtyTerminalAdapter _adapter;
     (int Cols, int Rows)? _size;
     bool _starting;
     bool _exited;
 
-    public TerminalSession()
+    /// <summary>The user's shell, or <paramref name="program"/> (a shell in a container: docker exec -it ...).</summary>
+    public TerminalSession(string? program = null, IReadOnlyList<string>? arguments = null)
     {
+        _program = program;
+        _arguments = arguments ?? [];
+        Title = DefaultTitle;
         Control = new TerminalControl
         {
             FontFamily = "avares://VSL/Assets/Fonts#Cascadia Mono, DejaVu Sans Mono, monospace",
@@ -56,9 +62,12 @@ public sealed class TerminalSession : IAsyncDisposable
 
     public static string Shell => Environment.GetEnvironmentVariable("SHELL") is { Length: > 0 } sh && File.Exists(sh) ? sh : "/bin/bash";
 
-    static string DefaultTitle => Path.GetFileName(Shell);
+    string DefaultTitle => Path.GetFileName(_program ?? Shell);
 
-    public string Title { get; private set; } = DefaultTitle;
+    public string Title { get; private set; }
+
+    /// <summary>What the line shown after the program exits says Enter does.</summary>
+    public string RestartHint { get; init; } = "Press Enter to start a new terminal.";
 
     public bool IsAlive => _adapter.IsAlive;
 
@@ -75,7 +84,7 @@ public sealed class TerminalSession : IAsyncDisposable
             if (adapter != _adapter)
                 return;
             _exited = true;
-            Control.Write(Encoding.UTF8.GetBytes($"\r\n\x1b[90m[Process exited with code {e.ExitCode}. Press Enter to start a new terminal.]\x1b[0m\r\n"));
+            Control.Write(Encoding.UTF8.GetBytes($"\r\n\x1b[90m[Process exited with code {e.ExitCode}. {RestartHint}]\x1b[0m\r\n"));
             Title = DefaultTitle;
             StateChanged?.Invoke();
         });
@@ -102,14 +111,16 @@ public sealed class TerminalSession : IAsyncDisposable
                 Cwd = Directory.Exists(WorkingDirectory) ? WorkingDirectory : Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
                 Cols = cols,
                 Rows = rows,
-                CommandLine = ["-c", "stty sane 2>/dev/null; exec \"$0\"", Shell],
+                CommandLine = _program is null
+                    ? ["-c", "stty sane 2>/dev/null; exec \"$0\"", Shell]
+                    : ["-c", "stty sane 2>/dev/null; exec \"$0\" \"$@\"", _program, .. _arguments],
                 Environment = env,
             }, CancellationToken.None);
             _exited = false;
         }
         catch (Exception ex)
         {
-            Control.Write(Encoding.UTF8.GetBytes($"\x1b[31mCould not start {Shell}: {ex.Message}\x1b[0m\r\n"));
+            Control.Write(Encoding.UTF8.GetBytes($"\x1b[31mCould not start {_program ?? Shell}: {ex.Message}\x1b[0m\r\n"));
             _exited = true;
         }
         finally
