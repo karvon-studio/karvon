@@ -12,14 +12,14 @@ namespace Karvon.Tests;
 /// <summary>Claude's IDE tools on the sample solution: the build, the tests, the debugger and the editor, as Karvon has them.</summary>
 public class ClaudeIdeToolsTests
 {
-    static async Task<(string Text, bool IsError)> Call(ClaudeToolServer server, string tool, object arguments)
+    internal static async Task<(string Text, bool IsError)> Call(ClaudeToolServer server, string tool, object arguments)
     {
         var message = JsonSerializer.SerializeToElement(new { jsonrpc = "2.0", id = 1, method = "tools/call", @params = new { name = tool, arguments } });
         var result = (await server.HandleAsync(message, CancellationToken.None))["result"]!;
         return (result["content"]![0]!["text"]!.GetValue<string>(), result["isError"]!.GetValue<bool>());
     }
 
-    static async Task<string> Text(ClaudeToolServer server, string tool, object arguments)
+    internal static async Task<string> Text(ClaudeToolServer server, string tool, object arguments)
     {
         var (text, isError) = await Call(server, tool, arguments);
         Assert.False(isError, text);

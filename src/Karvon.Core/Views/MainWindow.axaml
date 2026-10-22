@@ -152,6 +152,11 @@
         <MenuItem Header="_Rebuild Solution" Command="{Binding RebuildSolutionCommand}" />
         <MenuItem Header="_Clean Solution" Command="{Binding CleanSolutionCommand}" />
         <Separator />
+        <!-- Filled when it opens: the folder's tasks (.vscode/tasks.json, the modules' package.json scripts...) -->
+        <MenuItem Name="RunTaskMenu" Header="Run _Task" SubmenuOpened="OnRunTaskMenuOpened">
+          <MenuItem Header="No tasks" IsEnabled="False" />
+        </MenuItem>
+        <Separator />
         <MenuItem Header="Cance_l" InputGesture="Ctrl+Pause" Command="{Binding CancelBuildCommand}" />
       </MenuItem>
       <MenuItem Header="_Debug">
@@ -264,7 +269,11 @@
         <Button Classes="tbi" ToolTip.Tip="Redo (Ctrl+Y)" Click="OnRedo"><v:VsIcon Kind="Redo" /></Button>
         <Border Classes="tbsep" />
         <ComboBox Classes="tb" Width="96" ItemsSource="{Binding Configurations}" SelectedItem="{Binding Configuration}" ToolTip.Tip="Solution Configurations" />
-        <ComboBox Classes="tb" Width="170" Margin="4,0,0,0" ItemsSource="{Binding StartupProjects}" SelectedItem="{Binding StartupProject}" ToolTip.Tip="Startup Project" />
+        <ComboBox Classes="tb" Width="170" Margin="4,0,0,0" ItemsSource="{Binding StartupProjects}" SelectedItem="{Binding StartupProject}" ToolTip.Tip="Startup Project"
+                  IsVisible="{Binding !IsFolderWorkspace}" />
+        <!-- A folder runs one of its run tasks (package.json's start, dev...) -->
+        <ComboBox Name="StartupTaskBox" Classes="tb" Width="170" Margin="4,0,0,0" ItemsSource="{Binding StartupTasks}" SelectedItem="{Binding StartupTask}"
+                  ToolTip.Tip="Startup Task" IsVisible="{Binding IsFolderWorkspace}" />
         <Border Classes="tbsep" />
         <!-- VS's split Start button: run the startup project, ▾ picks the launch profile -->
         <Button Classes="tb" Padding="6,0,5,0" Command="{Binding StartDebuggingCommand}" ToolTip.Tip="Start Debugging (F5)">

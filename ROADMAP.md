@@ -20,8 +20,10 @@ it does today all along.
 - A generic LSP client and DAP session, out of today's Roslyn and netcoredbg ones.
 - A workload describes a language: how its projects are found (`package.json`, `pyproject.toml`, `go.mod`…), its
   language server, debugger, build, run and test commands, package manager and templates.
-- `.vscode/launch.json` and `tasks.json` are read, so existing projects run as they are.
-- Claude's IDE tools (`run_build`, `run_tests`, `app_control`, `debug_*`) work for any workload.
+- `.vscode/launch.json` and `tasks.json` are read, so existing projects run as they are. In now: `tasks.json` and the
+  modules' tasks (`package.json` scripts) build, run and test a folder; next, `launch.json` and its debuggers.
+- Claude's IDE tools (`run_build`, `run_tests`, `app_control`, `debug_*`) work for any workload (in now: `run_build`,
+  `run_tests` and `app_control` run a folder's tasks).
 - Mixed repositories: a frontend's `package.json` folder shows as a project beside the solution's.
 
 ## 0c. Every platform

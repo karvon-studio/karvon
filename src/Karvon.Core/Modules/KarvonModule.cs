@@ -79,6 +79,18 @@ public abstract partial class KarvonModule : ObservableObject, IDisposable, IAsy
     /// <summary>The language servers it brings: one starts when a file it serves opens in the editor.</summary>
     public virtual IReadOnlyList<LanguageServerInfo> LanguageServers => [];
 
+    /// <summary>
+    /// The tasks it finds in a folder (its package.json scripts...): read when the folder opens and when one of
+    /// <see cref="WorkspaceTaskFiles"/> is saved. Quick and without side effects: it reads files, it runs nothing.
+    /// </summary>
+    public virtual IReadOnlyList<WorkspaceTask> WorkspaceTasks(string workspace) => [];
+
+    /// <summary>The file names its tasks come from ("package.json"): saving one reads the tasks again.</summary>
+    public virtual IReadOnlyList<string> WorkspaceTaskFiles => [];
+
+    /// <summary>The folders of the tools its tasks use (Node.js's bin...): first on the PATH of every task.</summary>
+    public virtual IEnumerable<string> ToolDirectories => [];
+
     /// <summary>The tools it gives the Claude Code sessions Karvon starts (mcp__karvon__*): new ones for each session.</summary>
     public virtual IEnumerable<IClaudeTool> ClaudeTools() => [];
 

@@ -15,6 +15,9 @@ public sealed class SolutionState
     public string? ActiveDocument { get; set; }
     public string? StartupProject { get; set; }
     public string? LaunchProfile { get; set; }
+
+    /// <summary>A folder's run task chosen on the toolbar (in place of a startup project).</summary>
+    public string? StartupTask { get; set; }
     public string Configuration { get; set; } = "Debug";
 
     /// <summary>Tab groups side by side (New Vertical Tab Group) rather than one above the other.</summary>

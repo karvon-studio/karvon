@@ -122,7 +122,8 @@ sealed class RunBuildTool(MainViewModel vm) : IdeTool(vm)
 
     public override string Description =>
         "Builds the open solution (or a project) in Karvon with dotnet build, as Build > Build Solution does, and returns the result: "
-        + "whether it succeeded, then each error as path(line,column): error CODE: message. The Output window and the Error List show it too.";
+        + "whether it succeeded, then each error as path(line,column): error CODE: message. The Output window and the Error List show it too. "
+        + "A folder opened as it is builds by its build task (.vscode/tasks.json's build group, or package.json's build script).";
 
     public override JsonObject InputSchema => Schema("""
         {"type":"object","properties":{
@@ -140,6 +141,13 @@ sealed class RunBuildTool(MainViewModel vm) : IdeTool(vm)
         _ = SolutionDirectory;
         if (Vm.IsBuildingForClaude)
             return ClaudeToolOutput.Error("Karvon is building or running tests already; wait for it, then call run_build again.");
+        if (Vm.IsFolderWorkspace)
+        {
+            if (Vm.BuildTask is null)
+                return ClaudeToolOutput.Error("The open folder has no build task: give .vscode/tasks.json one (group build), or package.json a build script.");
+            if (Str(input, "project") is not null || Verb(input) == "clean")
+                return ClaudeToolOutput.Error($"A folder builds by its build task ({Vm.BuildTask.Name}) only: call run_build without project and verb.");
+        }
         string? target = null;
         if (Str(input, "project") is { } project && (target = Vm.ProjectPathForClaude(project)) is null)
             return ClaudeToolOutput.Error($"{project} is not a project of the solution, nor a solution or project file in its folder.");
@@ -199,7 +207,8 @@ sealed class RunTestsTool(MainViewModel vm) : IdeTool(vm)
 
     public override string Description =>
         "Builds the open solution and runs its tests (xUnit, NUnit, MSTest) in Karvon's Test Explorer; returns the counts, then each "
-        + "failure with its message, stack trace and file:line.";
+        + "failure with its message, stack trace and file:line. A folder opened as it is runs its test task (.vscode/tasks.json's test "
+        + "group, or package.json's test script) and returns whether it passed and its output; filter and failedOnly do not apply there.";
 
     public override JsonObject InputSchema => Schema("""
         {"type":"object","properties":{
@@ -215,6 +224,18 @@ sealed class RunTestsTool(MainViewModel vm) : IdeTool(vm)
         _ = SolutionDirectory;
         if (Vm.IsBuildingForClaude)
             return ClaudeToolOutput.Error("Karvon is building or running tests already; wait for it, then call run_tests again.");
+        if (Vm.IsFolderWorkspace)
+        {
+            if (Vm.TestTask is not { } task)
+                return ClaudeToolOutput.Error("The open folder has no test task: give .vscode/tasks.json one (group test), or package.json a test script.");
+            var exit = await Vm.RunTestTaskForClaudeAsync(task);
+            var output = Vm.TestsOutput.Document.Text.TrimEnd().Split('\n');
+            var text = new StringBuilder(exit == 0 ? $"{task.Name} passed." : $"{task.Name} failed (exit code {exit}).");
+            text.Append($"\n\nOutput (last {Math.Min(80, output.Length)} of {output.Length} lines):");
+            foreach (var line in output.TakeLast(80))
+                text.Append('\n').Append(Redaction.Text(line.TrimEnd('\r')));
+            return new ClaudeToolOutput(text.ToString(), exit != 0);
+        }
         var clock = System.Diagnostics.Stopwatch.StartNew();
         if (!await Vm.RunTestsForClaudeAsync(Str(input, "filter"), Bool(input, "failedOnly")))
         {
@@ -452,13 +473,14 @@ sealed partial class AppControlTool(MainViewModel vm) : IdeTool(vm)
         "Runs the app in Karvon as Debug > Start Without Debugging (Ctrl+F5) does: start builds and runs the startup project (or the "
         + "project given, which becomes the startup project) with its launch profile, stop ends it (Shift+F5), restart does both, "
         + "status tells whether it runs. Each returns the URLs it listens on and its latest output, which the Output window shows "
-        + "too. Use it rather than dotnet run in the shell: the app runs in Karvon, where the user sees it and stops it. For "
+        + "too. Use it rather than dotnet run or npm start in the shell: the app runs in Karvon, where the user sees it and stops it. "
+        + "A folder opened as it is runs its startup task instead (package.json's start or dev script...; project names one). For "
         + "breakpoints and stepping use debug_control.";
 
     public override JsonObject InputSchema => Schema("""
         {"type":"object","properties":{
           "action":{"type":"string","enum":["start","stop","restart","status"]},
-          "project":{"type":"string","description":"start, restart: a runnable project's name; default the startup project."},
+          "project":{"type":"string","description":"start, restart: a runnable project's name (in a folder, a run task's); default the startup project."},
           "profile":{"type":"string","description":"start, restart: a launch profile of the project (Properties/launchSettings.json); default the one chosen in Karvon."},
           "lines":{"type":"integer","description":"How many of the latest output lines to return; default 40."}},"required":["action"]}
         """);
@@ -468,7 +490,7 @@ sealed partial class AppControlTool(MainViewModel vm) : IdeTool(vm)
         var action = Str(input, "action");
         if (!Actions.Contains(action))
             throw new InvalidOperationException("action is one of " + string.Join(", ", Actions) + ".");
-        var project = Str(input, "project") ?? Vm.StartupProject?.Name;
+        var project = Str(input, "project") ?? RunTarget;
         return action switch
         {
             "start" => new(ToolAccess.Write, "Start Without Debugging", project, $"Allow Claude to run {project ?? "the startup project"}?")
@@ -479,7 +501,7 @@ sealed partial class AppControlTool(MainViewModel vm) : IdeTool(vm)
             {
                 Warning = "It stops the program and builds and runs it again.",
             },
-            "stop" => new(ToolAccess.Write, "Stop", Vm.StartupProject?.Name, "Allow Claude to stop the running program?"),
+            "stop" => new(ToolAccess.Write, "Stop", RunTarget, "Allow Claude to stop the running program?"),
             _ => new(ToolAccess.Read, "App", "status", ""),
         };
     }
@@ -503,16 +525,25 @@ sealed partial class AppControlTool(MainViewModel vm) : IdeTool(vm)
                 return await StartAsync(input, lines, cancellationToken);
             default:
                 if (Vm.IsRunning)
-                    return ClaudeToolOutput.Error($"{Vm.StartupProject?.Name ?? "The program"} is running already: restart it, or stop it first.");
+                    return ClaudeToolOutput.Error($"{RunTarget ?? "The program"} is running already: restart it, or stop it first.");
                 if (Vm.Mode != DebugMode.Design)
                     return ClaudeToolOutput.Error("A debug session is running: stop it first (debug_control stop).");
                 return await StartAsync(input, lines, cancellationToken);
         }
     }
 
+    /// <summary>What Start runs: the startup project, or a folder's startup task.</summary>
+    string? RunTarget => Vm.IsFolderWorkspace ? Vm.StartupTask?.Name : Vm.StartupProject?.Name;
+
     async Task<ClaudeToolOutput> StartAsync(JsonElement input, int lines, CancellationToken cancellationToken)
     {
-        if (Str(input, "project") is { } name)
+        if (Vm.IsFolderWorkspace && Str(input, "project") is { } taskName)
+        {
+            if (Vm.StartupTasks.FirstOrDefault(t => t.Name.Equals(taskName, StringComparison.OrdinalIgnoreCase)) is not { } task)
+                return ClaudeToolOutput.Error($"{taskName} is not a run task of the folder. Run tasks: {(Vm.StartupTasks.Count == 0 ? "none" : string.Join(", ", Vm.StartupTasks.Select(t => t.Name)))}.");
+            Vm.StartupTask = task;
+        }
+        else if (Str(input, "project") is { } name)
         {
             if (Vm.StartupProjects.FirstOrDefault(p => p.Name.Equals(name, StringComparison.OrdinalIgnoreCase)) is not { } project)
                 return ClaudeToolOutput.Error($"{name} is not a runnable project of the solution. Runnable: {string.Join(", ", Vm.StartupProjects.Select(p => p.Name))}.");
@@ -525,7 +556,9 @@ sealed partial class AppControlTool(MainViewModel vm) : IdeTool(vm)
             Vm.LaunchProfile = profile;
         }
         if (!Vm.StartWithoutDebuggingCommand.CanExecute(null))
-            return ClaudeToolOutput.Error("Karvon cannot run it now: open a solution with a startup project, and wait for any build.");
+            return ClaudeToolOutput.Error(Vm.IsFolderWorkspace
+                ? "Karvon cannot run it now: the folder has no run task (package.json's start or dev script...), or a build runs."
+                : "Karvon cannot run it now: open a solution with a startup project, and wait for any build.");
         var run = Vm.StartWithoutDebuggingCommand.ExecuteAsync(null);
         // Built and started: until it listens (a web host), ends, or has run a while; the build may take minutes.
         var clock = System.Diagnostics.Stopwatch.StartNew();
@@ -542,7 +575,7 @@ sealed partial class AppControlTool(MainViewModel vm) : IdeTool(vm)
         }
         // The last lines the program printed land on the UI thread after its exit is known.
         await Task.Delay(200, cancellationToken);
-        if (run.IsCompleted && Vm.LastBuildForClaude is { Succeeded: false })
+        if (run.IsCompleted && !Vm.IsFolderWorkspace && Vm.LastBuildForClaude is { Succeeded: false })
             return ClaudeToolOutput.Error(BuildReport.Describe(Vm, warnings: false));
         return new ClaudeToolOutput(Report(lines), !Vm.IsRunning && Vm.LastExitCodeForClaude is not (null or 0));
     }
@@ -559,7 +592,7 @@ sealed partial class AppControlTool(MainViewModel vm) : IdeTool(vm)
     /// <summary>Whether it runs, where it listens, and the latest lines of its output (secrets hidden).</summary>
     string Report(int lines)
     {
-        var name = Vm.StartupProject?.Name ?? "The program";
+        var name = RunTarget ?? "The program";
         var profile = Vm.LaunchProfile is { } p ? $" (launch profile {p})" : "";
         var text = new StringBuilder(Vm.IsRunning
             ? $"{name} is running{profile}."
@@ -580,11 +613,15 @@ sealed partial class AppControlTool(MainViewModel vm) : IdeTool(vm)
         return text.ToString();
     }
 
+    /// <summary>ASP.NET Core's "Now listening on:" URLs; a task's local URLs (Vite's "Local: http://localhost:5173/"...).</summary>
     List<string> Listening() =>
-        ListeningLine().Matches(Vm.DebugOutput.Document.Text).Select(m => m.Groups[1].Value.TrimEnd('/')).Distinct().ToList();
+        (Vm.IsFolderWorkspace ? LocalUrl() : ListeningLine()).Matches(Vm.DebugOutput.Document.Text).Select(m => m.Groups[1].Value.TrimEnd('/')).Distinct().ToList();
 
     [GeneratedRegex(@"Now listening on: (\S+)")]
     private static partial Regex ListeningLine();
+
+    [GeneratedRegex(@"(https?://(?:localhost|127\.0\.0\.1|0\.0\.0\.0|\[::1?\])(?::\d+)?[^\s\u001b'"")]*)")]
+    private static partial Regex LocalUrl();
 }
 
 // ---- Editor -------------------------------------------------------------------------------------------------------

@@ -370,6 +370,7 @@ public partial class MainViewModel : ObservableObject
         if (_session is { } debugSession)
             await debugSession.TerminateAsync();
         _buildCts?.Cancel();
+        StopWorkspaceTasks();
         // Every tab goes; those that follow something (the Docker Explorer's engine streams) stop following it.
         foreach (var doc in Documents.ToList())
             doc.Dispose();
@@ -578,7 +579,11 @@ public partial class MainViewModel : ObservableObject
         host.WorkspaceEditRequested += ApplyWorkspaceEditAsync;
         host.WorkspaceOperationsRequested += ApplyWorkspaceOperationsAsync;
         host.Saved += () => _ = RefreshGitAsync();
-        host.Saved += () => FileSaved?.Invoke(doc.FilePath);
+        host.Saved += () =>
+        {
+            FileSaved?.Invoke(doc.FilePath);
+            OnWorkspaceFileSaved(doc.FilePath);
+        };
         host.CompareRequested += () => _ = CompareWithUnmodifiedAsync(doc);
         host.AskClaudeRequested += ShowClaude;
         host.ZoomChanged += () => Settings.EditorZoom = host.Zoom;
@@ -939,8 +944,11 @@ public partial class MainViewModel : ObservableObject
 
     // ---- Build -------------------------------------------------------------------------------------------------
 
-    /// <summary>A solution or a project to build (a folder opened as it is has none of its own).</summary>
-    bool CanBuild => Solution is { IsFolder: false } && !IsBuilding;
+    /// <summary>A solution or a project to build, or a folder with a build task.</summary>
+    bool CanBuild => !IsBuilding && (Solution is { IsFolder: false } || IsFolderWorkspace && BuildTask is not null);
+
+    /// <summary>A solution or a project to clean (a folder's tasks have no clean).</summary>
+    bool CanClean => Solution is { IsFolder: false } && !IsBuilding;
 
     [RelayCommand(CanExecute = nameof(CanBuild))]
     Task BuildSolution() => RunBuildAsync("build", "Build");
@@ -948,17 +956,27 @@ public partial class MainViewModel : ObservableObject
     [RelayCommand(CanExecute = nameof(CanBuild))]
     Task RebuildSolution() => RunBuildAsync("rebuild", "Rebuild All");
 
-    [RelayCommand(CanExecute = nameof(CanBuild))]
+    [RelayCommand(CanExecute = nameof(CanClean))]
     Task CleanSolution() => RunBuildAsync("clean", "Clean");
 
     [RelayCommand]
     void CancelBuild() => _buildCts?.Cancel();
 
-    /// <summary>Runs dotnet build/clean and feeds the Output window and Error List. Returns true on success.</summary>
+    /// <summary>
+    /// Runs dotnet build/clean and feeds the Output window and Error List. Returns true on success. A folder builds by its
+    /// build task (and has no clean).
+    /// </summary>
     async Task<bool> RunBuildAsync(string verb, string title, string? target = null)
     {
         if (Solution is not { } solution || IsBuilding)
             return false;
+        if (solution.IsFolder)
+        {
+            if (verb is "build" or "rebuild" && BuildTask is { } task)
+                return await RunBuildTaskAsync(task);
+            SetStatus(verb is "build" or "rebuild" ? "The folder has no build task (.vscode/tasks.json, package.json)." : $"A folder has no {verb}.");
+            return false;
+        }
         SaveAll();
         IsBuilding = true;
         _usedBuildServers = true;
@@ -1001,14 +1019,20 @@ public partial class MainViewModel : ObservableObject
         }
 
         await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
+        var verbLabel = verb switch { "clean" => "Clean", "rebuild" => "Rebuild All", "pack" => "Pack", "publish" => "Publish", _ => "Build" };
+        return ReportBuild(verbLabel, Path.GetFileName(target ?? solution.FilePath), exitCode == 0, sw.Elapsed, succeeded);
+    }
+
+    /// <summary>A build's last lines in Output, the status bar, and the Error List when it failed with errors.</summary>
+    bool ReportBuild(string verbLabel, string target, bool ok, TimeSpan took, int? projectsBuilt)
+    {
         var errors = _buildErrors.Count(e => e.Severity == DiagnosticSeverity.Error);
         var warnings = _buildErrors.Count(e => e.Severity == DiagnosticSeverity.Warning);
-        var ok = exitCode == 0;
-        var verbLabel = verb switch { "clean" => "Clean", "rebuild" => "Rebuild All", "pack" => "Pack", "publish" => "Publish", _ => "Build" };
-        BuildOutput.Append($"========== {verbLabel}: {(ok ? "succeeded" : "failed")}, {errors} error(s), {warnings} warning(s), {succeeded} project(s) built ==========");
-        BuildOutput.Append($"========== {verbLabel} completed at {DateTime.Now:HH:mm} and took {sw.Elapsed.TotalSeconds:0.000} seconds ==========");
+        var built = projectsBuilt is { } count ? $", {count} project(s) built" : "";
+        BuildOutput.Append($"========== {verbLabel}: {(ok ? "succeeded" : "failed")}, {errors} error(s), {warnings} warning(s){built} ==========");
+        BuildOutput.Append($"========== {verbLabel} completed at {DateTime.Now:HH:mm} and took {took.TotalSeconds:0.000} seconds ==========");
         SetStatus(ok ? $"{verbLabel} succeeded" : $"{verbLabel} failed", IsRunning || IsDebugging ? StatusKind.Running : StatusKind.Ready);
-        _lastBuild = (verbLabel, Path.GetFileName(target ?? solution.FilePath), ok, sw.Elapsed);
+        _lastBuild = (verbLabel, target, ok, took);
         if (!ok && errors > 0)
             ShowToolWindow(ToolWindows.ErrorList);
         return ok;
@@ -1026,7 +1050,8 @@ public partial class MainViewModel : ObservableObject
 
     // ---- Run ---------------------------------------------------------------------------------------------------
 
-    bool CanStart => Solution is not null && StartupProject is not null && !IsBuilding && !IsRunning && Mode == DebugMode.Design;
+    bool CanStart => Solution is not null && (IsFolderWorkspace ? StartupTask is not null : StartupProject is not null) && !IsBuilding && !IsRunning
+        && Mode == DebugMode.Design;
 
     /// <summary>
     /// For the program Karvon runs or debugs: the console logger keeps its colors although the output is redirected (the
@@ -1042,6 +1067,13 @@ public partial class MainViewModel : ObservableObject
     [RelayCommand(CanExecute = nameof(CanStart))]
     async Task StartWithoutDebugging()
     {
+        // A folder runs the run task chosen on the toolbar.
+        if (IsFolderWorkspace)
+        {
+            if (StartupTask is { } task)
+                await RunProgramTaskAsync(task);
+            return;
+        }
         if (Solution is not { } solution || StartupProject is not { } project)
             return;
         // Like VS: build first, run only if the build succeeded.

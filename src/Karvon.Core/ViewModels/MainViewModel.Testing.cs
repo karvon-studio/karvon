@@ -45,8 +45,11 @@ public partial class MainViewModel
 
     bool CanRunTests => Solution is { } s && s.Projects.Any(p => p.IsTestProject) && !IsTesting && !IsBuilding && Mode == DebugMode.Design;
 
-    [RelayCommand(CanExecute = nameof(CanRunTests))]
-    Task RunAllTests() => RunTestsAsync(null);
+    /// <summary>A solution's tests, or a folder's test task.</summary>
+    bool CanRunAllTests => CanRunTests || IsFolderWorkspace && TestTask is not null && !IsTesting && !IsBuilding && Mode == DebugMode.Design;
+
+    [RelayCommand(CanExecute = nameof(CanRunAllTests))]
+    Task RunAllTests() => IsFolderWorkspace && TestTask is { } task ? RunTestTaskAsync(task) : RunTestsAsync(null);
 
     /// <summary>Run Tests on a test project in Solution Explorer: its tests only.</summary>
     [RelayCommand(CanExecute = nameof(CanRunTests))]

@@ -42,6 +42,14 @@ public partial class MainViewModel
     /// none; only those that failed last time with <paramref name="failedOnly"/>), as Test Explorer does. False when no test
     /// ran: the summary says why.
     /// </summary>
+    /// <summary>A folder's test task, run as Run All Tests runs it: its exit code (-1 when it did not run).</summary>
+    internal async Task<int> RunTestTaskForClaudeAsync(Modules.WorkspaceTask task)
+    {
+        _lastTestTask = null;
+        await RunTestTaskAsync(task);
+        return _lastTestTask is { } run && run.Task == task.Name ? run.ExitCode : -1;
+    }
+
     internal async Task<bool> RunTestsForClaudeAsync(string? filter, bool failedOnly)
     {
         var runs = _testRuns;

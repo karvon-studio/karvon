@@ -380,6 +380,34 @@ public partial class MainWindow : Window, IDialogService
         menu.ShowAt(button);
     }
 
+    void OnRunTaskMenuOpened(object? sender, RoutedEventArgs e)
+    {
+        if (Vm is not { } vm)
+            return;
+        RunTaskMenu.Items.Clear();
+        foreach (var item in RunTaskMenuItems(vm))
+            RunTaskMenu.Items.Add(item);
+    }
+
+    /// <summary>Build > Run Task: each task by its name and where it comes from; one running in Output (Tasks) stops.</summary>
+    internal static List<Control> RunTaskMenuItems(MainViewModel vm)
+    {
+        var items = new List<Control>();
+        foreach (var task in vm.WorkspaceTasks)
+        {
+            var header = vm.IsTaskRunning(task) ? $"Stop {task.Name}" : task.Name;
+            items.Add(new MenuItem
+            {
+                Header = task.Source.Length > 0 ? $"{header}   ({task.Source})" : header,
+                Command = vm.RunTaskCommand,
+                CommandParameter = task,
+            });
+        }
+        if (items.Count == 0)
+            items.Add(new MenuItem { Header = "No tasks (.vscode/tasks.json, package.json scripts)", IsEnabled = false });
+        return items;
+    }
+
     void OnLaunchProfilesClick(object? sender, RoutedEventArgs e)
     {
         if (Vm is not { } vm || sender is not Control anchor)

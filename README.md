@@ -48,6 +48,11 @@ and TypeScript 7 (Apache-2.0, its own language server; no Node.js needed) when t
   Solution File. On projects: Pack, Publish to Folder, Add > Project Reference (Reference Manager), Manage User
   Secrets; in Dependencies, Remove for packages and project references. A solution or project file changed elsewhere
   (an editor, git, `dotnet sln`) is read again, keeping what is expanded.
+- **Folders** (File > Open Folder): any folder as it is, built, run and tested by its tasks: `.vscode/tasks.json`'s (shell,
+  process and npm tasks, their build and test groups) and its `package.json` scripts (npm, pnpm, yarn or bun). Build
+  (Ctrl+Shift+B) runs the build task with its errors in the Error List, Start Without Debugging (Ctrl+F5) the run task
+  chosen on the toolbar (dev, start...), Run All Tests the test task; Build > Run Task runs any of them, a watch beside
+  the rest.
 - **Build and run**: Build / Rebuild / Clean, Error List, launch profiles, Ctrl+F5; offers to trust the ASP.NET Core
   HTTPS development certificate.
 - **Debug** (F5, netcoredbg): breakpoints that follow edits, Step Over / Into / Out, Locals, Watch, Call Stack, data tips,

@@ -10,8 +10,9 @@ public static class KarvonTools
     const string Instructions =
         "Tools from Karvon, the IDE the user works in. They use Karvon's own build, Test Explorer, debugger and editor, the user's Database "
         + "Explorer data sources, Docker engine and SSH servers, so you need no credentials, and they hide secrets. Prefer them to the "
-        + "shell (dotnet build, dotnet test, dotnet run, psql, docker, ssh) for what they cover: the user sees their results in Karvon. "
-        + "To run the app, use app_control (or debug_control to debug it), never dotnet run or a background process in the shell, "
+        + "shell (dotnet build, dotnet test, dotnet run, npm run build, npm test, psql, docker, ssh) for what they cover: the user sees "
+        + "their results in Karvon; in a folder opened as it is, they run its tasks (tasks.json, package.json scripts). "
+        + "To run the app, use app_control (or debug_control to debug it), never dotnet run, npm start or a background process in the shell, "
         + "also when a skill or a habit suggests one: Karvon runs it, shows its output and stops it. Reading, building, testing and "
         + "stepping run at once; a change (SQL that writes, a restart, compose up, a removal, a command on a server, starting or "
         + "stopping the app or the debugger) asks the user first unless they chose to bypass permissions, read-only data sources "

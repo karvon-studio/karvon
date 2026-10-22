@@ -28,6 +28,7 @@ public partial class MainViewModel
         StartupProject = StartupProjects.FirstOrDefault(p => p.FilePath == state.StartupProject)
             ?? StartupProjects.FirstOrDefault(p => p.IsWeb)
             ?? StartupProjects.FirstOrDefault();
+        RefreshWorkspaceTasks(state.StartupTask);
 
         DocumentGroupsVertical = state.DocumentGroupsVertical;
         var floating = new Dictionary<int, DocumentGroup>();
