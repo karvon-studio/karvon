@@ -25,7 +25,6 @@ public static class ToolWindows
     public const string Watch = "Watch";
     public const string CallStack = "CallStack";
     public const string Terminal = "Terminal";
-    public const string Claude = "Claude";
 }
 
 public enum StatusKind
@@ -81,7 +80,7 @@ public partial class MainViewModel : ObservableObject
         BuildOutput = new OutputChannel("Build");
         DebugOutput = new OutputChannel("Debug");
         ServerOutput = new OutputChannel("Language Server");
-        OutputChannels = [BuildOutput, DebugOutput, ServerOutput, GitOutput, PackageManagerOutput, ClaudeOutput];
+        OutputChannels = [BuildOutput, DebugOutput, ServerOutput, GitOutput, PackageManagerOutput];
         SelectedOutput = BuildOutput;
         InitializeDebugging();
         StartModules();
@@ -215,7 +214,6 @@ public partial class MainViewModel : ObservableObject
         SyncGroupWithActiveDocument(value);
         ActiveDocumentChanged?.Invoke(value);
         UpdateCaretText();
-        _claude?.RefreshContext();
         if (value is not DocumentViewModel editor)
             return;
         // Like VS, refresh squiggles for the document the user switches to.
@@ -325,9 +323,7 @@ public partial class MainViewModel : ObservableObject
         // New shells start in the solution folder, like VS's Developer terminal.
         if (_terminal is { } terminal)
             terminal.WorkingDirectory = solution.Directory;
-        await OnClaudeSolutionChangedAsync();
-        if (_state.ClaudeConversation is { } conversation)
-            await Claude.RestoreConversationAsync(conversation);
+        await OnModulesWorkspaceChangedAsync();
         await StartLanguageServerAsync();
     }
 
@@ -378,7 +374,7 @@ public partial class MainViewModel : ObservableObject
         ResetTesting();
         CloseGit();
         Solution = null;
-        await OnClaudeSolutionChangedAsync();
+        await OnModulesWorkspaceChangedAsync();
         SetStatus("Ready", StatusKind.NoSolution);
         return true;
     }

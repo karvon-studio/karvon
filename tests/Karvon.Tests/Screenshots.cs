@@ -227,7 +227,7 @@ public class Screenshots
         host.Editor.CaretOffset = host.Document.GetLineByNumber(13).Offset;
         window.FindControl<Grid>("MainGrid")!.ColumnDefinitions[4].Width = new GridLength(560);
         vm.ShowClaude();
-        var claude = vm.Claude;
+        var claude = ClaudeOf(vm).Claude;
         await WaitUntil(() => claude.Commands.Count > 0, TimeSpan.FromSeconds(10));
         claude.RefreshContext();
         claude.Prompt = "Add an endpoint that deletes a todo by id";
@@ -238,7 +238,7 @@ public class Screenshots
 
         await claude.DenyCommand.ExecuteAsync(claude.Items.OfType<PermissionChatItem>().Single());
         await WaitUntil(() => !claude.IsRunning, TimeSpan.FromSeconds(10));
-        await vm.ShutdownClaudeAsync();
+        await ClaudeOf(vm).DisposeAsync();
         await CloseAsync(vm, window);
     }
 

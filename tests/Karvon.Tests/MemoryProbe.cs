@@ -45,7 +45,7 @@ public class MemoryProbe
         {
             (ToolWindows.SolutionExplorer, "Solution Explorer"), (ToolWindows.GitChanges, "Git Changes"), (ToolWindows.TestExplorer, "Test Explorer"),
             (Karvon.Database.DatabaseModule.ToolWindowId, "Database Explorer"), (Karvon.Docker.DockerModule.ToolWindowId, "Docker Explorer (fake engine)"),
-            (Karvon.Servers.ServersModule.ToolWindowId, "Servers"), (Karvon.Mcp.McpModule.ToolWindowId, "MCP Servers"), (Karvon.Skills.SkillsModule.ToolWindowId, "Skills"), (ToolWindows.Claude, "Claude (empty)"),
+            (Karvon.Servers.ServersModule.ToolWindowId, "Servers"), (Karvon.Mcp.McpModule.ToolWindowId, "MCP Servers"), (Karvon.Skills.SkillsModule.ToolWindowId, "Skills"), (Karvon.Claude.ClaudeModule.ToolWindowId, "Claude (empty)"),
         })
         {
             vm.ShowToolWindow(id);
@@ -56,8 +56,8 @@ public class MemoryProbe
             + "\n\n```csharp\n" + string.Join("\n", Enumerable.Range(1, 20).Select(l => $"var line{l} = Compute({l});")) + "\n```";
         for (var i = 0; i < 300; i++)
         {
-            vm.Claude.Items.Add(new UserChatItem($"Question {i}", null));
-            vm.Claude.Items.Add(new TextChatItem(answer));
+            ClaudeOf(vm).Claude.Items.Add(new UserChatItem($"Question {i}", null));
+            ClaudeOf(vm).Claude.Items.Add(new TextChatItem(answer));
         }
         await WaitUntil(() => false, TimeSpan.FromMilliseconds(500));
         Step("Claude, 600 messages");

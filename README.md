@@ -165,7 +165,7 @@ src/Karvon.Core/        the workbench; it knows no module
   Git/         git CLI wrapper and line diff
   Packages/    NuGet through the dotnet CLI
   Terminal/    integrated terminal
-  Claude/      Claude Code CLI session (stream-json), transcripts, Karvon's IDE tools for Claude
+  Claude/      the tool contract and Karvon's IDE tools for Claude Code, the panel's language
   Templates/   SDK project templates and project creation
   Editor/      AvaloniaEdit host, completion, outlining, diff view
   ViewModels/  Views/   main window, tool windows, dialogs
@@ -174,8 +174,9 @@ src/Karvon.Docker/      module: the Docker Explorer
 src/Karvon.Servers/     module: SSH servers
 src/Karvon.Mcp/         module: MCP Servers
 src/Karvon.Skills/      module: Skills (uses Karvon.Mcp)
+src/Karvon.Claude/      module: Claude Code (its session, protocol and view model are shared with the Visual Studio extension)
 external/bengine/       Bengine (submodule): the schema AST and the live-database layer the Database Explorer uses
-src/Karvon.VisualStudio/   the Claude Code panel as a Visual Studio extension (Windows), sharing src/Karvon.Core/Claude and its view model
+src/Karvon.VisualStudio/   the Claude Code panel as a Visual Studio extension (Windows), sharing src/Karvon.Claude's session and view model
 ```
 
 ## License

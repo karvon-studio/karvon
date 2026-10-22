@@ -1,6 +1,6 @@
 # Claude Code for Visual Studio (src/Karvon.VisualStudio) → Karvon.ClaudeCode.VisualStudio.vsix as a build artifact.
 # The VSIX targets (VSCT, pkgdef, the .vsix container) need Visual Studio's .NET Framework MSBuild, so this runs on Windows.
-# It also catches shared Claude code (src/Karvon.Core/Claude, the Claude view model) that no longer builds for .NET Framework.
+# It also catches shared Claude code (src/Karvon.Claude and src/Karvon.Core/Claude) that no longer builds for .NET Framework.
 # Run it by hand with "publish" ticked to upload the .vsix to the Visual Studio Marketplace: that needs the
 # VS_MARKETPLACE_TOKEN secret (an Azure DevOps token with Marketplace > Manage) and the VS_MARKETPLACE_PUBLISHER variable
 # (the Marketplace publisher ID). Raise the Version in source.extension.vsixmanifest before each upload.
@@ -12,7 +12,7 @@ on:
     paths:
       - 'src/Karvon.VisualStudio/**'
       - 'src/Karvon.Core/Claude/**'
-      - 'src/Karvon.Core/ViewModels/Claude*'
+      - 'src/Karvon.Claude/**'
       - 'src/Karvon.Core/Views/MarkdownParser.cs'
       - '.github/workflows/vsix.yml'
       - '!src/Karvon.VisualStudio/**/*.md'
@@ -22,7 +22,7 @@ on:
     paths:
       - 'src/Karvon.VisualStudio/**'
       - 'src/Karvon.Core/Claude/**'
-      - 'src/Karvon.Core/ViewModels/Claude*'
+      - 'src/Karvon.Claude/**'
       - 'src/Karvon.Core/Views/MarkdownParser.cs'
       - '.github/workflows/vsix.yml'
       - '!src/Karvon.VisualStudio/**/*.md'

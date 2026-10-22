@@ -17,7 +17,7 @@ namespace Karvon.Tests;
 public class ClaudeToolActivityTests
 {
     static Task<System.Text.Json.Nodes.JsonObject> CallAsync(MainViewModel vm, string tool, object arguments) =>
-        vm.Claude.Tools!.HandleAsync(JsonSerializer.SerializeToElement(new { jsonrpc = "2.0", id = 1, method = "tools/call", @params = new { name = tool, arguments } }), CancellationToken.None);
+        ClaudeOf(vm).Claude.Tools!.HandleAsync(JsonSerializer.SerializeToElement(new { jsonrpc = "2.0", id = 1, method = "tools/call", @params = new { name = tool, arguments } }), CancellationToken.None);
 
     static string Database()
     {
@@ -42,7 +42,7 @@ public class ClaudeToolActivityTests
         var file = Database();
         Db(vm).Servers.Upsert(new ServerProfile { Name = "orders (sqlite)", Provider = DatabaseProvider.Sqlite, FilePath = file });
         Db(vm).Explorer.ReloadServers();
-        vm.ShowToolWindow(ToolWindows.Claude);
+        vm.ShowToolWindow(Karvon.Claude.ClaudeModule.ToolWindowId);
         await WaitUntil(() => false, TimeSpan.FromMilliseconds(300));
 
         // A query: its results in a Query Tool of the data source, as if run there; it ran once.
@@ -59,14 +59,14 @@ public class ClaudeToolActivityTests
         // The Claude conversation stays in view: the Database Explorer beside it does not take its place.
         await CallAsync(vm, "db_connections", new { });
         await WaitUntil(() => false, TimeSpan.FromMilliseconds(200));
-        Assert.True(window.IsToolWindowShowing(ToolWindows.Claude));
+        Assert.True(window.IsToolWindowShowing(Karvon.Claude.ClaudeModule.ToolWindowId));
         Assert.False(window.IsToolWindowShowing(Karvon.Database.DatabaseModule.ToolWindowId));
 
         // A container's logs: its page (any container: the sample has no compose file).
         vm.Settings.ClaudeAllContainers = true;
         await CallAsync(vm, "container_logs", new { name = "cache" });
         await WaitUntil(() => vm.Documents.OfType<DockerDocument>().Any(), TimeSpan.FromSeconds(10));
-        Assert.True(vm.Documents.OfType<DockerDocument>().Any(), vm.ClaudeOutput.Document.Text);
+        Assert.True(vm.Documents.OfType<DockerDocument>().Any(), ClaudeOf(vm).Output.Document.Text);
         Assert.Equal("cache", vm.Documents.OfType<DockerDocument>().Single().Title);
 
         // A search: Find Results; a file read: the editor, its lines selected.
@@ -79,7 +79,7 @@ public class ClaudeToolActivityTests
         await WaitUntil(() => vm.ActiveEditor?.FilePath.EndsWith("Greeting.razor.cs", StringComparison.Ordinal) == true, TimeSpan.FromSeconds(10));
 
         // Every call, in Output (Claude).
-        var log = vm.ClaudeOutput.Document.Text;
+        var log = ClaudeOf(vm).Output.Document.Text;
         foreach (var line in new[] { "db_query (orders (sqlite))  1 row(s) affected", "container_logs (cache)", "find_in_files (Greeting)", "open_document (Components/Greeting.razor.cs)" })
             Assert.Contains(line, log);
         Snapshot(window, "claude-tool-activity");
@@ -90,7 +90,7 @@ public class ClaudeToolActivityTests
         await CallAsync(vm, "find_in_files", new { query = "Home" });
         await WaitUntil(() => false, TimeSpan.FromMilliseconds(200));
         Assert.Empty(vm.FindResults);
-        Assert.Contains("find_in_files (Home)", vm.ClaudeOutput.Document.Text);
+        Assert.Contains("find_in_files (Home)", ClaudeOf(vm).Output.Document.Text);
         vm.Settings.ClaudeShowToolActivity = true;
         vm.Settings.ClaudeAllContainers = false;
         window.Close();

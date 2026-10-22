@@ -22,18 +22,13 @@ public partial class MainViewModel
     [NotifyCanExecuteChangedFor(nameof(WriteCommitMessageCommand))]
     public partial bool IsWritingCommitMessage { get; set; }
 
-    bool CanWriteCommitMessage => HasGit && !IsGitBusy && !IsWritingCommitMessage && GitChangeCount > 0;
+    bool CanWriteCommitMessage => HasGit && HasClaude && !IsGitBusy && !IsWritingCommitMessage && GitChangeCount > 0;
 
     [RelayCommand(CanExecute = nameof(CanWriteCommitMessage))]
     async Task WriteCommitMessage()
     {
-        var claude = Claude;
-        claude.CheckCli();
-        if (claude.CliPath is not { } cli)
-        {
-            SetStatus("Claude Code is not installed: the claude command was not found.");
+        if (ClaudeService is not { } claude)
             return;
-        }
         IsWritingCommitMessage = true;
         SetStatus("Claude is writing the commit message...", StatusKind.Busy);
         try
@@ -46,11 +41,10 @@ public partial class MainViewModel
             }
             var root = (StagedChanges.Count > 0 ? StagedChanges : UnstagedChanges).Select(c => c.Repository).OfType<GitRepoItem>().FirstOrDefault()?.Root
                 ?? Solution?.Directory ?? Environment.CurrentDirectory;
-            var (exit, output, error) = await RunClaudePrintAsync(cli, root, prompt, claude.SelectedAccount);
-            var message = CleanCommitMessage(output);
-            if (exit != 0 || message.Length == 0)
+            var message = CleanCommitMessage(await claude.PrintAsync(root, prompt));
+            if (message.Length == 0)
             {
-                SetStatus("Claude could not write the message: " + (error.Trim().Length > 0 ? error.Trim() : $"exit code {exit}"), StatusKind.Ready);
+                SetStatus("Claude could not write the message: its answer was empty.", StatusKind.Ready);
                 return;
             }
             CommitMessage = message;
@@ -118,42 +112,6 @@ public partial class MainViewModel
             .AppendLine("Diff:")
             .AppendLine(diffText)
             .ToString();
-    }
-
-    /// <summary>claude -p with a fast model and no tools; the run is not kept as a session.</summary>
-    static async Task<(int Exit, string Output, string Error)> RunClaudePrintAsync(string cli, string directory, string prompt, Claude.ClaudeAccount? account)
-    {
-        var psi = new ProcessStartInfo(cli)
-        {
-            WorkingDirectory = directory,
-            RedirectStandardInput = true,
-            RedirectStandardOutput = true,
-            RedirectStandardError = true,
-            UseShellExecute = false,
-            StandardOutputEncoding = Encoding.UTF8,
-            StandardErrorEncoding = Encoding.UTF8,
-        };
-        foreach (var arg in new[] { "-p", "--model", "haiku", "--tools", "", "--no-session-persistence", "--output-format", "text" })
-            psi.ArgumentList.Add(arg);
-        // Not a nested session of the Claude Code Karvon may itself be running in.
-        psi.Environment.Remove("CLAUDECODE");
-        account?.Apply(psi.Environment);
-        using var process = Process.Start(psi) ?? throw new InvalidOperationException("claude could not be started.");
-        var output = process.StandardOutput.ReadToEndAsync();
-        var error = process.StandardError.ReadToEndAsync();
-        await using (var stdin = new StreamWriter(process.StandardInput.BaseStream, new UTF8Encoding(false)))
-            await stdin.WriteAsync(prompt);
-        using var timeout = new CancellationTokenSource(TimeSpan.FromMinutes(2));
-        try
-        {
-            await process.WaitForExitAsync(timeout.Token);
-        }
-        catch (OperationCanceledException)
-        {
-            process.Kill(entireProcessTree: true);
-            throw new TimeoutException("claude did not answer within 2 minutes.");
-        }
-        return (process.ExitCode, await output, await error);
     }
 
     /// <summary>The message as it goes in: no code fence around it, no quotes, no trailers a model may still add.</summary>

@@ -166,12 +166,12 @@ public class GitChangesTests
         var ask = Assert.IsType<Avalonia.Controls.MenuItem>(menu[0]);
         Assert.Equal("Ask Claude", ask.Header);
         ask.RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Avalonia.Controls.MenuItem.ClickEvent));
-        Assert.Equal("@Web/Program.cs ", vm.Claude.Prompt);
-        Assert.True(window.IsToolWindowShowing(ToolWindows.Claude));
+        Assert.Equal("@Web/Program.cs ", ClaudeOf(vm).Claude.Prompt);
+        Assert.True(window.IsToolWindowShowing(Karvon.Claude.ClaudeModule.ToolWindowId));
         // A project goes in as its folder.
         var projectAsk = (Avalonia.Controls.MenuItem)window.ExplorerMenuItems(web)[0];
         projectAsk.RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Avalonia.Controls.MenuItem.ClickEvent));
-        Assert.Equal("@Web/Program.cs @Web ", vm.Claude.Prompt);
+        Assert.Equal("@Web/Program.cs @Web ", ClaudeOf(vm).Claude.Prompt);
         Assert.True(await vm.CloseSolutionCoreAsync());
         window.Close();
     }

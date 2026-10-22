@@ -98,9 +98,8 @@ public partial class MainWindow : Window, IDialogService
         if (await vm.CloseSolutionCoreAsync())
         {
             await vm.ShutdownTerminalAsync();
-            await vm.ShutdownClaudeAsync();
             await vm.ShutdownBuildServersAsync();
-            vm.ShutdownModules();
+            await vm.ShutdownModulesAsync();
             _closingConfirmed = true;
             Close();
         }
@@ -114,16 +113,10 @@ public partial class MainWindow : Window, IDialogService
         if (e.Key is Key.LeftCtrl or Key.RightCtrl or Key.LeftShift or Key.RightShift or Key.LeftAlt or Key.RightAlt)
             return;
         // A module's tool window key (Ctrl+Alt+S: the Database Explorer, as Visual Studio's Server Explorer).
-        if (Vm is { } toolVm && _moduleGestures.FirstOrDefault(g => g.Gesture.Matches(e)) is { Id: { } toolId })
+        // Ctrl+Esc: Claude Code, as in the VS Code extension.
+        if (Vm is { } toolVm && _moduleGestures.FirstOrDefault(g => g.Gesture.Matches(e)) is { Tool: { } tool })
         {
-            toolVm.ShowToolWindow(toolId);
-            e.Handled = true;
-            return;
-        }
-        // Ctrl+Esc opens Claude Code, as in the VS Code extension.
-        if (ctrl && e.Key == Key.Escape && Vm is { } claudeVm)
-        {
-            claudeVm.ShowClaude();
+            ShowModuleToolWindow(toolVm, tool);
             e.Handled = true;
             return;
         }
@@ -679,7 +672,7 @@ public partial class MainWindow : Window, IDialogService
             NodeKind.Project or NodeKind.Solution => folder,
             _ => null,
         };
-        if (mention is not null)
+        if (mention is not null && vm.HasClaude)
         {
             var ask = Item("Ask Claude", () => vm.AskClaudeAbout([mention]), "Ctrl+Escape");
             ask.Icon = new VsIcon { Kind = "Claude", Width = 14, Height = 14 };

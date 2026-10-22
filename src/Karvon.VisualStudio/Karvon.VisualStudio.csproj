@@ -46,14 +46,15 @@
 
   <ItemGroup>
     <Compile Include="..\Karvon.Core\Claude\*.cs" Link="Shared\Claude\%(Filename)%(Extension)" />
-    <Compile Include="..\Karvon.Core\ViewModels\ClaudeViewModel.cs" Link="Shared\ViewModels\ClaudeViewModel.cs" />
-    <Compile Include="..\Karvon.Core\ViewModels\ClaudeViewModel.Panels.cs" Link="Shared\ViewModels\ClaudeViewModel.Panels.cs" />
-    <Compile Include="..\Karvon.Core\ViewModels\ClaudeViewModel.Accounts.cs" Link="Shared\ViewModels\ClaudeViewModel.Accounts.cs" />
-    <Compile Include="..\Karvon.Core\ViewModels\ClaudeViewModel.Tokens.cs" Link="Shared\ViewModels\ClaudeViewModel.Tokens.cs" />
-    <Compile Include="..\Karvon.Core\ViewModels\ClaudeViewModel.Background.cs" Link="Shared\ViewModels\ClaudeViewModel.Background.cs" />
-    <Compile Include="..\Karvon.Core\ViewModels\ClaudeViewModel.Remote.cs" Link="Shared\ViewModels\ClaudeViewModel.Remote.cs" />
-    <Compile Include="..\Karvon.Core\ViewModels\ClaudeChatItems.cs" Link="Shared\ViewModels\ClaudeChatItems.cs" />
-    <Compile Include="..\Karvon.Core\ViewModels\ClaudePanelItems.cs" Link="Shared\ViewModels\ClaudePanelItems.cs" />
+    <Compile Include="..\Karvon.Claude\*.cs" Link="Shared\Claude\%(Filename)%(Extension)" />
+    <Compile Include="..\Karvon.Claude\ViewModels\ClaudeViewModel.cs" Link="Shared\ViewModels\ClaudeViewModel.cs" />
+    <Compile Include="..\Karvon.Claude\ViewModels\ClaudeViewModel.Panels.cs" Link="Shared\ViewModels\ClaudeViewModel.Panels.cs" />
+    <Compile Include="..\Karvon.Claude\ViewModels\ClaudeViewModel.Accounts.cs" Link="Shared\ViewModels\ClaudeViewModel.Accounts.cs" />
+    <Compile Include="..\Karvon.Claude\ViewModels\ClaudeViewModel.Tokens.cs" Link="Shared\ViewModels\ClaudeViewModel.Tokens.cs" />
+    <Compile Include="..\Karvon.Claude\ViewModels\ClaudeViewModel.Background.cs" Link="Shared\ViewModels\ClaudeViewModel.Background.cs" />
+    <Compile Include="..\Karvon.Claude\ViewModels\ClaudeViewModel.Remote.cs" Link="Shared\ViewModels\ClaudeViewModel.Remote.cs" />
+    <Compile Include="..\Karvon.Claude\ViewModels\ClaudeChatItems.cs" Link="Shared\ViewModels\ClaudeChatItems.cs" />
+    <Compile Include="..\Karvon.Claude\ViewModels\ClaudePanelItems.cs" Link="Shared\ViewModels\ClaudePanelItems.cs" />
     <Compile Include="..\Karvon.Core\Views\MarkdownParser.cs" Link="Shared\Views\MarkdownParser.cs" />
   </ItemGroup>
 

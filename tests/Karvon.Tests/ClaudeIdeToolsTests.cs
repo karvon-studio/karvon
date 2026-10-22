@@ -34,7 +34,7 @@ public class ClaudeIdeToolsTests
         var window = new MainWindow { DataContext = vm, Width = 1400, Height = 900 };
         window.Show();
         await vm.OpenSolutionAsync(sln);
-        var server = vm.KarvonToolServer();
+        var server = ClaudeOf(vm).ToolServer();
         Assert.Equal(26, server.Tools.Count);
         var program = SampleSolution.PathOf(sln, "Web/Program.cs");
 

@@ -45,6 +45,9 @@ public class UiTests
     }
 
     /// <summary>A view model with no remembered per-solution state, so tests do not depend on each other's order.</summary>
+    /// <summary>The Claude Code module of a window's view model.</summary>
+    internal static Karvon.Claude.ClaudeModule ClaudeOf(MainViewModel vm) => vm.Module<Karvon.Claude.ClaudeModule>()!;
+
     /// <summary>The Database Explorer module of a window's view model.</summary>
     internal static Karvon.Database.DatabaseModule Db(MainViewModel vm) => vm.Module<Karvon.Database.DatabaseModule>()!;
 
@@ -1133,13 +1136,13 @@ public class UiTests
         var window = new MainWindow { DataContext = vm, Width = 1500, Height = 900 };
         window.Show();
         window.KeyPress(Avalonia.Input.Key.Escape, Avalonia.Input.RawInputModifiers.Control, Avalonia.Input.PhysicalKey.Escape, null);
-        Assert.True(window.IsToolWindowShowing(ToolWindows.Claude));
+        Assert.True(window.IsToolWindowShowing(Karvon.Claude.ClaudeModule.ToolWindowId));
         // The panel starts the CLI (the fake here) as soon as it is shown.
-        await WaitUntil(() => vm.Claude.Commands.Count > 0, TimeSpan.FromSeconds(10));
-        Assert.Contains(vm.Claude.Commands, c => c.Name == "compact");
+        await WaitUntil(() => ClaudeOf(vm).Claude.Commands.Count > 0, TimeSpan.FromSeconds(10));
+        Assert.Contains(ClaudeOf(vm).Claude.Commands, c => c.Name == "compact");
         await WaitUntil(() => false, TimeSpan.FromMilliseconds(300));
         Snapshot(window, "claude-in-ide");
-        await vm.ShutdownClaudeAsync();
+        await ClaudeOf(vm).DisposeAsync();
         window.Close();
     }
 

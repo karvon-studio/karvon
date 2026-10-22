@@ -10,9 +10,10 @@ Each module is a project of its own, referencing `Karvon.Core`. The core referen
 - Docker Explorer (`src/Karvon.Docker`);
 - Servers (`src/Karvon.Servers`);
 - MCP Servers (`src/Karvon.Mcp`);
-- Skills (`src/Karvon.Skills`, which uses MCP Servers).
+- Skills (`src/Karvon.Skills`, which uses MCP Servers);
+- Claude Code (`src/Karvon.Claude`).
 
-Claude Code and .NET still live in the core and are to become modules too.
+.NET still lives in the core and is to become a workload module.
 
 A module's resources are its assembly's (`avares://Karvon.Database/Assets/...`); the core's are
 `avares://Karvon.Core/...` (its themes, `Themes/ExplorerStyles.axaml` for the explorers, fonts, the icon).
@@ -49,10 +50,12 @@ application's project references.
 | `ClaudeTools()` | The tools it gives the Claude Code sessions Karvon starts (`mcp__karvon__*`). A module that is off gives none. |
 | `ShowClaudeToolAsync` | One of its tools ran: show what it did where the user would have done it (a container's logs on its page). |
 | `Started()` | Runs once Karvon has started with the module on: subscribe to the workbench here. |
+| `WorkspaceChangedAsync()` | The solution changed (opened, closed, another): awaited, once what is the solution's has been read. |
+| `SaveWorkspaceState(state)` | The solution's state is written: keep what is to come back with it, by your own keys. Read it from `Workbench.WorkspaceState`. |
 | `CloseWorkspaceAsync()` | The solution closes: close what is the solution's. Return false to keep it open (the user cancelled). |
 | `ResetToolWindow(id)` | The tool window's view is stale (another solution's): the window drops it and asks `CreateView` again when it shows. `CreateView` may return null while there is nothing to show yet. |
 | `SaveState()` | The window closes: keep what is to come back next time. |
-| `Dispose()` | Runs when Karvon closes: stop what the module started. |
+| `Dispose()`, `DisposeAsync()` | Run when Karvon closes: stop what the module started. |
 
 A tool window can have a `Gesture` that shows it from anywhere ("Ctrl+Alt+S"). A control that implements
 `IKeymapOwner` gets its keys before the window's while the focus is in it. A document whose owner closes it overrides
@@ -73,8 +76,11 @@ also matches null, so one added to the application would take over every empty p
 - the browser and the status bar.
 
 `Workbench.Service<T>()` gives a module what other parts of Karvon offer:
-- `IClaudeService` (Claude Code): the chosen account's folders, Karvon's tools, `claude mcp add`, the extra MCP
-  servers the sessions get, and its changes;
+- `IClaudeService` (the Claude Code module):
+  - its window, a prompt or @mentions in it;
+  - the chosen account's folders, Karvon's tools, `claude mcp add`, the extra MCP servers the sessions get, and its
+    changes;
+  - one prompt answered without tools (`PrintAsync`, for Git Changes' commit message);
 - `IDatabaseService` (the Database Explorer module): a data source added to it;
 - another module, by its type.
 

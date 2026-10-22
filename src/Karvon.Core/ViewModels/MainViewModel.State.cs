@@ -98,9 +98,9 @@ public partial class MainViewModel
         state.LaunchProfile = LaunchProfile ?? state.LaunchProfile;
         state.Configuration = Configuration;
         SaveDebugState(state);
-        // A Claude panel never opened this time keeps the conversation it would restore.
-        if (_claude is { } claude)
-            state.ClaudeConversation = claude.SessionId;
+        // What the modules keep of the solution (the Claude Code conversation that was open).
+        foreach (var module in Modules)
+            module.SaveWorkspaceState(state.Modules);
         if (ExplorerRoots.FirstOrDefault() is { } root)
         {
             var expanded = new List<string>();

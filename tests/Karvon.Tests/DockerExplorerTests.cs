@@ -623,7 +623,7 @@ public class DockerExplorerTests
 
             // Ask Claude puts the prompt in the Claude panel without sending it.
             ((IDockerHost)module).AskClaude("Why did migrate exit?");
-            Assert.Equal("Why did migrate exit?", vm.Claude.Prompt);
+            Assert.Equal("Why did migrate exit?", ClaudeOf(vm).Claude.Prompt);
             await vm.CloseDocumentCommand.ExecuteAsync(containers);
             Assert.Empty(vm.Documents.OfType<DockerDocument>());
             module.Dispose();

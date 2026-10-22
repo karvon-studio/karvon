@@ -112,15 +112,7 @@
         <MenuItem Header="_Test Explorer" Click="OnShowTestExplorer" />
         <MenuItem Header="_Git Changes" Command="{Binding ShowGitChangesCommand}" />
         <!-- The modules' tool windows go here (MainWindow.Modules.cs) -->
-        <MenuItem Name="ViewClaudeItem" Command="{Binding ShowClaudeCommand}">
-          <MenuItem.Header>
-            <Grid ColumnDefinitions="*,Auto">
-              <TextBlock Text="Claude Code" />
-              <TextBlock Grid.Column="1" Text="Ctrl+Esc" Margin="32,0,0,0" Foreground="{StaticResource VsGrayTextBrush}" />
-            </Grid>
-          </MenuItem.Header>
-        </MenuItem>
-        <MenuItem Command="{Binding ShowTerminalCommand}">
+        <MenuItem Name="ViewTerminalItem" Command="{Binding ShowTerminalCommand}">
           <MenuItem.Header>
             <Grid ColumnDefinitions="*,Auto">
               <TextBlock Text="Terminal" />
@@ -297,7 +289,7 @@
         <Border Classes="tbsep" />
         <Button Classes="tbi" Command="{Binding BuildSolutionCommand}" ToolTip.Tip="Build Solution (Ctrl+Shift+B)"><v:VsIcon Kind="Build" /></Button>
         <Border Classes="tbsep" />
-        <Button Classes="tbi" Command="{Binding ShowClaudeCommand}" ToolTip.Tip="Claude Code (Ctrl+Esc)"><v:VsIcon Kind="Claude" /></Button>
+        <Button Classes="tbi" Command="{Binding ShowClaudeCommand}" IsVisible="{Binding HasClaude}" ToolTip.Tip="Claude Code (Ctrl+Esc)"><v:VsIcon Kind="Claude" /></Button>
       </StackPanel>
     </Border>
 
@@ -836,10 +828,7 @@
               </ScrollViewer>
             </DockPanel>
           </TabItem>
-          <!-- The modules' tool windows go here, before Claude Code (MainWindow.Modules.cs) -->
-          <TabItem Header="Claude Code" Tag="Claude">
-            <v:ClaudeView Name="ClaudePanel" DataContext="{Binding Claude}" />
-          </TabItem>
+          <!-- The modules' tool windows go here (MainWindow.Modules.cs) -->
         </TabControl>
       </Border>
 

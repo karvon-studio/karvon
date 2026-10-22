@@ -19,7 +19,7 @@ public partial class MainWindow
     static readonly System.Runtime.CompilerServices.ConditionalWeakTable<Application, HashSet<Type>> TemplatedModules = [];
 
     /// <summary>The modules' tool window keys.</summary>
-    readonly List<(KeyGesture Gesture, string Id)> _moduleGestures = [];
+    readonly List<(KeyGesture Gesture, ToolWindowInfo Tool)> _moduleGestures = [];
 
     void AttachModules(MainViewModel vm)
     {
@@ -57,18 +57,25 @@ public partial class MainWindow
             if (e.Property == TabItem.IsSelectedProperty)
                 FillModuleToolWindow(tool.Id);
         };
-        var group = GroupOf(tool.Side);
-        var claude = group.Items.OfType<TabItem>().FirstOrDefault(t => (string?)t.Tag == ToolWindows.Claude);
-        group.Items.Insert(claude is null ? group.Items.Count : group.Items.IndexOf(claude), item);
+        GroupOf(tool.Side).Items.Add(item);
         AttachToolTab(item);
         var menu = new MenuItem { Header = tool.MenuHeader };
         if (tool.Gesture is { } gesture)
         {
             menu.InputGesture = KeyGesture.Parse(gesture);
-            _moduleGestures.Add((menu.InputGesture, tool.Id));
+            _moduleGestures.Add((menu.InputGesture, tool));
         }
-        menu.Click += (_, _) => vm.ShowToolWindow(tool.Id);
-        ViewMenu.Items.Insert(ViewMenu.Items.IndexOf(ViewClaudeItem), menu);
+        menu.Click += (_, _) => ShowModuleToolWindow(vm, tool);
+        ViewMenu.Items.Insert(ViewMenu.Items.IndexOf(ViewTerminalItem), menu);
+    }
+
+    /// <summary>A module's tool window in front, as its module shows it.</summary>
+    static void ShowModuleToolWindow(MainViewModel vm, ToolWindowInfo tool)
+    {
+        if (tool.Show is { } show)
+            show();
+        else
+            vm.ShowToolWindow(tool.Id);
     }
 
     readonly Dictionary<string, (TabItem Item, ContentControl Host, ToolWindowInfo Tool)> _moduleTools = [];

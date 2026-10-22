@@ -9,7 +9,7 @@ namespace Karvon.ViewModels;
 /// The modules (see <see cref="KarvonModule"/>): every one Karvon has, those that are on started with Karvon as their
 /// workbench, and what Karvon offers them (Claude Code through <see cref="IClaudeService"/>).
 /// </summary>
-public partial class MainViewModel : IWorkbench, IClaudeService
+public partial class MainViewModel : IWorkbench
 {
     /// <summary>Every module, on or off, in the order they show (Tools > Modules lists them).</summary>
     public IReadOnlyList<KarvonModule> AllModules { get; private set; } = [];
@@ -28,24 +28,32 @@ public partial class MainViewModel : IWorkbench, IClaudeService
             module.Start(this);
     }
 
-    /// <summary>
-    /// Karvon's tools for a Claude Code session: the IDE's, the databases' and those of the modules that are on (each module
-    /// shows what its tools did).
-    /// </summary>
-    public ClaudeToolServer KarvonToolServer()
-    {
-        var tools = Modules.SelectMany(m => m.ClaudeTools().Select(t => (Module: m, Tool: t))).ToList();
-        foreach (var (module, tool) in tools)
-            _claudeToolModules[tool.Name] = module;
-        return KarvonTools.Create(this, tools.Select(t => t.Tool));
-    }
-
     /// <summary>Karvon closes: what the modules started stops.</summary>
-    public void ShutdownModules()
+    public async Task ShutdownModulesAsync()
     {
         foreach (var module in Modules)
-            module.Dispose();
+            await module.DisposeAsync();
     }
+
+    /// <summary>The solution changed: each module is told, one after the other.</summary>
+    async Task OnModulesWorkspaceChangedAsync()
+    {
+        foreach (var module in Modules)
+            await module.WorkspaceChangedAsync();
+    }
+
+    /// <summary>Claude Code, when its module is on.</summary>
+    IClaudeService? ClaudeService => Modules.OfType<IClaudeService>().FirstOrDefault();
+
+    /// <summary>Whether Claude Code is there: its toolbar button and Ask Claude show then.</summary>
+    public bool HasClaude => ClaudeService is not null;
+
+    /// <summary>The Claude Code window, the prompt focused (the toolbar, Ask Claude in the editor).</summary>
+    [CommunityToolkit.Mvvm.Input.RelayCommand]
+    public void ShowClaude() => ClaudeService?.Show();
+
+    /// <summary>Solution Explorer > Ask Claude: the files, folders or projects go into the prompt as @mentions.</summary>
+    public void AskClaudeAbout(IReadOnlyList<string> paths) => ClaudeService?.AskAbout(paths);
 
     // ---- IWorkbench ---------------------------------------------------------------------------------------------
 
@@ -122,44 +130,26 @@ public partial class MainViewModel : IWorkbench, IClaudeService
 
     void IWorkbench.Status(string text) => SetStatus(text);
 
-    T? IWorkbench.Service<T>() where T : class => typeof(T) == typeof(IClaudeService) ? this as T : Modules.OfType<T>().FirstOrDefault();
+    T? IWorkbench.Service<T>() where T : class => Modules.OfType<T>().FirstOrDefault();
 
-    // ---- IClaudeService -----------------------------------------------------------------------------------------
+    IReadOnlyDictionary<string, string> IWorkbench.WorkspaceState => _state.Modules;
 
-    event Action? ClaudeChanged;
-
-    event Action? IClaudeService.Changed
+    EditorSelection? IWorkbench.ActiveEditorSelection()
     {
-        add => ClaudeChanged += value;
-        remove => ClaudeChanged -= value;
+        if (ActiveEditor is not { } doc)
+            return null;
+        var editor = doc.Host.Editor;
+        if (editor.SelectionLength == 0)
+            return new EditorSelection(doc.FilePath, null, null, null);
+        var document = doc.Host.Document;
+        var start = document.GetLineByOffset(editor.SelectionStart).LineNumber;
+        var end = document.GetLineByOffset(editor.SelectionStart + editor.SelectionLength).LineNumber;
+        var text = editor.SelectedText;
+        return new EditorSelection(doc.FilePath, start, end, text.Length > 20000 ? text[..20000] : text);
     }
 
-    /// <summary>The chosen account's folder (CLAUDE_CONFIG_DIR or ~/.claude otherwise); always the home's in a home of the tests'.</summary>
-    string IClaudeService.ConfigDirectory => Environment.GetEnvironmentVariable("KARVON_USER_HOME") is not null ? Path.Combine(UserHome.Path, ".claude")
-        : _claude?.SelectedAccount?.ConfigDirectory ?? ClaudeCli.ConfigDirectory;
+    void IWorkbench.ShowDiff(string path, string before, string after, string beforeTitle, string afterTitle, string key) =>
+        ShowDiff(new DiffViewModel(path, before, after, beforeTitle, afterTitle, key));
 
-    /// <summary>The chosen account's settings (~/.claude.json for the default one); always the home's in a home of the tests'.</summary>
-    string? IClaudeService.SettingsFile =>
-        Environment.GetEnvironmentVariable("KARVON_USER_HOME") is null && _claude?.SelectedAccount is { IsDefault: false } account
-            ? Path.Combine(account.ConfigDirectory, ".claude.json") : null;
-
-    IReadOnlyList<IClaudeTool> IClaudeService.BuiltInTools => Settings.ClaudeKarvonTools ? KarvonToolServer().Tools : [];
-
-    void IClaudeService.Ask(string prompt)
-    {
-        ShowToolWindow(ToolWindows.Claude);
-        Claude.Prompt = prompt;
-        Claude.RequestFocus();
-    }
-
-    Task<string> IClaudeService.AuthenticateMcpAsync(string name) => Claude.AuthenticateMcpAsync(name);
-
-    async Task<string?> IClaudeService.AddMcpServerAsync(string name, string transport, string target, string scope)
-    {
-        var problem = await Claude.AddMcpServerAsync(name, transport, target, scope);
-        ClaudeChanged?.Invoke();
-        return problem;
-    }
-
-    public Func<string, string?>? ExtraMcpServers { get; set; }
+    IEnumerable<IClaudeTool> IWorkbench.ClaudeTools() => IdeClaudeTools.Create(this);
 }

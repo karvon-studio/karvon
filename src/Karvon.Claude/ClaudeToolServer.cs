@@ -5,64 +5,15 @@ using System.Text.Json.Nodes;
 namespace Karvon.Claude;
 
 /// <summary>
-/// How much a tool call may change: reads and runs (a build, the tests, a debugger step: nothing of the user's changes)
-/// go at once; writes ask; destructive changes ask and are never remembered.
-/// </summary>
-public enum ToolAccess
-{
-    Read,
-    Run,
-    Write,
-    Destructive,
-}
-
-/// <summary>
-/// What a call will do, before it runs: its access, its row in the conversation ("Query", "shop: SELECT ..."), and for a
-/// change the approval card's question and warning.
-/// </summary>
-public sealed record ClaudeToolPlan(ToolAccess Access, string Title, string? Subject, string Question)
-{
-    /// <summary>The SQL or command, shown in full on the card and the row.</summary>
-    public string? Code { get; init; }
-
-    /// <summary>Under the question: what the change does, or why it cannot be undone.</summary>
-    public string? Warning { get; init; }
-}
-
-public sealed record ClaudeToolOutput(string Text, bool IsError = false)
-{
-    /// <summary>What the call produced for the host to show (a query's result sets, the matches of a search); never sent to Claude.</summary>
-    public object? Detail { get; init; }
-
-    public static ClaudeToolOutput Error(string message) => new(message, true);
-}
-
-/// <summary>A tool of Karvon's own that Claude can call (mcp__karvon__name).</summary>
-public interface IClaudeTool
-{
-    string Name { get; }
-
-    string Description { get; }
-
-    /// <summary>The input's JSON Schema (an object).</summary>
-    JsonObject InputSchema { get; }
-
-    /// <summary>What the call would do; computed again for the approval card and when it runs.</summary>
-    ClaudeToolPlan Plan(JsonElement input);
-
-    Task<ClaudeToolOutput> CallAsync(JsonElement input, CancellationToken cancellationToken);
-}
-
-/// <summary>
 /// Karvon's tools as an MCP server inside Karvon: the CLI is given it with <c>--mcp-config</c> as an "sdk" server and talks to it
 /// over its control protocol (mcp_message requests carrying JSON-RPC), as the Agent SDK's in-process servers. No port, no
 /// token: only the CLI Karvon started can call it. Claude sees the tools as mcp__karvon__&lt;name&gt;.
 /// </summary>
 public sealed class ClaudeToolServer(IReadOnlyList<IClaudeTool> tools, string instructions)
 {
-    public const string Name = "karvon";
+    public const string Name = KarvonToolNames.Server;
 
-    public const string Prefix = "mcp__" + Name + "__";
+    public const string Prefix = KarvonToolNames.Prefix;
 
     readonly ConcurrentDictionary<string, CancellationTokenSource> _running = new();
 

@@ -27,7 +27,10 @@ public sealed class SolutionState
 
     public string? SelectedNode { get; set; }
 
-    /// <summary>The Claude Code conversation that was open (its session id); it comes back with the solution.</summary>
+    /// <summary>What the modules keep of the solution, by their own keys ("claude.conversation": the conversation that was open).</summary>
+    public Dictionary<string, string> Modules { get; set; } = [];
+
+    /// <summary>Before modules: the Claude Code conversation that was open. Read once, into <see cref="Modules"/>.</summary>
     public string? ClaudeConversation { get; set; }
 
     public sealed class DocumentState
@@ -62,7 +65,12 @@ public sealed class SolutionState
         {
             var file = FileFor(solutionPath);
             if (File.Exists(file) && JsonSerializer.Deserialize<SolutionState>(File.ReadAllText(file)) is { } saved)
+            {
+                if (saved.ClaudeConversation is { } conversation)
+                    saved.Modules.TryAdd("claude.conversation", conversation);
+                saved.ClaudeConversation = null;
                 return saved.Resolve(folder, toFull: true);
+            }
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException)
         {

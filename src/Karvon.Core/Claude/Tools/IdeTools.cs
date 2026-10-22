@@ -11,6 +11,27 @@ using static Karvon.Claude.Tools.ToolInput;
 
 namespace Karvon.Claude.Tools;
 
+/// <summary>The core's tools for Claude Code: the build, the tests, the debugger, the app, the editor.</summary>
+public static class IdeClaudeTools
+{
+    public static IEnumerable<IClaudeTool> Create(MainViewModel vm) =>
+    [
+        new RunBuildTool(vm),
+        new BuildErrorsTool(vm),
+        new RunTestsTool(vm),
+        new TestFailuresTool(vm),
+        new DebugStateTool(vm),
+        new DebugLocalsTool(vm),
+        new DebugEvaluateTool(vm),
+        new DebugControlTool(vm),
+        new AppControlTool(vm),
+        new EditorSelectionTool(vm),
+        new OpenDocumentTool(vm),
+        new CodeDiagnosticsTool(vm),
+        new FindInFilesTool(vm),
+    ];
+}
+
 /// <summary>A match of <c>find_in_files</c>: Karvon lists them in Find Results.</summary>
 public sealed record FoundText(string Path, int Line, int Column, string Text);
 

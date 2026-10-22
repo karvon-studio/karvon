@@ -173,7 +173,7 @@ public class SolutionExplorerTests
         vm.ActiveDocument = vm.Editors.Single(d => d.FileName == "Greeting.razor.cs");
         var sessionId = Guid.NewGuid().ToString();
         var transcript = FakeClaude.WriteTranscript(dir, sessionId);
-        await vm.Claude.ResumeConversationCommand.ExecuteAsync(new Karvon.Claude.ClaudeConversation(sessionId, "", DateTime.Now, transcript));
+        await ClaudeOf(vm).Claude.ResumeConversationCommand.ExecuteAsync(new Karvon.Claude.ClaudeConversation(sessionId, "", DateTime.Now, transcript));
         Assert.True(await vm.CloseSolutionCoreAsync());
         window.Close();
 
@@ -210,9 +210,9 @@ public class SolutionExplorerTests
         Assert.True(reopenedRoot.Children.First(n => n.Name == "Web").IsExpanded);
         Assert.Equal(program, reopened.SelectedExplorerNode?.Path);
         // The Claude Code conversation is back as it was, and continues it when the user sends.
-        Assert.Equal(sessionId, reopened.Claude.SessionId);
-        Assert.Equal("Fix the build", Assert.IsType<UserChatItem>(reopened.Claude.Items[0]).Text);
-        Assert.Equal("Fixed.", reopened.Claude.Items.OfType<TextChatItem>().Last().Text);
+        Assert.Equal(sessionId, ClaudeOf(reopened).Claude.SessionId);
+        Assert.Equal("Fix the build", Assert.IsType<UserChatItem>(ClaudeOf(reopened).Claude.Items[0]).Text);
+        Assert.Equal("Fixed.", ClaudeOf(reopened).Claude.Items.OfType<TextChatItem>().Last().Text);
         // A document opens where it was scrolled to once it is shown.
         reopened.ActiveDocument = editors[2];
         await WaitUntil(() => false, TimeSpan.FromMilliseconds(500));

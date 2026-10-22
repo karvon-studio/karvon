@@ -296,9 +296,9 @@ public sealed class McpBuiltInDocument(IReadOnlyList<McpBuiltInToolNode> tools) 
 
     public bool IsOff => Tools.Count == 0;
 
-    public override string Key => "mcp:" + ClaudeToolServer.Name;
+    public override string Key => "mcp:" + KarvonToolNames.Server;
 
-    public override string Title => ClaudeToolServer.Name;
+    public override string Title => KarvonToolNames.Server;
 
     public override string ToolTip => "Karvon's tools for Claude Code";
 }
@@ -392,7 +392,7 @@ public sealed partial class McpExplorerViewModel : ObservableObject, IDisposable
         var filter = Filter.Trim();
         var roots = new List<McpTreeNode>();
         var builtIn = Roots.OfType<McpGroupNode>().FirstOrDefault(g => g.IsBuiltIn)
-            ?? new McpGroupNode(this, "Karvon (built in)", $"The tools Karvon gives the Claude Code sessions it starts ({ClaudeToolServer.Prefix}…)", null);
+            ?? new McpGroupNode(this, "Karvon (built in)", $"The tools Karvon gives the Claude Code sessions it starts ({KarvonToolNames.Prefix}…)", null);
         var all = Host.BuiltInTools;
         var tools = all.Where(t => filter.Length == 0 || t.Name.Contains(filter, StringComparison.OrdinalIgnoreCase))
             .Select(t => builtIn.Items.OfType<McpBuiltInToolNode>().FirstOrDefault(n => n.Name == t.Name) ?? new McpBuiltInToolNode(this, t))

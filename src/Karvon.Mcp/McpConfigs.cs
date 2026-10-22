@@ -417,7 +417,7 @@ public sealed partial class McpConfigs(string configDirectory, string? workspace
     public JsonObject ForClaude()
     {
         var servers = Read().Servers;
-        var taken = servers.Where(s => ClaudeReadsItself(s.Origin)).Select(s => s.Name).Append(ClaudeToolServer.Name).ToHashSet(StringComparer.Ordinal);
+        var taken = servers.Where(s => ClaudeReadsItself(s.Origin)).Select(s => s.Name).Append(KarvonToolNames.Server).ToHashSet(StringComparer.Ordinal);
         var given = new JsonObject();
         foreach (var server in servers.Where(s => !ClaudeReadsItself(s.Origin) && IsForClaude(s)))
             if (!taken.Contains(server.Name) && !given.ContainsKey(server.Name))

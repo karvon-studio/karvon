@@ -1,9 +1,9 @@
 
-namespace Karvon.Claude.Tools;
+namespace Karvon.Claude;
 
 /// <summary>
-/// The tools Karvon gives Claude Code: the build, the tests, the debugger and the editor (with <c>ide</c>), and those of the
-/// modules that are on (the Database Explorer's data sources, the Docker engine's containers, the SSH servers).
+/// The tools Karvon gives Claude Code: the core's (the build, the tests, the debugger and the editor) and those of the modules
+/// that are on (the Database Explorer's data sources, the Docker engine's containers, the SSH servers).
 /// </summary>
 public static class KarvonTools
 {
@@ -18,24 +18,6 @@ public static class KarvonTools
         + "refuse changes, and production servers ask for every command. When a call is refused or denied, do not retry it another "
         + "way: tell the user what you wanted to do.";
 
-    /// <summary>The IDE's tools, then <paramref name="more"/>: the modules'.</summary>
-    public static ClaudeToolServer Create(ViewModels.MainViewModel? ide, IEnumerable<IClaudeTool> more) =>
-        new([.. ide is null ? [] : IdeTools(ide), .. more], Instructions);
-
-    static IEnumerable<IClaudeTool> IdeTools(ViewModels.MainViewModel vm) =>
-    [
-        new RunBuildTool(vm),
-        new BuildErrorsTool(vm),
-        new RunTestsTool(vm),
-        new TestFailuresTool(vm),
-        new DebugStateTool(vm),
-        new DebugLocalsTool(vm),
-        new DebugEvaluateTool(vm),
-        new DebugControlTool(vm),
-        new AppControlTool(vm),
-        new EditorSelectionTool(vm),
-        new OpenDocumentTool(vm),
-        new CodeDiagnosticsTool(vm),
-        new FindInFilesTool(vm),
-    ];
+    /// <summary>The tools of Karvon's core (the IDE's) and of its modules, as one MCP server.</summary>
+    public static ClaudeToolServer Create(IEnumerable<IClaudeTool> tools) => new([.. tools], Instructions);
 }

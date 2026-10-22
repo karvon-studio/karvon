@@ -18,7 +18,7 @@ namespace Karvon.Tests;
 sealed class TestToolHost(string? solution, DockerEngine docker, params ServerProfile[] servers) : Karvon.Database.IDatabaseToolHost, Karvon.Docker.IDockerToolHost
 {
     /// <summary>Karvon's tools over this host: the databases', (with <paramref name="explorer"/>) the servers', the containers'.</summary>
-    public ClaudeToolServer Tools(Func<Karvon.Servers.ViewModels.ServersExplorerViewModel>? explorer = null) => KarvonTools.Create(null,
+    public ClaudeToolServer Tools(Func<Karvon.Servers.ViewModels.ServersExplorerViewModel>? explorer = null) => KarvonTools.Create(
         [.. Karvon.Database.DatabaseClaudeTools.Create(this), .. explorer is null ? [] : Karvon.Servers.ServerClaudeTools.Create(explorer), .. Karvon.Docker.DockerClaudeTools.Create(this)]);
 
     public string? SolutionDirectory { get; } = solution;

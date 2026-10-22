@@ -25,5 +25,6 @@
     <ProjectReference Include="..\Karvon.Servers\Karvon.Servers.csproj" />
     <ProjectReference Include="..\Karvon.Mcp\Karvon.Mcp.csproj" />
     <ProjectReference Include="..\Karvon.Skills\Karvon.Skills.csproj" />
+    <ProjectReference Include="..\Karvon.Claude\Karvon.Claude.csproj" />
   </ItemGroup>
 </Project>

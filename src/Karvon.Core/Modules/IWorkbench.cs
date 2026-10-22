@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Bengine.Introspection.Servers;
 using Karvon.Claude;
 using Karvon.Services;
@@ -26,6 +27,27 @@ public interface IWorkbench
 
     /// <summary>The folder where Karvon keeps the open solution's own things (.vs/&lt;Solution&gt;/Karvon), or null.</summary>
     string? WorkspaceStateDirectory { get; }
+
+    /// <summary>What the modules kept of the open solution (see <see cref="KarvonModule.SaveWorkspaceState"/>); empty with none.</summary>
+    IReadOnlyDictionary<string, string> WorkspaceState { get; }
+
+    /// <summary>The modules that are on.</summary>
+    IReadOnlyList<KarvonModule> Modules { get; }
+
+    /// <summary>The editor in front: its file and what is selected in it, or null.</summary>
+    EditorSelection? ActiveEditorSelection();
+
+    /// <summary>Two texts of a file side by side in a document (Claude's proposal against the file).</summary>
+    void ShowDiff(string path, string before, string after, string beforeTitle, string afterTitle, string key);
+
+    /// <summary>Files may have changed on disk (Claude edited them): open documents and Solution Explorer follow.</summary>
+    void CheckExternalChanges();
+
+    /// <summary>The core's tools for Claude Code: the build, the tests, the debugger, the app, the editor.</summary>
+    IEnumerable<IClaudeTool> ClaudeTools();
+
+    /// <summary>A call of one of the core's tools ran: what it did, shown where the user would have done it.</summary>
+    Task ShowClaudeToolAsync(string tool, JsonElement input, ClaudeToolOutput output);
 
     IEnumerable<DocumentTab> Documents { get; }
 
@@ -76,6 +98,9 @@ public interface IWorkbench
     T? Service<T>() where T : class;
 }
 
+/// <summary>The editor in front: its file and, when something is selected, the lines and the text.</summary>
+public sealed record EditorSelection(string FilePath, int? StartLine, int? EndLine, string? Text);
+
 /// <summary>The Database Explorer, for the modules that find databases (a database container).</summary>
 public interface IDatabaseService
 {
@@ -98,8 +123,23 @@ public interface IClaudeService
     /// <summary>Another account was chosen, or Claude Code's settings changed: what was read from them is to be read again.</summary>
     event Action? Changed;
 
+    /// <summary>Claude Code's tool window, which other tool windows do not hide when they show beside it.</summary>
+    string ToolWindowId { get; }
+
+    /// <summary>The Claude Code window in front, the prompt focused (View > Claude Code, Ctrl+Esc, Ask Claude in the editor).</summary>
+    void Show();
+
     /// <summary>The prompt in the Claude Code window, for the user to send.</summary>
     void Ask(string prompt);
+
+    /// <summary>Files, folders or projects as @mentions in the prompt (Solution Explorer > Ask Claude).</summary>
+    void AskAbout(IReadOnlyList<string> paths);
+
+    /// <summary>
+    /// One prompt answered without tools by a fast model (<c>claude -p</c>) in a folder: the answer. Throws
+    /// InvalidOperationException, saying why, when there is none (no CLI, an error).
+    /// </summary>
+    Task<string> PrintAsync(string directory, string prompt);
 
     /// <summary>Claude Code signs in to one of its MCP servers; what it said.</summary>
     Task<string> AuthenticateMcpAsync(string name);

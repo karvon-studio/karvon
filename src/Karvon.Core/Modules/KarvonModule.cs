@@ -28,6 +28,9 @@ public sealed record ToolWindowInfo(string Id, string Title, string MenuHeader, 
 {
     /// <summary>The key that shows it from anywhere ("Ctrl+Alt+S"), or null.</summary>
     public string? Gesture { get; init; }
+
+    /// <summary>What its menu item and key do, when more than putting it in front (Claude Code: the prompt gets the focus).</summary>
+    public Action? Show { get; init; }
 }
 
 /// <summary>
@@ -41,7 +44,7 @@ public interface IKeymapOwner;
 /// module only through this: what it adds to the window (tool windows; how its documents and dialogs look) and what it
 /// does when Karvon starts and closes. A module uses Karvon through the <see cref="IWorkbench"/> it is started with.
 /// </summary>
-public abstract partial class KarvonModule : ObservableObject, IDisposable
+public abstract partial class KarvonModule : ObservableObject, IDisposable, IAsyncDisposable
 {
     /// <summary>For the settings ("mcp"): which modules are off.</summary>
     public abstract string Id { get; }
@@ -91,6 +94,21 @@ public abstract partial class KarvonModule : ObservableObject, IDisposable
 
     /// <summary>Karvon closes: what the module started stops.</summary>
     public virtual void Dispose()
+    {
+    }
+
+    /// <summary>Karvon closes, for a module that stops something that takes a while (Claude Code's CLI).</summary>
+    public virtual ValueTask DisposeAsync()
+    {
+        Dispose();
+        return ValueTask.CompletedTask;
+    }
+
+    /// <summary>The solution changed (opened, closed, another): awaited, after what is the solution's has been read.</summary>
+    public virtual Task WorkspaceChangedAsync() => Task.CompletedTask;
+
+    /// <summary>The solution's state is written: what the module keeps of it, by its own keys ("claude.conversation").</summary>
+    public virtual void SaveWorkspaceState(IDictionary<string, string> state)
     {
     }
 

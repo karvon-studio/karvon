@@ -69,7 +69,9 @@ public sealed partial class SkillsModule : KarvonModule, ISkillsHost
 
     string? ISkillsHost.Workspace => Workbench.Workspace;
 
-    string ISkillsHost.ClaudeDirectory => _claude?.ConfigDirectory ?? Claude.ClaudeCli.ConfigDirectory;
+    /// <summary>The chosen account's folder; with Claude Code off, the CLI's own (CLAUDE_CONFIG_DIR, else ~/.claude).</summary>
+    string ISkillsHost.ClaudeDirectory => _claude?.ConfigDirectory
+        ?? (Environment.GetEnvironmentVariable("CLAUDE_CONFIG_DIR") is { Length: > 0 } dir ? dir : Path.Combine(Services.UserHome.Path, ".claude"));
 
     Services.Settings ISkillsHost.Settings => Workbench.Settings;
 

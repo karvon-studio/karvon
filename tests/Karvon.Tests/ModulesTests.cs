@@ -28,7 +28,7 @@ public class ModulesTests
         window.Show();
 
         // On by default, started with Karvon as their workbench; nothing of theirs is made before it shows.
-        Assert.Equal(["database", "docker", "servers", "mcp", "skills"], vm.Modules.Select(m => m.Id));
+        Assert.Equal(["database", "docker", "servers", "mcp", "skills", "claude"], vm.Modules.Select(m => m.Id));
         var mcp = vm.Module<McpModule>()!;
         Assert.True(mcp.IsStarted);
         Assert.Null(mcp.Explorer);
@@ -69,8 +69,8 @@ public class ModulesTests
         });
         var window = new MainWindow { DataContext = vm, Width = 1400, Height = 900 };
         window.Show();
-        Assert.Equal(["database", "docker", "servers", "mcp", "skills"], vm.AllModules.Select(m => m.Id));
-        Assert.Equal(["database", "docker", "skills"], vm.Modules.Select(m => m.Id));
+        Assert.Equal(["database", "docker", "servers", "mcp", "skills", "claude"], vm.AllModules.Select(m => m.Id));
+        Assert.Equal(["database", "docker", "skills", "claude"], vm.Modules.Select(m => m.Id));
         Assert.Null(vm.Module<McpModule>());
         Assert.False(vm.AllModules.OfType<McpModule>().Single().IsStarted);
         Assert.Null(Tab(window, McpModule.ToolWindowId));
@@ -78,10 +78,10 @@ public class ModulesTests
         Assert.DoesNotContain("_MCP Servers", ViewMenu(window));
         Assert.Contains("S_kills", ViewMenu(window));
         // Without MCP Servers the Claude Code sessions get no other servers.
-        Assert.Null(vm.ExtraMcpServers);
+        Assert.Null(ClaudeOf(vm).ExtraMcpServers);
         // Each module's tools come with it: the Docker and server tools, not those of a module that is off.
-        Assert.Contains(vm.KarvonToolServer().Tools, t => t.Name == "container_logs");
-        Assert.DoesNotContain(vm.KarvonToolServer().Tools, t => t.Name == "server_list");
+        Assert.Contains(ClaudeOf(vm).ToolServer().Tools, t => t.Name == "container_logs");
+        Assert.DoesNotContain(ClaudeOf(vm).ToolServer().Tools, t => t.Name == "server_list");
         Assert.Null(Tab(window, Karvon.Servers.ServersModule.ToolWindowId));
         window.Close();
     }
