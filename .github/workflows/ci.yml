@@ -39,4 +39,7 @@ jobs:
       # Normally ~3 min. Each test is listed as it finishes, and one that hangs for 5 minutes is named and the run fails.
       - name: Test
         timeout-minutes: 15
+        env:
+          # TypeScript 7 from the npm registry, its language server in the editor (a few seconds).
+          KARVON_TYPESCRIPT_LIVE: "1"
         run: dotnet test Karvon.slnx -c Release --no-build --blame-hang-timeout 5m --blame-hang-dump-type none --logger "console;verbosity=normal"

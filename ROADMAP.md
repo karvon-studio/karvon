@@ -38,7 +38,8 @@ it does today all along.
 
 ## 2. TypeScript and JavaScript
 
-vtsls, ESLint, vscode-js-debug, Vitest and Jest, npm, HTML and CSS.
+TypeScript 7's own language server (`tsc --lsp`, in now: the TypeScript and JavaScript module); then ESLint,
+vscode-js-debug, Vitest and Jest, npm, HTML and CSS.
 
 ## 3. macOS release
 

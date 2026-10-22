@@ -5,10 +5,6 @@ using Karvon.Build;
 namespace Karvon.Lsp;
 
 /// <summary>
-/// Client for Microsoft's Roslyn language server (the engine behind C# IntelliSense in Visual Studio and VS Code),
-/// including cohosted Razor support.
-/// </summary>
-/// <summary>
 /// A language server over stdio (JSON-RPC): starting it, document sync, the editor's requests, file watching on its behalf,
 /// its progress and refreshes. A server's own requests and start come in a subclass (<see cref="RoslynClient"/>).
 /// </summary>

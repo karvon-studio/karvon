@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- The TypeScript and JavaScript module: TypeScript 7's own language server (tsc in its LSP mode) for .ts, .tsx, .js and .jsx files. -->
+  <PropertyGroup>
+    <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
+    <RootNamespace>Karvon.TypeScript</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="Karvon.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Karvon.Core\Karvon.Core.csproj" />
+  </ItemGroup>
+</Project>

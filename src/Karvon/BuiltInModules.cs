@@ -6,5 +6,8 @@ namespace Karvon;
 public static class BuiltInModules
 {
     public static IReadOnlyList<KarvonModule> Create() =>
-        [new Database.DatabaseModule(), new Docker.DockerModule(), new Servers.ServersModule(), new Mcp.McpModule(), new Skills.SkillsModule(), new Claude.ClaudeModule()];
+    [
+        new Database.DatabaseModule(), new Docker.DockerModule(), new Servers.ServersModule(), new Mcp.McpModule(), new Skills.SkillsModule(),
+        new TypeScript.TypeScriptModule(), new Claude.ClaudeModule(),
+    ];
 }

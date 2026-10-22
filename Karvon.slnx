@@ -9,6 +9,7 @@
     <Project Path="src/Karvon.Mcp/Karvon.Mcp.csproj" />
     <Project Path="src/Karvon.Servers/Karvon.Servers.csproj" />
     <Project Path="src/Karvon.Skills/Karvon.Skills.csproj" />
+    <Project Path="src/Karvon.TypeScript/Karvon.TypeScript.csproj" />
     <Project Path="src/Karvon.Claude/Karvon.Claude.csproj" />
   </Folder>
   <Folder Name="/external/">

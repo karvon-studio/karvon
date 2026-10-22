@@ -11,6 +11,8 @@ Each module is a project of its own, referencing `Karvon.Core`. The core referen
 - Servers (`src/Karvon.Servers`);
 - MCP Servers (`src/Karvon.Mcp`);
 - Skills (`src/Karvon.Skills`, which uses MCP Servers);
+- TypeScript and JavaScript (`src/Karvon.TypeScript`): a language server and nothing else, so the smallest
+  example of one;
 - Claude Code (`src/Karvon.Claude`).
 
 .NET still lives in the core and is to become a workload module.
