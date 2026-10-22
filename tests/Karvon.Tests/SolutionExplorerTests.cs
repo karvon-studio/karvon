@@ -446,6 +446,52 @@ public class SolutionExplorerTests
         Assert.True(await vm.CloseSolutionCoreAsync());
         window.Close();
     }
+
+    [AvaloniaFact]
+    public async Task A_folder_opens_as_it_is()
+    {
+        var dir = Path.Combine(Path.GetTempPath(), "karvon-folder-" + Guid.NewGuid().ToString("N"), "shop");
+        Directory.CreateDirectory(Path.Combine(dir, "src"));
+        File.WriteAllText(Path.Combine(dir, "src", "app.ts"), "export const answer = 42;\n");
+        File.WriteAllText(Path.Combine(dir, "README.md"), "# Shop\n");
+        File.WriteAllText(Path.Combine(dir, ".env"), "SECRET=1\n");
+        var vm = NewViewModel();
+        var window = new MainWindow { DataContext = vm, Width = 1280, Height = 800 };
+        window.Show();
+        var dialogs = new ScriptedDialogs();
+        vm.Dialogs = dialogs;
+        await vm.OpenSolutionAsync(dir);
+
+        // Its files and folders, as VS's Folder View shows them; no solution, no project.
+        Assert.True(vm.Solution!.IsFolder);
+        Assert.Equal("shop", vm.Solution.Name);
+        Assert.Equal(dir, vm.Solution.Directory);
+        Assert.Equal("shop - Karvon", vm.WindowTitle);
+        var root = vm.ExplorerRoots[0];
+        Assert.True(root.IsFolderRoot);
+        Assert.Equal(["src", "README.md"], root.Children.Select(c => c.Name));
+        Assert.False(vm.HasSolutionFile);
+        Assert.False(vm.BuildSolutionCommand.CanExecute(null));
+        var menu = Headers(window.ExplorerMenuItems(root)).ToList();
+        Assert.Contains("Add", menu);
+        Assert.Contains("Open in Terminal", menu);
+        Assert.DoesNotContain("Build Solution", menu);
+        Assert.DoesNotContain("Rename", menu);
+
+        // Add > New Item at the top: a file of the folder, shown and open.
+        dialogs.NextItem = new NewItemChoice(ItemTemplates.TextFile, "notes");
+        Assert.Equal(Path.Combine(dir, "notes.txt"), await vm.AddNewItemAsync(root));
+        Assert.Contains(root.Children, c => c.Name == "notes.txt");
+        Assert.Equal("notes.txt", vm.ActiveEditor?.FileName);
+
+        // Its state is kept in its own .vs, and it is a recent one to open again.
+        vm.SaveSession();
+        Assert.True(File.Exists(Path.Combine(dir, ".vs", "shop", "Karvon", "state.json")));
+        Assert.Equal(dir, vm.Settings.RecentSolutions[0]);
+        Assert.Equal("Folder", new RecentItem(dir, null, false).IconKind);
+        Assert.True(await vm.CloseSolutionCoreAsync());
+        window.Close();
+    }
 }
 
 public class SolutionStateTests

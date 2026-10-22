@@ -30,11 +30,11 @@ public sealed partial class RecentItem(string path, DateTime? opened, bool pinne
 
     public string DateText => Opened is { } d ? d.ToString("dd.MM.yyyy HH:mm") : "";
 
-    public bool Exists => File.Exists(Path);
+    public bool Exists => File.Exists(Path) || Directory.Exists(Path);
 
     public bool IsPinned { get; } = pinned;
 
-    public string IconKind => Workspace.SolutionLoader.IsProjectFile(Path) ? "Project" : "Solution";
+    public string IconKind => Directory.Exists(Path) ? "Folder" : Workspace.SolutionLoader.IsProjectFile(Path) ? "Project" : "Solution";
 }
 
 public sealed record RecentGroup(string Header, IReadOnlyList<RecentItem> Items);
@@ -298,10 +298,8 @@ public sealed partial class StartViewModel : ObservableObject
     {
         if (PickFolder is null || await PickFolder("Open Folder") is not { } folder)
             return;
-        if (FindSolution(folder) is { } solution)
-            Choose(solution);
-        else
-            Message = $"No solution or project file was found in \"{folder}\".";
+        // Its solution when it has one, as VS offers; else the folder as it is.
+        Choose(FindSolution(folder) ?? folder);
     }
 
     [RelayCommand]

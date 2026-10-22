@@ -47,6 +47,9 @@ public partial class ExplorerNode : ObservableObject
     /// </summary>
     public string? SolutionFolder { get; init; }
 
+    /// <summary>The root of a folder opened as it is (Open Folder): it holds that folder's files, as a folder does.</summary>
+    public bool IsFolderRoot { get; init; }
+
     /// <summary>A file listed in the solution (in a solution folder) rather than found in a project's folder.</summary>
     public bool IsSolutionItem => Kind == NodeKind.File && SolutionFolder is not null;
     public ObservableCollection<ExplorerNode> Children { get; } = [];
@@ -119,6 +122,7 @@ public partial class ExplorerNode : ObservableObject
     {
         NodeKind.File => "material:" + Views.MaterialIcons.ForFile(Name),
         NodeKind.Folder or NodeKind.SolutionFolder => "material:" + Views.MaterialIcons.ForFolder(Name, IsExpanded),
+        NodeKind.Solution when IsFolderRoot => "material:" + Views.MaterialIcons.ForFolder(Name, IsExpanded),
         NodeKind.Solution when Path is not null => "material:" + Views.MaterialIcons.ForFile(Path),
         _ => IconKey,
     };
@@ -231,11 +235,11 @@ public partial class ExplorerNode : ObservableObject
     /// <summary>The loaded project or folder node showing <paramref name="directory"/>, without loading anything.</summary>
     public ExplorerNode? FindLoadedFolder(string directory)
     {
-        if (Kind is NodeKind.Folder && Path == directory || Kind is NodeKind.Project && Path is not null && DirectoryOf(this) == directory)
+        if ((Kind is NodeKind.Folder || IsFolderRoot) && Path == directory || Kind is NodeKind.Project && Path is not null && DirectoryOf(this) == directory)
             return this;
         if (!IsLoaded || Kind is NodeKind.File or NodeKind.Dependencies or NodeKind.DependencyGroup or NodeKind.Placeholder)
             return null;
-        if (Kind is NodeKind.Folder or NodeKind.Project && Path is not null && !directory.StartsWith(DirectoryOf(this) + "/", StringComparison.Ordinal))
+        if ((Kind is NodeKind.Folder or NodeKind.Project || IsFolderRoot) && Path is not null && !directory.StartsWith(DirectoryOf(this) + "/", StringComparison.Ordinal))
             return null;
         foreach (var child in Children)
             if (child.FindLoadedFolder(directory) is { } hit)
@@ -250,7 +254,7 @@ public partial class ExplorerNode : ObservableObject
             return this;
         if (Kind is NodeKind.Dependencies or NodeKind.DependencyGroup or NodeKind.Placeholder)
             return null;
-        if (Path is not null && Kind is NodeKind.Folder or NodeKind.Project && !path.StartsWith(DirectoryOf(this) + "/", StringComparison.Ordinal))
+        if (Path is not null && (Kind is NodeKind.Folder or NodeKind.Project || IsFolderRoot) && !path.StartsWith(DirectoryOf(this) + "/", StringComparison.Ordinal))
             return null;
         EnsureLoaded();
         foreach (var child in Children)

@@ -5,12 +5,19 @@ namespace Karvon.Workspace;
 
 public sealed class SolutionInfo
 {
-    /// <summary>The .sln/.slnx, or the project file when a project was opened on its own (as VS allows).</summary>
+    /// <summary>The .sln/.slnx, the project file when a project was opened on its own (as VS allows), or a folder.</summary>
     public required string FilePath { get; init; }
 
-    public bool IsProjectOnly => SolutionLoader.IsProjectFile(FilePath);
-    public string Name => Path.GetFileNameWithoutExtension(FilePath);
-    public string Directory => Path.GetDirectoryName(FilePath)!;
+    /// <summary>A folder opened as it is (VS's Open Folder): no solution, no project of its own.</summary>
+    public bool IsFolder { get; init; }
+
+    public bool IsProjectOnly => !IsFolder && SolutionLoader.IsProjectFile(FilePath);
+
+    /// <summary>A .sln or .slnx: what Solution Explorer's solution commands change.</summary>
+    public bool IsSolutionFile => !IsFolder && SolutionLoader.IsSolutionFile(FilePath);
+
+    public string Name => IsFolder ? Path.GetFileName(FilePath.TrimEnd(Path.DirectorySeparatorChar)) : Path.GetFileNameWithoutExtension(FilePath);
+    public string Directory => IsFolder ? FilePath : Path.GetDirectoryName(FilePath)!;
     public required IReadOnlyList<ProjectInfo> Projects { get; init; }
     public required ExplorerNode Root { get; init; }
 }
@@ -27,11 +34,13 @@ public static class SolutionLoader
     public static bool IsSolutionFile(string path) =>
         path.EndsWith(".sln", StringComparison.OrdinalIgnoreCase) || path.EndsWith(".slnx", StringComparison.OrdinalIgnoreCase);
 
-    /// <summary>What File > Open accepts: a solution, or a single project.</summary>
-    public static bool CanOpen(string path) => IsSolutionFile(path) || IsProjectFile(path);
+    /// <summary>What Karvon opens: a solution, a single project, or a folder.</summary>
+    public static bool CanOpen(string path) => IsSolutionFile(path) || IsProjectFile(path) || Directory.Exists(path);
 
     public static async Task<SolutionInfo> LoadAsync(string solutionPath, CancellationToken ct = default)
     {
+        if (Directory.Exists(solutionPath))
+            return LoadFolder(solutionPath);
         if (IsProjectFile(solutionPath))
             return LoadProject(solutionPath);
         var serializer = SolutionSerializers.GetSerializerByMoniker(solutionPath)
@@ -77,6 +86,15 @@ public static class SolutionLoader
         root.IsExpanded = true;
 
         return new SolutionInfo { FilePath = solutionPath, Projects = projects, Root = root };
+    }
+
+    /// <summary>A folder opened as it is: its files and folders under it, as VS's Folder View shows them.</summary>
+    static SolutionInfo LoadFolder(string folder)
+    {
+        folder = Path.GetFullPath(folder).TrimEnd(Path.DirectorySeparatorChar);
+        var root = new ExplorerNode(NodeKind.Solution, Path.GetFileName(folder), folder, () => DirectoryChildren(folder)) { IsFolderRoot = true };
+        root.IsExpanded = true;
+        return new SolutionInfo { FilePath = folder, IsFolder = true, Projects = [], Root = root };
     }
 
     /// <summary>A project opened without a solution: VS shows it under an implicit solution of the same name.</summary>

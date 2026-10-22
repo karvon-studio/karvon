@@ -24,8 +24,8 @@ public partial class MainViewModel
     /// <summary>The solution's and its projects' files as Karvon last read them: a change on disk to any of them reads them again.</summary>
     readonly Dictionary<string, DateTime> _structureRead = [];
 
-    /// <summary>A solution file to change: a project opened on its own has none.</summary>
-    public bool HasSolutionFile => Solution is { IsProjectOnly: false };
+    /// <summary>A solution file to change: a project opened on its own has none, nor a folder.</summary>
+    public bool HasSolutionFile => Solution is { IsSolutionFile: true };
 
     /// <summary>
     /// Reads the solution again after it or a project file changed (here or on disk), keeping what is expanded, and selects
@@ -100,7 +100,7 @@ public partial class MainViewModel
     /// <summary>A change to the solution file; false, with the reason in the status bar, when it could not be made.</summary>
     async Task<bool> EditSolutionAsync(Func<string, Task> change)
     {
-        if (Solution is not { IsProjectOnly: false } solution)
+        if (Solution is not { IsSolutionFile: true } solution)
             return false;
         try
         {
@@ -120,7 +120,7 @@ public partial class MainViewModel
     /// <summary>Add > New Project...: the "Add a new project" wizard, then the project in the solution (in the solution folder clicked).</summary>
     public async Task<IReadOnlyList<string>> AddNewProjectAsync(ExplorerNode? node)
     {
-        if (Dialogs is null || Solution is not { IsProjectOnly: false } solution)
+        if (Dialogs is null || Solution is not { IsSolutionFile: true } solution)
             return [];
         var projects = await Dialogs.CreateProjectAsync(solution.FilePath);
         return await AddProjectsAsync(projects, node) ? projects : [];
@@ -129,7 +129,7 @@ public partial class MainViewModel
     /// <summary>Add > Existing Project...: project files from anywhere, added where they are.</summary>
     public async Task<IReadOnlyList<string>> AddExistingProjectsAsync(ExplorerNode? node)
     {
-        if (Dialogs is null || Solution is not { IsProjectOnly: false } solution)
+        if (Dialogs is null || Solution is not { IsSolutionFile: true } solution)
             return [];
         var picked = (await Dialogs.PickProjectsAsync()).Where(SolutionLoader.IsProjectFile).ToList();
         var projects = picked.Where(p => solution.Projects.All(known => known.FilePath != p)).ToList();
@@ -272,7 +272,7 @@ public partial class MainViewModel
 
     async Task<bool> RenameProjectAsync(string project, string newName)
     {
-        if (Solution is not { IsProjectOnly: false } solution || newName.Length == 0 || newName == Path.GetFileNameWithoutExtension(project))
+        if (Solution is not { IsSolutionFile: true } solution || newName.Length == 0 || newName == Path.GetFileNameWithoutExtension(project))
             return false;
         var directory = Path.GetDirectoryName(project)!;
         var target = Path.Combine(directory, newName + Path.GetExtension(project));
@@ -301,7 +301,7 @@ public partial class MainViewModel
     /// <summary>The solution's file renamed: closed, renamed (its .vs state too) and opened again, as it is another solution now.</summary>
     async Task<bool> RenameSolutionAsync(string newName)
     {
-        if (Solution is not { IsProjectOnly: false } solution || newName == solution.Name)
+        if (Solution is not { IsSolutionFile: true } solution || newName == solution.Name)
             return false;
         var target = Path.Combine(solution.Directory, newName + Path.GetExtension(solution.FilePath));
         if (ItemTemplates.Validate(solution.Directory, Path.GetFileName(target)) is { } error)

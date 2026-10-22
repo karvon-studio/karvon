@@ -39,6 +39,8 @@ public enum StatusKind
 public interface IDialogService
 {
     Task<string?> PickSolutionAsync();
+    /// <summary>A folder to open; null when cancelled.</summary>
+    Task<string?> PickFolderAsync(string title) => Task.FromResult<string?>(null);
     Task<string?> PromptAsync(string title, string label, string initial);
     /// <summary>Returns true = save, false = discard, null = cancel.</summary>
     Task<bool?> ConfirmSaveAsync(string fileName);
@@ -274,6 +276,15 @@ public partial class MainViewModel : ObservableObject
     [RelayCommand]
     Task OpenRecent(string path) => OpenSolutionAsync(path);
 
+    /// <summary>File > Open > Folder: a folder as it is, its files in Solution Explorer (VS's Open Folder).</summary>
+    [RelayCommand]
+    async Task OpenFolder()
+    {
+        if (Dialogs is null || await Dialogs.PickFolderAsync("Open Folder") is not { } folder)
+            return;
+        await OpenSolutionAsync(folder);
+    }
+
     public async Task OpenSolutionAsync(string path)
     {
         SolutionInfo solution;
@@ -392,7 +403,8 @@ public partial class MainViewModel : ObservableObject
 
     async Task StartLanguageServerAsync()
     {
-        if (Solution is not { } solution)
+        // Roslyn serves a solution or a project; a folder opened as it is has neither.
+        if (Solution is not { IsFolder: false } solution)
             return;
         ServerStatus = "IntelliSense: starting...";
         try
@@ -482,7 +494,7 @@ public partial class MainViewModel : ObservableObject
 
     async Task<bool> RestoreAsync(IReadOnlyList<string> projects)
     {
-        if (Solution is null)
+        if (Solution is not { IsFolder: false })
             return false;
         var targets = projects.Count > 0 ? projects : [Solution.FilePath];
         var ok = true;
@@ -923,7 +935,8 @@ public partial class MainViewModel : ObservableObject
 
     // ---- Build -------------------------------------------------------------------------------------------------
 
-    bool CanBuild => Solution is not null && !IsBuilding;
+    /// <summary>A solution or a project to build (a folder opened as it is has none of its own).</summary>
+    bool CanBuild => Solution is { IsFolder: false } && !IsBuilding;
 
     [RelayCommand(CanExecute = nameof(CanBuild))]
     Task BuildSolution() => RunBuildAsync("build", "Build");

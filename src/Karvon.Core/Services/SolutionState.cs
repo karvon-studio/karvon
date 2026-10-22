@@ -54,13 +54,17 @@ public sealed class SolutionState
     static readonly JsonSerializerOptions Json = new() { WriteIndented = true };
 
     /// <summary>.vs/&lt;Solution&gt;/Karvon/state.json in the solution's folder (a project opened alone: the project's).</summary>
-    public static string FileFor(string solutionPath) =>
-        Path.Combine(Path.GetDirectoryName(solutionPath)!, ".vs", Path.GetFileNameWithoutExtension(solutionPath), "Karvon", "state.json");
+    public static string FileFor(string solutionPath) => Directory.Exists(solutionPath)
+        ? Path.Combine(solutionPath, ".vs", Path.GetFileName(solutionPath.TrimEnd(Path.DirectorySeparatorChar)), "Karvon", "state.json")
+        : Path.Combine(Path.GetDirectoryName(solutionPath)!, ".vs", Path.GetFileNameWithoutExtension(solutionPath), "Karvon", "state.json");
+
+    /// <summary>The folder a solution (or a project, or a folder opened as it is) is in, which its paths are relative to.</summary>
+    static string FolderOf(string solutionPath) => Directory.Exists(solutionPath) ? solutionPath : Path.GetDirectoryName(solutionPath)!;
 
     /// <summary>The saved state; else what older Karvon versions kept in settings.json (moved out of there); else empty.</summary>
     public static SolutionState Load(string solutionPath, Settings settings)
     {
-        var folder = Path.GetDirectoryName(solutionPath)!;
+        var folder = FolderOf(solutionPath);
         try
         {
             var file = FileFor(solutionPath);
@@ -99,14 +103,14 @@ public sealed class SolutionState
         var file = FileFor(solutionPath);
         try
         {
-            var vs = Path.Combine(Path.GetDirectoryName(solutionPath)!, ".vs");
+            var vs = Path.Combine(FolderOf(solutionPath), ".vs");
             var created = !Directory.Exists(vs);
             Directory.CreateDirectory(Path.GetDirectoryName(file)!);
             // Keeps .vs out of git status in repositories whose .gitignore does not list it (Visual Studio's does).
             if (created)
                 File.WriteAllText(Path.Combine(vs, ".gitignore"), "*\n");
             var copy = JsonSerializer.Deserialize<SolutionState>(JsonSerializer.Serialize(this, Json))!
-                .Resolve(Path.GetDirectoryName(solutionPath)!, toFull: false);
+                .Resolve(FolderOf(solutionPath), toFull: false);
             var temp = file + ".tmp";
             File.WriteAllText(temp, JsonSerializer.Serialize(copy, Json));
             File.Move(temp, file, overwrite: true);

@@ -20,7 +20,7 @@ public partial class App : Application
             Modules.ModuleCatalog.Create = BuiltInModules.Create;
             var vm = new MainViewModel();
             var solution = StartupArgs.FirstOrDefault(SolutionLoader.CanOpen);
-            if (solution is not null && File.Exists(solution))
+            if (solution is not null && (File.Exists(solution) || Directory.Exists(solution)))
             {
                 // `karvon App.sln` (or a project) opens it directly; otherwise the start window comes first, as in VS.
                 desktop.MainWindow = new MainWindow { DataContext = vm };

@@ -266,6 +266,12 @@ public partial class MainWindow : Window, IDialogService
         return files.Count == 0 ? null : files[0].TryGetLocalPath();
     }
 
+    public async Task<string?> PickFolderAsync(string title)
+    {
+        var folders = await StorageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions { Title = title, AllowMultiple = false });
+        return folders.Count == 0 ? null : folders[0].TryGetLocalPath();
+    }
+
     public async Task<string?> PromptAsync(string title, string label, string initial)
     {
         var box = new TextBox { Text = initial, Width = 340 };
@@ -532,6 +538,7 @@ public partial class MainWindow : Window, IDialogService
         var path = node.Path;
         var folder = node.Kind switch
         {
+            NodeKind.Solution when node.IsFolderRoot => path,
             NodeKind.Solution or NodeKind.Project => path is null ? null : Path.GetDirectoryName(path),
             NodeKind.Folder => path,
             NodeKind.File => path is null ? null : Path.GetDirectoryName(path),
@@ -572,6 +579,15 @@ public partial class MainWindow : Window, IDialogService
             && vm.ExplorerRoots.FirstOrDefault() is { } root ? OwnerOf(root, node) : null;
         switch (node.Kind)
         {
+            // A folder opened as it is: its files, as a folder's; none of a solution's commands.
+            case NodeKind.Solution when node.IsFolderRoot:
+                items.Add(AddMenu(null));
+                if (!vm.HasGit)
+                {
+                    items.Add(new Separator());
+                    items.Add(Item("Create Git Repository", () => _ = vm.CreateGitRepositoryAsync()));
+                }
+                break;
             case NodeKind.Solution:
                 items.Add(Item("Build Solution", () => vm.BuildSolutionCommand.Execute(null), "Ctrl+Shift+B"));
                 items.Add(Item("Rebuild Solution", () => vm.RebuildSolutionCommand.Execute(null)));

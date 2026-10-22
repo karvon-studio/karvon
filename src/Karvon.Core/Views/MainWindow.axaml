@@ -38,6 +38,7 @@
           <MenuItem Header="_Project..." InputGesture="Ctrl+Shift+N" Click="OnNewProject" />
         </MenuItem>
         <MenuItem Header="_Open Project/Solution..." InputGesture="Ctrl+Shift+O" Command="{Binding OpenSolutionCommand}" />
+        <MenuItem Header="Open _Folder..." Command="{Binding OpenFolderCommand}" />
         <MenuItem Header="Clone _Repository..." Click="OnCloneRepository" />
         <MenuItem Name="RecentMenu" Header="Recent _Solutions" />
         <MenuItem Header="_Close Solution" Command="{Binding CloseSolutionCommand}" />

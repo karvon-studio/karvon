@@ -27,6 +27,7 @@ public partial class MainViewModel
     public static string? FolderOf(ExplorerNode? node) => node switch
     {
         { Kind: NodeKind.Folder, Path: { } path } => path,
+        { IsFolderRoot: true, Path: { } path } => path,
         { Kind: NodeKind.Project or NodeKind.Solution or NodeKind.File, Path: { } path } => Path.GetDirectoryName(path),
         _ => null,
     };
