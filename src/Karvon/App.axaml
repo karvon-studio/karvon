@@ -5,14 +5,14 @@
   <Application.Resources>
     <ResourceDictionary>
       <ResourceDictionary.MergedDictionaries>
-        <ResourceInclude Source="avares://Karvon/Themes/VsColors.axaml" />
+        <ResourceInclude Source="avares://Karvon.Core/Themes/VsColors.axaml" />
       </ResourceDictionary.MergedDictionaries>
     </ResourceDictionary>
   </Application.Resources>
   <Application.Styles>
     <FluentTheme DensityStyle="Compact" />
     <StyleInclude Source="avares://AvaloniaEdit/Themes/Fluent/AvaloniaEdit.xaml" />
-    <StyleInclude Source="avares://Karvon/Themes/VsStyles.axaml" />
-    <StyleInclude Source="avares://Karvon/Database/DatabaseStyles.axaml" />
+    <StyleInclude Source="avares://Karvon.Core/Themes/VsStyles.axaml" />
+    <StyleInclude Source="avares://Karvon.Database/DatabaseStyles.axaml" />
   </Application.Styles>
 </Application>

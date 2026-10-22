@@ -153,7 +153,10 @@ The last command renders the screenshots above. CI runs the tests on every push.
 the `.deb`, `.AppImage` and `.tar.gz`, which `deploy/linux/package.sh` also builds locally.
 
 ```
-src/Karvon/
+src/Karvon/             the application: the core and the modules it comes with (BuiltInModules.cs)
+src/Karvon.Core/        the workbench; it knows no module
+  Modules/     the module contract: KarvonModule, IWorkbench (see docs/modules.md)
+  Ui/          what the modules' views share: overlay dialogs, read-only editors
   Lsp/         JSON-RPC, Roslyn client, file watching, HTML service for Razor cohosting
   Workspace/   solution and project loading, Solution Explorer tree
   Build/       dotnet runner, MSBuild output parser, dev certificates
@@ -162,21 +165,25 @@ src/Karvon/
   Git/         git CLI wrapper and line diff
   Packages/    NuGet through the dotnet CLI
   Terminal/    integrated terminal
-  Claude/      Claude Code CLI session (stream-json) and transcripts
+  Claude/      Claude Code CLI session (stream-json), transcripts, Karvon's IDE tools for Claude
   Templates/   SDK project templates and project creation
   Editor/      AvaloniaEdit host, completion, outlining, diff view
   ViewModels/  Views/   main window, tool windows, dialogs
-  Database/    the Database Explorer: Bengine Data Studio's views and view models, on Avalonia 12
+src/Karvon.Database/    module: the Database Explorer (Bengine Data Studio's views and view models, on Avalonia 12)
+src/Karvon.Docker/      module: the Docker Explorer
+src/Karvon.Servers/     module: SSH servers
+src/Karvon.Mcp/         module: MCP Servers
+src/Karvon.Skills/      module: Skills (uses Karvon.Mcp)
 external/bengine/       Bengine (submodule): the schema AST and the live-database layer the Database Explorer uses
-src/Karvon.VisualStudio/   the Claude Code panel as a Visual Studio extension (Windows), sharing src/Karvon/Claude and its view model
+src/Karvon.VisualStudio/   the Claude Code panel as a Visual Studio extension (Windows), sharing src/Karvon.Core/Claude and its view model
 ```
 
 ## License
 
 MIT, see [LICENSE](LICENSE). Third-party: Cascadia Mono font (SIL OFL 1.1); Avalonia, AvaloniaEdit, TextMateSharp,
 Exclr8.Terminal and Porta.Pty (MIT); Markdig (BSD 2-Clause); roslyn-language-server and netcoredbg (MIT, downloaded at runtime);
-Material Icon Theme icons (MIT, Copyright (c) 2025 Material Extensions; `src/Karvon/Assets/MaterialIcons`, refreshed with
-`scripts/update-material-icons.sh`, and `src/Karvon/Database/Assets/Icons`). The Database Explorer uses Bengine (same
+Material Icon Theme icons (MIT, Copyright (c) 2025 Material Extensions; `src/Karvon.Core/Assets/MaterialIcons`, refreshed with
+`scripts/update-material-icons.sh`, and `src/Karvon.Database/Assets/Icons`). The Database Explorer uses Bengine (same
 author) and its drivers: Npgsql (PostgreSQL License), Microsoft.Data.SqlClient, MySqlConnector, SSH.NET and
 Avalonia.Controls.DataGrid (MIT), MongoDB.Driver and SQLitePCLRaw (Apache 2.0), Oracle.ManagedDataAccess.Core (Oracle
 Free Use Terms and Conditions).

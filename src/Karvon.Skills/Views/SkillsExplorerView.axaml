@@ -1,0 +1,112 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:v="using:Karvon.Views"
+             xmlns:kvm="using:Karvon.Skills.ViewModels"
+             x:Class="Karvon.Skills.Views.SkillsExplorerView"
+             x:DataType="kvm:SkillsExplorerViewModel">
+  <UserControl.Styles>
+    <StyleInclude Source="avares://Karvon.Core/Themes/ExplorerStyles.axaml" />
+    <Style Selector="TreeView#Tree TreeViewItem /template/ ContentPresenter#PART_HeaderPresenter">
+      <Setter Property="HorizontalAlignment" Value="Stretch" />
+      <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+    </Style>
+    <Style Selector="TreeView#Tree TreeViewItem">
+      <Setter Property="IsExpanded" Value="{ReflectionBinding IsExpanded, Mode=TwoWay}" />
+    </Style>
+    <Style Selector="Grid.node">
+      <Setter Property="Height" Value="24" />
+      <Setter Property="Background" Value="Transparent" />
+    </Style>
+    <Style Selector="TextBlock.detail">
+      <Setter Property="Foreground" Value="#9D9D9D" />
+      <Setter Property="FontSize" Value="11.5" />
+      <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+    <Style Selector="TextBlock.detail.problem">
+      <Setter Property="Foreground" Value="#E8A84B" />
+    </Style>
+  </UserControl.Styles>
+
+  <DockPanel>
+    <Border DockPanel.Dock="Top" Background="{StaticResource VsEnvironmentBrush}">
+      <TextBlock Classes="toolTitle" Text="Skills" />
+    </Border>
+    <Border DockPanel.Dock="Top" Padding="4,2">
+      <StackPanel Orientation="Horizontal" Spacing="2">
+        <Button Name="NewSkillButton" Classes="tbi" Command="{Binding NewSkillCommand}" ToolTip.Tip="New Skill…">
+          <v:VsIcon Kind="Plus" />
+        </Button>
+        <Button Classes="tbi" Command="{Binding ShowMarketplaceCommand}" ToolTip.Tip="Browse the Skills Marketplace">
+          <v:VsIcon Kind="Package" />
+        </Button>
+        <Button Classes="tbi" Command="{Binding GenerateMemoryFilesCommand}" ToolTip.Tip="Generate AGENTS.md and GEMINI.md from CLAUDE.md">
+          <v:VsIcon Kind="Sync" />
+        </Button>
+        <Button Classes="tbi" Command="{Binding RefreshCommand}" ToolTip.Tip="Read the skills again">
+          <v:VsIcon Kind="Refresh" />
+        </Button>
+        <Button Classes="tbi" Command="{Binding CollapseAllCommand}" ToolTip.Tip="Collapse All">
+          <v:VsIcon Kind="CollapseAll" />
+        </Button>
+      </StackPanel>
+    </Border>
+
+    <TreeView Name="Tree" ItemsSource="{Binding Roots}" Background="Transparent" ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+      <TreeView.DataTemplates>
+        <DataTemplate DataType="kvm:SkillsMarketplaceNode">
+          <Grid Classes="node" ColumnDefinitions="Auto,Auto,*" ToolTip.Tip="Skills from GitHub repositories and teams' registries">
+            <v:VsIcon Kind="Package" Width="15" Height="15" Foreground="#4DAAFC" />
+            <TextBlock Grid.Column="1" Margin="6,0,0,0" Text="Browse the marketplace" VerticalAlignment="Center" />
+            <TextBlock Grid.Column="2" Classes="detail" Margin="8,0,0,0" Text="GitHub, teams' registries" TextTrimming="CharacterEllipsis" />
+          </Grid>
+        </DataTemplate>
+
+        <TreeDataTemplate DataType="kvm:SkillsGroupNode" ItemsSource="{Binding Items}">
+          <Grid Classes="node" ColumnDefinitions="Auto,*">
+            <Grid.ContextMenu>
+              <ContextMenu>
+                <MenuItem Header="New Skill…" Command="{Binding $parent[UserControl].((kvm:SkillsExplorerViewModel)DataContext).NewSkillCommand}" />
+                <MenuItem Header="Generate AGENTS.md and GEMINI.md" Command="{Binding $parent[UserControl].((kvm:SkillsExplorerViewModel)DataContext).GenerateMemoryFilesCommand}" />
+              </ContextMenu>
+            </Grid.ContextMenu>
+            <v:VsIcon Kind="{Binding Icon}" Width="15" Height="15" />
+            <TextBlock Grid.Column="1" Margin="6,0,0,0" VerticalAlignment="Center" TextTrimming="CharacterEllipsis">
+              <Run Text="{Binding Title}" FontWeight="SemiBold" /><Run Text="  " /><Run Text="{Binding Detail}" Foreground="#9D9D9D" />
+            </TextBlock>
+          </Grid>
+        </TreeDataTemplate>
+
+        <DataTemplate DataType="kvm:SkillNode">
+          <Grid Classes="node" ColumnDefinitions="Auto,Auto,*" ToolTip.Tip="{Binding ToolTip}">
+            <Grid.ContextMenu>
+              <ContextMenu>
+                <MenuItem Header="Open" Command="{Binding OpenCommand}" FontWeight="SemiBold" />
+                <MenuItem Header="Edit SKILL.md" Command="{Binding EditCommand}" />
+              </ContextMenu>
+            </Grid.ContextMenu>
+            <Panel Width="13" Height="13" Margin="0,0,6,0">
+              <v:VsIcon Kind="Sparkle" Width="13" Height="13" IsVisible="{Binding !HasProblems}" />
+              <v:VsIcon Kind="Warning" Width="13" Height="13" IsVisible="{Binding HasProblems}" />
+            </Panel>
+            <TextBlock Grid.Column="1" Text="{Binding Name}" VerticalAlignment="Center" />
+            <TextBlock Grid.Column="2" Classes="detail" Classes.problem="{Binding HasProblems}" Margin="8,0,0,0" Text="{Binding Detail}" TextTrimming="CharacterEllipsis" />
+          </Grid>
+        </DataTemplate>
+
+        <DataTemplate DataType="kvm:SkillsFileNode">
+          <Grid Classes="node" ColumnDefinitions="Auto,Auto,*" ToolTip.Tip="{Binding File}">
+            <Grid.ContextMenu>
+              <ContextMenu>
+                <MenuItem Header="Open" Command="{Binding OpenCommand}" FontWeight="SemiBold" />
+                <MenuItem Header="Copy Path" Click="OnCopy" Tag="{Binding File}" />
+              </ContextMenu>
+            </Grid.ContextMenu>
+            <v:VsIcon Kind="{Binding Icon}" Width="13" Height="13" Margin="0,0,6,0" />
+            <TextBlock Grid.Column="1" Text="{Binding Name}" VerticalAlignment="Center" />
+            <TextBlock Grid.Column="2" Classes="detail" Margin="8,0,0,0" Text="{Binding Detail}" TextTrimming="CharacterEllipsis" />
+          </Grid>
+        </DataTemplate>
+      </TreeView.DataTemplates>
+    </TreeView>
+  </DockPanel>
+</UserControl>

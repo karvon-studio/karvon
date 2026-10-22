@@ -1,6 +1,14 @@
 <Solution>
   <Folder Name="/src/">
     <Project Path="src/Karvon/Karvon.csproj" />
+    <Project Path="src/Karvon.Core/Karvon.Core.csproj" />
+  </Folder>
+  <Folder Name="/src/modules/">
+    <Project Path="src/Karvon.Database/Karvon.Database.csproj" />
+    <Project Path="src/Karvon.Docker/Karvon.Docker.csproj" />
+    <Project Path="src/Karvon.Mcp/Karvon.Mcp.csproj" />
+    <Project Path="src/Karvon.Servers/Karvon.Servers.csproj" />
+    <Project Path="src/Karvon.Skills/Karvon.Skills.csproj" />
   </Folder>
   <Folder Name="/external/">
     <Project Path="external/bengine/src/Bengine/Bengine.csproj" />

@@ -1,0 +1,148 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:v="using:Karvon.Views"
+             xmlns:svm="using:Karvon.Servers.ViewModels"
+             x:Class="Karvon.Servers.Views.ServersExplorerView"
+             x:DataType="svm:ServersExplorerViewModel">
+  <UserControl.Styles>
+    <StyleInclude Source="avares://Karvon.Core/Themes/ExplorerStyles.axaml" />
+    <Style Selector="TreeView#Tree TreeViewItem /template/ ContentPresenter#PART_HeaderPresenter">
+      <Setter Property="HorizontalAlignment" Value="Stretch" />
+      <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+    </Style>
+    <!-- Groups and machines both have IsExpanded (a machine has nothing under it). -->
+    <Style Selector="TreeView#Tree TreeViewItem">
+      <Setter Property="IsExpanded" Value="{ReflectionBinding IsExpanded, Mode=TwoWay}" />
+    </Style>
+    <Style Selector="Grid.node">
+      <Setter Property="Height" Value="24" />
+      <Setter Property="Background" Value="Transparent" />
+    </Style>
+    <Style Selector="Grid.node StackPanel.rowActions">
+      <Setter Property="Opacity" Value="0" />
+    </Style>
+    <Style Selector="Grid.node:pointerover StackPanel.rowActions">
+      <Setter Property="Opacity" Value="1" />
+    </Style>
+    <Style Selector="Grid.node Button.tbi">
+      <Setter Property="Padding" Value="3" />
+      <Setter Property="MinHeight" Value="18" />
+    </Style>
+    <Style Selector="Grid.node Button.tbi v|VsIcon">
+      <Setter Property="Width" Value="12" />
+      <Setter Property="Height" Value="12" />
+    </Style>
+    <Style Selector="Ellipse.dot">
+      <Setter Property="Width" Value="8" />
+      <Setter Property="Height" Value="8" />
+    </Style>
+    <!-- A halo around the dot of a machine Karvon is connected to, as a live light. -->
+    <Style Selector="Border.halo">
+      <Setter Property="Width" Value="14" />
+      <Setter Property="Height" Value="14" />
+      <Setter Property="CornerRadius" Value="7" />
+      <Setter Property="Background" Value="Transparent" />
+    </Style>
+    <Style Selector="Border.halo.running">
+      <Setter Property="Background" Value="#263FB950" />
+    </Style>
+    <Style Selector="Border.halo.failing">
+      <Setter Property="Background" Value="#26F85149" />
+    </Style>
+  </UserControl.Styles>
+
+  <DockPanel>
+    <Border DockPanel.Dock="Top" Background="{StaticResource VsEnvironmentBrush}">
+      <TextBlock Classes="toolTitle" Text="Servers" />
+    </Border>
+    <Border DockPanel.Dock="Top" Padding="4,2">
+      <StackPanel Orientation="Horizontal" Spacing="2">
+        <Button Name="AddServerButton" Classes="tbi" Command="{Binding AddServerCommand}" ToolTip.Tip="Add Server…">
+          <v:VsIcon Kind="Plus" />
+        </Button>
+        <Button Classes="tbi" Command="{Binding RefreshCommand}" ToolTip.Tip="Read ~/.ssh/config again">
+          <v:VsIcon Kind="Refresh" />
+        </Button>
+        <Button Classes="tbi" Command="{Binding CollapseAllCommand}" ToolTip.Tip="Collapse All">
+          <v:VsIcon Kind="CollapseAll" />
+        </Button>
+      </StackPanel>
+    </Border>
+    <TextBox DockPanel.Dock="Top" Classes="search" Margin="4,0,4,4" Text="{Binding Filter}" PlaceholderText="Search Servers" />
+
+    <Panel>
+      <StackPanel IsVisible="{Binding IsEmpty}" Margin="12,10" Spacing="8">
+        <TextBlock Text="No servers yet" FontWeight="SemiBold" />
+        <TextBlock Classes="dkMuted" TextWrapping="Wrap"
+                   Text="The Host entries of ~/.ssh/config show here, with the servers you add (user@host, a key or a password)." />
+        <Button Classes="dkPrimary" HorizontalAlignment="Left" Command="{Binding AddServerCommand}" Content="Add Server…" />
+      </StackPanel>
+
+      <TreeView Name="Tree" ItemsSource="{Binding Groups}" Background="Transparent" ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                IsVisible="{Binding !IsEmpty}">
+        <TreeView.DataTemplates>
+          <TreeDataTemplate DataType="svm:ServerGroupNode" ItemsSource="{Binding Servers}">
+            <Grid Classes="node" ColumnDefinitions="Auto,*">
+              <v:VsIcon Kind="ToolServers" Width="15" Height="15" Foreground="#4DAAFC" />
+              <TextBlock Grid.Column="1" Margin="6,0,0,0" VerticalAlignment="Center" TextTrimming="CharacterEllipsis">
+                <Run Text="{Binding Name}" FontWeight="SemiBold" /><Run Text="  " /><Run Text="{Binding Count}" Foreground="#9D9D9D" />
+              </TextBlock>
+            </Grid>
+          </TreeDataTemplate>
+
+          <DataTemplate DataType="svm:ServerNode">
+            <Grid Classes="node" ColumnDefinitions="Auto,*,Auto,Auto" ToolTip.Tip="{Binding ToolTip}">
+              <Grid.ContextMenu>
+                <ContextMenu>
+                  <MenuItem Header="Open" Command="{Binding OpenCommand}" FontWeight="SemiBold" />
+                  <MenuItem Header="Open Terminal" Command="{Binding OpenTabCommand}" CommandParameter="terminal" />
+                  <MenuItem Header="Files" Command="{Binding OpenTabCommand}" CommandParameter="files" />
+                  <MenuItem Header="Services" Command="{Binding OpenTabCommand}" CommandParameter="services" />
+                  <MenuItem Header="Logs" Command="{Binding OpenTabCommand}" CommandParameter="logs" />
+                  <Separator />
+                  <MenuItem Header="Connect" Command="{Binding ConnectCommand}" IsVisible="{Binding !IsConnected}" />
+                  <MenuItem Header="Connect Again" Command="{Binding ConnectAgainCommand}" IsVisible="{Binding IsConnected}" />
+                  <MenuItem Header="Disconnect" Command="{Binding DisconnectCommand}" IsVisible="{Binding IsConnected}" />
+                  <Separator />
+                  <MenuItem Header="Mark as Production" Command="{Binding ToggleProductionCommand}" IsVisible="{Binding !IsProduction}" />
+                  <MenuItem Header="Not Production" Command="{Binding ToggleProductionCommand}" IsVisible="{Binding IsProduction}" />
+                  <MenuItem Header="Edit…" Command="{Binding EditCommand}" />
+                  <MenuItem Header="Remove…" Command="{Binding RemoveCommand}" IsVisible="{Binding CanRemove}" />
+                  <Separator />
+                  <MenuItem Header="Forget Passwords" Command="{Binding ForgetPasswordsCommand}" />
+                  <MenuItem Header="Forget Host Key…" Command="{Binding ForgetHostKeyCommand}" />
+                  <MenuItem Header="Copy Address" Click="OnCopy" Tag="{Binding Target}" />
+                </ContextMenu>
+              </Grid.ContextMenu>
+              <Panel Width="16" Height="16" VerticalAlignment="Center">
+                <Border Classes="halo" Classes.running="{Binding IsConnected}"
+                        Classes.failing="{Binding DotKind, Converter={x:Static ObjectConverters.Equal}, ConverterParameter=failing}" />
+                <Ellipse Classes="dot" HorizontalAlignment="Center" VerticalAlignment="Center"
+                         Classes.running="{Binding DotKind, Converter={x:Static ObjectConverters.Equal}, ConverterParameter=running}"
+                         Classes.paused="{Binding DotKind, Converter={x:Static ObjectConverters.Equal}, ConverterParameter=paused}"
+                         Classes.failing="{Binding DotKind, Converter={x:Static ObjectConverters.Equal}, ConverterParameter=failing}" />
+              </Panel>
+              <TextBlock Grid.Column="1" Margin="6,0,0,0" VerticalAlignment="Center" TextTrimming="CharacterEllipsis">
+                <Run Text="{Binding Name}" /><Run Text="  " /><Run Text="{Binding Target}" Foreground="#9D9D9D" />
+              </TextBlock>
+              <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="5" Margin="6,0,0,0">
+                <TextBlock Text="{Binding LatencyText}" FontSize="11" Foreground="#9D9D9D" VerticalAlignment="Center" />
+                <Border Classes="pill red" IsVisible="{Binding IsProduction}" Padding="6,0" ToolTip.Tip="Production: every change on it asks">
+                  <TextBlock Text="prod" FontSize="10" />
+                </Border>
+              </StackPanel>
+              <StackPanel Grid.Column="3" Classes="rowActions" Orientation="Horizontal" Margin="4,0,0,0">
+                <Button Classes="tbi" Command="{Binding OpenTabCommand}" CommandParameter="terminal" ToolTip.Tip="Terminal">
+                  <v:VsIcon Kind="ToolTerminal" />
+                </Button>
+                <Button Classes="tbi" Command="{Binding OpenTabCommand}" CommandParameter="files" ToolTip.Tip="Files">
+                  <v:VsIcon Kind="Folder" />
+                </Button>
+              </StackPanel>
+            </Grid>
+          </DataTemplate>
+        </TreeView.DataTemplates>
+      </TreeView>
+    </Panel>
+  </DockPanel>
+</UserControl>

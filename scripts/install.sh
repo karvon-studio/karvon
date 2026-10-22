@@ -22,8 +22,8 @@ exec "$app_dir/Karvon" "\$@"
 LAUNCHER
 chmod +x "$bin_dir/karvon"
 
-cp "$repo/src/Karvon/Assets/karvon.svg" "$icons_dir/scalable/apps/karvon.svg"
-cp "$repo/src/Karvon/Assets/karvon.png" "$icons_dir/256x256/apps/karvon.png"
+cp "$repo/src/Karvon.Core/Assets/karvon.svg" "$icons_dir/scalable/apps/karvon.svg"
+cp "$repo/src/Karvon.Core/Assets/karvon.png" "$icons_dir/256x256/apps/karvon.png"
 
 cat > "$apps_dir/karvon.desktop" <<DESKTOP
 [Desktop Entry]

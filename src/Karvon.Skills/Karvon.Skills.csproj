@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- The Skills module: Claude Code's skills, subagents, commands and hooks, a marketplace, memory files. -->
+  <PropertyGroup>
+    <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
+    <RootNamespace>Karvon.Skills</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="Karvon.Tests" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- Agensi's catalog is an MCP server. -->
+    <ProjectReference Include="..\Karvon.Mcp\Karvon.Mcp.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Karvon.Core\Karvon.Core.csproj" />
+  </ItemGroup>
+</Project>

@@ -12,7 +12,7 @@ SRC=$(realpath "$1")
 VERSION=$2
 DIST=$(mkdir -p "$3" && realpath "$3")
 HERE=$(cd "$(dirname "$0")" && pwd)
-ASSETS=$(realpath "$HERE/../../src/Karvon/Assets")
+ASSETS=$(realpath "$HERE/../../src/Karvon.Core/Assets")
 WORK=$(mktemp -d)
 trap 'rm -rf "$WORK"' EXIT
 

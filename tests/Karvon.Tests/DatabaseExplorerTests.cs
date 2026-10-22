@@ -203,7 +203,10 @@ public class DatabaseExplorerTests
     {
         var before = owner.OwnedWindows.ToList();
         var task = open();
-        await Until(() => owner.OwnedWindows.Except(before).Any(w => w.IsVisible));
+        await Until(() => owner.OwnedWindows.Except(before).Any(w => w.IsVisible) || task.IsCompleted);
+        // One that failed to open says why.
+        if (task.IsFaulted)
+            await task;
         var dialog = owner.OwnedWindows.Except(before).First(w => w.IsVisible);
         Assert.Contains("dbx", dialog.Classes);
         dialog.Close();

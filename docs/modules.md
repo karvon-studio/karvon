@@ -4,14 +4,18 @@ A module is a part of Karvon Studio that can be turned off in **Tools > Modules*
 on their own (see the [roadmap](../ROADMAP.md)). Karvon knows a module only through `Karvon.Modules.KarvonModule`,
 and a module uses Karvon only through `IWorkbench`.
 
-The modules so far are:
-- Database Explorer (`Database/DatabaseModule.cs`);
-- Docker Explorer (`Docker/DockerModule.cs`);
-- Servers (`Servers/ServersModule.cs`);
-- MCP Servers (`Mcp/McpModule.cs`);
-- Skills (`Skills/SkillsModule.cs`).
+Each module is a project of its own, referencing `Karvon.Core`. The core references no module: the application
+(`src/Karvon`) gives it the modules it comes with in `BuiltInModules.Create()`. The modules so far are:
+- Database Explorer (`src/Karvon.Database`);
+- Docker Explorer (`src/Karvon.Docker`);
+- Servers (`src/Karvon.Servers`);
+- MCP Servers (`src/Karvon.Mcp`);
+- Skills (`src/Karvon.Skills`, which uses MCP Servers).
 
-The others still live in `MainViewModel` and are moving over one by one.
+Claude Code and .NET still live in the core and are to become modules too.
+
+A module's resources are its assembly's (`avares://Karvon.Database/Assets/...`); the core's are
+`avares://Karvon.Core/...` (its themes, `Themes/ExplorerStyles.axaml` for the explorers, fonts, the icon).
 
 ## Writing one
 
@@ -32,7 +36,8 @@ public sealed partial class NotesModule : KarvonModule
 }
 ```
 
-Then add it to `ModuleCatalog.Create()`.
+Put it in a project of its own that references `Karvon.Core`, then add it to `BuiltInModules.Create()` and to the
+application's project references.
 
 ## What a module adds
 

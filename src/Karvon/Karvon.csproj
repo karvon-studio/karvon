@@ -1,4 +1,5 @@
 <Project Sdk="Microsoft.NET.Sdk">
+  <!-- Karvon Studio, the application: the core and the modules it comes with. -->
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
     <ApplicationManifest>app.manifest</ApplicationManifest>
@@ -12,36 +13,17 @@
   </ItemGroup>
   <ItemGroup>
     <InternalsVisibleTo Include="Karvon.Tests" />
-    <AvaloniaResource Include="Assets\**" Exclude="Assets\MaterialIcons\**" />
-    <!-- Database Explorer (from Bengine Data Studio): its icons and SQL / Mongo shell highlighting. -->
-    <AvaloniaResource Include="Database\Assets\**" />
-    <!-- Material Icon Theme (MIT): file and folder icons for Solution Explorer, read with GetManifestResourceStream. -->
-    <EmbeddedResource Include="Assets\MaterialIcons\icons\*.svg" LogicalName="MaterialIcons/icons/%(Filename)%(Extension)" />
-    <EmbeddedResource Include="Assets\MaterialIcons\material-icons.json" LogicalName="MaterialIcons/material-icons.json" />
   </ItemGroup>
   <ItemGroup>
-    <PackageReference Include="Avalonia" Version="$(AvaloniaVersion)" />
     <PackageReference Include="Avalonia.Desktop" Version="$(AvaloniaVersion)" />
-    <PackageReference Include="Avalonia.Themes.Fluent" Version="$(AvaloniaVersion)" />
     <PackageReference Include="Avalonia.Fonts.Inter" Version="$(AvaloniaVersion)" />
-    <PackageReference Include="Avalonia.AvaloniaEdit" Version="12.0.0" />
-    <PackageReference Include="AvaloniaEdit.TextMate" Version="12.0.0" />
-    <PackageReference Include="TextMateSharp.Grammars" Version="2.0.4" />
-    <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2" />
-    <PackageReference Include="Markdig" Version="0.37.0" />
-    <PackageReference Include="YamlDotNet" Version="16.3.0" />
-    <!-- MCP Servers: talks to the servers of .mcp.json, Claude Code, Codex and Gemini CLI; Codex keeps them in TOML. -->
-    <PackageReference Include="ModelContextProtocol.Core" Version="2.2.0" />
-    <PackageReference Include="Tomlyn" Version="0.19.0" />
-    <PackageReference Include="Microsoft.VisualStudio.SolutionPersistence" Version="1.0.52" />
-    <PackageReference Include="Microsoft.TestPlatform.TranslationLayer" Version="18.7.0" />
-    <PackageReference Include="Exclr8.Terminal" Version="1.0.9" />
-    <PackageReference Include="Exclr8.Terminal.Pty" Version="1.0.4" />
-    <PackageReference Include="Avalonia.Controls.DataGrid" Version="12.1.2" />
   </ItemGroup>
   <ItemGroup>
-    <!-- Database Explorer: Bengine's schema AST and its live-database layer (the bengine repository, a submodule). -->
-    <ProjectReference Include="..\..\external\bengine\src\Bengine\Bengine.csproj" />
-    <ProjectReference Include="..\..\external\bengine\src\Bengine.Introspection\Bengine.Introspection.csproj" />
+    <ProjectReference Include="..\Karvon.Core\Karvon.Core.csproj" />
+    <ProjectReference Include="..\Karvon.Database\Karvon.Database.csproj" />
+    <ProjectReference Include="..\Karvon.Docker\Karvon.Docker.csproj" />
+    <ProjectReference Include="..\Karvon.Servers\Karvon.Servers.csproj" />
+    <ProjectReference Include="..\Karvon.Mcp\Karvon.Mcp.csproj" />
+    <ProjectReference Include="..\Karvon.Skills\Karvon.Skills.csproj" />
   </ItemGroup>
 </Project>
