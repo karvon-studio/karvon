@@ -69,7 +69,7 @@ public sealed partial class EditorHost
             if (wanted.Contains(Document.GetLineByOffset(section.StartOffset).LineNumber))
                 section.IsFolded = true;
         // The language server's blocks replace the scanned ones; keep the request until they are in.
-        if (OutlinesFromServer || !RoslynClient.IsSupported(FilePath))
+        if (OutlinesFromServer || !LanguageServers.Serve(FilePath))
             _pendingCollapsed = null;
     }
 

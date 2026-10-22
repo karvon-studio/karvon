@@ -36,7 +36,7 @@ public sealed partial class EditorHost : IDisposable, IDebugLineSource
     TextEditor _active;
     readonly List<LspContentChange> _pendingChanges = [];
     readonly Encoding _encoding;
-    RoslynClient? _lsp;
+    LspClient? _lsp;
     int _version = 1;
     bool _flushScheduled;
     bool _chordCtrlK;
@@ -366,9 +366,9 @@ public sealed partial class EditorHost : IDisposable, IDebugLineSource
 
     // ---- Language server session ------------------------------------------------------------------------
 
-    public void Attach(RoslynClient lsp)
+    public void Attach(LspClient lsp)
     {
-        if (!RoslynClient.IsSupported(FilePath))
+        if (!lsp.Handles(FilePath))
             return;
         _lsp = lsp;
         _pendingChanges.Clear();

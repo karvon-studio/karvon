@@ -14,7 +14,7 @@ public sealed partial class EditorHost
 
     void InitializeSemanticColors()
     {
-        if (!RoslynClient.IsSupported(FilePath))
+        if (!LanguageServers.Serve(FilePath))
             return;
         // Added after TextMate's transformer, so the server's colors win where it has any.
         _semantic = new SemanticColorizer();
