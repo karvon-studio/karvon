@@ -80,7 +80,7 @@ public class ActivityBarTests
         Assert.Equal("VsActivityTab", ThemeKey(window, docker));
         Assert.False(docker.Classes.Contains("right"));
         Assert.True(columns[0].Width.Value > 45);
-        window.MoveToolWindow(ToolWindows.DatabaseExplorer, DockSide.Left);
+        window.MoveToolWindow(Karvon.Database.DatabaseModule.ToolWindowId, DockSide.Left);
         await WaitUntil(() => false, TimeSpan.FromMilliseconds(150));
         Snapshot(window, "activity-bar-left");
         window.ResetWindowLayout();
@@ -156,7 +156,7 @@ public class ActivityBarTests
 
         // Reset Window Layout: every tab back in its place, in the first order.
         window.ResetWindowLayout();
-        Assert.Equal([ToolWindows.SolutionExplorer, ToolWindows.TestExplorer, ToolWindows.GitChanges, ToolWindows.DatabaseExplorer, Karvon.Docker.DockerModule.ToolWindowId, Karvon.Servers.ServersModule.ToolWindowId, Karvon.Mcp.McpModule.ToolWindowId, Karvon.Skills.SkillsModule.ToolWindowId, ToolWindows.Claude],
+        Assert.Equal([ToolWindows.SolutionExplorer, ToolWindows.TestExplorer, ToolWindows.GitChanges, Karvon.Database.DatabaseModule.ToolWindowId, Karvon.Docker.DockerModule.ToolWindowId, Karvon.Servers.ServersModule.ToolWindowId, Karvon.Mcp.McpModule.ToolWindowId, Karvon.Skills.SkillsModule.ToolWindowId, ToolWindows.Claude],
             Order(rightTabs));
         Assert.Empty(vm.Settings.Layout.ToolOrder);
         window.Close();

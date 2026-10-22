@@ -1,6 +1,7 @@
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Data;
+using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Media;
 using Karvon.Modules;
@@ -17,10 +18,14 @@ public partial class MainWindow
     /// <summary>The modules whose document templates each application has already (they serve every window of it).</summary>
     static readonly System.Runtime.CompilerServices.ConditionalWeakTable<Application, HashSet<Type>> TemplatedModules = [];
 
+    /// <summary>The modules' tool window keys.</summary>
+    readonly List<(KeyGesture Gesture, string Id)> _moduleGestures = [];
+
     void AttachModules(MainViewModel vm)
     {
         foreach (var module in vm.Modules)
         {
+            module.ToolWindowReset += id => ResetModuleToolWindow(id);
             if (Application.Current is { } app && TemplatedModules.GetOrCreateValue(app).Add(module.GetType()))
                 foreach (var template in module.DocumentTemplates)
                     app.DataTemplates.Add(template);
@@ -45,19 +50,43 @@ public partial class MainWindow
         ToolWindowTabs.Register(tool);
         var host = new ContentControl();
         var item = new TabItem { Header = tool.Title, Tag = tool.Id, Content = host };
+        _moduleTools[tool.Id] = (item, host, tool);
         // Made the first time it shows: a module never opened reads nothing and starts nothing.
         item.PropertyChanged += (_, e) =>
         {
-            if (e.Property == TabItem.IsSelectedProperty && item.IsSelected && host.Content is null && !_closing)
-                host.Content = tool.CreateView();
+            if (e.Property == TabItem.IsSelectedProperty)
+                FillModuleToolWindow(tool.Id);
         };
         var group = GroupOf(tool.Side);
         var claude = group.Items.OfType<TabItem>().FirstOrDefault(t => (string?)t.Tag == ToolWindows.Claude);
         group.Items.Insert(claude is null ? group.Items.Count : group.Items.IndexOf(claude), item);
         AttachToolTab(item);
         var menu = new MenuItem { Header = tool.MenuHeader };
+        if (tool.Gesture is { } gesture)
+        {
+            menu.InputGesture = KeyGesture.Parse(gesture);
+            _moduleGestures.Add((menu.InputGesture, tool.Id));
+        }
         menu.Click += (_, _) => vm.ShowToolWindow(tool.Id);
         ViewMenu.Items.Insert(ViewMenu.Items.IndexOf(ViewClaudeItem), menu);
+    }
+
+    readonly Dictionary<string, (TabItem Item, ContentControl Host, ToolWindowInfo Tool)> _moduleTools = [];
+
+    /// <summary>A module's tool window that shows gets its view, when it has none and the module has one to give.</summary>
+    void FillModuleToolWindow(string id)
+    {
+        if (_moduleTools.TryGetValue(id, out var tool) && tool.Item.IsSelected && tool.Host.Content is null && !_closing)
+            tool.Host.Content = tool.Tool.CreateView();
+    }
+
+    /// <summary>The module made its view stale (another solution's explorer): it goes, and the next one comes when it shows.</summary>
+    void ResetModuleToolWindow(string id)
+    {
+        if (!_moduleTools.TryGetValue(id, out var tool))
+            return;
+        tool.Host.Content = null;
+        FillModuleToolWindow(id);
     }
 
     /// <summary>Tools > Modules: which modules are on. It takes effect when Karvon Studio starts again.</summary>

@@ -22,7 +22,7 @@ using Karvon.Database.ViewModels;
 /// from shortcuts while the focus is in the explorer or a database document, or the Find Action palette. Its
 /// documents (consoles, data, DDL, diagrams...) open as Karvon document tabs.
 /// </summary>
-public partial class DatabaseExplorerView : UserControl, IDialogService
+public partial class DatabaseExplorerView : UserControl, IDialogService, Modules.IKeymapOwner
 {
     private static readonly HashSet<string> RelationKinds = ["Table", "View", "MaterializedView", "ForeignTable"];
 

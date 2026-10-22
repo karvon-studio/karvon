@@ -45,6 +45,9 @@ public class UiTests
     }
 
     /// <summary>A view model with no remembered per-solution state, so tests do not depend on each other's order.</summary>
+    /// <summary>The Database Explorer module of a window's view model.</summary>
+    internal static Karvon.Database.DatabaseModule Db(MainViewModel vm) => vm.Module<Karvon.Database.DatabaseModule>()!;
+
     internal static MainViewModel NewViewModel(Action<Karvon.Services.Settings>? configure = null)
     {
         // The Claude Code window must never start the user's real CLI from a test.

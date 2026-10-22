@@ -4,6 +4,7 @@ using Avalonia.Headless.XUnit;
 using Bengine.Enums;
 using Bengine.Introspection.Servers;
 using Microsoft.Data.Sqlite;
+using Karvon.Database;
 using Karvon.Database.ViewModels;
 using Karvon.Docker.ViewModels;
 using Karvon.ViewModels;
@@ -39,8 +40,8 @@ public class ClaudeToolActivityTests
         await vm.OpenSolutionAsync(sln);
         // The solution's own data source (kept in its .vs).
         var file = Database();
-        vm.DatabaseServers.Upsert(new ServerProfile { Name = "orders (sqlite)", Provider = DatabaseProvider.Sqlite, FilePath = file });
-        vm.Database.ReloadServers();
+        Db(vm).Servers.Upsert(new ServerProfile { Name = "orders (sqlite)", Provider = DatabaseProvider.Sqlite, FilePath = file });
+        Db(vm).Explorer.ReloadServers();
         vm.ShowToolWindow(ToolWindows.Claude);
         await WaitUntil(() => false, TimeSpan.FromMilliseconds(300));
 
@@ -59,7 +60,7 @@ public class ClaudeToolActivityTests
         await CallAsync(vm, "db_connections", new { });
         await WaitUntil(() => false, TimeSpan.FromMilliseconds(200));
         Assert.True(window.IsToolWindowShowing(ToolWindows.Claude));
-        Assert.False(window.IsToolWindowShowing(ToolWindows.DatabaseExplorer));
+        Assert.False(window.IsToolWindowShowing(Karvon.Database.DatabaseModule.ToolWindowId));
 
         // A container's logs: its page (any container: the sample has no compose file).
         vm.Settings.ClaudeAllContainers = true;

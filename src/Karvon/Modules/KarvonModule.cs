@@ -23,7 +23,18 @@ public enum DockSide
 /// <param name="Id">Its id in the layout Karvon remembers ("Mcp").</param>
 /// <param name="MenuHeader">Its View menu item, with its access key ("_MCP Servers").</param>
 /// <param name="Icon">A <c>VsIcon</c> kind.</param>
-public sealed record ToolWindowInfo(string Id, string Title, string MenuHeader, string Icon, DockSide Side, Func<Control> CreateView);
+/// <param name="CreateView">Its view; null when there is none to show yet (the module says when with <see cref="KarvonModule.ResetToolWindow"/>).</param>
+public sealed record ToolWindowInfo(string Id, string Title, string MenuHeader, string Icon, DockSide Side, Func<Control?> CreateView)
+{
+    /// <summary>The key that shows it from anywhere ("Ctrl+Alt+S"), or null.</summary>
+    public string? Gesture { get; init; }
+}
+
+/// <summary>
+/// A control whose keys come before Karvon's (Bengine Data Studio's keymap in the Database Explorer): while the focus is
+/// in it, the window leaves its keys to it.
+/// </summary>
+public interface IKeymapOwner;
 
 /// <summary>
 /// A part of Karvon Studio that can be turned off in Tools > Modules (and, later, installed on its own). Karvon knows a
@@ -82,6 +93,22 @@ public abstract partial class KarvonModule : ObservableObject, IDisposable
     public virtual void Dispose()
     {
     }
+
+    /// <summary>
+    /// The solution closes (another opens, or none): what the module keeps of it closes. False keeps the solution open
+    /// (the user cancelled, say over a transaction still open).
+    /// </summary>
+    public virtual Task<bool> CloseWorkspaceAsync() => Task.FromResult(true);
+
+    /// <summary>The window closes: the module keeps what is to come back next time (a tree, tabs).</summary>
+    public virtual void SaveState()
+    {
+    }
+
+    /// <summary>A tool window's view is to be made again: the window drops it, and makes it again when it shows.</summary>
+    public event Action<string>? ToolWindowReset;
+
+    protected void ResetToolWindow(string id) => ToolWindowReset?.Invoke(id);
 
     /// <summary>A view of <typeparamref name="T"/>, and of nothing else (FuncDataTemplate&lt;T&gt; takes null for any T: a template of the application's would show in every empty presenter).</summary>
     protected static IDataTemplate Template<T>(Func<T, Control> view) where T : class =>

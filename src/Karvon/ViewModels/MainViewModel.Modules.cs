@@ -9,7 +9,7 @@ namespace Karvon.ViewModels;
 /// The modules (see <see cref="KarvonModule"/>): every one Karvon has, those that are on started with Karvon as their
 /// workbench, and what Karvon offers them (Claude Code through <see cref="IClaudeService"/>).
 /// </summary>
-public partial class MainViewModel : IWorkbench, IClaudeService, IDatabaseService
+public partial class MainViewModel : IWorkbench, IClaudeService
 {
     /// <summary>Every module, on or off, in the order they show (Tools > Modules lists them).</summary>
     public IReadOnlyList<KarvonModule> AllModules { get; private set; } = [];
@@ -37,7 +37,7 @@ public partial class MainViewModel : IWorkbench, IClaudeService, IDatabaseServic
         var tools = Modules.SelectMany(m => m.ClaudeTools().Select(t => (Module: m, Tool: t))).ToList();
         foreach (var (module, tool) in tools)
             _claudeToolModules[tool.Name] = module;
-        return KarvonTools.Create(this, this, tools.Select(t => t.Tool));
+        return KarvonTools.Create(this, tools.Select(t => t.Tool));
     }
 
     /// <summary>Karvon closes: what the modules started stops.</summary>
@@ -56,6 +56,23 @@ public partial class MainViewModel : IWorkbench, IClaudeService, IDatabaseServic
     string? IWorkbench.Workspace => Solution?.Directory;
 
     IEnumerable<DocumentTab> IWorkbench.Documents => Documents;
+
+    /// <summary>True from closing the previous solution until the next one is open (what is the solution's is nobody's then).</summary>
+    public bool IsOpeningSolution { get; private set; }
+
+    bool IWorkbench.IsOpeningWorkspace => IsOpeningSolution;
+
+    string? IWorkbench.WorkspaceStateDirectory => Solution is { } solution ? Path.GetDirectoryName(SolutionState.FileFor(solution.FilePath)) : null;
+
+    public event Action<DocumentTab?>? ActiveDocumentChanged;
+
+    void IWorkbench.AddDocument(DocumentTab document)
+    {
+        if (!Documents.Contains(document))
+            Documents.Add(document);
+    }
+
+    void IWorkbench.RemoveDocument(DocumentTab document) => Documents.Remove(document);
 
     void IWorkbench.ShowDocument(DocumentTab document)
     {
@@ -105,20 +122,7 @@ public partial class MainViewModel : IWorkbench, IClaudeService, IDatabaseServic
 
     void IWorkbench.Status(string text) => SetStatus(text);
 
-    T? IWorkbench.Service<T>() where T : class =>
-        typeof(T) == typeof(IClaudeService) || typeof(T) == typeof(IDatabaseService) ? this as T : Modules.OfType<T>().FirstOrDefault();
-
-    // ---- IDatabaseService ---------------------------------------------------------------------------------------
-
-    void IDatabaseService.AddDataSource(Bengine.Introspection.Servers.ServerProfile server, Func<Bengine.Introspection.Servers.ServerProfile, bool> isSame)
-    {
-        var store = DatabaseServers;
-        if (!store.List().Any(isSame))
-            store.Upsert(server);
-        if (_database is { } explorer)
-            explorer.ReloadServers();
-        ShowToolWindow(ToolWindows.DatabaseExplorer);
-    }
+    T? IWorkbench.Service<T>() where T : class => typeof(T) == typeof(IClaudeService) ? this as T : Modules.OfType<T>().FirstOrDefault();
 
     // ---- IClaudeService -----------------------------------------------------------------------------------------
 

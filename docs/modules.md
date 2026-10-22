@@ -5,6 +5,7 @@ on their own (see the [roadmap](../ROADMAP.md)). Karvon knows a module only thro
 and a module uses Karvon only through `IWorkbench`.
 
 The modules so far are:
+- Database Explorer (`Database/DatabaseModule.cs`);
 - Docker Explorer (`Docker/DockerModule.cs`);
 - Servers (`Servers/ServersModule.cs`);
 - MCP Servers (`Mcp/McpModule.cs`);
@@ -43,7 +44,14 @@ Then add it to `ModuleCatalog.Create()`.
 | `ClaudeTools()` | The tools it gives the Claude Code sessions Karvon starts (`mcp__karvon__*`). A module that is off gives none. |
 | `ShowClaudeToolAsync` | One of its tools ran: show what it did where the user would have done it (a container's logs on its page). |
 | `Started()` | Runs once Karvon has started with the module on: subscribe to the workbench here. |
+| `CloseWorkspaceAsync()` | The solution closes: close what is the solution's. Return false to keep it open (the user cancelled). |
+| `ResetToolWindow(id)` | The tool window's view is stale (another solution's): the window drops it and asks `CreateView` again when it shows. `CreateView` may return null while there is nothing to show yet. |
+| `SaveState()` | The window closes: keep what is to come back next time. |
 | `Dispose()` | Runs when Karvon closes: stop what the module started. |
+
+A tool window can have a `Gesture` that shows it from anywhere ("Ctrl+Alt+S"). A control that implements
+`IKeymapOwner` gets its keys before the window's while the focus is in it. A document whose owner closes it overrides
+`DocumentTab.CloseByOwner`.
 
 Use `Template<T>` (or `Document<T>`) for templates, never `FuncDataTemplate<T>`. Avalonia's `FuncDataTemplate<T>`
 also matches null, so one added to the application would take over every empty presenter.
@@ -52,8 +60,8 @@ also matches null, so one added to the application would take over every empty p
 
 `IWorkbench` gives a module:
 - the settings;
-- the open folder and its changes;
-- the document well (show and close documents, open a file at a line);
+- the open folder, its changes, and the folder where Karvon keeps the solution's own things;
+- the document well: add, show, close and remove documents, the one in front, open a file at a line;
 - the files the editor saves, and a file picker;
 - the tool windows (and one beside Claude Code, so the conversation stays in view);
 - a pane of its own in the Output window;
@@ -62,7 +70,7 @@ also matches null, so one added to the application would take over every empty p
 `Workbench.Service<T>()` gives a module what other parts of Karvon offer:
 - `IClaudeService` (Claude Code): the chosen account's folders, Karvon's tools, `claude mcp add`, the extra MCP
   servers the sessions get, and its changes;
-- `IDatabaseService` (the Database Explorer): a data source added to it;
+- `IDatabaseService` (the Database Explorer module): a data source added to it;
 - another module, by its type.
 
 It returns null for a part that is off, and a module keeps working without it.

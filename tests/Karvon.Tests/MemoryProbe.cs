@@ -44,7 +44,7 @@ public class MemoryProbe
         foreach (var (id, name) in new[]
         {
             (ToolWindows.SolutionExplorer, "Solution Explorer"), (ToolWindows.GitChanges, "Git Changes"), (ToolWindows.TestExplorer, "Test Explorer"),
-            (ToolWindows.DatabaseExplorer, "Database Explorer"), (Karvon.Docker.DockerModule.ToolWindowId, "Docker Explorer (fake engine)"),
+            (Karvon.Database.DatabaseModule.ToolWindowId, "Database Explorer"), (Karvon.Docker.DockerModule.ToolWindowId, "Docker Explorer (fake engine)"),
             (Karvon.Servers.ServersModule.ToolWindowId, "Servers"), (Karvon.Mcp.McpModule.ToolWindowId, "MCP Servers"), (Karvon.Skills.SkillsModule.ToolWindowId, "Skills"), (ToolWindows.Claude, "Claude (empty)"),
         })
         {

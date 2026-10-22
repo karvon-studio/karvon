@@ -26,7 +26,6 @@ public static class ToolWindows
     public const string CallStack = "CallStack";
     public const string Terminal = "Terminal";
     public const string Claude = "Claude";
-    public const string DatabaseExplorer = "DatabaseExplorer";
 }
 
 public enum StatusKind
@@ -214,7 +213,7 @@ public partial class MainViewModel : ObservableObject
     partial void OnActiveDocumentChanged(DocumentTab? value)
     {
         SyncGroupWithActiveDocument(value);
-        SyncDatabaseActiveTab(value);
+        ActiveDocumentChanged?.Invoke(value);
         UpdateCaretText();
         _claude?.RefreshContext();
         if (value is not DocumentViewModel editor)
@@ -315,9 +314,10 @@ public partial class MainViewModel : ObservableObject
         }
         finally
         {
-            // The Database Explorer that shows from now on is this solution's (or no solution's, when it failed to open).
+            // What shows from now on is this solution's (or no solution's, when it failed to open): its own data sources,
+            // its .mcp.json, its skills.
             IsOpeningSolution = false;
-            DatabaseChanged?.Invoke();
+            WorkspaceChanged?.Invoke();
         }
 
         SetStatus("Ready", StatusKind.Ready);
@@ -335,7 +335,7 @@ public partial class MainViewModel : ObservableObject
     async Task CloseSolution()
     {
         if (await CloseSolutionCoreAsync())
-            DatabaseChanged?.Invoke();
+            WorkspaceChanged?.Invoke();
     }
 
     /// <summary>Closes everything; returns false if the user cancelled saving.</summary>
@@ -352,9 +352,10 @@ public partial class MainViewModel : ObservableObject
                 doc.Host.Save();
         }
         SaveSession();
-        // The Database Explorer is the solution's too: it closes with it (a console's open transaction asks first).
-        if (!await CloseDatabaseAsync())
-            return false;
+        // What the modules keep of the solution closes with it (the Database Explorer: a console's open transaction asks first).
+        foreach (var module in Modules)
+            if (!await module.CloseWorkspaceAsync())
+                return false;
 
         _runProcess?.Kill();
         if (_session is { } debugSession)
@@ -589,11 +590,8 @@ public partial class MainViewModel : ObservableObject
         doc ??= ActiveDocument;
         if (doc is null)
             return;
-        if (doc is DatabaseDocument database)
-        {
-            CloseDatabaseDocument(database);
+        if (doc.CloseByOwner())
             return;
-        }
         if (doc is DocumentViewModel { IsDirty: true } editor && Dialogs is not null)
         {
             var answer = await Dialogs.ConfirmSaveAsync(editor.FileName);

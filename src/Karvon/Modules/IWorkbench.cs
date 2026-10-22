@@ -21,7 +21,24 @@ public interface IWorkbench
     /// <summary>A solution was opened or closed.</summary>
     event Action? WorkspaceChanged;
 
+    /// <summary>From closing one solution until the next is open: what is the solution's belongs to none.</summary>
+    bool IsOpeningWorkspace { get; }
+
+    /// <summary>The folder where Karvon keeps the open solution's own things (.vs/&lt;Solution&gt;/Karvon), or null.</summary>
+    string? WorkspaceStateDirectory { get; }
+
     IEnumerable<DocumentTab> Documents { get; }
+
+    /// <summary>The document in front.</summary>
+    DocumentTab? ActiveDocument { get; set; }
+
+    event Action<DocumentTab?>? ActiveDocumentChanged;
+
+    /// <summary>A document in the document well, behind the one in front.</summary>
+    void AddDocument(DocumentTab document);
+
+    /// <summary>A document out of the document well, without asking (its owner closed it).</summary>
+    void RemoveDocument(DocumentTab document);
 
     /// <summary>A document in the document well (added when it is not there yet), in front.</summary>
     void ShowDocument(DocumentTab document);

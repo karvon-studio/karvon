@@ -554,7 +554,7 @@ public partial class MainWindow
         LeftGrid.RowDefinitions[2].Height = new GridLength(DefaultBottomHeight);
         // The modules' tool windows where they come by default: at the sides before Claude Code, at the bottom last.
         var modules = Vm?.Modules.SelectMany(m => m.ToolWindows).ToList() ?? [];
-        string[] right = [ToolWindows.SolutionExplorer, ToolWindows.TestExplorer, ToolWindows.GitChanges, ToolWindows.DatabaseExplorer,
+        string[] right = [ToolWindows.SolutionExplorer, ToolWindows.TestExplorer, ToolWindows.GitChanges,
             .. modules.Where(t => t.Side == DockSide.Right).Select(t => t.Id), ToolWindows.Claude];
         string[] left = [.. modules.Where(t => t.Side == DockSide.Left).Select(t => t.Id)];
         string[] bottom = [ToolWindows.ErrorList, ToolWindows.Output, ToolWindows.FindResults, ToolWindows.Locals, ToolWindows.Watch, ToolWindows.CallStack, ToolWindows.Terminal,

@@ -27,7 +27,6 @@ public partial class MainWindow : Window, IDialogService
     {
         InitializeComponent();
         InitializeDocking();
-        InitializeDatabaseExplorer();
         ExplorerTree.AddHandler(DoubleTappedEvent, OnExplorerDoubleTapped, RoutingStrategies.Bubble, handledEventsToo: true);
         // Before the tree item, which takes Enter for expanding.
         ExplorerTree.AddHandler(KeyDownEvent, OnExplorerKeyDown, RoutingStrategies.Tunnel);
@@ -37,7 +36,6 @@ public partial class MainWindow : Window, IDialogService
             {
                 vm.Dialogs = this;
                 AttachDocumentWell(vm);
-                AttachDatabaseExplorer(vm);
                 vm.ToolWindowRequested += OnToolWindowRequested;
                 vm.ToolWindowBesideRequested += OnToolWindowBesideRequested;
                 AttachModules(vm);
@@ -93,7 +91,8 @@ public partial class MainWindow : Window, IDialogService
             return;
         e.Cancel = true;
         SaveDockLayout(vm);
-        _databaseView?.SaveWorkspace();
+        foreach (var module in vm.Modules)
+            module.SaveState();
         vm.SaveSession();
         _closing = true;
         if (await vm.CloseSolutionCoreAsync())
@@ -114,10 +113,10 @@ public partial class MainWindow : Window, IDialogService
         var ctrl = e.KeyModifiers.HasFlag(KeyModifiers.Control);
         if (e.Key is Key.LeftCtrl or Key.RightCtrl or Key.LeftShift or Key.RightShift or Key.LeftAlt or Key.RightAlt)
             return;
-        // Ctrl+Alt+S opens the Database Explorer, as Visual Studio's Server Explorer.
-        if (ctrl && e.KeyModifiers.HasFlag(KeyModifiers.Alt) && e.Key == Key.S)
+        // A module's tool window key (Ctrl+Alt+S: the Database Explorer, as Visual Studio's Server Explorer).
+        if (Vm is { } toolVm && _moduleGestures.FirstOrDefault(g => g.Gesture.Matches(e)) is { Id: { } toolId })
         {
-            ShowDatabaseExplorer();
+            toolVm.ShowToolWindow(toolId);
             e.Handled = true;
             return;
         }
@@ -135,11 +134,9 @@ public partial class MainWindow : Window, IDialogService
             e.Handled = true;
             return;
         }
-        // In the Database Explorer and its documents Bengine Data Studio's keymap comes first (Ctrl+Shift+A is its Find
-        // Action, Ctrl+N Go to Object...); Karvon's own keys work there through the window's key bindings it leaves.
-        if (FocusManager?.GetFocusedElement() is Visual inDatabase
-            && (inDatabase.FindAncestorOfType<Database.Views.DatabaseExplorerView>(includeSelf: true) is not null
-                || inDatabase.FindAncestorOfType<DatabaseDocumentHost>(includeSelf: true) is not null))
+        // Where a module's own keymap comes first (Bengine Data Studio's in the Database Explorer and its documents:
+        // Ctrl+Shift+A is its Find Action, Ctrl+N Go to Object...), Karvon's own keys work through the window's key bindings it leaves.
+        if (FocusManager?.GetFocusedElement() is Visual focusedVisual && focusedVisual.GetSelfAndVisualAncestors().OfType<Modules.IKeymapOwner>().Any())
             return;
         // Project > Add New Item (Ctrl+Shift+A) and Add Existing Item (Shift+Alt+A): into Solution Explorer's
         // selection when it has focus, else next to the active document.

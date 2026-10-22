@@ -47,18 +47,14 @@ public static class KarvonTools
 
     /// <summary>The IDE's, the databases', the containers' and (with <paramref name="servers"/>) the SSH servers' tools.</summary>
     public static ClaudeToolServer Create(IClaudeToolHost host, ViewModels.MainViewModel? ide = null, Func<Servers.ViewModels.ServersExplorerViewModel>? servers = null) =>
-        Create(host, ide, [.. servers is null ? [] : ServerTools(servers), .. DockerTools(host)]);
+        Create(ide, [.. DatabaseTools(host), .. servers is null ? [] : ServerTools(servers), .. DockerTools(host)]);
 
-    /// <summary>The IDE's and the databases' tools, then <paramref name="more"/>: the modules'.</summary>
-    public static ClaudeToolServer Create(IDatabaseToolHost host, ViewModels.MainViewModel? ide, IEnumerable<IClaudeTool> more) => new(
-    [
-        .. ide is null ? [] : IdeTools(ide),
-        new DbConnectionsTool(host),
-        new DbSchemaTool(host),
-        new DbQueryTool(host),
-        new DbExplainTool(host),
-        .. more,
-    ], Instructions);
+    /// <summary>The IDE's tools, then <paramref name="more"/>: the modules'.</summary>
+    public static ClaudeToolServer Create(ViewModels.MainViewModel? ide, IEnumerable<IClaudeTool> more) =>
+        new([.. ide is null ? [] : IdeTools(ide), .. more], Instructions);
+
+    public static IEnumerable<IClaudeTool> DatabaseTools(IDatabaseToolHost host) =>
+        [new DbConnectionsTool(host), new DbSchemaTool(host), new DbQueryTool(host), new DbExplainTool(host)];
 
     public static IEnumerable<IClaudeTool> DockerTools(IDockerToolHost host) =>
     [

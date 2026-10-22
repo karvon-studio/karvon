@@ -2,7 +2,6 @@ using System.Text.Json;
 using Avalonia.Threading;
 using Karvon.Claude;
 using Karvon.Claude.Tools;
-using Karvon.Database.ViewModels;
 using Karvon.Modules;
 using static Karvon.Claude.Tools.ToolInput;
 
@@ -21,9 +20,6 @@ public partial class MainViewModel
 
     /// <summary>The module each of the modules' tools is of: it shows what the tool did.</summary>
     readonly Dictionary<string, KarvonModule> _claudeToolModules = new(StringComparer.Ordinal);
-
-    /// <summary>Claude's Query Tool of each data source, used again while it is open.</summary>
-    readonly Dictionary<string, QueryDocumentViewModel> _claudeQueries = new(StringComparer.Ordinal);
 
     /// <summary>Asks the window for a tool window unless it would hide <paramref name="keep"/> (Claude, in the same side group).</summary>
     public event Action<string, string>? ToolWindowBesideRequested;
@@ -47,15 +43,6 @@ public partial class MainViewModel
         {
             switch (tool)
             {
-                case "db_query" when output.Detail is DbQueryRun run:
-                    (await ClaudeQueryAsync(run.Server, run.Database))?.ShowRun(run.Sql, run.Results, "Claude");
-                    break;
-                case "db_explain" when output.Detail is DbPlanRun plan:
-                    (await ClaudeQueryAsync(plan.Server, plan.Database))?.ShowPlan(plan.Sql, plan.Plan, "Claude");
-                    break;
-                case "db_connections" or "db_schema":
-                    ShowToolWindowBeside(ToolWindows.DatabaseExplorer);
-                    break;
                 case "run_build":
                     SelectedOutput = BuildOutput;
                     ShowToolWindow(output.Text.StartsWith("Build succeeded", StringComparison.Ordinal) ? ToolWindows.Output : ToolWindows.ErrorList);
@@ -111,21 +98,6 @@ public partial class MainViewModel
             if (Str(input, name) is { Length: > 0 } value)
                 return $" ({(value.Length > 80 ? value[..80] + "…" : value)})";
         return "";
-    }
-
-    /// <summary>Claude's Query Tool of a data source: the one it had while it is open, else a new one.</summary>
-    async Task<QueryDocumentViewModel?> ClaudeQueryAsync(Bengine.Introspection.Servers.ServerProfile server, string? database)
-    {
-        var key = server.Name + "\n" + database;
-        if (_claudeQueries.TryGetValue(key, out var open) && Database.Tabs.Contains(open))
-        {
-            Database.ActiveTab = open;
-            return open;
-        }
-        var query = await Database.OpenQueryAsync(server, database);
-        if (query is not null)
-            _claudeQueries[key] = query;
-        return query;
     }
 
     /// <summary>A file of the solution in the editor, its lines (when given) selected.</summary>

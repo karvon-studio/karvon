@@ -10,7 +10,7 @@ namespace Karvon.ViewModels;
 /// Claude Code tool window: runs in the solution folder and sees the active editor and selection, and uses Karvon's tools
 /// (the Database Explorer's data sources, the Docker engine) as the user's own.
 /// </summary>
-public partial class MainViewModel : IDatabaseToolHost
+public partial class MainViewModel
 {
     static readonly HashSet<string> SkippedFolders = new(StringComparer.Ordinal) { "bin", "obj", ".git", ".vs", ".idea", "node_modules" };
 
@@ -51,12 +51,6 @@ public partial class MainViewModel : IDatabaseToolHost
         claude.AttentionRequested += () => ShowToolWindow(ToolWindows.Claude);
         return claude;
     }
-
-    IReadOnlyList<ServerProfile> IDatabaseToolHost.DataSources() => DatabaseServers.List();
-
-    /// <summary>The explorer's passwords are the UI thread's.</summary>
-    Task<string?> IDatabaseToolHost.PasswordForAsync(ServerProfile server) =>
-        Dispatcher.UIThread.InvokeAsync<string?>(() => _database is { } explorer ? explorer.PasswordFor(server) : server.Password).GetTask();
 
     string ClaudeWorkingDirectory() => Solution?.Directory ?? Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
 
@@ -118,8 +112,6 @@ public partial class MainViewModel : IDatabaseToolHost
     async Task OnClaudeSolutionChangedAsync()
     {
         _claudeFiles = null;
-        // Another folder has its own .mcp.json, its own servers in Claude Code's settings, its own skills.
-        WorkspaceChanged?.Invoke();
         if (_claude is { } claude)
             await claude.OnWorkingDirectoryChangedAsync();
     }

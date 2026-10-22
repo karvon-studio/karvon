@@ -70,11 +70,6 @@
           <v:NuGetView />
         </Border>
       </DataTemplate>
-      <DataTemplate DataType="vm:DatabaseDocument" x:DataType="vm:DatabaseDocument">
-        <Border Classes="docframe dbx" BorderBrush="#007ACC" BorderThickness="0,2,0,0" Background="{StaticResource Bg}">
-          <v:DatabaseDocumentHost Content="{Binding Inner}" />
-        </Border>
-      </DataTemplate>
       <DataTemplate DataType="vm:DiffViewModel" x:DataType="vm:DiffViewModel">
         <Border Classes="docframe" BorderBrush="#007ACC" BorderThickness="0,2,0,0">
           <v:ControlPresenter Control="{Binding View}" />

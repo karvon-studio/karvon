@@ -1,6 +1,7 @@
 using System.ComponentModel;
+using Karvon.ViewModels;
 
-namespace Karvon.ViewModels;
+namespace Karvon.Database;
 
 /// <summary>
 /// A Database Explorer document (a console, a table's data, DDL, a diagram, a comparison...) in Karvon's document well.
@@ -28,6 +29,14 @@ public sealed class DatabaseDocument : DocumentTab
             OnPropertyChanged(nameof(Title));
         if (e.PropertyName is nameof(ToolTip) or nameof(Title) or null or "")
             OnPropertyChanged(nameof(ToolTip));
+    }
+
+    /// <summary>The explorer closes its document (it may ask first); the tab goes when it does.</summary>
+    public override bool CloseByOwner()
+    {
+        if (Inner.CanClose)
+            Inner.Close?.Invoke();
+        return true;
     }
 
     public override void Dispose() => Inner.PropertyChanged -= OnInnerChanged;

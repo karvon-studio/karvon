@@ -5,6 +5,7 @@ using Avalonia.VisualTree;
 using Bengine.Enums;
 using Bengine.Introspection.Servers;
 using Microsoft.Data.Sqlite;
+using Karvon.Database;
 using Karvon.Database.ViewModels;
 using Karvon.Database.Views;
 using Karvon.ViewModels;
@@ -85,9 +86,9 @@ public class DatabaseExplorerTests
         window.Show();
 
         // View > Database Explorer: the tool window with the data sources.
-        window.ShowDatabaseExplorer();
-        Assert.True(window.IsToolWindowShowing(ToolWindows.DatabaseExplorer));
-        var explorer = vm.Database;
+        vm.ShowToolWindow(Karvon.Database.DatabaseModule.ToolWindowId);
+        Assert.True(window.IsToolWindowShowing(Karvon.Database.DatabaseModule.ToolWindowId));
+        var explorer = Db(vm).Explorer;
         await Until(() => explorer.Roots.Count > 0);
         var view = window.GetVisualDescendants().OfType<DatabaseExplorerView>().Single();
         Assert.Same(view, DatabaseExplorerView.Current);
@@ -155,43 +156,43 @@ public class DatabaseExplorerTests
         var window = new MainWindow { DataContext = vm, Width = 1500, Height = 950 };
         window.Show();
         await vm.OpenSolutionAsync(first);
-        window.ShowDatabaseExplorer();
-        var explorer = vm.Database;
+        vm.ShowToolWindow(Karvon.Database.DatabaseModule.ToolWindowId);
+        var explorer = Db(vm).Explorer;
         Assert.Empty(explorer.ServerItems);
 
         // The first solution's own data source, and a table of it open; kept beside the solution, in its .vs.
-        vm.DatabaseServers.Upsert(new ServerProfile { Name = "orders (sqlite)", Provider = DatabaseProvider.Sqlite, FilePath = database });
+        Db(vm).Servers.Upsert(new ServerProfile { Name = "orders (sqlite)", Provider = DatabaseProvider.Sqlite, FilePath = database });
         explorer.ReloadServers();
         explorer.OpenData(await UsersOf(explorer));
         Assert.Single(vm.Documents.OfType<DatabaseDocument>());
-        var directory = vm.DatabaseDirectory!;
+        var directory = Db(vm).Directory!;
         Assert.StartsWith(Path.Combine(Path.GetDirectoryName(first)!, ".vs") + Path.DirectorySeparatorChar, directory);
         Assert.True(File.Exists(Path.Combine(directory, "servers.json")));
         Assert.Equal("*\n", File.ReadAllText(Path.Combine(directory, ".gitignore")));
 
         // Another solution: nothing of the first one's, neither its data source nor its tab.
         await vm.OpenSolutionAsync(second);
-        Assert.NotSame(explorer, vm.Database);
-        Assert.Same(vm.Database, ViewOf(window)?.DataContext);
-        Assert.Empty(vm.Database.ServerItems);
+        Assert.NotSame(explorer, Db(vm).Explorer);
+        Assert.Same(Db(vm).Explorer, ViewOf(window)?.DataContext);
+        Assert.Empty(Db(vm).Explorer.ServerItems);
         Assert.Empty(vm.Documents.OfType<DatabaseDocument>());
         Assert.Empty(explorer.Tabs);
         Assert.True(File.Exists(Path.Combine(directory, "workspace.json")));
 
         // Back in the first one: its data source, tree and tab, as they were.
         await vm.OpenSolutionAsync(first);
-        Assert.Same(vm.Database, ViewOf(window)?.DataContext);
-        Assert.Equal(["orders (sqlite)"], vm.Database.ServerItems.Select(s => s.Label));
-        var data = Assert.IsType<DataDocumentViewModel>(vm.Database.Tabs.Single());
+        Assert.Same(Db(vm).Explorer, ViewOf(window)?.DataContext);
+        Assert.Equal(["orders (sqlite)"], Db(vm).Explorer.ServerItems.Select(s => s.Label));
+        var data = Assert.IsType<DataDocumentViewModel>(Db(vm).Explorer.Tabs.Single());
         Assert.Equal("users", data.Table.Name);
         Assert.Same(data, vm.Documents.OfType<DatabaseDocument>().Single().Inner);
         await Until(() => data.Rows.Count == 3);
-        await Until(() => vm.Database.ServerItems.Single() is { IsExpanded: true, IsLoading: false });
+        await Until(() => Db(vm).Explorer.ServerItems.Single() is { IsExpanded: true, IsLoading: false });
 
         // No solution: Studio's list, and none of the first one's tabs.
         await vm.CloseSolutionCommand.ExecuteAsync(null);
-        Assert.Same(vm.Database, ViewOf(window)?.DataContext);
-        Assert.Equal(["shop (sqlite)"], vm.Database.ServerItems.Select(s => s.Label));
+        Assert.Same(Db(vm).Explorer, ViewOf(window)?.DataContext);
+        Assert.Equal(["shop (sqlite)"], Db(vm).Explorer.ServerItems.Select(s => s.Label));
         Assert.Empty(vm.Documents.OfType<DatabaseDocument>());
         Environment.SetEnvironmentVariable("BENGINE_SERVERS_FILE", null);
         window.Close();
@@ -218,8 +219,8 @@ public class DatabaseExplorerTests
         var vm = NewViewModel();
         var window = new MainWindow { DataContext = vm, Width = 1500, Height = 950 };
         window.Show();
-        window.ShowDatabaseExplorer();
-        var explorer = vm.Database;
+        vm.ShowToolWindow(Karvon.Database.DatabaseModule.ToolWindowId);
+        var explorer = Db(vm).Explorer;
         await Until(() => explorer.Roots.Count > 0 && window.GetVisualDescendants().OfType<DatabaseExplorerView>().Any());
         var view = window.GetVisualDescendants().OfType<DatabaseExplorerView>().Single();
         var server = explorer.ServerItems.First();

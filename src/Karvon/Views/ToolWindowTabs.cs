@@ -31,7 +31,6 @@ public static class ToolWindowTabs
         ToolWindows.SolutionExplorer => "ToolExplorer",
         ToolWindows.TestExplorer => "ToolTests",
         ToolWindows.GitChanges => "ToolGit",
-        ToolWindows.DatabaseExplorer => "ToolDatabase",
         ToolWindows.Claude => "Claude",
         ToolWindows.ErrorList => "ToolErrors",
         ToolWindows.Output => "ToolOutput",

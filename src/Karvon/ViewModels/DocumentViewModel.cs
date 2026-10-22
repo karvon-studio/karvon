@@ -15,6 +15,12 @@ public abstract partial class DocumentTab : ObservableObject, IDisposable
 
     public virtual bool IsDirty => false;
 
+    /// <summary>
+    /// Closing the tab: a document whose owner closes it (a Database Explorer document) asks the owner, which removes the
+    /// tab, and says true. The others are closed by the document well.
+    /// </summary>
+    public virtual bool CloseByOwner() => false;
+
     /// <summary>Pinned tabs stay at the left and survive "Close All But Pinned".</summary>
     [ObservableProperty]
     public partial bool IsPinned { get; set; }

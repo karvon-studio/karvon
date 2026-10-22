@@ -111,14 +111,6 @@
         <MenuItem Header="_Output" Click="OnShowOutput" />
         <MenuItem Header="_Test Explorer" Click="OnShowTestExplorer" />
         <MenuItem Header="_Git Changes" Command="{Binding ShowGitChangesCommand}" />
-        <MenuItem Click="OnShowDatabaseExplorer">
-          <MenuItem.Header>
-            <Grid ColumnDefinitions="*,Auto">
-              <TextBlock Text="_Database Explorer" />
-              <TextBlock Grid.Column="1" Text="Ctrl+Alt+S" Margin="32,0,0,0" Foreground="{StaticResource VsGrayTextBrush}" />
-            </Grid>
-          </MenuItem.Header>
-        </MenuItem>
         <!-- The modules' tool windows go here (MainWindow.Modules.cs) -->
         <MenuItem Name="ViewClaudeItem" Command="{Binding ShowClaudeCommand}">
           <MenuItem.Header>
@@ -843,10 +835,6 @@
                 </StackPanel>
               </ScrollViewer>
             </DockPanel>
-          </TabItem>
-          <!-- Database Explorer (Bengine Data Studio's), made the first time it shows -->
-          <TabItem Name="DatabaseExplorerTab" Header="Database Explorer" Tag="DatabaseExplorer">
-            <ContentControl Name="DatabaseExplorerHost" />
           </TabItem>
           <!-- The modules' tool windows go here, before Claude Code (MainWindow.Modules.cs) -->
           <TabItem Header="Claude Code" Tag="Claude">
