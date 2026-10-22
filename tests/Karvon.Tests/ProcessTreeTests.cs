@@ -18,7 +18,18 @@ public class ProcessTreeTests
         }
     }
 
-    static bool Alive(int pid) => File.Exists($"/proc/{pid}/stat") && !File.ReadAllText($"/proc/{pid}/stat").Contains(") Z ", StringComparison.Ordinal);
+    static bool Alive(int pid)
+    {
+        try
+        {
+            return !File.ReadAllText($"/proc/{pid}/stat").Contains(") Z ", StringComparison.Ordinal);
+        }
+        catch (IOException)
+        {
+            // Gone, also between looking for its folder and reading it.
+            return false;
+        }
+    }
 
     static async Task<bool> GoneAsync(int pid)
     {

@@ -45,7 +45,7 @@ public class MemoryProbe
         {
             (ToolWindows.SolutionExplorer, "Solution Explorer"), (ToolWindows.GitChanges, "Git Changes"), (ToolWindows.TestExplorer, "Test Explorer"),
             (ToolWindows.DatabaseExplorer, "Database Explorer"), (ToolWindows.DockerExplorer, "Docker Explorer (fake engine)"),
-            (ToolWindows.Servers, "Servers"), (ToolWindows.Mcp, "MCP Servers"), (ToolWindows.Skills, "Skills"), (ToolWindows.Claude, "Claude (empty)"),
+            (ToolWindows.Servers, "Servers"), (Karvon.Mcp.McpModule.ToolWindowId, "MCP Servers"), (Karvon.Skills.SkillsModule.ToolWindowId, "Skills"), (ToolWindows.Claude, "Claude (empty)"),
         })
         {
             vm.ShowToolWindow(id);

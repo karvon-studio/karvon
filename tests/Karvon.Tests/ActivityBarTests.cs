@@ -4,6 +4,7 @@ using Avalonia.Headless;
 using Avalonia.Headless.XUnit;
 using Avalonia.Input;
 using Avalonia.VisualTree;
+using Karvon.Modules;
 using Karvon.ViewModels;
 using Karvon.Views;
 using static Karvon.Tests.UiTests;
@@ -155,7 +156,7 @@ public class ActivityBarTests
 
         // Reset Window Layout: every tab back in its place, in the first order.
         window.ResetWindowLayout();
-        Assert.Equal([ToolWindows.SolutionExplorer, ToolWindows.TestExplorer, ToolWindows.GitChanges, ToolWindows.DatabaseExplorer, ToolWindows.DockerExplorer, ToolWindows.Servers, ToolWindows.Mcp, ToolWindows.Skills, ToolWindows.Claude],
+        Assert.Equal([ToolWindows.SolutionExplorer, ToolWindows.TestExplorer, ToolWindows.GitChanges, ToolWindows.DatabaseExplorer, ToolWindows.DockerExplorer, ToolWindows.Servers, Karvon.Mcp.McpModule.ToolWindowId, Karvon.Skills.SkillsModule.ToolWindowId, ToolWindows.Claude],
             Order(rightTabs));
         Assert.Empty(vm.Settings.Layout.ToolOrder);
         window.Close();

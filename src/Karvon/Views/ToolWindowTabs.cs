@@ -2,6 +2,7 @@ using System.Globalization;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Data.Converters;
+using Karvon.Modules;
 using Karvon.ViewModels;
 
 namespace Karvon.Views;
@@ -19,8 +20,13 @@ public static class ToolWindowTabs
 
     public static void SetBadge(TabItem item, int value) => item.SetValue(BadgeProperty, value);
 
+    /// <summary>The modules' tool windows' icons, by their ids.</summary>
+    static readonly Dictionary<string, string> ModuleIcons = [];
+
+    public static void Register(ToolWindowInfo tool) => ModuleIcons[tool.Id] = tool.Icon;
+
     /// <summary>The icon of a tool window, by its id (the tab's Tag).</summary>
-    public static string IconOf(string? id) => id switch
+    public static string IconOf(string? id) => id is not null && ModuleIcons.TryGetValue(id, out var icon) ? icon : id switch
     {
         ToolWindows.SolutionExplorer => "ToolExplorer",
         ToolWindows.TestExplorer => "ToolTests",
@@ -28,8 +34,6 @@ public static class ToolWindowTabs
         ToolWindows.DatabaseExplorer => "ToolDatabase",
         ToolWindows.DockerExplorer => "Docker",
         ToolWindows.Servers => "ToolServers",
-        ToolWindows.Mcp => "ToolMcp",
-        ToolWindows.Skills => "ToolSkills",
         ToolWindows.Claude => "Claude",
         ToolWindows.ErrorList => "ToolErrors",
         ToolWindows.Output => "ToolOutput",

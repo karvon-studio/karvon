@@ -7,10 +7,6 @@
         xmlns:dvm="using:Karvon.Docker.ViewModels"
         xmlns:sv="using:Karvon.Servers.Views"
         xmlns:svm="using:Karvon.Servers.ViewModels"
-        xmlns:mv="using:Karvon.Mcp.Views"
-        xmlns:mvm="using:Karvon.Mcp.ViewModels"
-        xmlns:kv="using:Karvon.Skills.Views"
-        xmlns:kvm="using:Karvon.Skills.ViewModels"
         xmlns:ae="https://github.com/avaloniaui/avaloniaedit"
         x:Class="Karvon.Views.MainWindow"
         x:DataType="vm:MainViewModel"
@@ -113,7 +109,7 @@
         <MenuItem Header="Find All _References" InputGesture="Shift+F12" Click="OnFindReferences" />
         <MenuItem Header="Re_name..." InputGesture="F2" Click="OnRename" />
       </MenuItem>
-      <MenuItem Header="_View">
+      <MenuItem Name="ViewMenu" Header="_View">
         <MenuItem Header="Solution _Explorer" Click="OnShowSolutionExplorer" />
         <MenuItem Header="E_rror List" Click="OnShowErrorList" />
         <MenuItem Header="_Output" Click="OnShowOutput" />
@@ -129,9 +125,8 @@
         </MenuItem>
         <MenuItem Header="Doc_ker Explorer" Command="{Binding ShowDockerExplorerCommand}" />
         <MenuItem Header="Ser_vers" Command="{Binding ShowServersCommand}" />
-        <MenuItem Header="_MCP Servers" Command="{Binding ShowMcpCommand}" />
-        <MenuItem Header="S_kills" Command="{Binding ShowSkillsCommand}" />
-        <MenuItem Command="{Binding ShowClaudeCommand}">
+        <!-- The modules' tool windows go here (MainWindow.Modules.cs) -->
+        <MenuItem Name="ViewClaudeItem" Command="{Binding ShowClaudeCommand}">
           <MenuItem.Header>
             <Grid ColumnDefinitions="*,Auto">
               <TextBlock Text="Claude Code" />
@@ -254,6 +249,8 @@
         <Separator />
         <MenuItem Header="_Restart Language Server" Command="{Binding RestartLanguageServerCommand}" />
         <MenuItem Header="_Trust ASP.NET Core Development Certificate" Command="{Binding TrustDevCertificateCommand}" />
+        <Separator />
+        <MenuItem Header="_Modules..." Click="OnModules" />
       </MenuItem>
       <MenuItem Name="WindowMenu" Header="_Window">
         <MenuItem Name="SplitMenuItem" Header="Spl_it" Click="OnSplitWindow" />
@@ -865,14 +862,7 @@
           <TabItem Name="ServersTab" Header="Servers" Tag="Servers">
             <ContentControl Name="ServersHost" />
           </TabItem>
-          <!-- MCP Servers, made the first time it shows -->
-          <TabItem Name="McpTab" Header="MCP Servers" Tag="Mcp">
-            <ContentControl Name="McpHost" />
-          </TabItem>
-          <!-- Skills, made the first time it shows -->
-          <TabItem Name="SkillsTab" Header="Skills" Tag="Skills">
-            <ContentControl Name="SkillsHost" />
-          </TabItem>
+          <!-- The modules' tool windows go here, before Claude Code (MainWindow.Modules.cs) -->
           <TabItem Header="Claude Code" Tag="Claude">
             <v:ClaudeView Name="ClaudePanel" DataContext="{Binding Claude}" />
           </TabItem>
@@ -896,21 +886,6 @@
         </ContentControl.ContentTemplate>
       </ContentControl>
 
-      <ContentControl Name="McpOverlayHost" Grid.ColumnSpan="5" ZIndex="98" Content="{Binding Mcp}">
-        <ContentControl.ContentTemplate>
-          <DataTemplate x:DataType="mvm:McpExplorerViewModel">
-            <mv:McpOverlay />
-          </DataTemplate>
-        </ContentControl.ContentTemplate>
-      </ContentControl>
-
-      <ContentControl Name="SkillsOverlayHost" Grid.ColumnSpan="5" ZIndex="98" Content="{Binding Skills}">
-        <ContentControl.ContentTemplate>
-          <DataTemplate x:DataType="kvm:SkillsExplorerViewModel">
-            <kv:SkillsOverlay />
-          </DataTemplate>
-        </ContentControl.ContentTemplate>
-      </ContentControl>
 
       <!-- Where a dragged document tab would go -->
       <Canvas Name="DocumentDropLayer" Grid.ColumnSpan="5" IsHitTestVisible="False" ZIndex="99">

@@ -8,6 +8,7 @@ using Karvon.Claude;
 using Karvon.Lsp;
 using Karvon.Editor;
 using AvaloniaEdit.Folding;
+using Karvon.Modules;
 using Karvon.ViewModels;
 using Karvon.Testing;
 using Karvon.Views;
@@ -44,11 +45,15 @@ public class UiTests
     }
 
     /// <summary>A view model with no remembered per-solution state, so tests do not depend on each other's order.</summary>
-    internal static MainViewModel NewViewModel()
+    internal static MainViewModel NewViewModel(Action<Karvon.Services.Settings>? configure = null)
     {
         // The Claude Code window must never start the user's real CLI from a test.
         FakeClaude.Ensure();
-        var vm = new MainViewModel();
+        var settings = Karvon.Services.Settings.Load();
+        // Every module on, unless the test says otherwise.
+        settings.DisabledModules = [];
+        configure?.Invoke(settings);
+        var vm = new MainViewModel(settings);
         // Other tests may be building in parallel: never shut down the shared build servers.
         vm.ShutdownBuildServers = () => Task.CompletedTask;
         vm.Settings.Solutions.Clear();

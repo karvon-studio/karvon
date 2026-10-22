@@ -68,6 +68,9 @@ public sealed class Settings
     /// <summary>What Claude does with Karvon's tools shows in Karvon: a query's results, a container's logs, the build, a search...</summary>
     public bool ClaudeShowToolActivity { get; set; } = true;
 
+    /// <summary>The ids of the modules turned off in Tools > Modules.</summary>
+    public List<string> DisabledModules { get; set; } = [];
+
     /// <summary>Karvon's Docker tools see every container, not only the open solution's compose project.</summary>
     public bool ClaudeAllContainers { get; set; }
 
@@ -162,8 +165,14 @@ public sealed class Settings
         return new Settings();
     }
 
+    /// <summary>Kept in memory only: <see cref="Save"/> does not write it (a test's own settings, beside those the others share).</summary>
+    [System.Text.Json.Serialization.JsonIgnore]
+    public bool InMemory { get; set; }
+
     public void Save()
     {
+        if (InMemory)
+            return;
         try
         {
             Directory.CreateDirectory(Path.GetDirectoryName(FilePath)!);

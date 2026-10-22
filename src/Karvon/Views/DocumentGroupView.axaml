@@ -6,10 +6,6 @@
              xmlns:dv="using:Karvon.Docker.Views"
              xmlns:svm="using:Karvon.Servers.ViewModels"
              xmlns:sv="using:Karvon.Servers.Views"
-             xmlns:mvm="using:Karvon.Mcp.ViewModels"
-             xmlns:mv="using:Karvon.Mcp.Views"
-             xmlns:kvm="using:Karvon.Skills.ViewModels"
-             xmlns:kv="using:Karvon.Skills.Views"
              x:Class="Karvon.Views.DocumentGroupView"
              x:DataType="vm:DocumentGroup">
   <UserControl.Styles>
@@ -71,26 +67,6 @@
                           ShowPreview="{Binding $parent[Window].((vm:MainViewModel)DataContext).MarkdownPreview}"
                           PreviewBelow="{Binding $parent[Window].((vm:MainViewModel)DataContext).MarkdownPreviewBelow}" />
           </DockPanel>
-        </Border>
-      </DataTemplate>
-      <DataTemplate DataType="kvm:SkillDocument" x:DataType="kvm:SkillDocument">
-        <Border Classes="docframe" BorderBrush="#007ACC" BorderThickness="0,2,0,0">
-          <kv:SkillPageView DataContext="{Binding Page}" />
-        </Border>
-      </DataTemplate>
-      <DataTemplate DataType="kvm:SkillsMarketplaceDocument" x:DataType="kvm:SkillsMarketplaceDocument">
-        <Border Classes="docframe" BorderBrush="#007ACC" BorderThickness="0,2,0,0">
-          <kv:SkillsMarketplaceView DataContext="{Binding Marketplace}" />
-        </Border>
-      </DataTemplate>
-      <DataTemplate DataType="mvm:McpServerDocument" x:DataType="mvm:McpServerDocument">
-        <Border Classes="docframe" BorderBrush="#007ACC" BorderThickness="0,2,0,0">
-          <mv:McpServerPageView DataContext="{Binding Page}" />
-        </Border>
-      </DataTemplate>
-      <DataTemplate DataType="mvm:McpBuiltInDocument" x:DataType="mvm:McpBuiltInDocument">
-        <Border Classes="docframe" BorderBrush="#007ACC" BorderThickness="0,2,0,0">
-          <mv:McpBuiltInView />
         </Border>
       </DataTemplate>
       <DataTemplate DataType="svm:ServerDocument" x:DataType="svm:ServerDocument">

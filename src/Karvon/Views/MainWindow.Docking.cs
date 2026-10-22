@@ -2,16 +2,10 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
+using Karvon.Modules;
 using Karvon.ViewModels;
 
 namespace Karvon.Views;
-
-public enum DockSide
-{
-    Left,
-    Right,
-    Bottom,
-}
 
 /// <summary>
 /// Tool window docking: drag a tool window's tab onto the Dock Left / Right / Bottom guides (or use its context
@@ -124,15 +118,19 @@ public partial class MainWindow
     void InitializeDocking()
     {
         foreach (var item in ToolTabs.ToList())
-        {
-            item.AddHandler(PointerPressedEvent, OnToolTabPressed, RoutingStrategies.Tunnel);
-            item.AddHandler(PointerMovedEvent, OnToolTabMoved, RoutingStrategies.Tunnel);
-            item.AddHandler(PointerReleasedEvent, OnToolTabReleased, RoutingStrategies.Tunnel);
-            item.AddHandler(PointerCaptureLostEvent, (_, _) => EndDrag(), RoutingStrategies.Bubble);
-            item.ContextRequested += OnToolTabContextRequested;
-            ApplyToolTabTheme(item);
-        }
+            AttachToolTab(item);
         UpdateDockLayout();
+    }
+
+    /// <summary>A tool window's tab is dragged to dock it, and has its menu (Float, Dock Left...).</summary>
+    void AttachToolTab(TabItem item)
+    {
+        item.AddHandler(PointerPressedEvent, OnToolTabPressed, RoutingStrategies.Tunnel);
+        item.AddHandler(PointerMovedEvent, OnToolTabMoved, RoutingStrategies.Tunnel);
+        item.AddHandler(PointerReleasedEvent, OnToolTabReleased, RoutingStrategies.Tunnel);
+        item.AddHandler(PointerCaptureLostEvent, (_, _) => EndDrag(), RoutingStrategies.Bubble);
+        item.ContextRequested += OnToolTabContextRequested;
+        ApplyToolTabTheme(item);
     }
 
     const double DefaultLeftWidth = 300, DefaultRightWidth = 400, DefaultBottomHeight = 250;
@@ -554,13 +552,21 @@ public partial class MainWindow
         MainGrid.ColumnDefinitions[0].Width = new GridLength(DefaultLeftWidth);
         MainGrid.ColumnDefinitions[4].Width = new GridLength(DefaultRightWidth);
         LeftGrid.RowDefinitions[2].Height = new GridLength(DefaultBottomHeight);
-        string[] right = [ToolWindows.SolutionExplorer, ToolWindows.TestExplorer, ToolWindows.GitChanges, ToolWindows.DatabaseExplorer, ToolWindows.DockerExplorer, ToolWindows.Servers, ToolWindows.Mcp, ToolWindows.Skills, ToolWindows.Claude];
-        string[] bottom = [ToolWindows.ErrorList, ToolWindows.Output, ToolWindows.FindResults, ToolWindows.Locals, ToolWindows.Watch, ToolWindows.CallStack, ToolWindows.Terminal];
+        // The modules' tool windows where they come by default: at the sides before Claude Code, at the bottom last.
+        var modules = Vm?.Modules.SelectMany(m => m.ToolWindows).ToList() ?? [];
+        string[] right = [ToolWindows.SolutionExplorer, ToolWindows.TestExplorer, ToolWindows.GitChanges, ToolWindows.DatabaseExplorer, ToolWindows.DockerExplorer, ToolWindows.Servers,
+            .. modules.Where(t => t.Side == DockSide.Right).Select(t => t.Id), ToolWindows.Claude];
+        string[] left = [.. modules.Where(t => t.Side == DockSide.Left).Select(t => t.Id)];
+        string[] bottom = [ToolWindows.ErrorList, ToolWindows.Output, ToolWindows.FindResults, ToolWindows.Locals, ToolWindows.Watch, ToolWindows.CallStack, ToolWindows.Terminal,
+            .. modules.Where(t => t.Side == DockSide.Bottom).Select(t => t.Id)];
         foreach (var id in right)
             MoveToolWindow(id, DockSide.Right);
+        foreach (var id in left)
+            MoveToolWindow(id, DockSide.Left);
         foreach (var id in bottom)
             MoveToolWindow(id, DockSide.Bottom);
         Arrange(RightTabs, right);
+        Arrange(LeftTabs, left);
         Arrange(BottomTabs, bottom);
         UpdateDockLayout();
         if (Vm is { } vm)

@@ -29,8 +29,6 @@ public static class ToolWindows
     public const string DatabaseExplorer = "DatabaseExplorer";
     public const string DockerExplorer = "DockerExplorer";
     public const string Servers = "Servers";
-    public const string Mcp = "Mcp";
-    public const string Skills = "Skills";
 }
 
 public enum StatusKind
@@ -72,8 +70,14 @@ public partial class MainViewModel : ObservableObject
     ProcessRunner? _runProcess;
     int? _lastExitCode;
 
-    public MainViewModel()
+    public MainViewModel() : this(Settings.Load())
     {
+    }
+
+    /// <summary>With these settings (the modules that are on among them).</summary>
+    public MainViewModel(Settings settings)
+    {
+        Settings = settings;
         InitializeDocumentGroups();
         if (Settings.UiLanguage is "en" or "uz")
             Karvon.Claude.ClaudeLanguage.Instance.Language = Settings.UiLanguage;
@@ -83,11 +87,12 @@ public partial class MainViewModel : ObservableObject
         OutputChannels = [BuildOutput, DebugOutput, ServerOutput, GitOutput, PackageManagerOutput, DockerOutput, ClaudeOutput];
         SelectedOutput = BuildOutput;
         InitializeDebugging();
+        StartModules();
         EditorHost.DefaultZoom = Math.Clamp(Settings.EditorZoom, EditorHost.MinZoom, EditorHost.MaxZoom);
     }
 
     public IDialogService? Dialogs { get; set; }
-    public Settings Settings { get; } = Settings.Load();
+    public Settings Settings { get; }
 
     public ObservableCollection<ExplorerNode> ExplorerRoots { get; } = [];
     public ObservableCollection<DocumentTab> Documents { get; } = [];

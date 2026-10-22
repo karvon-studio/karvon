@@ -41,6 +41,7 @@ public partial class MainWindow : Window, IDialogService
                 AttachDatabaseExplorer(vm);
                 vm.ToolWindowRequested += OnToolWindowRequested;
                 vm.ToolWindowBesideRequested += OnToolWindowBesideRequested;
+                AttachModules(vm);
                 ApplySavedDockLayout(vm);
                 vm.BreakModeEntered += () =>
                 {
@@ -103,8 +104,7 @@ public partial class MainWindow : Window, IDialogService
             await vm.ShutdownBuildServersAsync();
             vm.ShutdownDocker();
             vm.ShutdownServers();
-            vm.ShutdownMcp();
-            vm.ShutdownSkills();
+            vm.ShutdownModules();
             _closingConfirmed = true;
             Close();
         }

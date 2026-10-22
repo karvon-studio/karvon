@@ -28,16 +28,13 @@ public partial class MainViewModel : IClaudeToolHost
         var claude = new ClaudeViewModel(Settings, ClaudeWorkingDirectory, ClaudeEditorContextNow, ClaudeFiles)
         {
             Tools = tools,
-            McpServers = ClaudeMcpServers,
+            McpServers = cwd => ExtraMcpServers?.Invoke(cwd),
         };
-        // Another account has other servers (its own .claude.json).
+        // Another account has other servers (its own .claude.json) and its own skills.
         claude.PropertyChanged += (_, e) =>
         {
             if (e.PropertyName == nameof(ClaudeViewModel.SelectedAccount))
-            {
-                Mcp?.Refresh();
-                Skills?.Refresh();
-            }
+                ClaudeChanged?.Invoke();
         };
         claude.OpenFileRequested += (path, line) =>
         {
@@ -131,8 +128,7 @@ public partial class MainViewModel : IClaudeToolHost
     {
         _claudeFiles = null;
         // Another folder has its own .mcp.json, its own servers in Claude Code's settings, its own skills.
-        Mcp?.Refresh();
-        Skills?.Refresh();
+        WorkspaceChanged?.Invoke();
         if (_claude is { } claude)
             await claude.OnWorkingDirectoryChangedAsync();
     }
