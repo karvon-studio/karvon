@@ -39,7 +39,7 @@ public class ModuleTemplateTests
     [Fact]
     public void Every_language_module_brings_its_templates()
     {
-        Assert.Equal(["karvon.typescript.node", "karvon.python.project", "karvon.go.module", "karvon.rust.bin", "karvon.rust.lib", "karvon.cpp.cmake", "karvon.c.cmake", "karvon.java.maven"],
+        Assert.Equal(["karvon.typescript.node", "karvon.python.project", "karvon.python.uv", "karvon.go.module", "karvon.rust.bin", "karvon.rust.lib", "karvon.cpp.cmake", "karvon.c.cmake", "karvon.java.maven"],
             Karvon.BuiltInModules.Create().SelectMany(m => m.ProjectTemplates).Select(t => t.Identity));
         Assert.Equal("shop_app", TemplateSteps.PackageName("Shop App", '_'));
         Assert.Equal("app-1st", TemplateSteps.PackageName("1st", '-'));
@@ -99,6 +99,20 @@ public class ModuleTemplateTests
         Assert.True(Python.PytestFramework.IsUsedIn(dir));
         var output = new List<string>();
         Assert.True(await RunAsync(Python.PythonEnvironment.Interpreter(dir, "")!, ["-m", "pytest", "-q"], dir, output) == 0, string.Join("\n", output));
+        Directory.Delete(Path.GetDirectoryName(dir)!, recursive: true);
+    }
+
+    [Fact]
+    public async Task A_uv_project_syncs_and_tests_as_made()
+    {
+        Assert.SkipUnless(Environment.GetEnvironmentVariable("KARVON_PYTHON_LIVE") == "1" && Has("uv"), "Set KARVON_PYTHON_LIVE=1, with uv installed, to make a uv project.");
+        var dir = await CreateAsync(Template("karvon.python.uv"));
+        Assert.True(Python.UvProject.Is(dir));
+        Assert.True(File.Exists(Path.Combine(dir, "uv.lock")));
+        Assert.Equal(["uv: sync", "uv: run shop-app"], Python.PythonTasks.Read(dir).Select(t => t.Name).Take(2));
+        var output = new List<string>();
+        Assert.True(await RunAsync("uv", ["run", "pytest", "-q"], dir, output) == 0, string.Join("\n", output));
+        Assert.NotNull(Python.PythonEnvironment.VirtualEnvironmentBin(dir));
         Directory.Delete(Path.GetDirectoryName(dir)!, recursive: true);
     }
 

@@ -199,7 +199,9 @@ public sealed class PytestFramework(TestFrameworkStart start) : TestFramework
         var exit = await runner.WaitAsync(ct);
         // pytest's exit codes: 0 passed, 1 failed, 5 none collected; 2-4 it could not run.
         if (exit is 2 or 3 or 4 && output.Any(l => l.Contains("No module named pytest", StringComparison.Ordinal)))
-            return $"pytest is not installed for {python}: pip install pytest.";
+            return UvProject.Is(start.Workspace) && PythonEnvironment.VirtualEnvironmentBin(start.Workspace) is null
+                ? "The uv project has no .venv yet: run its uv: sync task (Build > Run Task), then the tests."
+                : $"pytest is not installed for {python}: pip install pytest.";
         return exit is 2 or 3 or 4 ? $"pytest could not run (exit code {exit}): see Output (Tests)." : null;
     }
 

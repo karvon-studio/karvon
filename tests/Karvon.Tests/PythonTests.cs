@@ -10,6 +10,40 @@ namespace Karvon.Tests;
 public class PythonTests
 {
     [Fact]
+    public void A_uv_project_has_uv_sync_and_its_scripts_as_tasks()
+    {
+        var dir = Directory.CreateTempSubdirectory("karvon-uv-").FullName;
+        File.WriteAllText(Path.Combine(dir, "pyproject.toml"), """
+            [project]
+            name = "shop"
+            version = "0.1.0"
+
+            [project.scripts]
+            shop = "shop.cli:main"
+            "shop-admin" = "shop.admin:run"
+
+            [dependency-groups]
+            dev = ["pytest"]
+            """);
+        // A pyproject.toml alone is no uv project; its uv.lock (or [tool.uv]) makes it one.
+        Assert.False(Karvon.Python.UvProject.Is(dir));
+        File.WriteAllText(Path.Combine(dir, "uv.lock"), "version = 1\n");
+        Assert.True(Karvon.Python.UvProject.Is(dir));
+        Assert.Equal(["shop", "shop-admin"], Karvon.Python.UvProject.Scripts(dir));
+
+        var tasks = Karvon.Python.PythonTasks.Read(dir);
+        Assert.Equal(["uv: sync", "uv: run shop", "uv: run shop-admin", "python: current file"], tasks.Select(t => t.Name));
+        Assert.Equal(("uv", "run shop", true), (tasks[1].Program, string.Join(' ', tasks[1].Arguments), tasks[1].IsDefault));
+        // Without its .venv nothing debugs a script; with it, debugpy runs the script the .venv has.
+        Assert.Null(tasks[1].Debug);
+        Directory.CreateDirectory(Path.Combine(dir, ".venv", "bin"));
+        File.WriteAllText(Path.Combine(dir, ".venv", "bin", "python"), "");
+        File.WriteAllText(Path.Combine(dir, ".venv", "bin", "shop"), "#!/usr/bin/env python\n");
+        Assert.Equal(Path.Combine(dir, ".venv", "bin", "shop"), Karvon.Python.PythonTasks.Read(dir)[1].Debug!.Configuration["program"]!.GetValue<string>());
+        Directory.Delete(dir, recursive: true);
+    }
+
+    [Fact]
     public void It_serves_python_with_the_workspaces_environment()
     {
         Assert.True(PyrightServer.Serves("/w/app.py"));

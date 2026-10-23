@@ -79,7 +79,8 @@ A signed and notarized `.dmg`, Homebrew; .NET debugging on Apple Silicon (netcor
 Each language is a module (in now unless it says next):
 
 - Python: Pyright's language server, debugpy for F5 (launch.json's, or the folder's main.py, app.py, manage.py or the
-  file in the editor), pytest in Test Explorer, all with the workspace's .venv; next uv.
+  file in the editor), pytest in Test Explorer, all with the workspace's .venv; a uv project's uv sync and scripts as
+  tasks, and a uv project's template.
 - Go: gopls, Delve, a module's go build, test, vet and run, go test in Test Explorer.
 - Rust: rust-analyzer, CodeLLDB, a Cargo package's build, check, clippy, test and run, cargo test in Test Explorer.
 - C and C++: clangd, CodeLLDB, CMake's and Make's builds, CTest in Test Explorer.

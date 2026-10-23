@@ -16,7 +16,8 @@ public sealed class PythonModule : KarvonModule
     public override string Description =>
         "Pyright's language server for .py files: errors as you type, completion, hover, go to definition, references and "
         + "rename, installed the first time one of them opens (it runs on Node.js); F5 debugs a launch.json python configuration "
-        + "with debugpy, and Test Explorer runs and debugs pytest's tests. They use the workspace's interpreter (its .venv first).";
+        + "with debugpy, and Test Explorer runs and debugs pytest's tests. They use the workspace's interpreter (its .venv first). "
+        + "A uv project has uv sync and its scripts as tasks.";
 
     public override IReadOnlyList<LanguageServerInfo> LanguageServers =>
         [new("pyright", "Python language server (Pyright)", PyrightServer.Serves, StartAsync)];
@@ -39,6 +40,9 @@ public sealed class PythonModule : KarvonModule
     public override IReadOnlyList<WorkspaceTask> WorkspaceTasks(string workspace) => PythonTasks.Read(workspace);
 
     public override IReadOnlyList<Templates.ProjectTemplate> ProjectTemplates => PythonTemplates.All;
+
+    /// <summary>A uv project's scripts are pyproject.toml's.</summary>
+    public override IReadOnlyList<string> WorkspaceTaskFiles => ["pyproject.toml"];
 
     /// <summary>Test Explorer: pytest's tests, when the workspace tests with pytest.</summary>
     public override IReadOnlyList<Testing.TestFramework> TestFrameworks(TestFrameworkStart start) =>
