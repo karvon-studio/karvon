@@ -321,6 +321,10 @@ public class LspClient : IAsyncDisposable
         }
     }
 
+    /// <summary>One of the server's own commands (workspace/executeCommand: jdtls's vscode.java.startDebugSession...): what it returns.</summary>
+    public Task<JsonElement> ExecuteCommandAsync(string command, object?[] arguments, CancellationToken ct) =>
+        QueryAsync("workspace/executeCommand", new { command, arguments }, ct);
+
     public async Task<string?> HoverAsync(string path, LspPosition pos, CancellationToken ct)
     {
         var result = await QueryAsync("textDocument/hover", DocPos(path, pos), ct);
@@ -437,8 +441,16 @@ public class LspClient : IAsyncDisposable
             : [];
     }
 
+    int _disposed;
+
+    /// <summary>Whether it has been shut down (by its workspace closing, or by its module).</summary>
+    public bool IsDisposed => _disposed == 1;
+
+    /// <summary>Shuts the server down; once (its workspace and its module may both do it).</summary>
     public virtual async ValueTask DisposeAsync()
     {
+        if (Interlocked.Exchange(ref _disposed, 1) == 1)
+            return;
         _watch.Dispose();
         // Its children, before it goes: they may outlive a server that exits by itself (Roslyn's build hosts).
         var tree = Services.ProcessTree.Descendants(Process.Id);

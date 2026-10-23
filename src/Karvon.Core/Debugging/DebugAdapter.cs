@@ -11,13 +11,14 @@ namespace Karvon.Debugging;
 /// </summary>
 public sealed partial class DebugAdapter : IAsyncDisposable
 {
-    readonly Process _process;
+    /// <summary>Its program; null for a server another program runs (jdtls's java-debug).</summary>
+    readonly Process? _process;
     readonly (string Host, int Port)? _server;
     readonly List<TcpClient> _clients = [];
     bool _stdioTaken;
     bool _logging;
 
-    DebugAdapter(string type, Process process, (string Host, int Port)? server)
+    DebugAdapter(string type, Process? process, (string Host, int Port)? server)
     {
         Type = type;
         _process = process;
@@ -26,6 +27,12 @@ public sealed partial class DebugAdapter : IAsyncDisposable
 
     /// <summary>The adapter's id in its initialize request ("coreclr", "pwa-node").</summary>
     public string Type { get; }
+
+    /// <summary>
+    /// A DAP server that is there already, which another program runs (a language server's: jdtls starts java-debug's
+    /// and says its port): each session connects to it, and nothing is started or stopped with it.
+    /// </summary>
+    public static DebugAdapter AtServer(string type, string host, int port) => new(type, null, (host, port));
 
     /// <summary>A program speaking DAP on its stdin and stdout; what it writes to stderr is its log.</summary>
     public static DebugAdapter Start(string type, ProcessStartInfo program)
@@ -87,7 +94,7 @@ public sealed partial class DebugAdapter : IAsyncDisposable
             if (_stdioTaken)
                 throw new NotSupportedException("this debugger has one session only");
             _stdioTaken = true;
-            return new DapConnection(_process.StandardOutput.BaseStream, _process.StandardInput.BaseStream);
+            return new DapConnection(_process!.StandardOutput.BaseStream, _process.StandardInput.BaseStream);
         }
         var client = new TcpClient { NoDelay = true };
         try
@@ -108,7 +115,7 @@ public sealed partial class DebugAdapter : IAsyncDisposable
     /// <summary>What the adapter writes besides DAP (its stderr; a server's stdout after it listens), line by line, from now on.</summary>
     public void StartLogging(Action<string> log)
     {
-        if (_logging)
+        if (_logging || _process is null)
             return;
         _logging = true;
         _ = Task.Run(() => ReadLinesAsync(_process.StandardError, log));
@@ -128,7 +135,7 @@ public sealed partial class DebugAdapter : IAsyncDisposable
         }
     }
 
-    public bool HasExited => _process.HasExited;
+    public bool HasExited => _process?.HasExited == true;
 
     static void Kill(Process process)
     {
@@ -150,8 +157,11 @@ public sealed partial class DebugAdapter : IAsyncDisposable
                 client.Dispose();
             _clients.Clear();
         }
-        Kill(_process);
-        _process.Dispose();
+        if (_process is not null)
+        {
+            Kill(_process);
+            _process.Dispose();
+        }
         return ValueTask.CompletedTask;
     }
 }
