@@ -36,8 +36,8 @@ public sealed partial class DotNetModule : KarvonModule
         {
             Description = "roslyn-language-server (MIT), Visual Studio's C# engine, from nuget.org.",
         },
-        new("netcoredbg", ".NET debugger", Karvon.Debugging.NetcoredbgLocator.Version, Karvon.Debugging.NetcoredbgLocator.InstallRoot,
-            () => Karvon.Debugging.NetcoredbgLocator.Find() is not null, Karvon.Debugging.NetcoredbgLocator.EnsureInstalledAsync)
+        new("netcoredbg", ".NET debugger", Karvon.DotNet.Debugging.NetcoredbgLocator.Version, Karvon.DotNet.Debugging.NetcoredbgLocator.InstallRoot,
+            () => Karvon.DotNet.Debugging.NetcoredbgLocator.Find() is not null, Karvon.DotNet.Debugging.NetcoredbgLocator.EnsureInstalledAsync)
         {
             Description = "Samsung's netcoredbg (MIT), from its GitHub release.",
         },

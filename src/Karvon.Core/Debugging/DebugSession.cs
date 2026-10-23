@@ -17,14 +17,8 @@ public sealed record BreakpointResult(bool Verified, int? Line, string? Message)
 
 public sealed record EvaluateResult(string Value, string? Type, int VariablesReference);
 
-public sealed record LaunchRequest(
-    string Program,
-    IReadOnlyList<string> Args,
-    string WorkingDirectory,
-    IReadOnlyDictionary<string, string> Environment);
-
 /// <summary>
-/// One debugging session (launch, breakpoints, stepping, inspection) with a debug adapter: netcoredbg for .NET, a module's
+/// One debugging session (launch, breakpoints, stepping, inspection) with a debug adapter, a module's
 /// for its runtime. An adapter that debugs several processes (js-debug: npm, then the node it starts) asks for a child
 /// session for each (startDebugging); the breakpoints go to all of them, and stepping and inspection to the one that
 /// stopped last.
@@ -61,56 +55,6 @@ public sealed class DebugSession : IAsyncDisposable
 
     /// <summary>A breakpoint became bound (or unbound) later, e.g. when its module loaded: file, requested line, verified.</summary>
     public event Action<string, int, bool>? BreakpointChanged;
-
-    /// <summary>Launches a .NET program under netcoredbg.</summary>
-    public static Task<DebugSession> LaunchAsync(
-        string adapterPath,
-        LaunchRequest launch,
-        IReadOnlyDictionary<string, IReadOnlyList<int>> breakpoints,
-        Action<string, IReadOnlyList<BreakpointResult>> onBreakpointsVerified,
-        Action<DebugSession>? beforeConfigurationDone,
-        CancellationToken ct) =>
-        StartAsync(Netcoredbg(adapterPath), "launch", Json(new
-        {
-            name = "Karvon Launch",
-            type = "coreclr",
-            request = "launch",
-            program = launch.Program,
-            args = launch.Args,
-            cwd = launch.WorkingDirectory,
-            env = launch.Environment,
-            stopAtEntry = false,
-            justMyCode = true,
-            enableStepFiltering = true,
-            console = "internalConsole",
-        }), breakpoints, onBreakpointsVerified, beforeConfigurationDone, ct);
-
-    /// <summary>Attaches to a running .NET process (used to debug tests: vstest's testhost waits for us).</summary>
-    public static Task<DebugSession> AttachAsync(
-        string adapterPath,
-        int processId,
-        IReadOnlyDictionary<string, IReadOnlyList<int>> breakpoints,
-        Action<string, IReadOnlyList<BreakpointResult>> onBreakpointsVerified,
-        Action<DebugSession>? beforeConfigurationDone,
-        CancellationToken ct) =>
-        StartAsync(Netcoredbg(adapterPath), "attach", Json(new
-        {
-            name = "Karvon Attach",
-            type = "coreclr",
-            request = "attach",
-            processId,
-            justMyCode = true,
-            enableStepFiltering = true,
-        }), breakpoints, onBreakpointsVerified, beforeConfigurationDone, ct);
-
-    /// <summary>netcoredbg, on its stdin and stdout.</summary>
-    public static DebugAdapter Netcoredbg(string adapterPath)
-    {
-        var psi = new ProcessStartInfo(adapterPath);
-        psi.ArgumentList.Add("--interpreter=vscode");
-        DotnetCli.ApplyEnvironment(psi);
-        return DebugAdapter.Start("coreclr", psi);
-    }
 
     static JsonObject Json(object value) => JsonSerializer.SerializeToNode(value, value.GetType(), JsonRpcConnection.JsonOptions)!.AsObject();
 

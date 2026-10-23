@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using Karvon.Build;
 using Karvon.Debugging;
+using Karvon.DotNet.Debugging;
 
 namespace Karvon.Tests;
 
@@ -26,7 +27,7 @@ public class DebuggerIntegrationTests
         var ended = new TaskCompletionSource<int?>();
         var verified = new Dictionary<string, IReadOnlyList<BreakpointResult>>();
 
-        await using var session = await DebugSession.LaunchAsync(
+        await using var session = await Netcoredbg.LaunchAsync(
             adapter,
             new LaunchRequest(DotnetCli.Executable, [dll], Path.GetDirectoryName(project)!, new Dictionary<string, string>
             {

@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using Karvon.Debugging;
+using Karvon.DotNet.Debugging;
 
 namespace Karvon.Tests;
 

@@ -21,7 +21,7 @@ static class DotNetDebugger
         {
             if (IsDotnet(start.Configuration))
                 await ResolveAsync(start.Configuration, workbench, start.Log);
-            return DebugSession.Netcoredbg(await NetcoredbgLocator.EnsureInstalledAsync(start.Log, start.Cancellation));
+            return Netcoredbg.Adapter(await NetcoredbgLocator.EnsureInstalledAsync(start.Log, start.Cancellation));
         })
         {
             // Visual Studio asks on the first HTTPS run, with or without the debugger.

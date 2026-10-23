@@ -3,7 +3,7 @@ using System.IO.Compression;
 using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 
-namespace Karvon.Debugging;
+namespace Karvon.DotNet.Debugging;
 
 /// <summary>
 /// Finds or installs Samsung's netcoredbg (MIT), the open-source .NET debugger that speaks DAP: the build of this

@@ -3,6 +3,7 @@ using Karvon.Build;
 using Karvon.Debugging;
 using Karvon.DotNet.Testing;
 using Karvon.Testing;
+using Karvon.DotNet.Debugging;
 
 namespace Karvon.Tests;
 
@@ -61,7 +62,7 @@ public class TestingIntegrationTests
         var launcher = new DebuggingTestHostLauncher(async pid =>
         {
             log.Enqueue($"[launch] testhost pid {pid}");
-            session = await DebugSession.AttachAsync(adapter, pid, new Dictionary<string, IReadOnlyList<int>> { [source] = [9] },
+            session = await Netcoredbg.AttachAsync(adapter, pid, new Dictionary<string, IReadOnlyList<int>> { [source] = [9] },
                 (file, r) => log.Enqueue($"[bp] {Path.GetFileName(file)} verified={string.Join(",", r.Select(x => x.Verified))}"),
                 s =>
                 {

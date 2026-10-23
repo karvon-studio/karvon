@@ -37,7 +37,7 @@ src/Karvon.Core/        the workbench; it knows no module
   Lsp/         JSON-RPC, the language server client, file watching
   Workspace/   a folder opened as it is, Solution Explorer's tree, the solution model
   Build/       process runner, the dotnet CLI, MSBuild's error format
-  Debugging/   DAP client and sessions (child sessions too), netcoredbg
+  Debugging/   DAP client and sessions (child sessions too)
   Testing/     what a test framework is (Test Explorer shows the modules')
   Git/         git CLI wrapper and line diff
   Terminal/    integrated terminal
@@ -50,7 +50,7 @@ src/Karvon.Docker/      module: the Docker Explorer
 src/Karvon.Servers/     module: SSH servers
 src/Karvon.Mcp/         module: MCP Servers
 src/Karvon.Skills/      module: Skills (uses Karvon.Mcp)
-src/Karvon.DotNet/      module: .NET (Roslyn, netcoredbg, dotnet build, the SDK's templates, NuGet, vstest in Test Explorer)
+src/Karvon.DotNet/      module: .NET (solutions and projects, Roslyn, netcoredbg, dotnet build, the SDK's templates, NuGet, vstest)
 src/Karvon.TypeScript/  module: TypeScript and JavaScript (TypeScript 7's language server, package.json scripts, js-debug, Vitest, Jest; HTML, CSS, JSON; ESLint)
 src/Karvon.Python/      module: Python (Pyright's language server, debugpy, pytest, the workspace's .venv)
 src/Karvon.Go/          module: Go (gopls, Delve, go build/test/vet/run, go test in Test Explorer)
