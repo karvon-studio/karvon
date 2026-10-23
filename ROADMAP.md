@@ -44,8 +44,8 @@ it does today all along.
 - Claude's IDE tools (`run_build`, `run_tests`, `app_control`, `debug_*`) work for any workload (in now, for a folder's
   tasks and launch configurations).
 - Test Explorer for any workload: a module's test frameworks find and run their tests (in now: .NET's through vstest,
-  Vitest's and Jest's under js-debug, pytest, go test, cargo test, CTest and JUnit, run or debugged; Debug All Tests runs a
-  folder's `package.json` test script under js-debug when no framework is known).
+  Vitest's and Jest's under js-debug, pytest, go test, cargo test, CTest, JUnit and a Kotlin build's Gradle tests, run
+  or debugged; Debug All Tests runs a folder's `package.json` test script under js-debug when no framework is known).
 - Mixed repositories: a frontend's `package.json` folder, in the solution's folder or its repository's, shows as a
   project beside the solution's (in now, with its
   scripts in Run Task, and Start with the Solution: its dev server runs beside the startup project, as VS's multiple
@@ -60,15 +60,17 @@ it does today all along.
   PowerShell on Windows).
 - Cmd on macOS where Ctrl is on Linux and Windows (in now: the window's keys, its menus, the editor's, and the Database
   Explorer's keymap, which takes Cmd as Ctrl; Ctrl+Tab and Ctrl+` stay Ctrl).
-- CI builds and tests on Linux, macOS and Windows (in now: the Platforms workflow builds on macOS and Windows, run by
-  hand; next, their tests).
+- CI builds and tests on Linux, macOS and Windows (in now: the Platforms workflow builds and tests on macOS and
+  Windows, run by hand).
 
 ## 1. Modify Karvon Studio
 
 - An installer window as Visual Studio's: workloads and individual components (in now: Tools > Modules lists each
   module's components, the language servers and debuggers it downloads, with their state and size; Install gets one at
   once, Remove takes it away when Karvon Studio starts again).
-- Heavy parts (language servers, debuggers, database drivers) download when their module is installed.
+- Heavy parts (language servers, debuggers, database drivers) download when their module is installed (in now: the
+  language servers and debuggers, when their module is turned on in Tools > Modules, else the first time they are
+  needed; the database drivers still ship with Karvon Studio).
 - Later, modules ship from their own repositories and a registry lists them.
 
 ## 2. TypeScript and JavaScript
@@ -80,7 +82,9 @@ user lets it run the folder's own ESLint (in now: the TypeScript and JavaScript 
 
 ## 3. macOS release
 
-A signed and notarized `.dmg`, Homebrew; .NET debugging on Apple Silicon (netcoredbg's build is in; an Intel Mac has none).
+A `.dmg` for Apple Silicon and Intel Macs and its Homebrew cask, signed ad hoc, not notarized (its first launch asks to
+confirm); .NET debugging on Apple Silicon (netcoredbg's build; an Intel Mac has none). In now: the release workflow
+makes them; the first release with them is next.
 
 ## 4. More languages and Windows
 
@@ -96,7 +100,8 @@ Each language is a module (in now unless it says next):
 - Kotlin: JetBrains' kotlin-lsp (its Gradle and Maven import) and its debugger for F5 of a Gradle application, a Gradle
   build's tests in Test Explorer (run by its Gradle, and debugged), and a Gradle application's template.
 
-Then a Windows release.
+Then a Windows release: a per-user installer and a `.zip`, not signed (in now: the release workflow makes them; the
+first release with them is next).
 
 ## What a language needs to be done
 
