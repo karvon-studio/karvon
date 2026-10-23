@@ -66,7 +66,7 @@ needed.
   follow edits, Step Over / Into / Out, Locals, Watch, Call Stack, data tips, debugging tests.
 - **Test Explorer**: discover, Run All / Failed / Selected, theory rows, durations, failures with stack traces; .NET's
   tests (xUnit, NUnit, MSTest), Vitest's and Jest's (by the package's own copy), pytest's (by the workspace's .venv),
-  go test's and cargo test's, run or debugged.
+  go test's, cargo test's and CTest's, run or debugged.
 - **Git**: every repository of the solution in one Changes window (trees of staged and unstaged changes), stage,
   commit (a message Claude writes from the diff, if you like), fetch, pull, push, sync, local and remote branches, diff
   with word highlights, change bars in the editor margin, badges in Solution Explorer; follows commits and checkouts
@@ -193,7 +193,7 @@ src/Karvon.TypeScript/  module: TypeScript and JavaScript (TypeScript 7's langua
 src/Karvon.Python/      module: Python (Pyright's language server, debugpy, pytest, the workspace's .venv)
 src/Karvon.Go/          module: Go (gopls, Delve, go build/test/vet/run, go test in Test Explorer)
 src/Karvon.Rust/        module: Rust (rust-analyzer, CodeLLDB, cargo build/check/clippy/test/run, cargo test in Test Explorer)
-src/Karvon.Cpp/         module: C and C++ (clangd, CodeLLDB, CMake's configure/build/ctest/run, Make)
+src/Karvon.Cpp/         module: C and C++ (clangd, CodeLLDB, CMake's configure/build/ctest/run, Make, CTest in Test Explorer)
 src/Karvon.Lldb/        CodeLLDB, which the Rust and C and C++ modules debug with
 src/Karvon.Claude/      module: Claude Code (its session, protocol and view model are shared with the Visual Studio extension)
 external/bengine/       Bengine (submodule): the schema AST and the live-database layer the Database Explorer uses

@@ -24,6 +24,10 @@ public sealed class CppModule : KarvonModule
 
     public override IReadOnlyList<string> WorkspaceTaskFiles => ["CMakeLists.txt", "Makefile", "makefile"];
 
+    /// <summary>Test Explorer: CTest's tests, in a CMake folder that enables testing.</summary>
+    public override IReadOnlyList<Testing.TestFramework> TestFrameworks(TestFrameworkStart start) =>
+        CTestFramework.IsUsedIn(start.Workspace) ? [new CTestFramework(start)] : [];
+
     /// <summary>F5: CodeLLDB, for launch.json's lldb configurations (when the Rust module, which brings it too, is off).</summary>
     public override IReadOnlyList<DebuggerInfo> Debuggers =>
         [new("codelldb", $"CodeLLDB {Lldb.CodeLldb.Version}", Lldb.CodeLldb.Types,

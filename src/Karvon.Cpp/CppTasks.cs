@@ -19,6 +19,9 @@ public static partial class CppTasks
     /// <summary>CMake's configure for Karvon's build folder: a debug build, with the compile commands clangd reads.</summary>
     static string Configure => "cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DCMAKE_EXPORT_COMPILE_COMMANDS=ON";
 
+    /// <summary>The build: configured first (quick once it is), as CMake Tools builds.</summary>
+    public static string ConfigureAndBuild => $"{Configure} && cmake --build build";
+
     public static IReadOnlyList<WorkspaceTask> Read(string workspace)
     {
         if (File.Exists(Path.Combine(workspace, "CMakeLists.txt")))

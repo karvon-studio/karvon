@@ -100,4 +100,63 @@ public class CppTests
             Directory.Delete(dir, recursive: true);
         }
     }
+
+    [AvaloniaFact]
+    public async Task Ctest_lists_runs_and_debugs_in_Test_Explorer()
+    {
+        Assert.SkipUnless(Environment.GetEnvironmentVariable("KARVON_CPP_LIVE") == "1"
+            && Workspace.TaskVariables.Find("ctest", Environment.GetEnvironmentVariable("PATH") ?? "", "/") is not null,
+            "Set KARVON_CPP_LIVE=1, with CMake and a C compiler installed, to build and test with them.");
+        var dir = Path.Combine(Path.GetTempPath(), "karvon-ctest-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(dir);
+        try
+        {
+            var cmake = Path.Combine(dir, "CMakeLists.txt");
+            File.WriteAllText(cmake, "cmake_minimum_required(VERSION 3.16)\nproject(shapes C)\nenable_testing()\nadd_executable(check check.c)\nadd_test(NAME multiplies COMMAND check 12)\nadd_test(NAME zero COMMAND check 1)\nadd_test(NAME later COMMAND check 12)\nset_tests_properties(later PROPERTIES DISABLED TRUE)\n");
+            var check = Path.Combine(dir, "check.c");
+            File.WriteAllText(check, "#include <stdio.h>\n#include <stdlib.h>\n\nint main(int argc, char **argv) {\n    int want = atoi(argv[1]);\n    int got = 3 * 4;\n    if (got != want) {\n        printf(\"got %d, want %d\\n\", got, want);\n        return 1;\n    }\n    return 0;\n}\n");
+            var vm = NewViewModel();
+            var window = new MainWindow { DataContext = vm, Width = 1280, Height = 800 };
+            window.Show();
+            await vm.OpenSolutionAsync(dir);
+
+            // Run All Tests: built, listed by ctest (each where its add_test is), run with its JUnit report.
+            await vm.RunAllTestsCommand.ExecuteAsync(null);
+            Assert.True(vm.TestSummary.StartsWith("Test run finished: 3 test(s) (1 Passed, 1 Failed, 1 Skipped)", StringComparison.Ordinal), vm.TestSummary + "\n" + vm.TestsOutput.Document.Text);
+            var project = Assert.Single(vm.TestRoots);
+            Assert.Equal("shapes", project.Name);
+            var multiplies = project.Children.Single(n => n.Name == "multiplies");
+            Assert.Equal((Testing.TestState.Passed, cmake, 5), (multiplies.State, multiplies.SourcePath, multiplies.Line));
+            var zero = project.Children.Single(n => n.Name == "zero");
+            Assert.Equal((Testing.TestState.Failed, "got 12, want 1"), (zero.State, zero.ErrorMessage));
+            Assert.Equal(Testing.TestState.Skipped, project.Children.Single(n => n.Name == "later").State);
+
+            // Run Failed Tests: that one, by -R.
+            await vm.RunFailedTestsCommand.ExecuteAsync(null);
+            Assert.Equal((Testing.TestState.Passed, Testing.TestState.Failed), (multiplies.State, zero.State));
+            Assert.Contains("-R '^(zero)$'", vm.TestsOutput.Document.Text);
+
+            // Debug Selected Tests: its command under CodeLLDB, stopped in the program.
+            vm.SelectedTest = multiplies;
+            vm.Breakpoints.Toggle(check, 6);
+            var debugging = vm.DebugSelectedTestsCommand.ExecuteAsync(null);
+            await WaitUntil(() => vm.Mode == ViewModels.DebugMode.Break && vm.CallStack.Count > 0, TimeSpan.FromMinutes(2));
+            Assert.True(vm.Mode == ViewModels.DebugMode.Break, vm.DebugOutput.Document.Text + "\n" + vm.TestsOutput.Document.Text);
+            Assert.Equal((check, 6), (vm.CallStack[0].SourcePath, vm.CallStack[0].Line));
+            for (var i = 0; i < 5 && !debugging.IsCompleted; i++)
+            {
+                if (vm.Mode == ViewModels.DebugMode.Break)
+                    await vm.StartDebuggingCommand.ExecuteAsync(null);
+                await WaitUntil(() => debugging.IsCompleted || vm.Mode == ViewModels.DebugMode.Break, TimeSpan.FromSeconds(20));
+            }
+            Assert.True(debugging.IsCompleted, vm.DebugOutput.Document.Text);
+            Assert.Equal(Testing.TestState.Passed, multiplies.State);
+            Assert.True(await vm.CloseSolutionCoreAsync());
+            window.Close();
+        }
+        finally
+        {
+            Directory.Delete(dir, recursive: true);
+        }
+    }
 }
