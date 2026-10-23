@@ -27,7 +27,7 @@ public static class TypeScriptServerLocator
     };
 
     public static string InstallRoot =>
-        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "karvon", "typescript", Version);
+        Path.Combine(Karvon.Modules.ModuleComponent.DataRoot, "typescript", Version);
 
     /// <summary>npm's name for this platform (process.platform-process.arch); null for one TypeScript has no package for.</summary>
     public static string? Platform

@@ -18,7 +18,7 @@ What Karvon Studio does, in detail; the [README](../README.md) has the short ver
 
 Working on solutions needs the .NET 10 SDK; each language needs its own toolchain (Node.js, Python, Go, Rust, a C and
 C++ compiler, a JDK). The language servers and debuggers download the first time they are needed (or when their module
-is turned on in Tools > Modules, which lists them): `roslyn-language-server` and `netcoredbg` (both MIT); TypeScript 7 (Apache-2.0, its own language server; no
+is turned on in Tools > Get Tools and Features, which lists them): `roslyn-language-server` and `netcoredbg` (both MIT); TypeScript 7 (Apache-2.0, its own language server; no
 Node.js needed); js-debug, VS Code's HTML, CSS and JSON servers and its ESLint server (MIT; they run on Node.js, and
 ESLint runs a folder's own ESLint only where you let it); Pyright and debugpy (MIT); rust-analyzer, clangd and CodeLLDB;
 jdtls, java-debug and JUnit's console launcher; JetBrains' kotlin-lsp (about 350 MB, with its own Java runtime; partly
@@ -173,6 +173,22 @@ the solution's containers (`container_list`, `container_logs`, `container_inspec
 connections and passwords, which it never sees. Reading, building,
 testing and stepping run at once; a change asks first, one call at a time (destructive SQL says so), read-only data
 sources refuse changes, and secrets in logs and variables are hidden.
+
+## Karvon Studio Installer and updates (Tools > Get Tools and Features)
+
+As Visual Studio Installer: the installed Karvon Studio (its version, how it was installed, its update and the
+release's notes), and **Modify**: the modules as **workloads** (languages and tools; one turned on downloads its
+components now, one turned off goes when Karvon Studio starts again), their language servers and debuggers as
+**individual components** (installed at once, removed when Karvon Studio starts again), **installation locations**,
+and the space it all takes. It opens on its own too: `karvon --installer` (Karvon Studio Installer in the menu).
+
+**Updates** come from the GitHub releases (a private repository's through your own `gh`, signed in): checked once a
+day as Karvon Studio starts, downloaded, checked against the release's `SHA256SUMS`, and installed as Karvon Studio
+closes (or at once with Restart and update; the status bar says when one is there). Each package updates in its own
+way: the `.deb` by apt (pkexec asks for your password, so only when you ask), the AppImage and the `.tar.gz` by their
+file and folder, the macOS app by its bundle, the Windows installer silently, the `.zip` by its files once Karvon has
+exited. Help > Check for Updates checks now; the settings are on the installer's page. A build of the sources does not
+update itself.
 
 ## Layout
 

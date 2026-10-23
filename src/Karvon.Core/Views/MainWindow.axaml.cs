@@ -105,7 +105,11 @@ public partial class MainWindow : Window, IDialogService
             Close();
         }
         else
+        {
             _closing = false;
+            // Not closed: a Restart asked for does not happen either.
+            Updates.AppUpdates.OnExit = Updates.ExitAction.None;
+        }
     }
 
     void OnWindowKeyDown(object? sender, KeyEventArgs e)

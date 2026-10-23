@@ -26,7 +26,7 @@ public static class KotlinLspLocator
         ["win-arm64"] = ($"kotlin-server-{Version}-aarch64.win.zip", "290f48cb564295239bb678bb66b1ebbd06755b14fd4890f3cdf822f41af011ef"),
     };
 
-    static string Root => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "karvon", "kotlin-lsp");
+    static string Root => Path.Combine(Karvon.Modules.ModuleComponent.DataRoot, "kotlin-lsp");
 
     public static string InstallRoot => Path.Combine(Root, Version);
 

@@ -68,10 +68,20 @@ public sealed class Settings
     /// <summary>What Claude does with Karvon's tools shows in Karvon: a query's results, a container's logs, the build, a search...</summary>
     public bool ClaudeShowToolActivity { get; set; } = true;
 
-    /// <summary>The ids of the modules turned off in Tools > Modules.</summary>
+    /// <summary>Updates: checked as Karvon Studio starts (once a day), downloaded at once, installed as it closes.</summary>
+    public bool UpdatesCheck { get; set; } = true;
+
+    public bool UpdatesDownload { get; set; } = true;
+
+    public bool UpdatesInstallOnClose { get; set; } = true;
+
+    /// <summary>When the updates were last checked for.</summary>
+    public DateTimeOffset? UpdatesLastCheck { get; set; }
+
+    /// <summary>The ids of the modules turned off in Tools > Get Tools and Features.</summary>
     public List<string> DisabledModules { get; set; } = [];
 
-    /// <summary>The folders of the components removed in Tools > Modules: they go when Karvon Studio starts again.</summary>
+    /// <summary>The folders of the components removed in Tools > Get Tools and Features: they go when Karvon Studio starts again.</summary>
     public List<string> RemovedComponents { get; set; } = [];
 
     /// <summary>
@@ -126,7 +136,7 @@ public sealed class Settings
     /// <summary>Karvon's configuration folder (~/.config/karvon, or KARVON_CONFIG_DIR).</summary>
     public static string ConfigDirectory =>
         Environment.GetEnvironmentVariable("KARVON_CONFIG_DIR") is { Length: > 0 } dir ? dir
-            : Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "karvon");
+            : Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData, Environment.SpecialFolderOption.DoNotVerify), "karvon");
 
     static string FilePath => Path.Combine(ConfigDirectory, "settings.json");
 

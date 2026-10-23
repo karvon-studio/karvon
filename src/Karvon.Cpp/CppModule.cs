@@ -12,6 +12,9 @@ public sealed class CppModule : KarvonModule
 
     public override string Name => "C and C++";
 
+
+    public override string Icon => "cpp";
+
     public override string Description =>
         "clangd in the editor of C and C++ files (errors as you type, completion, hover, go to definition, references, rename), "
         + "CodeLLDB for F5, and a CMake folder's configure, build, ctest and run (or a Makefile's make, test and clean) as its "
@@ -40,6 +43,7 @@ public sealed class CppModule : KarvonModule
         new("clangd", "C and C++ language server (clangd)", ClangdLocator.Version, ClangdLocator.InstallRoot,
             () => ClangdLocator.Find() is not null, ClangdLocator.EnsureInstalledAsync)
         {
+            ApproximateSize = 225L << 20,
             Description = "clangd (Apache-2.0 with LLVM's exception), LLVM's language server, from its GitHub release.",
         },
         Lldb.CodeLldb.Component,

@@ -3,6 +3,7 @@ using Avalonia.Headless.XUnit;
 using Avalonia.LogicalTree;
 using Karvon.Modules;
 using Karvon.Services;
+using Karvon.ViewModels;
 using Karvon.Views;
 using static Karvon.Tests.UiTests;
 
@@ -31,7 +32,7 @@ sealed class FakeComponentModule(string folder) : KarvonModule
     ];
 }
 
-/// <summary>Tools > Modules: what the modules download, installed at once and removed when Karvon starts again.</summary>
+/// <summary>Tools > Get Tools and Features: what the modules download, installed at once and removed when Karvon starts again.</summary>
 public class ModuleComponentTests
 {
     [AvaloniaFact]
@@ -72,26 +73,31 @@ public class ModuleComponentTests
         var vm = NewViewModel(modules: [.. Karvon.BuiltInModules.Create(), module]);
         vm.Settings.RemovedComponents.Clear();
         var component = module.Components[0];
-        var row = MainWindow.ComponentRow(vm, component, null);
-        var button = row.GetLogicalDescendants().OfType<Button>().Single();
-        string State() => string.Join(" | ", row.GetLogicalDescendants().OfType<TextBlock>().Where(t => t.FindLogicalAncestorOfType<Button>() is null).Select(t => t.Text));
-        var window = new Window { Content = row };
-        window.Show();
-        Assert.Equal("Fake server 1.0 | downloads the first time it is needed", State());
-        Assert.Equal("Install", button.Content);
+        // Karvon Studio Installer's Individual components: the module's, as they are now.
+        var installer = new InstallerViewModel(vm, vm.Updates);
+        installer.ShowModifyCommand.Execute(null);
+        ComponentItem Item() => installer.ComponentGroups.Single(g => g.Title == "Fake component").Items.Single();
+        Assert.Equal(("Fake server 1.0", "downloads the first time it is needed", false), (Item().Name, Item().State, Item().IsSelected));
 
-        // Install: at once, its log in Output (Modules).
-        button.RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent));
-        await WaitUntil(() => (string?)button.Content == "Remove", TimeSpan.FromSeconds(10));
-        Assert.Equal("Fake server 1.0 | installed, 3 MB", State());
+        // Checked, then Modify: installed at once, its log in Output (Modules).
+        Item().IsSelected = true;
+        Assert.Equal(["Individual components to install: Fake server 1.0"], installer.Changes.Select(c => $"{c.Text}: {string.Join(", ", c.Items)}"));
+        await installer.ApplyCommand.ExecuteAsync(null);
+        Assert.Equal(("installed, 3 MB", true, "Done."), (Item().State, Item().IsSelected, installer.ApplyText));
         Assert.Equal(1, module.Installs);
         Assert.Contains("Downloading the fake server...", ((IWorkbench)vm).Output("Modules").Document.Text);
+        Assert.False(installer.HasChanges);
 
-        // Remove: when Karvon Studio starts again (it may be running); Keep takes it back.
-        button.RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent));
-        Assert.Equal("Fake server 1.0 | removed when Karvon Studio starts again", State());
+        // Unchecked: removed when Karvon Studio starts again (it may be running); checked again, it is kept.
+        Item().IsSelected = false;
+        Assert.Equal("Space freed: 3 MB", installer.SpaceText);
+        await installer.ApplyCommand.ExecuteAsync(null);
+        Assert.Equal(("removed when Karvon Studio starts again", false), (Item().State, Item().IsSelected));
         Assert.Equal([component.InstallRoot], vm.Settings.RemovedComponents);
-        button.RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent));
+        Assert.True(installer.RestartNeeded);
+        Item().IsSelected = true;
+        Assert.Equal(["Individual components to keep: Fake server 1.0"], installer.Changes.Select(c => $"{c.Text}: {string.Join(", ", c.Items)}"));
+        await installer.ApplyCommand.ExecuteAsync(null);
         Assert.Empty(vm.Settings.RemovedComponents);
         vm.RemoveComponent(component);
 
@@ -104,7 +110,6 @@ public class ModuleComponentTests
         Assert.Equal([elsewhere], vm.Settings.RemovedComponents);
         vm.Settings.RemovedComponents.Clear();
         vm.Settings.Save();
-        window.Close();
         Directory.Delete(elsewhere);
         Directory.Delete(root, recursive: true);
     }

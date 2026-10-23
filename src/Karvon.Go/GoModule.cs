@@ -12,6 +12,9 @@ public sealed class GoModule : KarvonModule
 
     public override string Name => "Go";
 
+
+    public override string Icon => "go";
+
     public override string Description =>
         "gopls in the editor of .go files (errors as you type, completion, hover, go to definition, references, rename), Delve "
         + "for F5, a module's go build, test, vet and run as its tasks, and go test's tests in Test Explorer. gopls and Delve are "
@@ -48,10 +51,12 @@ public sealed class GoModule : KarvonModule
     [
         new("gopls", "Go language server (gopls)", GoTools.GoplsVersion, GoTools.GoplsRoot, () => GoTools.FindGopls() is not null, GoTools.EnsureGoplsAsync)
         {
+            ApproximateSize = 43L << 20,
             Description = "gopls (BSD-3-Clause), the Go team's language server, built with go install.",
         },
         new("dlv", "Go debugger (Delve)", GoTools.DelveVersion, GoTools.DelveRoot, () => GoTools.FindDelve() is not null, GoTools.EnsureDelveAsync)
         {
+            ApproximateSize = 23L << 20,
             Description = "Delve (MIT), Go's debugger, built with go install.",
         },
     ];

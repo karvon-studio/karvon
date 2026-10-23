@@ -16,6 +16,9 @@ public sealed class KotlinModule : KarvonModule
 
     public override string Name => "Kotlin";
 
+
+    public override string Icon => "kotlin";
+
     public override string Description =>
         "JetBrains' Kotlin language server (kotlin-lsp) for .kt and .kts files: errors as you type, completion, hover, go to "
         + "definition, references, rename and formatting, by the folder's Gradle or Maven build, which it imports itself. F5 "
@@ -59,6 +62,7 @@ public sealed class KotlinModule : KarvonModule
         new("kotlin-lsp", "Kotlin language server (kotlin-lsp)", KotlinLspLocator.Version, KotlinLspLocator.InstallRoot,
             () => KotlinLspLocator.Find() is not null, async (log, ct) => await KotlinLspLocator.EnsureInstalledAsync(log, ct))
         {
+            ApproximateSize = 1147L << 20,
             Description = "JetBrains' Kotlin language server and debugger, from download.jetbrains.com, with its own Java runtime: "
                 + "IntelliJ's open source parts (Apache-2.0) and proprietary ones of JetBrains Air and Fleet.",
         },

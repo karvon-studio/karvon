@@ -164,7 +164,7 @@ public partial class MainViewModel
     {
         if (Modules.Select(m => m.StartupLaunch(project, LaunchProfile, Configuration)).FirstOrDefault(l => l is not null) is { } launch)
             return launch;
-        SetStatus($"No module starts {project.Name}: its module is off (Tools > Modules).");
+        SetStatus($"No module starts {project.Name}: its module is off (Tools > Get Tools and Features).");
         return null;
     }
 
@@ -211,7 +211,7 @@ public partial class MainViewModel
         ShowToolWindow(ToolWindows.Output);
         if (Debuggers.FirstOrDefault(d => d.Types.Contains(launch.Type)) is not { } debugger)
         {
-            DebugOutput.Append($"No debugger debugs '{launch.Type}' ({launch.Name}): its module brings one (Tools > Modules).");
+            DebugOutput.Append($"No debugger debugs '{launch.Type}' ({launch.Name}): its module brings one (Tools > Get Tools and Features).");
             SetStatus($"No debugger for '{launch.Type}'");
             return;
         }

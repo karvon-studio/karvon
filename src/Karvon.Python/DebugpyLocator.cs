@@ -15,7 +15,7 @@ public static class DebugpyLocator
     const string Sha256 = "a9e9d3550e15ca479c59333e90845029190531f0cacfedab3b815a57bd913947";
 
     public static string InstallRoot =>
-        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "karvon", "debugpy", Version);
+        Path.Combine(Karvon.Modules.ModuleComponent.DataRoot, "debugpy", Version);
 
     /// <summary>The folder to put on PYTHONPATH (it holds the debugpy package): KARVON_DEBUGPY, else the one installed here.</summary>
     public static string? Find()

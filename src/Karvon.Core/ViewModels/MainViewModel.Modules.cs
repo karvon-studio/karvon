@@ -11,7 +11,7 @@ namespace Karvon.ViewModels;
 /// </summary>
 public partial class MainViewModel : IWorkbench
 {
-    /// <summary>Every module, on or off, in the order they show (Tools > Modules lists them).</summary>
+    /// <summary>Every module, on or off, in the order they show (Tools > Get Tools and Features lists them).</summary>
     public IReadOnlyList<KarvonModule> AllModules { get; private set; } = [];
 
     /// <summary>The modules that are on, started.</summary>
@@ -31,14 +31,14 @@ public partial class MainViewModel : IWorkbench
         RegisterModuleLanguageServers();
     }
 
-    /// <summary>Every component Tools > Modules shows, by the module it belongs to (on or off).</summary>
+    /// <summary>Every component Tools > Get Tools and Features shows, by the module it belongs to (on or off).</summary>
     public IReadOnlyList<(string Owner, ModuleComponent Component)> Components =>
         [.. AllModules.SelectMany(m => m.Components.Select(c => (m.Name, c)))];
 
     /// <summary>Whether a component goes when Karvon Studio starts again.</summary>
     public bool IsRemovalPending(ModuleComponent component) => Settings.RemovedComponents.Contains(component.InstallRoot);
 
-    /// <summary>Tools > Modules > Remove: the component goes when Karvon Studio starts again (it may be running now).</summary>
+    /// <summary>Tools > Get Tools and Features > Remove: the component goes when Karvon Studio starts again (it may be running now).</summary>
     public void RemoveComponent(ModuleComponent component)
     {
         if (IsRemovalPending(component))
@@ -54,7 +54,7 @@ public partial class MainViewModel : IWorkbench
             Settings.Save();
     }
 
-    /// <summary>Tools > Modules > Install: the component now, rather than the first time it is needed; its log in Output (Modules).</summary>
+    /// <summary>Tools > Get Tools and Features > Install: the component now, rather than the first time it is needed; its log in Output (Modules).</summary>
     public async Task<bool> InstallComponentAsync(ModuleComponent component, CancellationToken ct = default)
     {
         KeepComponent(component);
@@ -74,7 +74,7 @@ public partial class MainViewModel : IWorkbench
     }
 
     /// <summary>
-    /// Tools > Modules > OK: the modules that are off from now on (it takes effect when Karvon Studio starts again), and
+    /// Tools > Get Tools and Features > OK: the modules that are off from now on (it takes effect when Karvon Studio starts again), and
     /// what a module turned on downloads, downloaded now, as Visual Studio installs a workload's components (their log in
     /// Output (Modules)). False when one of them could not be installed (it downloads the first time it is needed).
     /// </summary>

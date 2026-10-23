@@ -12,6 +12,9 @@ public sealed class RustModule : KarvonModule
 
     public override string Name => "Rust";
 
+
+    public override string Icon => "rust";
+
     public override string Description =>
         "rust-analyzer in the editor of .rs files (errors as you type, completion, hover, go to definition, references, rename), "
         + "CodeLLDB for F5, a Cargo package's build, check, clippy, test and run as its tasks, and cargo test's tests in Test "
@@ -51,6 +54,7 @@ public sealed class RustModule : KarvonModule
         new("rust-analyzer", "Rust language server (rust-analyzer)", RustTools.RustAnalyzerVersion, RustTools.RustAnalyzerRoot,
             () => RustTools.FindRustAnalyzer() is not null, RustTools.EnsureRustAnalyzerAsync)
         {
+            ApproximateSize = 41L << 20,
             Description = "rust-analyzer (MIT or Apache-2.0), from its GitHub release.",
         },
         Lldb.CodeLldb.Component,

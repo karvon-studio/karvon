@@ -58,7 +58,7 @@ public sealed class JdtlsServer : LspClient
         return (projectRoot, [.. Paths("classpaths"), .. Paths("modulepaths")]);
     }
 
-    static string DataRoot => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "karvon", "jdtls-data");
+    static string DataRoot => Path.Combine(Karvon.Modules.ModuleComponent.DataRoot, "jdtls-data");
 
     /// <summary>Where jdtls keeps what it knows of a workspace (its -data folder), one for each folder.</summary>
     static string DataFolder(string workspace) => Path.Combine(DataRoot, Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(workspace)))[..16]);

@@ -3,7 +3,7 @@ using Karvon.Services;
 namespace Karvon.Modules;
 
 /// <summary>
-/// A part a module downloads the first time it is needed (a language server, a debugger): Tools > Modules shows it,
+/// A part a module downloads the first time it is needed (a language server, a debugger): Tools > Get Tools and Features shows it,
 /// installs it at once, and removes it (when Karvon Studio starts again, since it may be running now).
 /// </summary>
 /// <param name="InstallRoot">Its folder, in Karvon's own data folder (~/.local/share/karvon/...).</param>
@@ -15,8 +15,14 @@ public sealed record ModuleComponent(string Id, string Name, string Version, str
     /// <summary>What it is, and where it comes from.</summary>
     public string Description { get; init; } = "";
 
-    /// <summary>The folder every component is in; nothing out of it is ever removed.</summary>
-    public static string DataRoot => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "karvon");
+    /// <summary>About the disk it takes once installed (as measured on Linux x64), for the installer's space required; 0 when not known.</summary>
+    public long ApproximateSize { get; init; }
+
+    /// <summary>
+    /// The folder every component is in (~/.local/share/karvon, %LOCALAPPDATA%\karvon); nothing out of it is ever removed.
+    /// Where the user's data folder is not made yet, it is still its path (a fresh home has no ~/.local/share).
+    /// </summary>
+    public static string DataRoot => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData, Environment.SpecialFolderOption.DoNotVerify), "karvon");
 
     /// <summary>The disk it takes, installed (0 when it is not).</summary>
     public long Size()
@@ -34,7 +40,7 @@ public sealed record ModuleComponent(string Id, string Name, string Version, str
     }
 
     /// <summary>
-    /// The components removed in Tools > Modules go as Karvon Studio starts, before anything can run them; only folders
+    /// The components removed in Tools > Get Tools and Features go as Karvon Studio starts, before anything can run them; only folders
     /// in <paramref name="dataRoot"/> (a settings file written elsewhere cannot point it at another).
     /// </summary>
     public static void RemovePending(Settings settings, string dataRoot)

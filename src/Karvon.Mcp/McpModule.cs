@@ -24,6 +24,9 @@ public sealed partial class McpModule : KarvonModule, IMcpHost
 
     public override string Name => "MCP Servers";
 
+
+    public override string Icon => "folder-robot";
+
     public override string Description =>
         "The MCP servers of Claude Code, Codex, Gemini CLI and Karvon's own: their tools, resources and prompts to try, sign-in, "
         + "and which ones the Claude Code sessions get.";

@@ -65,12 +65,16 @@ it does today all along.
 
 ## 1. Modify Karvon Studio
 
-- An installer window as Visual Studio's: workloads and individual components (in now: Tools > Modules lists each
-  module's components, the language servers and debuggers it downloads, with their state and size; Install gets one at
-  once, Remove takes it away when Karvon Studio starts again).
+- An installer window as Visual Studio's: workloads and individual components (in now: Karvon Studio Installer, from
+  Tools > Get Tools and Features or on its own, `karvon --installer`: the installed version and its update; Modify's
+  workloads (the modules), individual components (installed at once, removed when Karvon Studio starts again),
+  installation locations and the space required).
+- Karvon Studio updates itself (in now: the newest release checked for once a day, downloaded, checked against its
+  `SHA256SUMS` and installed as Karvon Studio closes or restarts, as each package installs: apt, its AppImage, folder or
+  bundle replaced, Windows' installer or files).
 - Heavy parts (language servers, debuggers, database drivers) download when their module is installed (in now: the
-  language servers and debuggers, when their module is turned on in Tools > Modules, else the first time they are
-  needed; the database drivers still ship with Karvon Studio).
+  language servers and debuggers, when their module is turned on in the installer, else the first time they are needed;
+  the database drivers still ship with Karvon Studio).
 - Later, modules ship from their own repositories and a registry lists them.
 
 ## 2. TypeScript and JavaScript

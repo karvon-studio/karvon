@@ -24,7 +24,7 @@ public static class NetcoredbgLocator
     };
 
     public static string InstallRoot =>
-        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "karvon", "netcoredbg", Version);
+        Path.Combine(Karvon.Modules.ModuleComponent.DataRoot, "netcoredbg", Version);
 
     /// <summary>This platform's build (linux-x64...); null for one netcoredbg has none for (an Intel Mac).</summary>
     public static string? Platform

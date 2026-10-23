@@ -41,6 +41,13 @@ static class TestEnvironment
         if (Environment.GetEnvironmentVariable("RestoreConfigFile") is null)
             Environment.SetEnvironmentVariable("RestoreConfigFile", Path.Combine(AppContext.BaseDirectory, "TestAssets", "BlazorSample", "nuget.config"));
         Environment.SetEnvironmentVariable("BENGINE_KEYRING", "off");
+        // Karvon Studio's releases are never read from GitHub: a feed of the tests' own, with none.
+        if (Environment.GetEnvironmentVariable("KARVON_UPDATE_FEED") is null)
+        {
+            var feed = Path.Combine(Path.GetTempPath(), "karvon-test-releases-" + Environment.ProcessId + ".json");
+            File.WriteAllText(feed, "[]");
+            Environment.SetEnvironmentVariable("KARVON_UPDATE_FEED", feed);
+        }
         // The tests' repositories keep their files as written: Git for Windows' own configuration turns their lines to CRLF.
         if (Environment.GetEnvironmentVariable("GIT_CONFIG_COUNT") is null)
         {

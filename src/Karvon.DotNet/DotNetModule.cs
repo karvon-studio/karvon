@@ -23,6 +23,9 @@ public sealed partial class DotNetModule : KarvonModule
 
     public override string Name => ".NET";
 
+
+    public override string Icon => "csharp";
+
     public override string Description =>
         "C#, ASP.NET Core and Blazor. The SDK's project templates in New Project, C#'s and Razor's in Add New Item, Test "
         + "Explorer's xUnit, NUnit and MSTest tests, the NuGet Package Manager (Browse, Installed, Updates; a project's "
@@ -34,11 +37,13 @@ public sealed partial class DotNetModule : KarvonModule
         new("roslyn", "C# and Razor language server", RoslynServerLocator.Version, RoslynServerLocator.InstallRoot,
             () => RoslynServerLocator.Find() is not null, RoslynServerLocator.EnsureInstalledAsync)
         {
+            ApproximateSize = 311L << 20,
             Description = "roslyn-language-server (MIT), Visual Studio's C# engine, from nuget.org.",
         },
         new("netcoredbg", ".NET debugger", Karvon.DotNet.Debugging.NetcoredbgLocator.Version, Karvon.DotNet.Debugging.NetcoredbgLocator.InstallRoot,
             () => Karvon.DotNet.Debugging.NetcoredbgLocator.Find() is not null, Karvon.DotNet.Debugging.NetcoredbgLocator.EnsureInstalledAsync)
         {
+            ApproximateSize = 10L << 20,
             Description = "Samsung's netcoredbg (MIT), from its GitHub release.",
         },
     ];

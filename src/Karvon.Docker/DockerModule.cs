@@ -30,6 +30,9 @@ public sealed partial class DockerModule : KarvonModule, IDockerHost, IDockerToo
 
     public override string Name => "Docker Explorer";
 
+
+    public override string Icon => "docker";
+
     public override string Description =>
         "The Docker engine's containers (the solution's compose stack among them), images, volumes and networks: logs, a shell, "
         + "stats; database containers in the Database Explorer; Claude Code's container tools.";
@@ -138,7 +141,7 @@ public sealed partial class DockerModule : KarvonModule, IDockerHost, IDockerToo
     string? IDockerHost.OpenInDatabaseExplorer(DockerContainer container, JsonElement inspect)
     {
         if (Workbench.Service<IDatabaseService>() is not { } databases)
-            return "The Database Explorer is off in Tools > Modules.";
+            return "The Database Explorer is off in Tools > Get Tools and Features.";
         if (DockerDatabases.ProviderOf(container.Image) is not { } name || !Enum.TryParse<DatabaseProvider>(name, out var provider))
             return $"{container.Image} is not a database the Database Explorer knows.";
         var env = new Dictionary<string, string>();

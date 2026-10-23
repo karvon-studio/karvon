@@ -13,6 +13,9 @@ public sealed class PythonModule : KarvonModule
 
     public override string Name => "Python";
 
+
+    public override string Icon => "python";
+
     public override string Description =>
         "Pyright's language server for .py files: errors as you type, completion, hover, go to definition, references and "
         + "rename, installed the first time one of them opens (it runs on Node.js); F5 debugs a launch.json python configuration "
@@ -27,11 +30,13 @@ public sealed class PythonModule : KarvonModule
         new("pyright", "Python language server (Pyright)", PyrightLocator.Version, PyrightLocator.InstallRoot,
             () => PyrightLocator.Find() is not null, PyrightLocator.EnsureInstalledAsync)
         {
+            ApproximateSize = 38L << 20,
             Description = "Pyright (MIT), Microsoft's Python type checker and language server, from the npm registry; it runs on Node.js.",
         },
         new("debugpy", "Python debugger (debugpy)", DebugpyLocator.Version, DebugpyLocator.InstallRoot,
             () => DebugpyLocator.Find() is not null, DebugpyLocator.EnsureInstalledAsync)
         {
+            ApproximateSize = 31L << 20,
             Description = "debugpy (MIT), Microsoft's Python debugger, from PyPI; the workspace's interpreter runs it.",
         },
     ];

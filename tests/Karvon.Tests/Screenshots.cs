@@ -283,6 +283,47 @@ public class Screenshots
     }
 
     [AvaloniaFact]
+    public async Task Installer()
+    {
+        Assert.SkipWhen(OutputDirectory is null, "Set KARVON_SCREENSHOTS to the output folder to render the README screenshots.");
+        Directory.CreateDirectory(OutputDirectory!);
+        var (updater, dir) = InstallerTests.UpdaterWithRelease("""
+            ## What's new
+
+            - **Karvon Studio Installer**: workloads and individual components, as Visual Studio Installer has them.
+            - **Updates**: checked once a day, downloaded and checked, installed as Karvon Studio closes.
+            - **Kotlin**: kotlin-lsp in the editor, F5 and Gradle's tests in Test Explorer.
+            """);
+        // A demo user's data folder (Karvon's components in it, none installed), as the other screenshots' demo paths.
+        var data = Environment.GetEnvironmentVariable("XDG_DATA_HOME");
+        Environment.SetEnvironmentVariable("XDG_DATA_HOME", "/home/dev/.local/share");
+        var vm = NewViewModel();
+        vm.Updates = updater;
+        vm.Settings.DisabledModules = ["kotlin"];
+        var installer = new InstallerViewModel(vm, updater);
+        var window = new InstallerWindow { DataContext = installer, Width = 1180, Height = 720 };
+        window.Show();
+        try
+        {
+            await installer.CheckForUpdatesCommand.ExecuteAsync(null);
+            await Settle();
+            Save(window, "installer");
+
+            installer.ShowModifyCommand.Execute(null);
+            installer.Workloads[0].Items.Single(i => i.Name == "Kotlin").IsSelected = true;
+            await Settle();
+            Save(window, "installer-modify");
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable("XDG_DATA_HOME", data);
+            vm.Settings.DisabledModules = [];
+            window.Close();
+            Directory.Delete(dir, recursive: true);
+        }
+    }
+
+    [AvaloniaFact]
     public async Task Start_window()
     {
         Assert.SkipWhen(OutputDirectory is null, "Set KARVON_SCREENSHOTS to the output folder to render the README screenshots.");

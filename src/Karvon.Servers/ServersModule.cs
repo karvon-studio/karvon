@@ -27,6 +27,9 @@ public sealed partial class ServersModule : KarvonModule, IServersHost
 
     public override string Name => "Servers";
 
+
+    public override string Icon => "folder-server";
+
     public override string Description =>
         "The machines of ~/.ssh/config and those added in Karvon, over SSH: their services, logs, files and a terminal; "
         + "Claude Code's server tools.";

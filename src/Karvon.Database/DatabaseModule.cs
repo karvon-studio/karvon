@@ -42,6 +42,9 @@ public sealed class DatabaseModule : KarvonModule, IDatabaseService, IDatabaseTo
 
     public override string Name => "Database Explorer";
 
+
+    public override string Icon => "database";
+
     public override string Description =>
         "Bengine Data Studio in Karvon: the solution's data sources (PostgreSQL, MySQL, SQL Server, Oracle, SQLite, MongoDB…), "
         + "consoles, tables' data, diagrams and comparisons; Claude Code's database tools.";

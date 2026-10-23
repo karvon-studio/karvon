@@ -136,7 +136,7 @@ public class DotNetModuleTests
         Assert.Equal(["Class", "Interface", "Record", "Struct", "Enum", "Razor Component", "Code File", "JSON File", "Text File"], vm.NewItemTemplates.Take(9).Select(t => t.Name));
         // Tools > NuGet Package Manager first, as in Visual Studio.
         var tools = window.MainMenu.Items.OfType<MenuItem>().Single(m => (string?)m.Header == "_Tools");
-        Assert.Equal(["_NuGet Package Manager", "-", "_Restart Language Server", "_Trust ASP.NET Core Development Certificate", "_ESLint in This Folder...", "-", "_Modules..."],
+        Assert.Equal(["_NuGet Package Manager", "-", "_Restart Language Server", "_Trust ASP.NET Core Development Certificate", "_ESLint in This Folder...", "-", "_Get Tools and Features..."],
             Lines(tools.Items.OfType<object>()));
         Assert.Equal(["Manage NuGet Packages for _Solution..."], Lines(((MenuItem)tools.Items[0]!).Items.OfType<object>()));
         Assert.Contains(vm.OutputChannels, c => c.Name == "Package Manager");
@@ -182,7 +182,7 @@ public class DotNetModuleTests
         var none = new StartViewModel(new Settings(), templates: []);
         await none.EnsureTemplatesAsync();
         Assert.Empty(none.Templates);
-        Assert.Equal("No project templates: the modules that have them are off (Tools > Modules).", none.Message);
+        Assert.Equal("No project templates: the modules that have them are off (Tools > Get Tools and Features).", none.Message);
     }
 
     /// <summary>A console project in a folder of its own, restored from nuget.org only.</summary>
@@ -293,7 +293,7 @@ public class DotNetModuleTests
         Assert.False(vm.CanOpen(sln));
         await vm.OpenSolutionAsync(sln);
         Assert.Null(vm.Solution);
-        Assert.Equal("Failed to open solution: no module opens BlazorSample.sln: its module is off (Tools > Modules)", vm.StatusText);
+        Assert.Equal("Failed to open solution: no module opens BlazorSample.sln: its module is off (Tools > Get Tools and Features)", vm.StatusText);
 
         // Its folder opens as a folder: none of .NET's commands, templates, tests or language server.
         var dir = Path.GetDirectoryName(sln)!;
@@ -309,7 +309,7 @@ public class DotNetModuleTests
         Assert.Empty(vm.ModuleLanguageServers);
         Assert.Equal("", vm.ServerStatus);
         var tools = window.MainMenu.Items.OfType<MenuItem>().Single(m => (string?)m.Header == "_Tools");
-        Assert.Equal(["_Restart Language Server", "_ESLint in This Folder...", "-", "_Modules..."], Lines(tools.Items.OfType<object>()));
+        Assert.Equal(["_Restart Language Server", "_ESLint in This Folder...", "-", "_Get Tools and Features..."], Lines(tools.Items.OfType<object>()));
         Assert.True(await vm.CloseSolutionCoreAsync());
         // The tests' settings are shared: the module is on again for the next.
         vm.Settings.DisabledModules = [];

@@ -35,8 +35,7 @@ public static class TemplateCatalog
         ["Windows"] = "Windows",
     };
 
-    public static string IconCacheDirectory => Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "karvon", "template-icons");
+    public static string IconCacheDirectory => Path.Combine(Karvon.Modules.ModuleComponent.DataRoot, "template-icons");
 
     public static async Task<IReadOnlyList<ProjectTemplate>> LoadAsync(CancellationToken ct = default)
     {

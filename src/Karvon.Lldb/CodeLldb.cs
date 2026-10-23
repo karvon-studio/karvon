@@ -30,7 +30,7 @@ public static class CodeLldb
     static string Exe(string name) => OperatingSystem.IsWindows() ? name + ".exe" : name;
 
     public static string InstallRoot =>
-        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "karvon", "codelldb", Version);
+        Path.Combine(Karvon.Modules.ModuleComponent.DataRoot, "codelldb", Version);
 
     static string? Platform => RuntimeInformation.OSArchitecture switch
     {
@@ -137,9 +137,10 @@ public static class CodeLldb
             File.SetUnixFileMode(file, File.GetUnixFileMode(file) | UnixFileMode.UserExecute | UnixFileMode.GroupExecute | UnixFileMode.OtherExecute);
     }
 
-    /// <summary>The component Tools > Modules shows of it (under each module that debugs with it).</summary>
+    /// <summary>The component Tools > Get Tools and Features shows of it (under each module that debugs with it).</summary>
     public static Modules.ModuleComponent Component => new("codelldb", "Native debugger (CodeLLDB)", Version, InstallRoot, () => Find() is not null, EnsureInstalledAsync)
     {
+        ApproximateSize = 166L << 20,
         Description = "CodeLLDB (MIT), LLDB as a debug adapter, from its GitHub release: Rust, C and C++.",
     };
 }

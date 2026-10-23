@@ -859,7 +859,7 @@ public partial class MainViewModel : ObservableObject
         var request = new Modules.BuildRequest(verb, target ?? solution.FilePath, Configuration);
         if (Modules.Select(m => m.BuildSolution(solution, request)).FirstOrDefault(c => c is not null) is not { } command)
         {
-            SetStatus($"No module builds {Path.GetFileName(solution.FilePath)}: its module is off (Tools > Modules).");
+            SetStatus($"No module builds {Path.GetFileName(solution.FilePath)}: its module is off (Tools > Get Tools and Features).");
             return false;
         }
         SaveAll();

@@ -266,7 +266,7 @@ public sealed partial class Updater(AppInstall install, UpdateFeed feed, string 
                     return true;
             }
             if (restart)
-                Restart(arguments ?? []);
+                install.StartAgain(arguments ?? []);
             (State, Message) = (UpdateState.Idle, $"Karvon Studio {release.Version} is installed.");
             _staged = null;
             return true;
@@ -301,16 +301,6 @@ public sealed partial class Updater(AppInstall install, UpdateFeed feed, string 
         {
             // In use: it goes another time (it is beside the install, not in it).
         }
-    }
-
-    /// <summary>The installed Karvon Studio started again, with the arguments it had.</summary>
-    void Restart(IReadOnlyList<string> arguments)
-    {
-        var start = install.Distribution == Distribution.Dmg
-            ? new ProcessStartInfo("open", ["-n", install.Bundle, .. arguments.Count > 0 ? ["--args", .. arguments] : Array.Empty<string>()])
-            : new ProcessStartInfo(install.Program, arguments);
-        start.UseShellExecute = false;
-        Process.Start(start)?.Dispose();
     }
 
     /// <summary>

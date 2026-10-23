@@ -12,7 +12,7 @@ static class Program
         // not a distro package that happens to be first on a desktop session's PATH.
         Build.DotnetCli.ApplyToCurrentProcess();
         DotNet.DevCertificates.ApplyToCurrentProcess();
-        // The components removed in Tools > Modules go before anything can run them.
+        // The components removed in Tools > Get Tools and Features go before anything can run them.
         Modules.ModuleComponent.RemovePending(Services.Settings.Load(), Modules.ModuleComponent.DataRoot);
         BuildAvaloniaApp().StartWithClassicDesktopLifetime(args);
     }

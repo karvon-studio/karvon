@@ -26,7 +26,7 @@ public static class JavaTools
     const string JUnitConsoleSha256 = "7c6968cbcaf4301c729f202b23b7d736c5d88be625fc7d27ad5d746146a8bc28";
 
     static string Root(string tool, string version) =>
-        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "karvon", tool, version);
+        Path.Combine(Karvon.Modules.ModuleComponent.DataRoot, tool, version);
 
     public static string JdtlsRoot => Root("jdtls", JdtlsVersion);
 

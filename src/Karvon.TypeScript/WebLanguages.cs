@@ -28,7 +28,7 @@ public static class WebLanguagesLocator
 
     const string TypeScriptSha256 = "10e108c9cf7d5f2879053dff18515fb405abf2ccef63eaaf017d9c571687a1d3";
 
-    public static string InstallRoot => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "karvon", "web-languages", Version);
+    public static string InstallRoot => Path.Combine(Karvon.Modules.ModuleComponent.DataRoot, "web-languages", Version);
 
     /// <summary>A language's server (html, css, json), or null when it is not installed.</summary>
     public static string? Find(string language)

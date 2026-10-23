@@ -11,7 +11,8 @@ namespace Karvon.Views;
 
 /// <summary>
 /// The modules in the window: each tool window a tab in its group (its view made the first time it shows) and a View
-/// menu item; their dialogs over the window; how their documents look. Tools > Modules turns them on and off.
+/// menu item; their dialogs over the window; how their documents look. Tools > Get Tools and Features (Karvon Studio
+/// Installer) turns them on and off.
 /// </summary>
 public partial class MainWindow
 {
@@ -159,98 +160,50 @@ public partial class MainWindow
         FillModuleToolWindow(id);
     }
 
-    /// <summary>
-    /// Tools > Modules: which modules are on (it takes effect when Karvon Studio starts again), and what each has
-    /// downloaded or is to download (installed at once, or removed when Karvon Studio starts again).
-    /// </summary>
-    async void OnModules(object? sender, RoutedEventArgs e)
+    InstallerWindow? _installer;
+
+    /// <summary>Tools > Get Tools and Features: Karvon Studio Installer's Modify, as Visual Studio's.</summary>
+    void OnGetToolsAndFeatures(object? sender, RoutedEventArgs e) => ShowInstaller(InstallerPage.Modify, check: false);
+
+    /// <summary>Help > Check for Updates: the installer, checking.</summary>
+    void OnCheckForUpdates(object? sender, RoutedEventArgs e) => ShowInstaller(InstallerPage.Product, check: true);
+
+    void OnUpdateBadgeClick(object? sender, RoutedEventArgs e) => ShowInstaller(InstallerPage.Product, check: false);
+
+    /// <summary>Karvon Studio Installer over the window (one: shown again when it is open), on its product or on Modify.</summary>
+    internal InstallerWindow? ShowInstaller(InstallerPage page, bool check)
     {
         if (Vm is not { } vm)
-            return;
-        var gray = this.FindResource("VsGrayTextBrush") as IBrush;
-        var boxes = vm.AllModules.Select(module => (Module: module, Box: new CheckBox
+            return null;
+        if (_installer is not { DataContext: InstallerViewModel installer } window)
         {
-            IsChecked = !vm.Settings.DisabledModules.Contains(module.Id),
-            Content = new StackPanel
-            {
-                Spacing = 2,
-                Children =
-                {
-                    new TextBlock { Text = module.Name, FontWeight = FontWeight.SemiBold },
-                    new TextBlock { Text = module.Description, TextWrapping = TextWrapping.Wrap, MaxWidth = 460, Foreground = gray },
-                },
-            },
-        })).ToList();
-        var list = new StackPanel { Spacing = 12 };
-        foreach (var (module, box) in boxes)
-        {
-            list.Children.Add(box);
-            foreach (var component in module.Components)
-                list.Children.Add(ComponentRow(vm, component, gray));
+            installer = new InstallerViewModel(vm, vm.Updates);
+            installer.RestartRequested += Restart;
+            window = new InstallerWindow { DataContext = installer };
+            window.Closed += (_, _) => _installer = null;
+            _installer = window;
+            window.Show(this);
         }
-        var body = new StackPanel
-        {
-            Spacing = 16,
-            Children =
-            {
-                new ScrollViewer { Content = list, MaxHeight = 520 },
-                new TextBlock { Text = "Modules turned on or off, and components removed, change when Karvon Studio starts again; a module turned on downloads its components now.", Foreground = gray, TextWrapping = TextWrapping.Wrap, MaxWidth = 560 },
-            },
-        };
-        if (await CreateDialog("Modules", body, ("OK", true), ("Cancel", false)).ShowDialog<bool?>(this) != true)
-            return;
-        var disabled = boxes.Where(b => b.Box.IsChecked != true).Select(b => b.Module.Id).ToList();
-        if (disabled.Order().SequenceEqual(vm.Settings.DisabledModules.Order()))
-            return;
-        // A module turned on gets what it downloads now; the modules change when Karvon Studio starts again.
-        var installed = await vm.ChangeModulesAsync(disabled);
-        ((IWorkbench)vm).Status(installed
-            ? "The modules change when Karvon Studio starts again."
-            : "The modules change when Karvon Studio starts again; a component could not be installed (see Output, Modules).");
+        else
+            window.Activate();
+        if (page == InstallerPage.Modify)
+            installer.ShowModifyCommand.Execute(null);
+        else
+            installer.ShowProductCommand.Execute(null);
+        if (check)
+            _ = installer.CheckForUpdatesCommand.ExecuteAsync(null);
+        return window;
     }
 
-    /// <summary>A component of a module in Tools > Modules: what it is, whether it is there, and Install, Remove or Keep.</summary>
-    internal static Control ComponentRow(MainViewModel vm, ModuleComponent component, IBrush? gray)
+    /// <summary>
+    /// Restart (and update): Karvon Studio closes as it always does (asking about what is not saved), then starts again
+    /// with the solution that is open, updated when asked to.
+    /// </summary>
+    void Restart(Updates.ExitAction action)
     {
-        var state = new TextBlock { Foreground = gray, VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center, TextWrapping = TextWrapping.Wrap };
-        var button = new Button { Padding = new Thickness(10, 1), MinWidth = 70, HorizontalContentAlignment = Avalonia.Layout.HorizontalAlignment.Center };
-        void Show()
-        {
-            (state.Text, button.Content) = vm.IsRemovalPending(component) ? ("removed when Karvon Studio starts again", "Keep")
-                : component.IsInstalled() ? ($"installed, {SizeText(component.Size())}", "Remove")
-                : ("downloads the first time it is needed", "Install");
-            button.IsEnabled = true;
-        }
-        button.Click += async (_, _) =>
-        {
-            if (vm.IsRemovalPending(component))
-                vm.KeepComponent(component);
-            else if (component.IsInstalled())
-                vm.RemoveComponent(component);
-            else
-            {
-                (state.Text, button.IsEnabled) = ("installing...", false);
-                if (!await vm.InstallComponentAsync(component))
-                {
-                    state.Text = "could not be installed: see Output (Modules)";
-                    button.IsEnabled = true;
-                    return;
-                }
-            }
-            Show();
-        };
-        Show();
-        var grid = new Grid { ColumnDefinitions = new ColumnDefinitions("*,Auto"), Margin = new Thickness(28, 0, 0, 0), [ToolTip.TipProperty] = component.Description };
-        var text = new StackPanel
-        {
-            Spacing = 1,
-            Children = { new TextBlock { Text = $"{component.Name} {component.Version}" }, state },
-        };
-        grid.Children.Add(text);
-        Grid.SetColumn(button, 1);
-        grid.Children.Add(button);
-        return grid;
+        Updates.AppUpdates.OnExit = action;
+        Updates.AppUpdates.RestartArguments = Vm?.Solution?.FilePath is { } open ? [open] : [];
+        _installer?.Close();
+        Close();
     }
-
-    static string SizeText(long bytes) => bytes >= 1 << 20 ? $"{bytes / (double)(1 << 20):0.#} MB" : $"{bytes / 1024.0:0} KB";
 }

@@ -36,6 +36,9 @@ public sealed class ClaudeModule : KarvonModule, IClaudeService
 
     public override string Name => "Claude Code";
 
+
+    public override string Icon => "claude";
+
     public override string Description =>
         "Claude Code's conversation in Karvon: your own CLI, account and settings; the editor's file and selection, Ask Claude, "
         + "Karvon's tools for the build, tests, debugger, databases, containers and servers.";

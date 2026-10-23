@@ -1,0 +1,312 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:Karvon.ViewModels"
+        xmlns:v="using:Karvon.Views"
+        x:Class="Karvon.Views.InstallerWindow"
+        x:DataType="vm:InstallerViewModel"
+        Title="Karvon Studio Installer"
+        Width="1180" Height="760" MinWidth="900" MinHeight="560"
+        WindowStartupLocation="CenterScreen"
+        Icon="/Assets/karvon.png"
+        Background="{StaticResource VsToolWindowBrush}"
+        Foreground="{StaticResource VsTextBrush}">
+  <Window.Styles>
+    <Style Selector="TextBlock.gray">
+      <Setter Property="Foreground" Value="{StaticResource VsGrayTextBrush}" />
+    </Style>
+    <Style Selector="TextBlock.heading">
+      <Setter Property="FontSize" Value="20" />
+      <Setter Property="FontWeight" Value="Light" />
+    </Style>
+    <Style Selector="Button.primary, Button.secondary">
+      <Setter Property="Padding" Value="18,5" />
+      <Setter Property="MinWidth" Value="110" />
+      <Setter Property="HorizontalContentAlignment" Value="Center" />
+      <Setter Property="CornerRadius" Value="2" />
+    </Style>
+    <Style Selector="Button.primary">
+      <Setter Property="Background" Value="#0E639C" />
+      <Setter Property="Foreground" Value="White" />
+    </Style>
+    <Style Selector="Button.primary:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="#1177BB" />
+      <Setter Property="Foreground" Value="White" />
+    </Style>
+    <Style Selector="Button.secondary">
+      <Setter Property="Background" Value="#3F3F46" />
+    </Style>
+    <Style Selector="Button.link">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderThickness" Value="0" />
+      <Setter Property="Padding" Value="0" />
+      <Setter Property="Foreground" Value="#4DAAFC" />
+      <Setter Property="Cursor" Value="Hand" />
+    </Style>
+    <Style Selector="Button.link:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="Foreground" Value="#7CC0FF" />
+    </Style>
+
+    <!-- The tabs of Modify, as Visual Studio Installer's: underlined when chosen -->
+    <Style Selector="Button.tab">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderThickness" Value="0,0,0,2" />
+      <Setter Property="BorderBrush" Value="Transparent" />
+      <Setter Property="CornerRadius" Value="0" />
+      <Setter Property="Padding" Value="2,6" />
+      <Setter Property="Margin" Value="0,0,26,0" />
+      <Setter Property="FontSize" Value="14" />
+    </Style>
+    <Style Selector="Button.tab:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="Foreground" Value="#1C97EA" />
+    </Style>
+    <Style Selector="Button.tab.selected">
+      <Setter Property="BorderBrush" Value="#007ACC" />
+      <Setter Property="Foreground" Value="#1C97EA" />
+    </Style>
+
+    <!-- A workload's card: its icon, name, description and check box; chosen, it is outlined -->
+    <Style Selector="Button.workload">
+      <Setter Property="Background" Value="#2D2D30" />
+      <Setter Property="BorderBrush" Value="#3F3F46" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CornerRadius" Value="2" />
+      <Setter Property="Padding" Value="12,10" />
+      <Setter Property="Width" Value="372" />
+      <Setter Property="Height" Value="86" />
+      <Setter Property="Margin" Value="0,0,10,10" />
+      <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+      <Setter Property="VerticalContentAlignment" Value="Stretch" />
+    </Style>
+    <Style Selector="Button.workload:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="#3E3E40" />
+      <Setter Property="BorderBrush" Value="#5A5A5E" />
+    </Style>
+    <Style Selector="Button.workload.selected /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="BorderBrush" Value="#007ACC" />
+    </Style>
+  </Window.Styles>
+
+  <DockPanel>
+    <!-- ===== Title strip ===== -->
+    <Border DockPanel.Dock="Top" Background="{StaticResource VsEnvironmentBrush}" BorderBrush="{StaticResource VsBorderBrush}" BorderThickness="0,0,0,1" Padding="24,10">
+      <StackPanel Orientation="Horizontal" Spacing="10">
+        <Image Source="/Assets/karvon.png" Width="22" Height="22" />
+        <TextBlock Text="Karvon Studio Installer" FontSize="15" VerticalAlignment="Center" />
+      </StackPanel>
+    </Border>
+
+    <!-- The two pages, one at a time, filling the window -->
+    <Panel>
+    <!-- ===== The installed product ===== -->
+    <Grid Name="ProductPage" IsVisible="{Binding IsProduct}" ColumnDefinitions="*,380">
+      <DockPanel Margin="32,22,24,16">
+        <TextBlock DockPanel.Dock="Bottom" Classes="gray" Text="{Binding InstallerVersion}" FontSize="12" />
+        <StackPanel Spacing="14">
+          <StackPanel Orientation="Horizontal" Spacing="26">
+            <StackPanel Spacing="4">
+              <TextBlock Text="Installed" FontSize="15" Foreground="#1C97EA" />
+              <Border Height="2" Background="#007ACC" />
+            </StackPanel>
+          </StackPanel>
+
+          <Border Name="ProductCard" Background="#2D2D30" BorderBrush="{StaticResource VsBorderBrush}" BorderThickness="1" CornerRadius="3" Padding="22,18">
+            <Grid ColumnDefinitions="Auto,*,Auto">
+              <Image Source="/Assets/karvon.png" Width="56" Height="56" VerticalAlignment="Top" Margin="0,2,18,0" />
+              <StackPanel Grid.Column="1" Spacing="5">
+                <TextBlock Text="Karvon Studio" FontSize="19" FontWeight="SemiBold" />
+                <TextBlock Name="VersionText" Classes="gray" Text="{Binding VersionText}" />
+                <StackPanel Orientation="Horizontal" Spacing="6" Margin="0,6,0,0">
+                  <v:VsIcon Kind="Check" Width="14" Height="14" Foreground="#89D185" IsVisible="{Binding IsUpToDate}" />
+                  <v:VsIcon Kind="Error" Width="14" Height="14" Foreground="{StaticResource VsErrorBrush}" IsVisible="{Binding HasFailed}" />
+                  <TextBlock Name="UpdateMessage" Text="{Binding Updater.Message}" TextWrapping="Wrap" MaxWidth="480" />
+                </StackPanel>
+                <ProgressBar IsVisible="{Binding IsDownloading}" Value="{Binding Updater.Progress}" Minimum="0" Maximum="1" Height="4" MinWidth="0" MaxWidth="420" HorizontalAlignment="Left" Margin="0,4,0,0" />
+                <ProgressBar IsVisible="{Binding IsChecking}" IsIndeterminate="True" Height="4" MinWidth="0" MaxWidth="420" HorizontalAlignment="Left" Margin="0,4,0,0" />
+                <StackPanel Orientation="Horizontal" Spacing="18" Margin="0,8,0,0">
+                  <Button Classes="link" Content="Release notes" Command="{Binding OpenReleasePageCommand}" />
+                  <Button Classes="link" Content="Check for updates" Command="{Binding CheckForUpdatesCommand}" />
+                </StackPanel>
+              </StackPanel>
+              <StackPanel Grid.Column="2" Spacing="8" VerticalAlignment="Top">
+                <Button Name="UpdateButton" Classes="primary" Content="{Binding UpdateButtonText}" Command="{Binding UpdateCommand}" IsVisible="{Binding CanUpdate}" />
+                <Button Name="ModifyButton" Classes="secondary" Content="Modify" Command="{Binding ShowModifyCommand}" />
+                <Button Name="LaunchButton" Classes="secondary" Content="Launch" Command="{Binding LaunchCommand}" IsVisible="{Binding IsStandalone}" />
+                <Button Name="RestartButton" Classes="secondary" Content="Restart" Command="{Binding RestartCommand}" IsVisible="{Binding RestartNeeded}"
+                        ToolTip.Tip="Karvon Studio starts again with the modules and components as they are now" />
+              </StackPanel>
+            </Grid>
+          </Border>
+
+          <!-- Update settings, as Visual Studio Installer's More > Update settings -->
+          <Border Background="#2D2D30" BorderBrush="{StaticResource VsBorderBrush}" BorderThickness="1" CornerRadius="3" Padding="22,14">
+            <StackPanel Spacing="6">
+              <TextBlock Text="Update settings" FontWeight="SemiBold" />
+              <CheckBox Name="CheckUpdates" Content="Check for updates when Karvon Studio starts (once a day)" IsChecked="{Binding UpdatesCheck}" />
+              <CheckBox Name="DownloadUpdates" Content="Download updates automatically" IsChecked="{Binding UpdatesDownload}" />
+              <CheckBox Name="InstallOnClose" Content="Install a downloaded update when Karvon Studio closes" IsChecked="{Binding UpdatesInstallOnClose}" />
+            </StackPanel>
+          </Border>
+        </StackPanel>
+      </DockPanel>
+
+      <!-- The newest release's notes, where Visual Studio Installer has its news -->
+      <Border Grid.Column="1" Background="#2D2D30" BorderBrush="{StaticResource VsBorderBrush}" BorderThickness="1,0,0,0" Padding="20,22">
+        <DockPanel>
+          <TextBlock DockPanel.Dock="Top" Text="Release notes" FontSize="15" Margin="0,0,0,12" />
+          <ScrollViewer HorizontalScrollBarVisibility="Disabled">
+            <v:MarkdownView Name="Notes" Markdown="{Binding ReleaseNotes}" />
+          </ScrollViewer>
+        </DockPanel>
+      </Border>
+    </Grid>
+
+    <!-- ===== Modify ===== -->
+    <DockPanel Name="ModifyPage" IsVisible="{Binding IsModify}">
+      <Grid DockPanel.Dock="Top" ColumnDefinitions="*,Auto" Margin="32,18,24,6">
+        <TextBlock Classes="heading" Text="{Binding ModifyTitle}" />
+        <Button Grid.Column="1" Classes="tbi" Command="{Binding ShowProductCommand}" ToolTip.Tip="Back to the installed product"><v:VsIcon Kind="Close" /></Button>
+      </Grid>
+      <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="32,6,24,0">
+        <Button Name="WorkloadsTab" Classes="tab" Classes.selected="{Binding IsWorkloads}" Content="Workloads" Command="{Binding ShowTabCommand}" CommandParameter="{x:Static vm:InstallerTab.Workloads}" />
+        <Button Name="ComponentsTab" Classes="tab" Classes.selected="{Binding IsComponents}" Content="Individual components" Command="{Binding ShowTabCommand}" CommandParameter="{x:Static vm:InstallerTab.Components}" />
+        <Button Name="LocationsTab" Classes="tab" Classes.selected="{Binding IsLocations}" Content="Installation locations" Command="{Binding ShowTabCommand}" CommandParameter="{x:Static vm:InstallerTab.Locations}" />
+      </StackPanel>
+
+      <!-- Location, the space required and Modify, as Visual Studio Installer's bottom bar -->
+      <Border DockPanel.Dock="Bottom" Background="{StaticResource VsEnvironmentBrush}" BorderBrush="{StaticResource VsBorderBrush}" BorderThickness="0,1,0,0" Padding="32,12,24,12">
+        <Grid ColumnDefinitions="*,Auto,Auto,Auto" RowDefinitions="Auto,Auto">
+          <StackPanel Grid.ColumnSpan="4" Spacing="4" Margin="0,0,0,10" IsVisible="{Binding ApplyText, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
+            <TextBlock Name="ApplyText" Text="{Binding ApplyText}" />
+            <ProgressBar Value="{Binding ApplyProgress}" Minimum="0" Maximum="1" Height="4" MinWidth="0" IsVisible="{Binding IsApplying}" />
+          </StackPanel>
+          <StackPanel Grid.Row="1" VerticalAlignment="Center">
+            <TextBlock Classes="gray" Text="Location" FontSize="12" />
+            <TextBlock Text="{Binding ComponentsLocation}" TextTrimming="CharacterEllipsis" />
+          </StackPanel>
+          <TextBlock Name="SpaceText" Grid.Row="1" Grid.Column="1" Text="{Binding SpaceText}" VerticalAlignment="Center" Margin="0,0,22,0" />
+          <Button Name="ApplyButton" Grid.Row="1" Grid.Column="2" Classes="primary" Content="Modify" Command="{Binding ApplyCommand}" IsEnabled="{Binding HasChanges}" Margin="0,0,8,0" />
+          <Button Grid.Row="1" Grid.Column="3" Classes="secondary" Content="{Binding RestartNeeded, Converter={x:Static v:InstallerWindow.CloseText}}" Command="{Binding ShowProductCommand}" />
+        </Grid>
+      </Border>
+
+      <!-- Installation details -->
+      <Border DockPanel.Dock="Right" Width="330" Background="#2D2D30" BorderBrush="{StaticResource VsBorderBrush}" BorderThickness="1,0,0,0" Padding="18,16">
+        <DockPanel>
+          <TextBlock DockPanel.Dock="Top" Text="Installation details" FontSize="15" Margin="0,0,0,12" />
+          <TextBlock DockPanel.Dock="Top" Classes="gray" Text="No changes." IsVisible="{Binding !HasChanges}" />
+          <ScrollViewer HorizontalScrollBarVisibility="Disabled">
+            <ItemsControl Name="Details" ItemsSource="{Binding Changes}">
+              <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="vm:InstallerChange">
+                  <StackPanel Spacing="3" Margin="0,0,0,12">
+                    <TextBlock Text="{Binding Text}" FontWeight="SemiBold" TextWrapping="Wrap" />
+                    <ItemsControl ItemsSource="{Binding Items}">
+                      <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="x:String">
+                          <TextBlock Text="{Binding StringFormat='• {0}'}" Classes="gray" TextWrapping="Wrap" Margin="10,0,0,0" />
+                        </DataTemplate>
+                      </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                  </StackPanel>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+          </ScrollViewer>
+        </DockPanel>
+      </Border>
+
+      <Panel Margin="32,14,16,0">
+        <!-- Workloads: the modules, as cards under their headings -->
+        <ScrollViewer Name="WorkloadsView" IsVisible="{Binding IsWorkloads}" HorizontalScrollBarVisibility="Disabled">
+          <ItemsControl ItemsSource="{Binding Workloads}">
+            <ItemsControl.ItemTemplate>
+              <DataTemplate x:DataType="vm:WorkloadGroup">
+                <StackPanel Spacing="8" Margin="0,0,0,10">
+                  <TextBlock Text="{Binding Title}" FontSize="15" />
+                  <ItemsControl ItemsSource="{Binding Items}">
+                    <ItemsControl.ItemsPanel>
+                      <ItemsPanelTemplate>
+                        <WrapPanel />
+                      </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                      <DataTemplate x:DataType="vm:WorkloadItem">
+                        <Button Classes="workload" Classes.selected="{Binding IsSelected}" Command="{Binding ToggleCommand}" ToolTip.Tip="{Binding Description}">
+                          <Grid ColumnDefinitions="Auto,*,Auto">
+                            <Image Source="{Binding Icon}" Width="32" Height="32" VerticalAlignment="Top" Margin="0,2,12,0" />
+                            <StackPanel Grid.Column="1" Spacing="3">
+                              <TextBlock Text="{Binding Name}" FontWeight="SemiBold" />
+                              <TextBlock Text="{Binding Description}" Classes="gray" FontSize="12" TextWrapping="Wrap" TextTrimming="CharacterEllipsis" MaxLines="3" />
+                            </StackPanel>
+                            <CheckBox Grid.Column="2" IsChecked="{Binding IsSelected}" VerticalAlignment="Top" Margin="8,0,0,0" MinWidth="0" Padding="0" />
+                          </Grid>
+                        </Button>
+                      </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                  </ItemsControl>
+                </StackPanel>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+        </ScrollViewer>
+
+        <!-- Individual components: each module's, searchable -->
+        <DockPanel Name="ComponentsView" IsVisible="{Binding IsComponents}">
+          <TextBox DockPanel.Dock="Top" Name="ComponentSearch" Text="{Binding ComponentFilter}" PlaceholderText="Search components" Width="360" HorizontalAlignment="Left" Margin="0,0,0,12" />
+          <ScrollViewer HorizontalScrollBarVisibility="Disabled">
+            <ItemsControl ItemsSource="{Binding ComponentGroups}">
+              <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="vm:ComponentGroup">
+                  <StackPanel Spacing="2" Margin="0,0,0,12" IsVisible="{Binding IsVisible}">
+                    <TextBlock Text="{Binding Title}" FontSize="14" Margin="0,0,0,4" />
+                    <ItemsControl ItemsSource="{Binding Items}">
+                      <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="vm:ComponentItem">
+                          <CheckBox IsChecked="{Binding IsSelected}" IsVisible="{Binding IsVisible}" ToolTip.Tip="{Binding Component.Description}" Margin="8,0,0,0">
+                            <StackPanel Orientation="Horizontal" Spacing="10">
+                              <TextBlock Text="{Binding Name}" />
+                              <TextBlock Text="{Binding State}" Classes="gray" FontSize="12" VerticalAlignment="Center" />
+                            </StackPanel>
+                          </CheckBox>
+                        </DataTemplate>
+                      </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                  </StackPanel>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+          </ScrollViewer>
+        </DockPanel>
+
+        <!-- Installation locations -->
+        <StackPanel Name="LocationsView" IsVisible="{Binding IsLocations}" Spacing="18" MaxWidth="720" HorizontalAlignment="Left">
+          <StackPanel Spacing="4">
+            <TextBlock Text="Karvon Studio" FontWeight="SemiBold" />
+            <Grid ColumnDefinitions="*,Auto">
+              <TextBox IsReadOnly="True" Text="{Binding AppLocation}" />
+              <Button Grid.Column="1" Classes="secondary" Content="Open" Command="{Binding OpenLocationCommand}" CommandParameter="{Binding AppLocation}" Margin="8,0,0,0" MinWidth="0" />
+            </Grid>
+          </StackPanel>
+          <StackPanel Spacing="4">
+            <TextBlock Text="Components (language servers, debuggers) and the downloaded updates" FontWeight="SemiBold" />
+            <Grid ColumnDefinitions="*,Auto">
+              <TextBox IsReadOnly="True" Text="{Binding ComponentsLocation}" />
+              <Button Grid.Column="1" Classes="secondary" Content="Open" Command="{Binding OpenLocationCommand}" CommandParameter="{Binding ComponentsLocation}" Margin="8,0,0,0" MinWidth="0" />
+            </Grid>
+          </StackPanel>
+          <StackPanel Spacing="4">
+            <TextBlock Text="Settings" FontWeight="SemiBold" />
+            <Grid ColumnDefinitions="*,Auto">
+              <TextBox IsReadOnly="True" Text="{Binding SettingsLocation}" />
+              <Button Grid.Column="1" Classes="secondary" Content="Open" Command="{Binding OpenLocationCommand}" CommandParameter="{Binding SettingsLocation}" Margin="8,0,0,0" MinWidth="0" />
+            </Grid>
+          </StackPanel>
+          <TextBlock Classes="gray" TextWrapping="Wrap" Text="Where Karvon Studio and its parts are. The components' folder is Karvon's own: what is removed goes only from there." />
+        </StackPanel>
+      </Panel>
+    </DockPanel>
+    </Panel>
+  </DockPanel>
+</Window>

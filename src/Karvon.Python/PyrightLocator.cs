@@ -16,7 +16,7 @@ public static class PyrightLocator
     const string Integrity = "FPZZb51jepDX4eP7TEYDeNFtmE3WgwkkEcJpvH3/QmUSsj0EAy3LXu+xB4T/FWDejtsXlCfFr/rbWFjwuwuXww==";
 
     public static string InstallRoot =>
-        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "karvon", "pyright", Version);
+        Path.Combine(Karvon.Modules.ModuleComponent.DataRoot, "pyright", Version);
 
     /// <summary>KARVON_PYRIGHT (a langserver.index.js), else the one installed here; null when there is none.</summary>
     public static string? Find()

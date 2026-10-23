@@ -140,7 +140,7 @@ public sealed record TestFrameworkStart(string Workspace, string Path, Action<st
 public interface IKeymapOwner;
 
 /// <summary>
-/// A part of Karvon Studio that can be turned off in Tools > Modules (and, later, installed on its own). Karvon knows a
+/// A part of Karvon Studio that can be turned off in Tools > Get Tools and Features (and, later, installed on its own). Karvon knows a
 /// module only through this: what it adds to the window (tool windows; how its documents and dialogs look) and what it
 /// does when Karvon starts and closes. A module uses Karvon through the <see cref="IWorkbench"/> it is started with.
 /// </summary>
@@ -151,8 +151,11 @@ public abstract partial class KarvonModule : ObservableObject, IDisposable, IAsy
 
     public abstract string Name { get; }
 
-    /// <summary>What it does, for Tools > Modules.</summary>
+    /// <summary>What it does, for Tools > Get Tools and Features.</summary>
     public abstract string Description { get; }
+
+    /// <summary>The Material icon that stands for it (its workload's card in the installer: "csharp", "docker"); none by default.</summary>
+    public virtual string? Icon => null;
 
     public virtual IReadOnlyList<ToolWindowInfo> ToolWindows => [];
 
@@ -206,7 +209,7 @@ public abstract partial class KarvonModule : ObservableObject, IDisposable, IAsy
     /// <summary>The folders of the tools its tasks use (Node.js's bin...): first on the PATH of every task.</summary>
     public virtual IEnumerable<string> ToolDirectories => [];
 
-    /// <summary>What it downloads when it is first needed (its language server, its debugger): Tools > Modules installs and removes them.</summary>
+    /// <summary>What it downloads when it is first needed (its language server, its debugger): Tools > Get Tools and Features installs and removes them.</summary>
     public virtual IReadOnlyList<ModuleComponent> Components => [];
 
     /// <summary>

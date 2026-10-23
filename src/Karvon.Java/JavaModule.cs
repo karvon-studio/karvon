@@ -16,6 +16,9 @@ public sealed class JavaModule : KarvonModule
 
     public override string Name => "Java";
 
+
+    public override string Icon => "java";
+
     public override string Description =>
         "jdtls, Eclipse's Java language server, in the editor of .java files (errors as you type, completion, hover, go to "
         + "definition, references, rename), with a Maven or Gradle project or the files alone; F5 with java-debug; Maven's "
@@ -53,14 +56,17 @@ public sealed class JavaModule : KarvonModule
     [
         new("jdtls", "Java language server (jdtls)", JavaTools.JdtlsVersion, JavaTools.JdtlsRoot, () => JavaTools.FindJdtls() is not null, JavaTools.EnsureJdtlsAsync)
         {
+            ApproximateSize = 68L << 20,
             Description = "jdtls (EPL-2.0), Eclipse's Java language server, from download.eclipse.org; it runs on the JDK.",
         },
         new("java-debug", "Java debugger (java-debug)", JavaTools.JavaDebugVersion, JavaTools.JavaDebugRoot, () => JavaTools.FindJavaDebug() is not null, JavaTools.EnsureJavaDebugAsync)
         {
+            ApproximateSize = 3L << 20,
             Description = "java-debug's plugin for jdtls (EPL-1.0), from VS Code's Java debugger (MIT) on Open VSX.",
         },
         new("junit", "JUnit console launcher", JavaTools.JUnitConsoleVersion, JavaTools.JUnitConsoleRoot, () => JavaTools.FindJUnitConsole() is not null, JavaTools.EnsureJUnitConsoleAsync)
         {
+            ApproximateSize = 4L << 20,
             Description = "JUnit 5's console launcher (EPL-2.0), from Maven Central: Test Explorer runs JUnit 5 and 4 tests with it.",
         },
     ];

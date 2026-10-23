@@ -14,6 +14,9 @@ public sealed class TypeScriptModule : KarvonModule
 
     public override string Name => "TypeScript and JavaScript";
 
+
+    public override string Icon => "typescript";
+
     public override string Description =>
         "TypeScript 7's language server for .ts, .tsx, .js and .jsx files: errors as you type, completion, hover, go to definition, "
         + "references, rename and formatting, installed the first time one of them opens (no Node.js needed). In a folder, the "
@@ -140,21 +143,25 @@ public sealed class TypeScriptModule : KarvonModule
         new("typescript", "TypeScript language server", TypeScriptServerLocator.Version, TypeScriptServerLocator.InstallRoot,
             () => TypeScriptServerLocator.Find() is not null, TypeScriptServerLocator.EnsureInstalledAsync)
         {
+            ApproximateSize = 27L << 20,
             Description = "TypeScript 7's native compiler, its own language server (Apache-2.0), from the npm registry.",
         },
         new("js-debug", "JavaScript debugger", JsDebugLocator.Version, JsDebugLocator.InstallRoot,
             () => JsDebugLocator.Find() is not null, JsDebugLocator.EnsureInstalledAsync)
         {
+            ApproximateSize = 3L << 20,
             Description = "js-debug, the JavaScript debugger of VS Code (MIT), from its GitHub release; it runs on Node.js.",
         },
         new("web-languages", "HTML, CSS and JSON language servers", WebLanguagesLocator.Version, WebLanguagesLocator.InstallRoot,
             WebLanguagesLocator.IsInstalled, WebLanguagesLocator.EnsureInstalledAsync)
         {
+            ApproximateSize = 34L << 20,
             Description = "VS Code's own (MIT), from Open VSX, with the TypeScript library (Apache-2.0) for HTML's scripts; they run on Node.js.",
         },
         new("eslint", "ESLint language server", EslintLocator.Version, EslintLocator.InstallRoot,
             () => EslintLocator.Find() is not null, EslintLocator.EnsureInstalledAsync)
         {
+            ApproximateSize = 1L << 20,
             Description = "The one of VS Code's ESLint extension (MIT), from Open VSX; on Node.js, it runs a folder's own ESLint where you let it.",
         },
     ];

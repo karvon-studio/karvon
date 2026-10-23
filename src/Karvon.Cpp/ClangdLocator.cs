@@ -21,7 +21,7 @@ public static class ClangdLocator
     };
 
     public static string InstallRoot =>
-        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "karvon", "clangd", Version);
+        Path.Combine(Karvon.Modules.ModuleComponent.DataRoot, "clangd", Version);
 
     static string Exe => OperatingSystem.IsWindows() ? "clangd.exe" : "clangd";
 

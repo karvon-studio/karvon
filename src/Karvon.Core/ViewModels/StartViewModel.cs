@@ -432,7 +432,7 @@ public sealed partial class StartViewModel : ObservableObject
             if (failed.Count > 0)
                 Message = string.Join(" ", failed.Select(f => $"The {f.Source} project templates could not be loaded: {f.Error.Message}"));
             else if (_templates.Count == 0)
-                Message = "No project templates: the modules that have them are off (Tools > Modules).";
+                Message = "No project templates: the modules that have them are off (Tools > Get Tools and Features).";
             foreach (var language in _templates.Select(t => t.Language).OfType<string>().Distinct().OrderBy(LanguageRank))
                 Languages.Add(language);
             foreach (var platform in _templates.SelectMany(t => t.Template.Platforms).Distinct().Order(StringComparer.OrdinalIgnoreCase))

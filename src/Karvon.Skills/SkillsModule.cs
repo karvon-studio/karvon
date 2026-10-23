@@ -22,6 +22,9 @@ public sealed partial class SkillsModule : KarvonModule, ISkillsHost
 
     public override string Name => "Skills";
 
+
+    public override string Icon => "folder-skills";
+
     public override string Description =>
         "The skills, subagents, commands and hooks Claude Code reads, a marketplace to find more, and memory files kept in "
         + "step for the other agents.";

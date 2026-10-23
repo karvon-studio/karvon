@@ -18,7 +18,7 @@ public static class RoslynServerLocator
     public const string Version = "5.13.0-1.26507.4";
 
     public static string InstallRoot =>
-        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "karvon", "roslyn", Version);
+        Path.Combine(Karvon.Modules.ModuleComponent.DataRoot, "roslyn", Version);
 
     public static RoslynServerInstall? Find()
     {

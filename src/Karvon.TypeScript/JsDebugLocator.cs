@@ -16,7 +16,7 @@ public static class JsDebugLocator
     const string Sha256 = "27dab92937ec1ab35821ae955aac867544fe06a1b6307229049f2d789af10968";
 
     public static string InstallRoot =>
-        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "karvon", "js-debug", Version);
+        Path.Combine(Karvon.Modules.ModuleComponent.DataRoot, "js-debug", Version);
 
     /// <summary>KARVON_JS_DEBUG (a dapDebugServer.js), else the one installed here; null when there is none.</summary>
     public static string? Find()

@@ -16,7 +16,7 @@ public static class GoTools
     static string Exe(string name) => OperatingSystem.IsWindows() ? name + ".exe" : name;
 
     static string Root(string tool, string version) =>
-        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "karvon", tool, version);
+        Path.Combine(Karvon.Modules.ModuleComponent.DataRoot, tool, version);
 
     public static string GoplsRoot => Root("gopls", GoplsVersion);
 

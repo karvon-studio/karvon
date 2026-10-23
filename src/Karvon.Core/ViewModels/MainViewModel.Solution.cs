@@ -33,7 +33,7 @@ public partial class MainViewModel
         if (Directory.Exists(path))
             return SolutionLoader.LoadFolder(path, DependenciesOf);
         if (Modules.FirstOrDefault(m => m.OpensWorkspace(path)) is not { } module)
-            throw new NotSupportedException($"no module opens {Path.GetFileName(path)}: its module is off (Tools > Modules)");
+            throw new NotSupportedException($"no module opens {Path.GetFileName(path)}: its module is off (Tools > Get Tools and Features)");
         return await module.OpenWorkspaceAsync(path, CancellationToken.None);
     }
 

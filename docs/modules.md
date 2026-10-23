@@ -1,6 +1,7 @@
 # Modules
 
-A module is a part of Karvon Studio that can be turned off in **Tools > Modules**. Later, modules will also install
+A module is a part of Karvon Studio that can be turned off in **Tools > Get Tools and Features** (Karvon Studio Installer,
+where it is a workload, its components individual components). Later, modules will also install
 on their own (see the [roadmap](../ROADMAP.md)). Karvon knows a module only through `Karvon.Modules.KarvonModule`,
 and a module uses Karvon only through `IWorkbench`.
 
@@ -70,7 +71,8 @@ application's project references.
 | `WorkspaceProjects(workspace)` | The projects of its workload it finds in a folder (`WorkspaceProject`: a name, its folder, the file that makes it one). In a solution, Solution Explorer shows those that no .NET project holds beside the solution's projects, with that file's icon (a frontend's `package.json` folder). |
 | `WorkspaceTaskFiles` | The file names its tasks come from (`package.json`): saving one reads the tasks again. |
 | `ToolDirectories` | The folders of the tools its tasks use (Node.js's bin when Karvon's PATH has none): first on every task's PATH. |
-| `Components` | What it downloads the first time it is needed (`ModuleComponent`: a name, a version, its folder in Karvon's data folder, whether it is there, how it installs). Tools > Modules lists them under the module, with Install (at once) and Remove (when Karvon Studio starts again, since it may be running). |
+| `Components` | What it downloads the first time it is needed (`ModuleComponent`: a name, a version, its folder in Karvon's data folder, whether it is there, how it installs, about how much disk it takes). The installer lists them as individual components: installed at once, removed when Karvon Studio starts again (it may be running), downloaded when the module is turned on. |
+| `Icon` | The Material icon of its workload's card in the installer (`"csharp"`, `"docker"`). |
 | `TestFrameworks(start)` | The test frameworks of a folder it knows (`TestFramework`: Vitest in a package that depends on it, .NET's vstest in a solution). Test Explorer finds their tests (`TestItem`: an id, the rows above it, where it is), runs them and shows the results of all of them together; a framework runs nothing until Test Explorer asks it to, and one that is not `IsAvailable` (a solution with no test project yet) is left out. To debug, `start.DebugAsync` runs a launch configuration to its end, and `start.StartDebuggingAsync` starts one (an attach to a test host) and returns once it runs. |
 | `ProjectTemplates`, `LoadProjectTemplatesAsync(ct)` | Its new projects, in New Project in the modules' order (`LoadProjectTemplatesAsync` when they take a while to list: .NET's are the SDK's). A folder template (`ProjectTemplate.OfModule`: a Go module, a Cargo package...) makes its project folder with its tools or its files (`TemplateSteps`) in `Create`, and that folder opens. One that `MakesSolution` (dotnet new's) makes the solution around its project, which opens; one with `AddToSolution` is in Add > New Project too, and returns the project files the solution adds. |
 | `ExplorerMenu(node)` | What it adds to Solution Explorer's context menu of a node (`ModuleMenuItem`: a header, what it runs or the `Items` of its submenu, whether it is enabled; one with neither is a separator). An item whose `After` names one of Karvon's items ("Run Tests") goes after it, with the others of the same `After` in the order given; one whose `In` names a submenu of Karvon's ("Add") goes at its end; the rest go after Karvon's own items, before Open in Terminal and Copy Full Path. `Workbench.ProjectOf(node)` is the project a node is under. |

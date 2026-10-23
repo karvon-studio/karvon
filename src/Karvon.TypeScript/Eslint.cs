@@ -18,7 +18,7 @@ public static class EslintLocator
     public const string Version = "3.0.34";
     const string Sha256 = "ca5334d46f6a39079e751ef4601bfc9f86bc3a46483e87291ec609239d161308";
 
-    public static string InstallRoot => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "karvon", "eslint", Version);
+    public static string InstallRoot => Path.Combine(Karvon.Modules.ModuleComponent.DataRoot, "eslint", Version);
 
     /// <summary>The server's script, or null when it is not installed.</summary>
     public static string? Find()

@@ -229,7 +229,7 @@
       <MenuItem Header="_Tools">
         <MenuItem Header="_Restart Language Server" Command="{Binding RestartLanguageServerCommand}" />
         <Separator />
-        <MenuItem Header="_Modules..." Click="OnModules" />
+        <MenuItem Header="_Get Tools and Features..." Click="OnGetToolsAndFeatures" />
       </MenuItem>
       <MenuItem Name="WindowMenu" Header="_Window">
         <MenuItem Name="SplitMenuItem" Header="Spl_it" Click="OnSplitWindow" />
@@ -249,6 +249,7 @@
       </MenuItem>
       <MenuItem Header="_Help">
         <MenuItem Header="_Keyboard Shortcuts" Click="OnShortcuts" />
+        <MenuItem Header="_Check for Updates" Click="OnCheckForUpdates" />
         <MenuItem Header="_About Karvon" Click="OnAbout" />
       </MenuItem>
     </Menu>
@@ -300,11 +301,19 @@
 
     <!-- ===== Status bar ===== -->
     <Border DockPanel.Dock="Bottom" Height="23" Background="{Binding Status, Converter={x:Static v:StatusBrushConverter.Instance}}">
-      <Grid ColumnDefinitions="*,Auto,Auto,Auto" Margin="8,0">
+      <Grid ColumnDefinitions="*,Auto,Auto,Auto,Auto" Margin="8,0">
         <TextBlock Text="{Binding StatusText}" VerticalAlignment="Center" Foreground="White" TextTrimming="CharacterEllipsis" />
         <TextBlock Grid.Column="1" Text="{Binding ServerStatus}" VerticalAlignment="Center" Foreground="White" Margin="0,0,24,0" />
         <TextBlock Grid.Column="2" Text="{Binding CaretText}" VerticalAlignment="Center" Foreground="White" MinWidth="120" Margin="0,0,16,0" />
-        <StackPanel Grid.Column="3" Orientation="Horizontal" Spacing="2" IsVisible="{Binding HasGit}">
+        <!-- The update, as Visual Studio's notification: a click opens Karvon Studio Installer -->
+        <Button Name="UpdateBadge" Grid.Column="3" Classes="tb" Padding="6,0" MinHeight="20" Margin="0,0,10,0" IsVisible="{Binding HasUpdateBadge}" Click="OnUpdateBadgeClick"
+                ToolTip.Tip="Karvon Studio Installer">
+          <StackPanel Orientation="Horizontal" Spacing="5">
+            <v:VsIcon Kind="Pull" Width="13" Height="13" Foreground="White" />
+            <TextBlock Text="{Binding UpdateBadge}" Foreground="White" VerticalAlignment="Center" />
+          </StackPanel>
+        </Button>
+        <StackPanel Grid.Column="4" Orientation="Horizontal" Spacing="2" IsVisible="{Binding HasGit}">
           <Button Classes="tb" Padding="6,0" MinHeight="20" Command="{Binding ShowGitChangesCommand}" ToolTip.Tip="Pending changes">
             <StackPanel Orientation="Horizontal" Spacing="4">
               <v:VsIcon Kind="Pencil" Width="13" Height="13" Foreground="White" />

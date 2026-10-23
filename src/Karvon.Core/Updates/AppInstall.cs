@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Reflection;
 using System.Runtime.InteropServices;
 
@@ -93,6 +94,28 @@ public sealed record AppInstall(Distribution Distribution, string Version, strin
 
     /// <summary>The app's bundle (Karvon Studio.app), of a Mac's: the program is in its Contents/MacOS.</summary>
     public string Bundle => Path.GetDirectoryName(Path.GetDirectoryName(Directory)!)!;
+
+    /// <summary>
+    /// Karvon Studio started again (as this one exits), with the arguments it had: its AppImage's file (the mounted one goes
+    /// as it exits), a Mac's bundle by open, else its program; a build of the sources as it was started (dotnet Karvon.dll).
+    /// </summary>
+    public void StartAgain(IReadOnlyList<string> arguments)
+    {
+        ProcessStartInfo start;
+        if (Distribution == Distribution.Dmg)
+            start = new ProcessStartInfo("open", ["-n", Bundle, .. arguments.Count > 0 ? ["--args", .. arguments] : Array.Empty<string>()]);
+        else if (Distribution != Distribution.Source)
+            start = new ProcessStartInfo(Program, arguments);
+        else
+        {
+            var process = Environment.ProcessPath ?? Program;
+            start = Path.GetFileNameWithoutExtension(process) == "dotnet" && Environment.GetCommandLineArgs() is [var dll, ..]
+                ? new ProcessStartInfo(process, [dll, .. arguments])
+                : new ProcessStartInfo(process, arguments);
+        }
+        start.UseShellExecute = false;
+        Process.Start(start)?.Dispose();
+    }
 
     /// <summary>The program that starts it again.</summary>
     public string Program => Distribution switch
