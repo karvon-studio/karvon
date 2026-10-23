@@ -18,10 +18,29 @@ public sealed class TypeScriptModule : KarvonModule
         + "references, rename and formatting, installed the first time one of them opens (no Node.js needed). In a folder, the "
         + "package.json scripts build, run and test it (with npm, pnpm, yarn or bun), and F5 debugs the app or a launch.json "
         + "configuration with js-debug, the JavaScript debugger of VS Code (installed the first time; it runs on Node.js). "
-        + "Test Explorer runs and debugs a package's Vitest or Jest tests.";
+        + "Test Explorer runs and debugs a package's Vitest or Jest tests. VS Code's HTML, CSS (with SCSS and Less) and JSON "
+        + "language servers serve those files (installed the first time one of them opens; they run on Node.js).";
 
     public override IReadOnlyList<LanguageServerInfo> LanguageServers =>
-        [new("typescript", "TypeScript language server", TypeScriptServer.Serves, StartAsync)];
+    [
+        new("typescript", "TypeScript language server", TypeScriptServer.Serves, StartAsync),
+        WebServer("html", "HTML language server"),
+        WebServer("css", "CSS language server"),
+        WebServer("json", "JSON language server"),
+    ];
+
+    /// <summary>One of VS Code's HTML, CSS and JSON servers, for its language's files.</summary>
+    LanguageServerInfo WebServer(string language, string name) =>
+        new(language, name, path => WebLanguageServer.LanguageOf(path) == language, async start =>
+        {
+            var installing = !WebLanguagesLocator.IsInstalled();
+            if (installing)
+                Workbench.Status($"Installing the HTML, CSS and JSON language servers {WebLanguagesLocator.Version}...");
+            var server = await WebLanguageServer.StartAsync(language, start);
+            if (installing)
+                Workbench.Status($"The HTML, CSS and JSON language servers {WebLanguagesLocator.Version} installed.");
+            return server;
+        });
 
     /// <summary>The package.json scripts: build, test, the app (dev or start), and the rest in Build > Run Task.</summary>
     public override IReadOnlyList<WorkspaceTask> WorkspaceTasks(string workspace) => PackageScripts.Read(workspace);
@@ -48,6 +67,11 @@ public sealed class TypeScriptModule : KarvonModule
             () => JsDebugLocator.Find() is not null, JsDebugLocator.EnsureInstalledAsync)
         {
             Description = "js-debug, the JavaScript debugger of VS Code (MIT), from its GitHub release; it runs on Node.js.",
+        },
+        new("web-languages", "HTML, CSS and JSON language servers", WebLanguagesLocator.Version, WebLanguagesLocator.InstallRoot,
+            WebLanguagesLocator.IsInstalled, WebLanguagesLocator.EnsureInstalledAsync)
+        {
+            Description = "VS Code's own (MIT), from Open VSX, with the TypeScript library (Apache-2.0) for HTML's scripts; they run on Node.js.",
         },
     ];
 

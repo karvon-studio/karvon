@@ -20,7 +20,64 @@ public class TypeScriptTests
         Assert.Equal("javascriptreact", TypeScriptServer.LanguageIdOf("/w/App.jsx"));
         Assert.False(TypeScriptServer.Serves("/w/Program.cs"));
         Assert.False(TypeScriptServer.Serves("/w/package.json"));
-        Assert.Contains(Karvon.BuiltInModules.Create(), m => m.Id == "typescript" && m.LanguageServers.Single().Serves("/w/app.ts"));
+        Assert.Contains(Karvon.BuiltInModules.Create(), m => m.Id == "typescript" && m.LanguageServers.Single(s => s.Id == "typescript").Serves("/w/app.ts"));
+    }
+
+    [Fact]
+    public void Html_css_and_json_files_have_their_servers_languages()
+    {
+        Assert.Equal(("html", "html"), (WebLanguageServer.LanguageOf("/w/index.htm"), WebLanguageServer.LanguageIdOf("/w/index.htm")));
+        Assert.Equal(("css", "scss"), (WebLanguageServer.LanguageOf("/w/site.scss"), WebLanguageServer.LanguageIdOf("/w/site.scss")));
+        // JSON with comments where VS Code allows them: tsconfig, jsconfig, .vscode's files, .jsonc.
+        Assert.Equal(["json", "jsonc", "jsonc", "jsonc"],
+            new[] { "/w/package.json", "/w/tsconfig.app.json", "/w/.vscode/launch.json", "/w/notes.jsonc" }.Select(WebLanguageServer.LanguageIdOf));
+        Assert.Null(WebLanguageServer.LanguageOf("/w/app.ts"));
+    }
+
+    [AvaloniaFact]
+    public async Task Html_css_and_json_are_served_by_vs_codes_servers()
+    {
+        Assert.SkipUnless(Environment.GetEnvironmentVariable("KARVON_TYPESCRIPT_LIVE") == "1" && Workspace.TaskVariables.Find("node",
+            string.Join(Path.PathSeparator, new[] { Build.NodeLocator.DirectoryOffPath(), Environment.GetEnvironmentVariable("PATH") }.OfType<string>()), "/") is not null,
+            "Set KARVON_TYPESCRIPT_LIVE=1, with Node.js installed, to install VS Code's HTML, CSS and JSON servers and try them.");
+        var dir = Path.Combine(Path.GetTempPath(), "karvon-web-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(dir);
+        try
+        {
+            var page = Path.Combine(dir, "index.html");
+            File.WriteAllText(page, "<!DOCTYPE html>\n<html>\n<head><style>p { color: red; }</style></head>\n<bo\n</html>\n");
+            var style = Path.Combine(dir, "site.css");
+            File.WriteAllText(style, "body {\n  color: ;\n}\n");
+            var data = Path.Combine(dir, "data.json");
+            File.WriteAllText(data, "{ \"name\": \"shop\", }\n");
+            var vm = NewViewModel();
+            var window = new MainWindow { DataContext = vm, Width = 1280, Height = 800 };
+            window.Show();
+            await vm.OpenSolutionAsync(dir);
+
+            // HTML: its elements as it is typed.
+            var html = vm.OpenDocument(page)!;
+            await WaitUntil(() => html.Host.HasLanguageServer, TimeSpan.FromMinutes(3));
+            Assert.True(html.Host.HasLanguageServer, vm.ServerOutput.Document.Text);
+            var htmlServer = Assert.IsType<WebLanguageServer>(vm.LanguageServerFor(page));
+            Assert.Contains((await htmlServer.CompletionAsync(page, new LspPosition(3, 3), null, CancellationToken.None)).Items, i => i.Label == "body");
+
+            // CSS and JSON: their errors in the editor, each from its own server.
+            var css = vm.OpenDocument(style)!;
+            await WaitUntil(() => css.Host.Diagnostics.Count > 0, TimeSpan.FromSeconds(60));
+            Assert.Equal(1, css.Host.Diagnostics[0].Range.Start.Line);
+            var json = vm.OpenDocument(data)!;
+            await WaitUntil(() => json.Host.Diagnostics.Count > 0, TimeSpan.FromSeconds(60));
+            Assert.Contains(json.Host.Diagnostics, d => d.Message.Contains("comma", StringComparison.OrdinalIgnoreCase));
+            Assert.Equal(3, vm.ModuleLanguageServers.Count(s => s is WebLanguageServer));
+            Assert.NotSame(vm.LanguageServerFor(style), vm.LanguageServerFor(data));
+            Assert.True(await vm.CloseSolutionCoreAsync());
+            window.Close();
+        }
+        finally
+        {
+            Directory.Delete(dir, recursive: true);
+        }
     }
 
     [AvaloniaFact]

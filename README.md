@@ -189,7 +189,7 @@ src/Karvon.Servers/     module: SSH servers
 src/Karvon.Mcp/         module: MCP Servers
 src/Karvon.Skills/      module: Skills (uses Karvon.Mcp)
 src/Karvon.DotNet/      module: .NET (Roslyn, netcoredbg, dotnet build, the SDK's templates, NuGet, vstest in Test Explorer)
-src/Karvon.TypeScript/  module: TypeScript and JavaScript (TypeScript 7's language server, package.json scripts, js-debug, Vitest, Jest)
+src/Karvon.TypeScript/  module: TypeScript and JavaScript (TypeScript 7's language server, package.json scripts, js-debug, Vitest, Jest; HTML, CSS, JSON)
 src/Karvon.Python/      module: Python (Pyright's language server, debugpy, pytest, the workspace's .venv)
 src/Karvon.Go/          module: Go (gopls, Delve, go build/test/vet/run, go test in Test Explorer)
 src/Karvon.Rust/        module: Rust (rust-analyzer, CodeLLDB, cargo build/check/clippy/test/run, cargo test in Test Explorer)

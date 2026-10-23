@@ -67,8 +67,8 @@ it does today all along.
 ## 2. TypeScript and JavaScript
 
 TypeScript 7's own language server (`tsc --lsp`), the `package.json` scripts as tasks, js-debug for F5 and Vitest in
-Test Explorer, Jest's too (in now: the TypeScript and JavaScript module); then ESLint, browser debugging (Chrome,
-Edge), HTML and CSS.
+Test Explorer, Jest's too, and VS Code's HTML, CSS (with SCSS and Less) and JSON language servers (in now: the
+TypeScript and JavaScript module); then ESLint and browser debugging (Chrome, Edge).
 
 ## 3. macOS release
 
