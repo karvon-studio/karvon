@@ -938,7 +938,7 @@ public partial class MainViewModel : ObservableObject
         if (path is null || Solution is null)
             return "";
         return Solution.Projects
-            .Where(p => path.StartsWith(p.Directory + "/", StringComparison.Ordinal))
+            .Where(p => FilePaths.IsUnder(path, p.Directory))
             .OrderByDescending(p => p.Directory.Length)
             .FirstOrDefault()?.Name ?? "";
     }

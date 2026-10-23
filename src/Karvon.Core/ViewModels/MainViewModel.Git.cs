@@ -166,7 +166,7 @@ public partial class MainViewModel
     static async Task<List<GitRepository>> FindRepositoriesAsync(SolutionInfo solution)
     {
         var found = new List<GitRepository>();
-        bool Known(string directory) => found.Any(r => directory == r.Root || directory.StartsWith(r.Root + "/", StringComparison.Ordinal));
+        bool Known(string directory) => found.Any(r => Services.FilePaths.IsSameOrUnder(directory, r.Root));
         async Task AddAsync(string directory)
         {
             if (await GitRepository.OpenAsync(directory) is { } repository && found.All(r => r.Root != repository.Root))

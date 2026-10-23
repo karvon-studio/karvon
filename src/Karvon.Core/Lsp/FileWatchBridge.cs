@@ -122,7 +122,7 @@ public sealed class FileWatchBridge : IDisposable
 
     public void Unregister(string id) => _registrations.TryRemove(id, out _);
 
-    bool IsUnderRoot(string path) => path == _root || path.StartsWith(_root + "/", StringComparison.Ordinal);
+    bool IsUnderRoot(string path) => Services.FilePaths.IsSameOrUnder(path, _root);
 
     void EnsureStarted()
     {
@@ -174,7 +174,7 @@ public sealed class FileWatchBridge : IDisposable
                     if (w.Pattern.IsMatch(path) || w.Pattern.IsMatch(Path.GetFileName(path)))
                         return true;
                 }
-                else if (path.StartsWith(w.BaseDir + "/", StringComparison.Ordinal) && w.Pattern.IsMatch(path[(w.BaseDir.Length + 1)..]))
+                else if (Services.FilePaths.IsUnder(path, w.BaseDir) && w.Pattern.IsMatch(path[(w.BaseDir.Length + 1)..].Replace('\\', '/')))
                 {
                     return true;
                 }

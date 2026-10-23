@@ -107,7 +107,7 @@ public partial class MainViewModel
             }
             foreach (var project in projects)
             {
-                if (solution.Projects.Any(p => project.Directory == p.Directory || project.Directory.StartsWith(p.Directory + Path.DirectorySeparatorChar, StringComparison.Ordinal))
+                if (solution.Projects.Any(p => Services.FilePaths.IsSameOrUnder(project.Directory, p.Directory))
                     || solution.Root.Children.Any(n => n.WorkspaceProject?.Directory == project.Directory))
                     continue;
                 solution.Root.Children.Add(new ExplorerNode(NodeKind.Folder, project.Name, project.Directory,

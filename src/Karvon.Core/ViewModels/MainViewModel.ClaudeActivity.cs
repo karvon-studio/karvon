@@ -74,7 +74,7 @@ public partial class MainViewModel
         if (path is null || Solution?.Directory is not { } root)
             return;
         var file = Path.GetFullPath(path, root);
-        if (!file.StartsWith(root + Path.DirectorySeparatorChar, StringComparison.Ordinal) || !File.Exists(file))
+        if (!Services.FilePaths.IsUnder(file, root) || !File.Exists(file))
             return;
         if (start > 0)
             // To the start of the line after the last: the last line is selected whole.

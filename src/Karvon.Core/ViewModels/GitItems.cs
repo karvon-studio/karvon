@@ -40,7 +40,7 @@ public sealed partial class GitRepoItem(GitRepository repository) : ObservableOb
     }
 
     /// <summary>Whether a file of the disk is in this repository's working tree.</summary>
-    public bool Contains(string path) => path == Root || path.StartsWith(Root + "/", StringComparison.Ordinal);
+    public bool Contains(string path) => Services.FilePaths.IsSameOrUnder(path, Root);
 }
 
 public enum GitRowKind

@@ -33,7 +33,7 @@ public partial class MainViewModel
 
     /// <summary>The innermost project whose folder holds <paramref name="path"/>.</summary>
     public ProjectInfo? ProjectContaining(string path) =>
-        Solution?.Projects.Where(p => path == p.Directory || path.StartsWith(p.Directory + "/", StringComparison.Ordinal))
+        Solution?.Projects.Where(p => Services.FilePaths.IsSameOrUnder(path, p.Directory))
             .MaxBy(p => p.Directory.Length);
 
     /// <summary>
@@ -185,7 +185,7 @@ public partial class MainViewModel
             {
                 if (file == from)
                     return to;
-                if (file.StartsWith(from + "/", StringComparison.Ordinal))
+                if (Services.FilePaths.IsUnder(file, from))
                     return to + file[from.Length..];
             }
             return null;
@@ -242,7 +242,7 @@ public partial class MainViewModel
             return false;
         var paths = new List<string> { path };
         paths.AddRange(node.Children.Where(c => c.Kind == NodeKind.File && c.Path is not null).Select(c => c.Path!));
-        foreach (var doc in Editors.Where(d => paths.Any(p => d.FilePath == p || d.FilePath.StartsWith(p + "/", StringComparison.Ordinal))).ToList())
+        foreach (var doc in Editors.Where(d => paths.Any(p => Services.FilePaths.IsSameOrUnder(d.FilePath, p))).ToList())
         {
             Documents.Remove(doc);
             doc.Dispose();

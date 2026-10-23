@@ -112,7 +112,7 @@ public sealed class GitWatcher : IDisposable
             Changed?.Invoke(repository, files);
     }
 
-    static bool IsUnder(string path, string directory) => path.StartsWith(directory + "/", StringComparison.Ordinal);
+    static bool IsUnder(string path, string directory) => Services.FilePaths.IsUnder(path, directory);
 
     public void Dispose()
     {

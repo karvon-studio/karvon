@@ -33,7 +33,7 @@ public partial class MainViewModel
         if (solution.Projects.FirstOrDefault(p => p.Name.Equals(name, StringComparison.OrdinalIgnoreCase)) is { } project)
             return project.FilePath;
         var path = Path.GetFullPath(name, solution.Directory);
-        return path.StartsWith(solution.Directory + Path.DirectorySeparatorChar, StringComparison.Ordinal) && File.Exists(path)
+        return Services.FilePaths.IsUnder(path, solution.Directory) && File.Exists(path)
             && Path.GetExtension(path) is ".sln" or ".slnx" or ".csproj" or ".fsproj" or ".vbproj" ? path : null;
     }
 

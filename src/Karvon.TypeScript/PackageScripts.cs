@@ -34,7 +34,7 @@ public static class PackageScripts
         foreach (var file in PackageFiles(workspace))
         {
             var dir = Path.GetDirectoryName(file)!;
-            if (dir == workspace.TrimEnd(Path.DirectorySeparatorChar) || projects.Any(p => dir.StartsWith(p.Directory + Path.DirectorySeparatorChar, StringComparison.Ordinal)))
+            if (dir == workspace.TrimEnd(Path.DirectorySeparatorChar) || projects.Any(p => Services.FilePaths.IsUnder(dir, p.Directory)))
                 continue;
             JsonElement package;
             try

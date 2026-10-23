@@ -70,7 +70,7 @@ abstract class IdeTool(MainViewModel vm) : IClaudeTool
 
     /// <summary>A path as Claude gives and reads it: relative to the solution's folder, with forward slashes.</summary>
     protected string Relative(string? path) =>
-        path is null ? "" : Vm.SolutionDirectoryForClaude is { } dir && path.StartsWith(dir + Path.DirectorySeparatorChar, StringComparison.Ordinal)
+        path is null ? "" : Vm.SolutionDirectoryForClaude is { } dir && Services.FilePaths.IsUnder(path, dir)
             ? Path.GetRelativePath(dir, path).Replace('\\', '/')
             : path;
 
@@ -79,7 +79,7 @@ abstract class IdeTool(MainViewModel vm) : IClaudeTool
     {
         var dir = SolutionDirectory;
         var full = Path.GetFullPath(path, dir);
-        if (!full.StartsWith(dir + Path.DirectorySeparatorChar, StringComparison.Ordinal))
+        if (!Services.FilePaths.IsUnder(full, dir))
             throw new InvalidOperationException($"{path} is not in the solution's folder.");
         return full;
     }
@@ -105,7 +105,7 @@ static class BuildReport
         foreach (var e in problems.Take(limit))
         {
             var where = e.FilePath is { } file
-                ? $"{(vm.SolutionDirectoryForClaude is { } dir && file.StartsWith(dir + "/", StringComparison.Ordinal) ? Path.GetRelativePath(dir, file) : file)}({e.Line},{e.Column})"
+                ? $"{(vm.SolutionDirectoryForClaude is { } dir && Services.FilePaths.IsUnder(file, dir) ? Path.GetRelativePath(dir, file) : file)}({e.Line},{e.Column})"
                 : e.Project;
             text.Append('\n').Append($"{where}: {(e.Severity == DiagnosticSeverity.Error ? "error" : "warning")} {e.Code}: {e.Description}");
         }
@@ -185,7 +185,7 @@ static class TestReport
         {
             text.Append("\n\n").Append(name).Append(": failed");
             if (node.SourcePath is { } source)
-                text.Append($" ({(vm.SolutionDirectoryForClaude is { } dir && source.StartsWith(dir + "/", StringComparison.Ordinal) ? Path.GetRelativePath(dir, source) : source)}:{node.Line})");
+                text.Append($" ({(vm.SolutionDirectoryForClaude is { } dir && Services.FilePaths.IsUnder(source, dir) ? Path.GetRelativePath(dir, source) : source)}:{node.Line})");
             if (node.ErrorMessage is { Length: > 0 } message)
                 text.Append('\n').Append(message.Trim());
             if (node.StackTrace is { Length: > 0 } stack)
@@ -290,7 +290,7 @@ static class DebugReport
 
     static string Where(MainViewModel vm, StackFrameItem frame) =>
         frame.SourcePath is { } path
-            ? $"{(vm.SolutionDirectoryForClaude is { } dir && path.StartsWith(dir + "/", StringComparison.Ordinal) ? Path.GetRelativePath(dir, path) : path)}:{frame.Line}"
+            ? $"{(vm.SolutionDirectoryForClaude is { } dir && Services.FilePaths.IsUnder(path, dir) ? Path.GetRelativePath(dir, path) : path)}:{frame.Line}"
             : "(external code)";
 }
 

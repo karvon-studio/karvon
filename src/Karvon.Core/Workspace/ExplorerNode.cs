@@ -243,7 +243,7 @@ public partial class ExplorerNode : ObservableObject
             return this;
         if (!IsLoaded || Kind is NodeKind.File or NodeKind.Dependencies or NodeKind.DependencyGroup or NodeKind.Placeholder)
             return null;
-        if ((Kind is NodeKind.Folder or NodeKind.Project || IsFolderRoot) && Path is not null && !directory.StartsWith(DirectoryOf(this) + "/", StringComparison.Ordinal))
+        if ((Kind is NodeKind.Folder or NodeKind.Project || IsFolderRoot) && Path is not null && !Services.FilePaths.IsUnder(directory, DirectoryOf(this)))
             return null;
         foreach (var child in Children)
             if (child.FindLoadedFolder(directory) is { } hit)
@@ -258,7 +258,7 @@ public partial class ExplorerNode : ObservableObject
             return this;
         if (Kind is NodeKind.Dependencies or NodeKind.DependencyGroup or NodeKind.Placeholder)
             return null;
-        if (Path is not null && (Kind is NodeKind.Folder or NodeKind.Project || IsFolderRoot) && !path.StartsWith(DirectoryOf(this) + "/", StringComparison.Ordinal))
+        if (Path is not null && (Kind is NodeKind.Folder or NodeKind.Project || IsFolderRoot) && !Services.FilePaths.IsUnder(path, DirectoryOf(this)))
             return null;
         EnsureLoaded();
         foreach (var child in Children)
