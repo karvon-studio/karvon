@@ -28,6 +28,12 @@ jobs:
         with:
           dotnet-version: 10.0.x
 
+      # Delve takes the last Go versions only: the runner's own Go may be older.
+      - uses: actions/setup-go@v5
+        with:
+          go-version: stable
+          cache: false
+
       - name: Restore
         run: dotnet restore Karvon.slnx
 

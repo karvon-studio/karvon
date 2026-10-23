@@ -193,7 +193,7 @@ public partial class MainViewModel
         }
         catch (Exception ex)
         {
-            DebugOutput.Append("Failed to start debugging: " + ex.Message);
+            DebugOutput.Append("Failed to start debugging: " + StartFailure(ex));
             _session = null;
             StopStartedWithSolution();
             Mode = DebugMode.Design;
@@ -250,12 +250,21 @@ public partial class MainViewModel
         }
         catch (Exception ex)
         {
-            DebugOutput.Append("Failed to start debugging: " + ex.Message);
+            DebugOutput.Append("Failed to start debugging: " + StartFailure(ex));
             _session = null;
             Mode = DebugMode.Design;
             SetStatus("Ready", StatusKind.Ready);
         }
     }
+
+    /// <summary>
+    /// Why a session did not start: what the debugger or its connection said, or, for what neither should throw, the
+    /// whole exception (where it was thrown is then worth seeing).
+    /// </summary>
+    static string StartFailure(Exception ex) =>
+        ex is DapException or IOException or TimeoutException or InvalidOperationException or System.ComponentModel.Win32Exception or OperationCanceledException
+            ? ex.Message
+            : ex.ToString();
 
     /// <summary>A debug session ended (the program exited, or Stop).</summary>
     event Action? DebugEnded;
