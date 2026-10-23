@@ -11,7 +11,9 @@ namespace Karvon.Lsp;
 public class LspClient : IAsyncDisposable
 {
     readonly FileWatchBridge _watch;
-    readonly System.Collections.Concurrent.ConcurrentDictionary<string, IReadOnlyList<LspDiagnostic>> _published = new(StringComparer.Ordinal);
+    /// <summary>What the server pushed, by the file's path (a URI's spelling differs between servers: file:///c%3A/...).</summary>
+    readonly System.Collections.Concurrent.ConcurrentDictionary<string, IReadOnlyList<LspDiagnostic>> _published =
+        new(OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal);
     int _exited;
 
     protected LspClient(Process process, JsonRpcConnection rpc, string root)
@@ -250,8 +252,8 @@ public class LspClient : IAsyncDisposable
         {
             if (!p.TryGetProperty("uri", out var uri) || uri.GetString() is not { } text || !Uri.TryCreate(text, UriKind.Absolute, out var parsed))
                 return;
-            _published[parsed.AbsoluteUri] = p.TryGetProperty("diagnostics", out var items) ? LspParse.Diagnostics(items) : [];
-            DiagnosticsPublished?.Invoke(parsed.LocalPath);
+            _published[FileUris.ToPath(parsed)] = p.TryGetProperty("diagnostics", out var items) ? LspParse.Diagnostics(items) : [];
+            DiagnosticsPublished?.Invoke(FileUris.ToPath(parsed));
         });
         Rpc.OnNotification("window/logMessage", p =>
         {
@@ -384,7 +386,7 @@ public class LspClient : IAsyncDisposable
     /// <summary>A file's diagnostics: those the server pushed for it, else pulled (textDocument/diagnostic).</summary>
     public async Task<IReadOnlyList<LspDiagnostic>> DiagnosticsAsync(string path, CancellationToken ct)
     {
-        if (_published.TryGetValue(ToUri(path), out var pushed))
+        if (_published.TryGetValue(Path.GetFullPath(path), out var pushed))
             return pushed;
         var result = await QueryAsync("textDocument/diagnostic", new { textDocument = new { uri = ToUri(path) } }, ct);
         return result.ValueKind == JsonValueKind.Object && result.TryGetProperty("items", out var items)
@@ -439,12 +441,12 @@ public class LspClient : IAsyncDisposable
         {
             foreach (var change in dc.EnumerateArray())
                 if (change.TryGetProperty("textDocument", out var td))
-                    edits[new Uri(td.GetProperty("uri").GetString()!).LocalPath] = LspParse.TextEdits(change.GetProperty("edits"));
+                    edits[FileUris.ToPath(td.GetProperty("uri").GetString()!)] = LspParse.TextEdits(change.GetProperty("edits"));
         }
         else if (result.TryGetProperty("changes", out var changes))
         {
             foreach (var file in changes.EnumerateObject())
-                edits[new Uri(file.Name).LocalPath] = LspParse.TextEdits(file.Value);
+                edits[FileUris.ToPath(file.Name)] = LspParse.TextEdits(file.Value);
         }
         return edits;
     }

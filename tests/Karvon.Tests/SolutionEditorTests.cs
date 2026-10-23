@@ -29,7 +29,7 @@ public class SolutionEditorTests
 
     static string NewProject(string solution, string relative)
     {
-        var path = Path.Combine(Path.GetDirectoryName(solution)!, relative);
+        var path = Path.GetFullPath(Path.Combine(Path.GetDirectoryName(solution)!, relative));
         Directory.CreateDirectory(Path.GetDirectoryName(path)!);
         File.WriteAllText(path, "<Project Sdk=\"Microsoft.NET.Sdk\"><PropertyGroup><TargetFramework>net10.0</TargetFramework></PropertyGroup></Project>");
         return path;

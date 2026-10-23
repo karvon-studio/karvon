@@ -10,6 +10,8 @@ using static Karvon.Tests.UiTests;
 namespace Karvon.Tests;
 
 /// <summary>Claude's IDE tools on the sample solution: the build, the tests, the debugger and the editor, as Karvon has them.</summary>
+// With the sample's other tests, one at a time: Windows locks the Web.dll a running test holds, which another's build would write.
+[Collection(SampleSolutionCollection.Name)]
 public class ClaudeIdeToolsTests
 {
     internal static async Task<(string Text, bool IsError)> Call(ClaudeToolServer server, string tool, object arguments)

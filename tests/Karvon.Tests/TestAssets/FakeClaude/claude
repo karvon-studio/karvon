@@ -44,7 +44,7 @@ if ARGS[:2] == ["mcp", "add"]:
     servers = [s for s in added_servers() if s["name"] != name]
     servers.append({"name": name, "scope": scope, "type": transport, "target": target})
     os.makedirs(CONFIG, exist_ok=True)
-    with open(MCP_FILE, "w") as f:
+    with open(MCP_FILE, "w", newline="") as f:
         json.dump(servers, f)
     print(f"Added {transport} MCP server {name} to {scope} config")
     sys.exit(0)
@@ -54,7 +54,7 @@ if ARGS[:2] == ["mcp", "add"]:
 if ARGS[:1] == ["-p"]:
     prompt = sys.stdin.read()
     os.makedirs(CONFIG, exist_ok=True)
-    with open(os.path.join(CONFIG, "last-print.json"), "w") as f:
+    with open(os.path.join(CONFIG, "last-print.json"), "w", newline="") as f:
         json.dump({"args": ARGS, "prompt": prompt, "cwd": os.getcwd(), "claudecode": os.environ.get("CLAUDECODE")}, f)
     print("```\nAdd the multi-repository commit panel\n\nLists every repository of the solution.\nCo-Authored-By: Claude <noreply@anthropic.com>\n```")
     sys.exit(0)
@@ -66,7 +66,7 @@ if "--resume" in ARGS:
 elif os.path.exists(SESSIONS):
     with open(SESSIONS) as f:
         number = int(f.read().strip() or "0") + 1
-    with open(SESSIONS, "w") as f:
+    with open(SESSIONS, "w", newline="") as f:
         f.write(str(number))
     SESSION = f"fake-session-{number}"
 else:
@@ -413,7 +413,7 @@ def turn(prompt, content, sent=None):
         tool_use("toolu_write", "Write", tool_input)
         decision = permission("Write", tool_input, [{"type": "setMode", "mode": "acceptEdits", "destination": "session"}], "toolu_write")
         if allowed(decision):
-            with open(path, "w") as f:
+            with open(path, "w", newline="") as f:
                 f.write("hi\nthere\n")
             tool_result("toolu_write", f"File created successfully at: {path}")
             stream_text("Created **hello.txt**.")
@@ -434,7 +434,7 @@ def turn(prompt, content, sent=None):
         if allowed(decision):
             with open(path) as f:
                 text = f.read()
-            with open(path, "w") as f:
+            with open(path, "w", newline="") as f:
                 f.write(text.replace(old, new, 1))
             tool_result("toolu_edit", f"The file {path} has been updated.")
         else:

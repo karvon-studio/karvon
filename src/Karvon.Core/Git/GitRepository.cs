@@ -56,7 +56,8 @@ public sealed class GitRepository
             return null;
         var result = await RunAsync(directory, ["rev-parse", "--show-toplevel", "--absolute-git-dir"]);
         var lines = result.Output.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-        return result.Success && lines.Length == 2 ? new GitRepository(lines[0], lines[1]) : null;
+        // git writes Windows' paths with slashes (C:/repo): as the platform writes them, as the rest of Karvon compares them.
+        return result.Success && lines.Length == 2 ? new GitRepository(System.IO.Path.GetFullPath(lines[0]), System.IO.Path.GetFullPath(lines[1])) : null;
     }
 
     public string Relative(string path) => System.IO.Path.GetRelativePath(Root, path);

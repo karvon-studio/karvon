@@ -271,9 +271,11 @@ public sealed partial class MavenPackages(string directory) : PackageSource
                 Append(dependency, new XElement(ns + "scope", scope), unit);
             done = $"{id} {version} added to pom.xml" + (scope != "compile" ? $" ({scope})" : "");
         }
-        // As it was written: its declaration, and what is around its root (a comment, the lines between) as it was.
+        // As it was written: its declaration, and what is around its root (a comment, the lines between) as it was, its
+        // lines' ends too (XML reads them as \n).
         var text = (doc.Declaration?.ToString() ?? "") + string.Concat(doc.Nodes().Select(n => n.ToString(SaveOptions.DisableFormatting)));
-        File.WriteAllText(Pom, text.EndsWith('\n') ? text : text + "\n");
+        text = text.EndsWith('\n') ? text : text + "\n";
+        File.WriteAllText(Pom, File.ReadAllText(Pom).Contains("\r\n") ? text.Replace("\r\n", "\n").Replace("\n", "\r\n") : text);
         return done;
     }
 

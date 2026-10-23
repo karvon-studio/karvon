@@ -169,7 +169,7 @@ public partial class MainViewModel
         bool Known(string directory) => found.Any(r => Services.FilePaths.IsSameOrUnder(directory, r.Root));
         async Task AddAsync(string directory)
         {
-            if (await GitRepository.OpenAsync(directory) is { } repository && found.All(r => r.Root != repository.Root))
+            if (await GitRepository.OpenAsync(directory) is { } repository && found.All(r => !string.Equals(r.Root, repository.Root, Services.FilePaths.Comparison)))
                 found.Add(repository);
         }
         await AddAsync(solution.Directory);
@@ -181,9 +181,9 @@ public partial class MainViewModel
         });
         var others = new List<GitRepository>();
         foreach (var folder in nested)
-            if (await GitRepository.OpenAsync(folder) is { } repository && repository.Root == folder)
+            if (await GitRepository.OpenAsync(folder) is { } repository && string.Equals(repository.Root, folder, Services.FilePaths.Comparison))
                 others.Add(repository);
-        found.AddRange(others.Where(r => found.All(f => f.Root != r.Root)));
+        found.AddRange(others.Where(r => found.All(f => !string.Equals(f.Root, r.Root, Services.FilePaths.Comparison))));
         // Projects outside every repository found so far say where theirs is (once per repository, not per project).
         foreach (var project in solution.Projects)
             if (!Known(project.Directory))

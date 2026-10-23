@@ -85,7 +85,7 @@ public static class ItemTemplates
         var parts = new List<string> { RootNamespace(project) };
         var relative = Path.GetRelativePath(project.Directory, folder);
         if (relative != "." && !relative.StartsWith("..", StringComparison.Ordinal))
-            parts.AddRange(relative.Split('/', StringSplitOptions.RemoveEmptyEntries).Select(Identifier));
+            parts.AddRange(relative.Split(['/', Path.DirectorySeparatorChar], StringSplitOptions.RemoveEmptyEntries).Select(Identifier));
         return string.Join('.', parts);
     }
 

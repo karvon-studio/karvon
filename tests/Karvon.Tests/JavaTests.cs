@@ -18,10 +18,11 @@ public class JavaTests
         Assert.Equal(["maven: compile", "maven: test", "maven: package", "java: run main"], JavaTasks.Read(dir).Select(t => t.Name));
         File.Delete(Path.Combine(dir, "pom.xml"));
         File.WriteAllText(Path.Combine(dir, "build.gradle"), "plugins { id 'application' }\n");
-        File.WriteAllText(Path.Combine(dir, "gradlew"), "");
+        var wrapper = OperatingSystem.IsWindows() ? "gradlew.bat" : "gradlew";
+        File.WriteAllText(Path.Combine(dir, wrapper), "");
         var gradle = JavaTasks.Read(dir);
         Assert.Equal(["gradle: build", "gradle: test", "gradle: run", "java: run main"], gradle.Select(t => t.Name));
-        Assert.Equal(Path.Combine(dir, "gradlew"), gradle[0].Program);
+        Assert.Equal(Path.Combine(dir, wrapper), gradle[0].Program);
 
         var maven = JavaTasks.Problem("[ERROR] /w/src/main/java/App.java:[12,5] cannot find symbol")!;
         Assert.Equal(("/w/src/main/java/App.java", 12, 5, DiagnosticSeverity.Error, "cannot find symbol"), (maven.File, maven.Line, maven.Column, maven.Severity, maven.Message));

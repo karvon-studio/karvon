@@ -90,7 +90,7 @@ public sealed class FileWatchBridge : IDisposable
 
     public FileWatchBridge(string root, Func<IReadOnlyList<(string Uri, int Type)>, Task> send)
     {
-        _root = Path.GetFullPath(root).TrimEnd('/');
+        _root = Path.TrimEndingDirectorySeparator(Path.GetFullPath(root));
         _send = send;
         _flushTimer = new Timer(_ => Flush(), null, Timeout.Infinite, Timeout.Infinite);
     }
@@ -111,7 +111,7 @@ public sealed class FileWatchBridge : IDisposable
             }
             var baseUri = gp.GetProperty("baseUri");
             var uri = baseUri.ValueKind == JsonValueKind.String ? baseUri.GetString()! : baseUri.GetProperty("uri").GetString()!;
-            var baseDir = new Uri(uri).LocalPath.TrimEnd('/');
+            var baseDir = Path.TrimEndingDirectorySeparator(FileUris.ToPath(uri));
             if (!IsUnderRoot(baseDir) && !IsUnderRoot(baseDir + "/"))
                 continue;
             list.Add(new Watcher(baseDir, Glob.ToRegex(gp.GetProperty("pattern").GetString()!), kind));
@@ -148,7 +148,7 @@ public sealed class FileWatchBridge : IDisposable
 
     void OnEvent(string path, int type)
     {
-        if (path.Contains("/.git/", StringComparison.Ordinal) || !Matches(path, type))
+        if (path.Contains("/.git/", StringComparison.Ordinal) || path.Contains(@"\.git\", StringComparison.Ordinal) || !Matches(path, type))
             return;
         _pending.AddOrUpdate(path, type, (_, previous) => (previous, type) switch
         {
@@ -171,7 +171,8 @@ public sealed class FileWatchBridge : IDisposable
                     continue;
                 if (w.BaseDir is null)
                 {
-                    if (w.Pattern.IsMatch(path) || w.Pattern.IsMatch(Path.GetFileName(path)))
+                    // Globs are written with '/', Windows' paths with backslashes.
+                    if (w.Pattern.IsMatch(path.Replace('\\', '/')) || w.Pattern.IsMatch(Path.GetFileName(path)))
                         return true;
                 }
                 else if (Services.FilePaths.IsUnder(path, w.BaseDir) && w.Pattern.IsMatch(path[(w.BaseDir.Length + 1)..].Replace('\\', '/')))

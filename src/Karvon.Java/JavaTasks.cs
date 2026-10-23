@@ -53,11 +53,9 @@ public static partial class JavaTasks
         return tasks;
     }
 
-    static string? Wrapper(string workspace, string name)
-    {
-        var path = Path.Combine(workspace, OperatingSystem.IsWindows() ? name + ".cmd" : name);
-        return File.Exists(path) ? path : null;
-    }
+    /// <summary>A build's wrapper in the folder: gradlew, mvnw (on Windows gradlew.bat, mvnw.cmd); null without one.</summary>
+    static string? Wrapper(string workspace, string name) =>
+        (OperatingSystem.IsWindows() ? [name + ".bat", name + ".cmd"] : new[] { name }).Select(n => Path.Combine(workspace, n)).FirstOrDefault(File.Exists);
 
     [GeneratedRegex(@"^\[(?<sev>ERROR|WARNING)\] (?<file>.+?\.java):\[(?<line>\d+),(?<col>\d+)\] (?<msg>.+)$")]
     private static partial Regex MavenMessage();

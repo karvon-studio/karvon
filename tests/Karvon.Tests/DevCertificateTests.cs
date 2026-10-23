@@ -18,6 +18,7 @@ public class DevCertificateTests
     [Fact]
     public void Ssl_cert_dir_lists_the_dev_cert_folder_before_the_system_certificates()
     {
+        Assert.SkipUnless(OperatingSystem.IsLinux(), "SSL_CERT_DIR is OpenSSL's, which .NET reads on Linux.");
         var trust = DevCertificates.TrustDirectory;
         Assert.Equal($"{trust}:/etc/ssl/certs", DevCertificates.CertDirectoryValue(null, d => d == trust || d == "/etc/ssl/certs"));
         Assert.Equal($"{trust}:/etc/pki/tls/certs", DevCertificates.CertDirectoryValue("", d => d == trust || d == "/etc/pki/tls/certs"));

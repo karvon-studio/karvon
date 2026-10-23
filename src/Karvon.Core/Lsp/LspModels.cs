@@ -11,7 +11,7 @@ public sealed record LspFoldingRange(int StartLine, int? StartCharacter, int End
 
 public sealed record LspLocation(string Uri, LspRange Range)
 {
-    public string FilePath => new Uri(Uri).LocalPath;
+    public string FilePath => FileUris.ToPath(Uri);
 }
 
 public sealed record LspTextEdit(LspRange Range, string NewText);
@@ -200,7 +200,7 @@ public static class LspParse
         var ops = new List<LspFileOperation>();
         if (edit.ValueKind != JsonValueKind.Object)
             return ops;
-        static string PathOf(string uri) => new Uri(uri).LocalPath;
+        static string PathOf(string uri) => FileUris.ToPath(uri);
         if (edit.TryGetProperty("documentChanges", out var changes) && changes.ValueKind == JsonValueKind.Array)
         {
             foreach (var c in changes.EnumerateArray())

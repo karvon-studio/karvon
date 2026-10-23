@@ -1,0 +1,6 @@
+# The sources as they are written, LF, on every platform (the tests' text in them too); Windows' own scripts CRLF.
+* text=auto eol=lf
+*.cmd text eol=crlf
+*.bat text eol=crlf
+# As its authors give it.
+src/Karvon.Core/Assets/Fonts/CascadiaCode-OFL.txt -text

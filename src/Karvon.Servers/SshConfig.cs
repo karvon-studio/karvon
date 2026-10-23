@@ -154,7 +154,7 @@ public static partial class SshConfig
     {
         path = path.Replace("%d", Home, StringComparison.Ordinal).Replace("%h", alias, StringComparison.Ordinal)
             .Replace("%u", user, StringComparison.Ordinal).Replace("%%", "%", StringComparison.Ordinal);
-        return path.StartsWith("~/", StringComparison.Ordinal) ? Path.Combine(Home, path[2..]) : path;
+        return path.StartsWith("~/", StringComparison.Ordinal) ? Path.GetFullPath(Path.Combine(Home, path[2..])) : path;
     }
 
     /// <summary>The keys ssh tries when a host names none.</summary>

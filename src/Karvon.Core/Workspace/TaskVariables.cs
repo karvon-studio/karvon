@@ -87,7 +87,10 @@ public static partial class TaskVariables
             var full = Path.GetFullPath(program, workingDirectory);
             return File.Exists(full) ? full : null;
         }
-        string[] extensions = OperatingSystem.IsWindows() ? ["", .. (Environment.GetEnvironmentVariable("PATHEXT") ?? ".COM;.EXE;.BAT;.CMD").Split(';')] : [""];
+        // Windows runs what PATHEXT names (npm.cmd, not npm, the sh script beside it), a name with its extension as it is.
+        string[] extensions = !OperatingSystem.IsWindows() || Path.HasExtension(program)
+            ? [""]
+            : (Environment.GetEnvironmentVariable("PATHEXT") ?? ".COM;.EXE;.BAT;.CMD").Split(';', StringSplitOptions.RemoveEmptyEntries);
         foreach (var directory in path.Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries))
             foreach (var extension in extensions)
             {

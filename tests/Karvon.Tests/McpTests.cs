@@ -210,7 +210,8 @@ public class McpTests
 
         // Karvon's own list is the user's alone: it may hold a token.
         configs.Write(new McpServerDefinition(McpOrigin.Karvon, "x") { Command = "x" });
-        Assert.Equal(UnixFileMode.UserRead | UnixFileMode.UserWrite, File.GetUnixFileMode(configs.FileOf(McpOrigin.Karvon)));
+        if (!OperatingSystem.IsWindows())
+            Assert.Equal(UnixFileMode.UserRead | UnixFileMode.UserWrite, File.GetUnixFileMode(configs.FileOf(McpOrigin.Karvon)));
     }
 
     [Fact]

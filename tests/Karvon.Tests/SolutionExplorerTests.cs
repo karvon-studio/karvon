@@ -182,7 +182,7 @@ public class SolutionExplorerTests
         var file = Path.Combine(dir, ".vs", "BlazorSample", "Karvon", "state.json");
         Assert.True(File.Exists(file));
         var json = File.ReadAllText(file);
-        Assert.Contains("\"Web/Program.cs\"", json);
+        Assert.Contains(System.Text.Json.JsonSerializer.Serialize(Path.Combine("Web", "Program.cs")), json);
         Assert.DoesNotContain(dir, json);
         Assert.Equal("*\n", File.ReadAllText(Path.Combine(dir, ".vs", ".gitignore")));
 

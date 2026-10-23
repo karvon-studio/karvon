@@ -45,7 +45,7 @@ public class GitStatusParserTests
         Assert.Contains(status.Changes, c => c.RelativePath == "src/A.cs" && c.Kind == GitChangeKind.Modified && !c.Staged);
         Assert.Contains(status.Changes, c => c.RelativePath == "src/New.cs" && c.Kind == GitChangeKind.Added && c.Staged);
         var renamed = Assert.Single(status.Changes, c => c.Kind == GitChangeKind.Renamed);
-        Assert.EndsWith("src/Old.cs", renamed.OriginalPath);
+        Assert.EndsWith(Path.Combine("src", "Old.cs"), renamed.OriginalPath);
         Assert.Equal(2, status.Changes.Count(c => c.RelativePath == "both.cs"));
         Assert.Contains(status.Changes, c => c.RelativePath == "notes.txt" && c.Kind == GitChangeKind.Untracked);
     }

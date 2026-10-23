@@ -710,6 +710,10 @@ public sealed partial class ClaudeViewModel : ObservableObject, IAsyncDisposable
             : path;
     }
 
+    /// <summary>A file as an @mention says it: relative to the folder, with '/' (as Claude Code writes its own, on Windows too).</summary>
+    internal static string MentionOf(string folder, string path) =>
+        OperatingSystem.IsWindows() ? RelativeTo(folder, path).Replace('\\', '/') : RelativeTo(folder, path);
+
     static string FirstLine(string? text, int max = 100)
     {
         var line = (text ?? "").Split('\n').Select(l => l.Trim()).FirstOrDefault(l => l.Length > 0) ?? "";
@@ -1355,7 +1359,7 @@ public sealed partial class ClaudeViewModel : ObservableObject, IAsyncDisposable
 
         void Mention(string path)
         {
-            var shown = RelativeTo(cwd, path);
+            var shown = MentionOf(cwd, path);
             var mention = "@" + (shown.Contains(' ') ? $"\"{shown}\"" : shown) + " ";
             Prompt = Prompt.Length == 0 || Prompt.EndsWith(' ') || Prompt.EndsWith('\n') ? Prompt + mention : Prompt + " " + mention;
         }
@@ -1442,7 +1446,7 @@ public sealed partial class ClaudeViewModel : ObservableObject, IAsyncDisposable
             var typed = mention.Groups[1].Value;
             var cwd = _workingDirectory();
             var files = _projectFiles()
-                .Select(f => RelativeTo(cwd, f))
+                .Select(f => MentionOf(cwd, f))
                 .Where(f => typed.Length == 0 || f.Contains(typed, StringComparison.OrdinalIgnoreCase))
                 .OrderBy(f => Path.GetFileName(f).StartsWith(typed, StringComparison.OrdinalIgnoreCase) ? 0 : 1)
                 .ThenBy(f => f.Length)

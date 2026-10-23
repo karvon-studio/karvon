@@ -25,7 +25,7 @@ public class CppTests
         var tasks = CppTasks.Read(dir);
         Assert.Equal(["cmake: build", "cmake: configure", "ctest", "cmake: run shapes"], tasks.Select(t => t.Name));
         var run = tasks[^1].Debug!;
-        Assert.Equal(("lldb", Path.Combine(dir, "build", "shapes"), "cmake: build"), (run.Type, run.Configuration["program"]!.GetValue<string>(), run.PreLaunchTask));
+        Assert.Equal(("lldb", Path.Combine(dir, "build", OperatingSystem.IsWindows() ? "shapes.exe" : "shapes"), "cmake: build"), (run.Type, run.Configuration["program"]!.GetValue<string>(), run.PreLaunchTask));
 
         // GCC's and Clang's form, and MSVC's (MSBuild's).
         var error = CppTasks.Problem("/w/main.c:10:5: error: use of undeclared identifier 'sizes'")!;

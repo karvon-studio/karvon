@@ -265,7 +265,9 @@ public class ClaudeProtocolTests
     public void Finds_transcripts_the_way_claude_code_names_them()
     {
         FakeClaude.Ensure();
-        Assert.Equal("-tmp-claude-1000--home-nbk-x-y", Path.GetFileName(ClaudeCli.ProjectDirectory("/tmp/claude-1000/-home-nbk/x.y")));
+        // Every character but a letter or a digit is a dash (Windows' drive's colon too).
+        Assert.Equal(OperatingSystem.IsWindows() ? "C--tmp-claude-1000--home-nbk-x-y" : "-tmp-claude-1000--home-nbk-x-y",
+            Path.GetFileName(ClaudeCli.ProjectDirectory(OperatingSystem.IsWindows() ? @"C:\tmp\claude-1000\-home-nbk\x.y" : "/tmp/claude-1000/-home-nbk/x.y")));
         Assert.Equal(Path.Combine(FakeClaude.ConfigDirectory, "projects"), Path.GetDirectoryName(ClaudeCli.ProjectDirectory("/a")));
 
         var (dir, _) = FakeClaude.Workspace();

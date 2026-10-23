@@ -50,7 +50,8 @@ public sealed class DockerEngine(string program)
         (Environment.GetEnvironmentVariable("PATH") ?? "").Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries)
             .Any(folder => File.Exists(Path.Combine(folder, name)) || File.Exists(Path.Combine(folder, name + ".exe")));
 
-    public string Name => Path.GetFileName(Program);
+    /// <summary>The command line's name: docker, podman (docker.exe's on Windows too).</summary>
+    public string Name => Path.GetFileNameWithoutExtension(Program);
 
     // ---- Running ------------------------------------------------------------------------------------------------
 

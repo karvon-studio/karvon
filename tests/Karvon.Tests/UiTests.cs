@@ -1287,14 +1287,15 @@ public class UiTests
         Assert.Contains(Path.GetDirectoryName(sln)!, text);
         Assert.True(System.Text.RegularExpressions.Regex.IsMatch(text, @"(^|\n)10\.0\.\d+"), "terminal text:\n" + text);
 
-        // Ctrl+R inside the terminal is bash's reverse search, not VS's Ctrl+R, A "Run All Tests" chord.
+        // Ctrl+R inside the terminal is the shell's reverse search (bash's reverse-i-search, zsh's and PowerShell's
+        // bck-i-search), not VS's Ctrl+R, A "Run All Tests" chord.
         window.KeyPress(Avalonia.Input.Key.R, Avalonia.Input.RawInputModifiers.Control, Avalonia.Input.PhysicalKey.R, "r");
         window.KeyPress(Avalonia.Input.Key.A, Avalonia.Input.RawInputModifiers.None, Avalonia.Input.PhysicalKey.A, "a");
         Dispatcher.UIThread.RunJobs();
         Assert.False(vm.IsTesting);
         Assert.Empty(vm.TestRoots);
-        await WaitUntil(() => vm.Terminal.ReadText().Contains("reverse-i-search"), TimeSpan.FromSeconds(10));
-        Assert.Contains("reverse-i-search", vm.Terminal.ReadText());
+        await WaitUntil(() => vm.Terminal.ReadText().Contains("-i-search"), TimeSpan.FromSeconds(10));
+        Assert.Contains("-i-search", vm.Terminal.ReadText());
         window.KeyPress(Avalonia.Input.Key.C, Avalonia.Input.RawInputModifiers.Control, Avalonia.Input.PhysicalKey.C, "c");
         await WaitUntil(() => false, TimeSpan.FromMilliseconds(400));
         Snapshot(window, "terminal");

@@ -41,5 +41,12 @@ static class TestEnvironment
         if (Environment.GetEnvironmentVariable("RestoreConfigFile") is null)
             Environment.SetEnvironmentVariable("RestoreConfigFile", Path.Combine(AppContext.BaseDirectory, "TestAssets", "BlazorSample", "nuget.config"));
         Environment.SetEnvironmentVariable("BENGINE_KEYRING", "off");
+        // The tests' repositories keep their files as written: Git for Windows' own configuration turns their lines to CRLF.
+        if (Environment.GetEnvironmentVariable("GIT_CONFIG_COUNT") is null)
+        {
+            Environment.SetEnvironmentVariable("GIT_CONFIG_COUNT", "1");
+            Environment.SetEnvironmentVariable("GIT_CONFIG_KEY_0", "core.autocrlf");
+            Environment.SetEnvironmentVariable("GIT_CONFIG_VALUE_0", "false");
+        }
     }
 }

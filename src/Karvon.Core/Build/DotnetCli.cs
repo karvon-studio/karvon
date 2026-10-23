@@ -11,23 +11,31 @@ public static class DotnetCli
 
     public static string Root => Path.GetDirectoryName(Executable)!;
 
+    static string Name => OperatingSystem.IsWindows() ? "dotnet.exe" : "dotnet";
+
     static string Locate()
     {
         var root = Environment.GetEnvironmentVariable("DOTNET_ROOT");
-        if (!string.IsNullOrEmpty(root) && File.Exists(Path.Combine(root, "dotnet")))
-            return Path.Combine(root, "dotnet");
+        if (!string.IsNullOrEmpty(root) && File.Exists(Path.Combine(root, Name)))
+            return Path.Combine(root, Name);
 
         var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-        var userInstall = Path.Combine(home, ".dotnet", "dotnet");
+        var userInstall = Path.Combine(home, ".dotnet", Name);
         if (File.Exists(userInstall))
             return userInstall;
 
-        foreach (var dir in (Environment.GetEnvironmentVariable("PATH") ?? "").Split(':', StringSplitOptions.RemoveEmptyEntries))
+        foreach (var dir in (Environment.GetEnvironmentVariable("PATH") ?? "").Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries))
         {
-            var candidate = Path.Combine(dir, "dotnet");
+            var candidate = Path.Combine(dir, Name);
             if (File.Exists(candidate))
                 return new FileInfo(candidate).ResolveLinkTarget(returnFinalTarget: true)?.FullName ?? candidate;
         }
+        // Where the installers put it.
+        foreach (var candidate in OperatingSystem.IsWindows()
+                     ? [Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "dotnet", Name)]
+                     : new[] { "/usr/local/share/dotnet/dotnet", "/usr/share/dotnet/dotnet", "/usr/lib/dotnet/dotnet" })
+            if (File.Exists(candidate))
+                return candidate;
         return "dotnet";
     }
 
@@ -38,8 +46,8 @@ public static class DotnetCli
             return;
         Environment.SetEnvironmentVariable("DOTNET_ROOT", Root);
         var path = Environment.GetEnvironmentVariable("PATH") ?? "";
-        if (path.Split(':')[0] != Root)
-            Environment.SetEnvironmentVariable("PATH", Root + ":" + path);
+        if (path.Split(Path.PathSeparator)[0] != Root)
+            Environment.SetEnvironmentVariable("PATH", Root + Path.PathSeparator + path);
     }
 
     /// <summary>Applies DOTNET_ROOT/PATH so apphosts and the SDK resolve the same installation.</summary>
@@ -49,8 +57,8 @@ public static class DotnetCli
             return;
         psi.Environment["DOTNET_ROOT"] = Root;
         var path = psi.Environment.TryGetValue("PATH", out var p) ? p : Environment.GetEnvironmentVariable("PATH");
-        if (path is null || !path.Split(':').Contains(Root))
-            psi.Environment["PATH"] = Root + ":" + path;
+        if (path is null || !path.Split(Path.PathSeparator).Contains(Root))
+            psi.Environment["PATH"] = Root + Path.PathSeparator + path;
         psi.Environment["DOTNET_CLI_TELEMETRY_OPTOUT"] = "1";
         psi.Environment["DOTNET_NOLOGO"] = "1";
     }

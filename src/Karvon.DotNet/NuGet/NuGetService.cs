@@ -69,7 +69,8 @@ public sealed class NuGetService(string workingDirectory, Action<string>? log = 
             return list;
         foreach (var project in projects.EnumerateArray())
         {
-            var path = project.GetProperty("path").GetString() ?? "";
+            // As the solution's projects are (dotnet says C:/... on Windows).
+            var path = project.GetProperty("path").GetString() is { Length: > 0 } said ? Path.GetFullPath(said) : "";
             if (!project.TryGetProperty("frameworks", out var frameworks))
                 continue;
             foreach (var framework in frameworks.EnumerateArray())

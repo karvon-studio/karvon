@@ -36,10 +36,20 @@ public class PythonTests
         Assert.Equal(("uv", "run shop", true), (tasks[1].Program, string.Join(' ', tasks[1].Arguments), tasks[1].IsDefault));
         // Without its .venv nothing debugs a script; with it, debugpy runs the script the .venv has.
         Assert.Null(tasks[1].Debug);
-        Directory.CreateDirectory(Path.Combine(dir, ".venv", "bin"));
-        File.WriteAllText(Path.Combine(dir, ".venv", "bin", "python"), "");
-        File.WriteAllText(Path.Combine(dir, ".venv", "bin", "shop"), "#!/usr/bin/env python\n");
-        Assert.Equal(Path.Combine(dir, ".venv", "bin", "shop"), Karvon.Python.PythonTasks.Read(dir)[1].Debug!.Configuration["program"]!.GetValue<string>());
+        var bin = Path.Combine(dir, ".venv", OperatingSystem.IsWindows() ? "Scripts" : "bin");
+        Directory.CreateDirectory(bin);
+        File.WriteAllText(Path.Combine(bin, OperatingSystem.IsWindows() ? "python.exe" : "python"), "");
+        if (OperatingSystem.IsWindows())
+        {
+            // Windows' scripts are launchers (shop.exe), not Python that debugpy runs.
+            File.WriteAllText(Path.Combine(bin, "shop.exe"), "");
+            Assert.Null(Karvon.Python.PythonTasks.Read(dir)[1].Debug);
+        }
+        else
+        {
+            File.WriteAllText(Path.Combine(bin, "shop"), "#!/usr/bin/env python\n");
+            Assert.Equal(Path.Combine(bin, "shop"), Karvon.Python.PythonTasks.Read(dir)[1].Debug!.Configuration["program"]!.GetValue<string>());
+        }
         Directory.Delete(dir, recursive: true);
     }
 

@@ -22,7 +22,7 @@ public sealed class ProcessRunner : IDisposable
     public bool HasExited => _process.HasExited;
 
     public static ProcessRunner Start(string fileName, IEnumerable<string> args, string workingDirectory,
-        Action<string> onOutput, IReadOnlyDictionary<string, string>? environment = null)
+        Action<string> onOutput, IReadOnlyDictionary<string, string>? environment = null, IReadOnlyCollection<string>? unset = null)
     {
         var psi = new ProcessStartInfo(fileName)
         {
@@ -32,8 +32,15 @@ public sealed class ProcessRunner : IDisposable
             UseShellExecute = false,
             WorkingDirectory = workingDirectory,
         };
-        foreach (var a in args)
-            psi.ArgumentList.Add(a);
+        List<string> list = [.. args];
+        // cmd reads what follows /c as it is written, not by the quoting the C runtime's programs read: a shell task's line
+        // goes to it as written (/s: cmd takes off the quotes around it), as VS Code gives it.
+        if (OperatingSystem.IsWindows() && Path.GetFileName(fileName).Equals("cmd.exe", StringComparison.OrdinalIgnoreCase)
+            && list is [.. var flags, var c, var line] && c.Equals("/c", StringComparison.OrdinalIgnoreCase) && flags.All(f => f.StartsWith('/')))
+            psi.Arguments = string.Join(' ', [.. flags.Where(f => !f.Equals("/s", StringComparison.OrdinalIgnoreCase)), "/s", "/c", $"\"{line}\""]);
+        else
+            foreach (var a in list)
+                psi.ArgumentList.Add(a);
         DotnetCli.ApplyEnvironment(psi);
         // Keep MSBuild output machine-readable and colorless.
         psi.Environment["MSBUILDTERMINALLOGGER"] = "off";
@@ -41,6 +48,8 @@ public sealed class ProcessRunner : IDisposable
         if (environment is not null)
             foreach (var (k, v) in environment)
                 psi.Environment[k] = v;
+        foreach (var name in unset ?? [])
+            psi.Environment.Remove(name);
 
         var process = new Process { StartInfo = psi, EnableRaisingEvents = true };
         var exited = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);

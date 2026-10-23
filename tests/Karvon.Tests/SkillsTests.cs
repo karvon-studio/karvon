@@ -141,14 +141,15 @@ public class SkillsTests
 
         // A good skill passes every check; a poor one says what is wrong.
         Assert.All(SkillLibrary.Checks(skills[1]), c => Assert.True(c.Passed, c.Text));
-        Assert.Equal("Scripts are executable", SkillLibrary.Checks(skills[1])[^1].Text);
+        // Whether its scripts can run is Unix's file mode: Windows has none.
+        Assert.Equal(OperatingSystem.IsWindows() ? "Linked files exist" : "Scripts are executable", SkillLibrary.Checks(skills[1])[^1].Text);
         Assert.Equal(
         [
             "The name \"Bad Name\" is not the folder's, \"BadName\"",
             "The name should be lowercase letters, digits and hyphens, at most 64",
             "There is no description: agents choose skills by it",
             "Missing linked files: guide.md",
-            "Scripts that cannot run (chmod +x): tool.py",
+            .. OperatingSystem.IsWindows() ? Array.Empty<string>() : ["Scripts that cannot run (chmod +x): tool.py"],
         ], SkillLibrary.Checks(skills[0]).Select(c => c.Text));
 
         Assert.Equal(["reviewer: Reviews a change before it is merged."], library.Subagents().Select(a => $"{a.Name}: {a.Description}"));
@@ -240,7 +241,8 @@ public class SkillsTests
         // Installed in the folder's skills: its files, its script runnable, where it came from.
         var folder = SkillMarketplace.Install(library, deploy, review, forFolder: true);
         Assert.Equal(Path.Combine(workspace, ".claude", "skills", "deploy-check"), folder);
-        Assert.True(File.GetUnixFileMode(Path.Combine(folder, "probe.sh")).HasFlag(UnixFileMode.UserExecute));
+        if (!OperatingSystem.IsWindows())
+            Assert.True(File.GetUnixFileMode(Path.Combine(folder, "probe.sh")).HasFlag(UnixFileMode.UserExecute));
         var (installed, version, hash) = SkillMarketplace.Installed(library, deploy);
         Assert.Equal(("project:deploy-check", "1.0.0", review.Hash), (installed!.Id, version, hash));
         Assert.All(SkillLibrary.Checks(installed), c => Assert.True(c.Passed, c.Text));
@@ -319,7 +321,7 @@ public class SkillsTests
         Assert.Equal("code-reviewer", skills[0].Location);
 
         var page = AgensiSkillSource.PageOf(AgensiPage);
-        Assert.EndsWith("\"file_read\"\n  ]\n}", page);
+        Assert.EndsWith("\"file_read\"\n  ]\n}", page.ReplaceLineEndings("\n"));
         Assert.DoesNotContain("licensed instructions", page);
         var (tools, hosts) = AgensiSkillSource.PermissionsOf(page);
         Assert.Equal(["terminal", "file_read"], tools);
@@ -443,7 +445,7 @@ public class SkillsTests
 
             // A skill's page: its checks, a prompt tried against it (and the skill that matches it better).
             var bad = groups[0].Items.OfType<SkillNode>().First();
-            Assert.Equal("this folder · 5 problems", bad.Detail);
+            Assert.Equal($"this folder · {(OperatingSystem.IsWindows() ? 4 : 5)} problems", bad.Detail);
             bad.OpenCommand.Execute(null);
             var skillPage = Assert.IsType<SkillDocument>(Assert.Single(host.Open)).Page;
             page.Content = new SkillPageView { DataContext = skillPage };

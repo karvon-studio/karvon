@@ -304,7 +304,7 @@ public sealed partial class NuGetViewModel : DocumentTab
         if (item is null)
             return;
         foreach (var choice in ProjectChoices)
-            choice.InstalledVersion = _installed.FirstOrDefault(p => p.ProjectPath == choice.Project.FilePath
+            choice.InstalledVersion = _installed.FirstOrDefault(p => string.Equals(p.ProjectPath, choice.Project.FilePath, Services.FilePaths.Comparison)
                 && p.Id.Equals(item.Id, StringComparison.OrdinalIgnoreCase))?.ResolvedVersion;
         try
         {
@@ -356,7 +356,7 @@ public sealed partial class NuGetViewModel : DocumentTab
     {
         if (SelectedPackage is not { } package)
             return;
-        var targets = Targets.Where(t => _installed.Any(p => p.ProjectPath == t.FilePath && p.Id.Equals(package.Id, StringComparison.OrdinalIgnoreCase))).ToList();
+        var targets = Targets.Where(t => _installed.Any(p => string.Equals(p.ProjectPath, t.FilePath, Services.FilePaths.Comparison) && p.Id.Equals(package.Id, StringComparison.OrdinalIgnoreCase))).ToList();
         await ApplyAsync($"Uninstalling {package.Id}...", targets, (project, ct) => _nuget.UninstallAsync(project.FilePath, package.Id, ct));
     }
 

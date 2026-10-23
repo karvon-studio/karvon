@@ -16,11 +16,21 @@ public static partial class CppTasks
 {
     public const string Source = "cpp";
 
-    /// <summary>CMake's configure for Karvon's build folder: a debug build, with the compile commands clangd reads.</summary>
-    static string Configure => "cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DCMAKE_EXPORT_COMPILE_COMMANDS=ON";
+    /// <summary>
+    /// CMake's configure for Karvon's build folder: a debug build, with the compile commands clangd reads. Windows'
+    /// Visual Studio generator builds every configuration in a folder of its own: its debug programs go to build too (a
+    /// PATH value is the folder's, from where CMake runs).
+    /// </summary>
+    static string Configure => "cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DCMAKE_EXPORT_COMPILE_COMMANDS=ON"
+        + (OperatingSystem.IsWindows() ? " -DCMAKE_RUNTIME_OUTPUT_DIRECTORY_DEBUG:PATH=build" : "");
+
+    /// <summary>The build of the debug configuration (a multi-configuration generator's too).</summary>
+    static string Build => "cmake --build build" + (OperatingSystem.IsWindows() ? " --config Debug" : "");
+
+    static string Test => "ctest --test-dir build --output-on-failure" + (OperatingSystem.IsWindows() ? " -C Debug" : "");
 
     /// <summary>The build: configured first (quick once it is), as CMake Tools builds.</summary>
-    public static string ConfigureAndBuild => $"{Configure} && cmake --build build";
+    public static string ConfigureAndBuild => $"{Configure} && {Build}";
 
     public static IReadOnlyList<WorkspaceTask> Read(string workspace)
     {
@@ -42,15 +52,15 @@ public static partial class CppTasks
         // Configured as it builds, as CMake Tools does: quick once it is.
         List<WorkspaceTask> tasks =
         [
-            Shell("cmake: build", WorkspaceTaskKind.Build, $"{Configure} && cmake --build build", workspace) with { IsDefault = true },
+            Shell("cmake: build", WorkspaceTaskKind.Build, ConfigureAndBuild, workspace) with { IsDefault = true },
             Shell("cmake: configure", WorkspaceTaskKind.Other, Configure, workspace),
-            Shell("ctest", WorkspaceTaskKind.Test, $"{Configure} && cmake --build build && ctest --test-dir build --output-on-failure", workspace) with { IsDefault = true },
+            Shell("ctest", WorkspaceTaskKind.Test, $"{ConfigureAndBuild} && {Test}", workspace) with { IsDefault = true },
         ];
         var executables = AddExecutable().Matches(File.ReadAllText(Path.Combine(workspace, "CMakeLists.txt"))).Select(m => m.Groups[1].Value).Distinct().ToList();
         foreach (var name in executables)
         {
             var program = Path.Combine(workspace, "build", OperatingSystem.IsWindows() ? name + ".exe" : name);
-            tasks.Add(Shell($"cmake: run {name}", WorkspaceTaskKind.Run, $"{Configure} && cmake --build build && {TaskVariables.QuoteForShell(program)}", workspace) with
+            tasks.Add(Shell($"cmake: run {name}", WorkspaceTaskKind.Run, $"{ConfigureAndBuild} && {TaskVariables.QuoteForShell(program)}", workspace) with
             {
                 IsDefault = name == executables[0],
                 Debug = new DebugLaunch($"cmake: run {name}", new JsonObject

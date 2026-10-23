@@ -209,7 +209,7 @@ public static partial class ProblemMatchers
             : (Number(read.Line), read.Column is { Length: > 0 } col ? Number(col) : 1);
         var path = read.File ?? "";
         return new BuildDiagnostic(read.Severity is { Length: > 0 } said ? SeverityOf(said) : severity, read.Code ?? "", read.Message ?? "",
-            path.Length == 0 ? null : under is null ? path : Path.GetFullPath(path, under), line, column, null);
+            path.Length == 0 ? null : under is null || !Path.IsPathFullyQualified(under) ? path : Path.GetFullPath(path, under), line, column, null);
     }
 
     /// <summary>Where a matcher's relative files are: ["relative", "${workspaceFolder}/src"]; null, where the task runs.</summary>

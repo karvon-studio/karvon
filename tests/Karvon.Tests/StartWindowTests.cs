@@ -49,7 +49,7 @@ public class TemplateCatalogTests
             }
           ]
         }
-        """.Replace("MOUNT_POINT", mountPoint);
+        """.Replace("\"MOUNT_POINT\"", System.Text.Json.JsonSerializer.Serialize(mountPoint));
 
     static string MountPoint()
     {

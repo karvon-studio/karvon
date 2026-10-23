@@ -80,7 +80,8 @@ public class WorkspaceTaskTests
         var compile = tasks[0];
         Assert.Equal((WorkspaceTaskKind.Build, true, VsCodeTasks.Source), (compile.Kind, compile.IsDefault, compile.Source));
         Assert.Equal(Path.Combine(dir, "web"), compile.WorkingDirectory);
-        Assert.Equal(["-c", "tsc -p 'src dir'"], compile.Arguments);
+        // The shell's line, its arguments quoted as the shell reads them: sh's, or Windows' cmd's.
+        Assert.Equal(OperatingSystem.IsWindows() ? ["/d", "/s", "/c", "tsc -p \"src dir\""] : ["-c", "tsc -p 'src dir'"], compile.Arguments);
         Assert.Equal(new Dictionary<string, string> { ["SHARED"] = "1", ["MODE"] = Path.GetFileName(dir) }, compile.Environment);
 
         // The platform's section wins; ${file} waits for the editor's file, when the task runs.
@@ -89,7 +90,7 @@ public class WorkspaceTaskTests
         Assert.Equal(["${file}"], lint.Arguments);
         var file = Path.Combine(dir, "src", "app.ts");
         Assert.Equal([file], TaskVariables.ForFile(lint, dir, file).Arguments);
-        Assert.Equal("src/app.ts", TaskVariables.Expand("${relativeFile}", dir, file));
+        Assert.Equal(Path.Combine("src", "app.ts"), TaskVariables.Expand("${relativeFile}", dir, file));
 
         var test = tasks[2];
         Assert.Equal((WorkspaceTaskKind.Test, "npm", Path.Combine(dir, "web")), (test.Kind, test.Program, test.WorkingDirectory));
@@ -102,8 +103,11 @@ public class WorkspaceTaskTests
     [Fact]
     public void Problem_matchers_read_a_tasks_errors_as_VS_Code_does()
     {
-        static Func<string, Karvon.Build.BuildDiagnostic?> Matcher(string json, string workspace = "/w") =>
-            ProblemMatchers.Of(System.Text.Json.JsonDocument.Parse(json).RootElement, text => TaskVariables.Expand(text, workspace))!();
+        // A workspace as the platform writes its paths.
+        var w = OperatingSystem.IsWindows() ? @"C:\w" : "/w";
+        string At(string relative) => Path.GetFullPath(relative, w);
+        Func<string, Karvon.Build.BuildDiagnostic?> Matcher(string json) =>
+            ProblemMatchers.Of(System.Text.Json.JsonDocument.Parse(json).RootElement, text => TaskVariables.Expand(text, w))!();
 
         // VS Code's own, by their names.
         Assert.Equal(new Karvon.Build.BuildDiagnostic(Karvon.Lsp.DiagnosticSeverity.Warning, "", "unused variable 'x'", "src/main.c", 4, 7, null),
@@ -117,7 +121,7 @@ public class WorkspaceTaskTests
             [ "$gcc", { "owner": "lint", "severity": "info", "fileLocation": ["relative", "${workspaceFolder}/src"],
                 "pattern": { "regexp": "^(.*)@(\\d+),(\\d+) \\[([\\w-]+)\\] (.*)$", "file": 1, "line": 2, "column": 3, "code": 4, "message": 5 } } ]
             """);
-        Assert.Equal(new Karvon.Build.BuildDiagnostic(Karvon.Lsp.DiagnosticSeverity.Information, "no-var", "use let", "/w/src/app.js", 8, 2, null),
+        Assert.Equal(new Karvon.Build.BuildDiagnostic(Karvon.Lsp.DiagnosticSeverity.Information, "no-var", "use let", At("src/app.js"), 8, 2, null),
             own("app.js@8,2 [no-var] use let"));
         Assert.Equal("src/x.c", own("src/x.c:1:1: error: boom")!.File);
         var located = Matcher("""{ "pattern": { "regexp": "^(.+):(\\d+:\\d+): (\\w+): (.*)$", "location": 2, "severity": 3 } }""");
@@ -125,13 +129,13 @@ public class WorkspaceTaskTests
 
         // Patterns of lines one after another: ESLint's stylish output, a file and then a line for each of its problems.
         var stylish = Matcher("\"$eslint-stylish\"");
-        Assert.Null(stylish("/w/src/app.js"));
-        Assert.Equal(new Karvon.Build.BuildDiagnostic(Karvon.Lsp.DiagnosticSeverity.Warning, "no-unused-vars", "'x' is assigned a value but never used", "/w/src/app.js", 3, 7, null),
+        Assert.Null(stylish(At("src/app.js")));
+        Assert.Equal(new Karvon.Build.BuildDiagnostic(Karvon.Lsp.DiagnosticSeverity.Warning, "no-unused-vars", "'x' is assigned a value but never used", At("src/app.js"), 3, 7, null),
             stylish("   3:7   warning  'x' is assigned a value but never used  no-unused-vars"));
-        Assert.Equal(("/w/src/app.js", 9, Karvon.Lsp.DiagnosticSeverity.Error, "semi"), stylish("  9:12  error    Missing semicolon  semi") is { } next ? (next.File, next.Line, next.Severity, next.Code) : default);
+        Assert.Equal((At("src/app.js"), 9, Karvon.Lsp.DiagnosticSeverity.Error, "semi"), stylish("  9:12  error    Missing semicolon  semi") is { } next ? (next.File, next.Line, next.Severity, next.Code) : default);
         Assert.Null(stylish(""));
         Assert.Null(stylish("  1:1  error  Not after its file  semi"));
-        Assert.Equal("/w/b.js", (stylish("/w/b.js"), stylish("  1:1  error  Unexpected var  no-var")).Item2!.File);
+        Assert.Equal(At("b.js"), (stylish(At("b.js")), stylish("  1:1  error  Unexpected var  no-var")).Item2!.File);
         Assert.Null(stylish("✖ 3 problems (2 errors, 1 warning)"));
         // A task's own: no loop, so each problem has its two lines; and each run reads afresh.
         var own2 = """
@@ -140,7 +144,7 @@ public class WorkspaceTaskTests
             """;
         var two = Matcher(own2);
         Assert.Null(two("In lib/a.py:"));
-        Assert.Equal(("/w/lib/a.py", 4, Karvon.Lsp.DiagnosticSeverity.Warning, "unused import"), two("  line 4: warning unused import") is { } t ? (t.File, t.Line, t.Severity, t.Message) : default);
+        Assert.Equal((At("lib/a.py"), 4, Karvon.Lsp.DiagnosticSeverity.Warning, "unused import"), two("  line 4: warning unused import") is { } t ? (t.File, t.Line, t.Severity, t.Message) : default);
         Assert.Null(two("  line 5: error not after its file"));
         Assert.Null(two("In lib/b.py:"));
         Assert.Null(Matcher(own2)("  line 1: error a new run, so not after its file"));
@@ -148,10 +152,10 @@ public class WorkspaceTaskTests
         Assert.Null(two("  line 1: error not right after its file"));
         // A list: each matcher reads every line.
         var both = Matcher("""["$gcc", "$eslint-stylish"]""");
-        Assert.Null(both("/w/c.js"));
+        Assert.Null(both(At("c.js")));
         Assert.Equal("src/x.c", both("src/x.c:1:1: error: boom")!.File);
-        Assert.Null(both("/w/c.js"));
-        Assert.Equal(("/w/c.js", "semi"), both("  2:1  error  Missing semicolon  semi") is { } c ? (c.File, c.Code) : default);
+        Assert.Null(both(At("c.js")));
+        Assert.Equal((At("c.js"), "semi"), both("  2:1  error  Missing semicolon  semi") is { } c ? (c.File, c.Code) : default);
 
         // One that Karvon does not know: none (a build then reads file(line,col): error lines).
         Assert.Null(ProblemMatchers.Of(System.Text.Json.JsonDocument.Parse("""{ "pattern": [{ "regexp": "^(.*)$" }, { "regexp": "(" }] }""").RootElement, s => s));
@@ -189,6 +193,7 @@ public class WorkspaceTaskTests
     [AvaloniaFact]
     public async Task Depends_on_runs_first_in_sequence_or_together()
     {
+        TestTools.SkipOnWindows();
         var dir = NewFolder();
         File.WriteAllText(VsCodeTasks.FileOf(dir), """
             { "version": "2.0.0", "tasks": [
@@ -264,6 +269,7 @@ public class WorkspaceTaskTests
     [AvaloniaFact]
     public async Task Inputs_are_asked_when_a_task_runs()
     {
+        TestTools.SkipOnWindows();
         var dir = NewFolder();
         File.WriteAllText(VsCodeTasks.FileOf(dir), """
             { "version": "2.0.0",
@@ -380,8 +386,10 @@ public class WorkspaceTaskTests
         var dir = NewFolder();
         File.WriteAllText(VsCodeTasks.FileOf(dir), """
             { "version": "2.0.0", "tasks": [
-              { "label": "compile", "type": "shell", "command": "echo 'src/app.ts(3,7): error TS2322: Type string is not assignable to type number.'; exit 2", "group": "build" },
-              { "label": "unit", "type": "process", "command": "sh", "args": ["-c", "echo '2 passing'"], "group": "test" }
+              { "label": "compile", "type": "shell", "command": "echo 'src/app.ts(3,7): error TS2322: Type string is not assignable to type number.'; exit 2", "group": "build",
+                "windows": { "command": "echo src/app.ts(3,7): error TS2322: Type string is not assignable to type number.& exit /b 2" } },
+              { "label": "unit", "type": "process", "command": "sh", "args": ["-c", "echo '2 passing'"], "group": "test",
+                "windows": { "command": "cmd.exe", "args": ["/c", "echo 2 passing"] } }
             ] }
             """);
         File.WriteAllText(Path.Combine(dir, "package.json"), """{ "scripts": { "dev": "vite" } }""");

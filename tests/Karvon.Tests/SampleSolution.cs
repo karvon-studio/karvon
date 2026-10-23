@@ -116,5 +116,6 @@ public static class SampleSolution
         }
     }
 
-    public static string PathOf(string sln, string relative) => Path.Combine(Path.GetDirectoryName(sln)!, relative);
+    /// <summary>A file of the sample by its path written with '/', as the platform writes it.</summary>
+    public static string PathOf(string sln, string relative) => Path.GetFullPath(Path.Combine(Path.GetDirectoryName(sln)!, relative));
 }

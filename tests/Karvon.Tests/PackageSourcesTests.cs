@@ -119,11 +119,13 @@ public class PackageSourcesTests
             [dependency-groups]
             dev = ["pytest>=8"]
             """);
-        var site = Path.Combine(dir, ".venv", "lib", "python3.12", "site-packages");
+        // Its .venv as the platform lays it out: bin and lib/python3.x on Linux and macOS, Scripts and Lib on Windows.
+        var site = OperatingSystem.IsWindows() ? Path.Combine(dir, ".venv", "Lib", "site-packages") : Path.Combine(dir, ".venv", "lib", "python3.12", "site-packages");
         Directory.CreateDirectory(Path.Combine(site, "requests-2.32.3.dist-info"));
         Directory.CreateDirectory(Path.Combine(site, "typing_extensions-4.12.2.dist-info"));
-        Directory.CreateDirectory(Path.Combine(dir, ".venv", "bin"));
-        File.WriteAllText(Path.Combine(dir, ".venv", "bin", "python"), "");
+        var venvPython = OperatingSystem.IsWindows() ? Path.Combine(dir, ".venv", "Scripts", "python.exe") : Path.Combine(dir, ".venv", "bin", "python");
+        Directory.CreateDirectory(Path.GetDirectoryName(venvPython)!);
+        File.WriteAllText(venvPython, "");
         var uv = new PypiPackages(dir);
         Assert.Equal(("uv", "shop"), (uv.Name, uv.Project));
         Assert.Equal(["dependencies", "dev"], uv.Groups);
@@ -143,7 +145,7 @@ public class PackageSourcesTests
         Assert.Equal(("pip", 0), (pip.Name, pip.Groups.Count));
         Assert.Equal(["requests", "flask"], pip.Dependencies().Select(d => d.Id));
         var install = pip.Add("flask", "3.0.3", null);
-        Assert.Equal(Path.Combine(dir, ".venv", "bin", "python"), install.Command!.Program);
+        Assert.Equal(venvPython, install.Command!.Program);
         Assert.Equal(["-m", "pip", "install", "flask==3.0.3"], install.Command.Arguments);
 
         // PEP 440's order and prereleases.
