@@ -1,0 +1,95 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:v="using:Karvon.Views"
+             xmlns:jvm="using:Karvon.Jira.ViewModels"
+             xmlns:jv="using:Karvon.Jira.Views"
+             x:Class="Karvon.Jira.Views.JiraExplorerView"
+             x:DataType="jvm:JiraExplorerViewModel">
+  <UserControl.Styles>
+    <StyleInclude Source="avares://Karvon.Core/Themes/ExplorerStyles.axaml" />
+    <Style Selector="TreeView#Tree TreeViewItem /template/ ContentPresenter#PART_HeaderPresenter">
+      <Setter Property="HorizontalAlignment" Value="Stretch" />
+      <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+    </Style>
+    <Style Selector="TreeView#Tree TreeViewItem">
+      <Setter Property="IsExpanded" Value="{ReflectionBinding IsExpanded, Mode=TwoWay}" />
+    </Style>
+    <Style Selector="Grid.node">
+      <Setter Property="Height" Value="24" />
+      <Setter Property="Background" Value="Transparent" />
+    </Style>
+    <!-- An issue's status category, as Jira colors it: to do gray, in progress blue, done green. -->
+    <Style Selector="Ellipse.status">
+      <Setter Property="Width" Value="8" />
+      <Setter Property="Height" Value="8" />
+      <Setter Property="Fill" Value="#8C8C8C" />
+    </Style>
+    <Style Selector="Ellipse.status.indeterminate">
+      <Setter Property="Fill" Value="#4DAAFC" />
+    </Style>
+    <Style Selector="Ellipse.status.done">
+      <Setter Property="Fill" Value="#3FB950" />
+    </Style>
+  </UserControl.Styles>
+
+  <DockPanel>
+    <Border DockPanel.Dock="Top" Background="{StaticResource VsEnvironmentBrush}">
+      <TextBlock Classes="toolTitle" Text="Jira" />
+    </Border>
+    <Border DockPanel.Dock="Top" Padding="4,2">
+      <StackPanel Orientation="Horizontal" Spacing="2">
+        <Button Name="AddSiteButton" Classes="tbi" Command="{Binding AddSiteCommand}" ToolTip.Tip="Add Jira Site…">
+          <v:VsIcon Kind="Plus" />
+        </Button>
+        <Button Classes="tbi" Command="{Binding CreateIssueCommand}" CommandParameter="{Binding Selected}" ToolTip.Tip="New Issue…" IsEnabled="{Binding !IsEmpty}">
+          <v:VsIcon Kind="Pencil" />
+        </Button>
+        <Button Classes="tbi" Command="{Binding SearchCommand}" CommandParameter="{Binding Selected}" ToolTip.Tip="Search with JQL" IsEnabled="{Binding !IsEmpty}">
+          <v:VsIcon Kind="ToolFind" />
+        </Button>
+        <Button Classes="tbi" Command="{Binding RefreshCommand}" ToolTip.Tip="Refresh">
+          <v:VsIcon Kind="Refresh" />
+        </Button>
+      </StackPanel>
+    </Border>
+
+    <Panel>
+      <StackPanel IsVisible="{Binding IsEmpty}" Margin="12,10" Spacing="8">
+        <TextBlock Text="No Jira sites yet" FontWeight="SemiBold" />
+        <TextBlock Classes="dkMuted" TextWrapping="Wrap"
+                   Text="Add a Jira Cloud site (an email and an API token) or a Server or Data Center site (a personal access token, or a name and password). The token stays in the system keyring: Claude Code works with Jira through Karvon and never sees it." />
+        <Button Classes="dkPrimary" HorizontalAlignment="Left" Command="{Binding AddSiteCommand}" Content="Add Jira Site…" />
+      </StackPanel>
+
+      <TreeView Name="Tree" ItemsSource="{Binding Sites}" SelectedItem="{Binding Selected}" Background="Transparent"
+                ScrollViewer.HorizontalScrollBarVisibility="Disabled" IsVisible="{Binding !IsEmpty}">
+        <TreeView.DataTemplates>
+          <TreeDataTemplate DataType="jvm:JiraNode" ItemsSource="{Binding Children}">
+            <Grid Classes="node" ColumnDefinitions="Auto,*" ToolTip.Tip="{Binding Detail}">
+              <Grid.ContextMenu>
+                <ContextMenu>
+                  <MenuItem Header="Open" Command="{Binding $parent[TreeView].((jvm:JiraExplorerViewModel)DataContext).OpenCommand}" CommandParameter="{Binding}" IsVisible="{Binding !IsSite}" />
+                  <MenuItem Header="New Issue…" Command="{Binding $parent[TreeView].((jvm:JiraExplorerViewModel)DataContext).CreateIssueCommand}" CommandParameter="{Binding}" />
+                  <MenuItem Header="Search with JQL" Command="{Binding $parent[TreeView].((jvm:JiraExplorerViewModel)DataContext).SearchCommand}" CommandParameter="{Binding}" />
+                  <Separator IsVisible="{Binding IsSite}" />
+                  <MenuItem Header="Edit Site…" Command="{Binding $parent[TreeView].((jvm:JiraExplorerViewModel)DataContext).EditSiteCommand}" CommandParameter="{Binding}" IsVisible="{Binding IsSite}" />
+                  <MenuItem Header="Remove Site…" Command="{Binding $parent[TreeView].((jvm:JiraExplorerViewModel)DataContext).RemoveSiteCommand}" CommandParameter="{Binding}" IsVisible="{Binding IsSite}" />
+                </ContextMenu>
+              </Grid.ContextMenu>
+              <Panel Width="16" Height="16" VerticalAlignment="Center">
+                <v:VsIcon Kind="ToolJira" Width="15" Height="15" Foreground="#4DAAFC" IsVisible="{Binding IsSite}" />
+                <Ellipse Classes="status" HorizontalAlignment="Center" VerticalAlignment="Center" IsVisible="{Binding IsIssue}"
+                         Classes.indeterminate="{Binding StatusCategory, Converter={x:Static ObjectConverters.Equal}, ConverterParameter=indeterminate}"
+                         Classes.done="{Binding StatusCategory, Converter={x:Static ObjectConverters.Equal}, ConverterParameter=done}" />
+              </Panel>
+              <TextBlock Grid.Column="1" Margin="6,0,0,0" VerticalAlignment="Center" TextTrimming="CharacterEllipsis">
+                <Run Text="{Binding Title}" FontWeight="{Binding IsSite, Converter={x:Static jv:JiraConverters.Bold}}" Foreground="{Binding IsMessage, Converter={x:Static jv:JiraConverters.Muted}}" />
+                <Run Text="  " /><Run Text="{Binding Detail}" Foreground="#9D9D9D" />
+              </TextBlock>
+            </Grid>
+          </TreeDataTemplate>
+        </TreeView.DataTemplates>
+      </TreeView>
+    </Panel>
+  </DockPanel>
+</UserControl>

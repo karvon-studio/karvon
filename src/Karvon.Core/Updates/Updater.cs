@@ -114,7 +114,8 @@ public sealed partial class Updater(AppInstall install, UpdateFeed feed, string 
                 throw new InvalidOperationException($"SHA256SUMS does not list {asset.Name}.");
             var file = Path.Combine(folder, asset.Name);
             Message = $"Downloading Karvon Studio {release.Version}...";
-            await feed.DownloadAsync(release, asset, file, new Progress<(long Done, long Total)>(p =>
+            // Said at once, as it comes (Progress<T> would say it later, after what came next).
+            await feed.DownloadAsync(release, asset, file, new Inline<(long Done, long Total)>(p =>
             {
                 Progress = p.Total > 0 ? (double)p.Done / p.Total : 0;
                 Message = $"Downloading Karvon Studio {release.Version}: {p.Done >> 20} MB of {p.Total >> 20} MB";
@@ -228,6 +229,11 @@ public sealed partial class Updater(AppInstall install, UpdateFeed feed, string 
             Directory.Delete(path, recursive: true);
         else if (File.Exists(path))
             File.Delete(path);
+    }
+
+    sealed class Inline<T>(Action<T> report) : IProgress<T>
+    {
+        public void Report(T value) => report(value);
     }
 
     /// <summary>Whether a downloaded update installs as Karvon Studio closes without asking (apt asks for a password).</summary>

@@ -1,0 +1,40 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:v="using:Karvon.Views"
+             xmlns:j="using:Karvon.Jira"
+             xmlns:jvm="using:Karvon.Jira.ViewModels"
+             xmlns:jv="using:Karvon.Jira.Views"
+             x:Class="Karvon.Jira.Views.JiraSearchPageView"
+             x:DataType="jvm:JiraSearchPageViewModel">
+  <UserControl.Styles>
+    <StyleInclude Source="avares://Karvon.Core/Themes/ExplorerStyles.axaml" />
+  </UserControl.Styles>
+
+  <DockPanel Background="{StaticResource VsToolWindowBrush}">
+    <Border DockPanel.Dock="Top" Padding="16,12" BorderBrush="{StaticResource VsBorderBrush}" BorderThickness="0,0,0,1">
+      <StackPanel Spacing="6">
+        <Grid ColumnDefinitions="*,Auto">
+          <TextBox Name="JqlBox" Classes="dkField" Text="{Binding Jql}" PlaceholderText="JQL: project = SHOP AND statusCategory != Done ORDER BY updated DESC" />
+          <Button Grid.Column="1" Classes="dkPrimary" Content="Search" Command="{Binding SearchCommand}" Margin="8,0,0,0" IsDefault="True" />
+        </Grid>
+        <TextBlock Name="SearchMessage" Text="{Binding Message}" Classes="dkMuted" TextWrapping="Wrap" />
+      </StackPanel>
+    </Border>
+    <ListBox Name="Results" ItemsSource="{Binding Results}" SelectedItem="{Binding Selected}" Background="Transparent">
+      <ListBox.ItemTemplate>
+        <DataTemplate x:DataType="j:JiraIssueSummary">
+          <Grid ColumnDefinitions="110,*,140,150,90" Height="26">
+            <TextBlock Text="{Binding Key}" Foreground="#4DAAFC" VerticalAlignment="Center" />
+            <TextBlock Grid.Column="1" Text="{Binding Summary}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" Margin="0,0,12,0" />
+            <Border Grid.Column="2" CornerRadius="3" Padding="6,1" HorizontalAlignment="Left" VerticalAlignment="Center"
+                    Background="{Binding StatusCategory, Converter={x:Static jv:JiraConverters.StatusBrush}}">
+              <TextBlock Text="{Binding Status}" FontSize="11" FontWeight="SemiBold" />
+            </Border>
+            <TextBlock Grid.Column="3" Text="{Binding Assignee, FallbackValue='Unassigned', TargetNullValue='Unassigned'}" Classes="dkMuted" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+            <TextBlock Grid.Column="4" Text="{Binding Type}" Classes="dkMuted" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+          </Grid>
+        </DataTemplate>
+      </ListBox.ItemTemplate>
+    </ListBox>
+  </DockPanel>
+</UserControl>

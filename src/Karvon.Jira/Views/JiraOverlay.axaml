@@ -1,0 +1,126 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:ui="using:Karvon.Ui"
+             xmlns:jvm="using:Karvon.Jira.ViewModels"
+             xmlns:j="using:Karvon.Jira"
+             xmlns:jv="using:Karvon.Jira.Views"
+             x:Class="Karvon.Jira.Views.JiraOverlay"
+             x:DataType="jvm:JiraExplorerViewModel">
+  <UserControl.Styles>
+    <StyleInclude Source="avares://Karvon.Core/Themes/ExplorerStyles.axaml" />
+  </UserControl.Styles>
+
+  <!-- Over the window: the Jira explorer's dialogs. Clicks pass through otherwise. -->
+  <Panel Name="DialogLayer" IsVisible="{Binding HasDialog}" Background="#99000000">
+    <ContentControl Content="{Binding Dialog}" HorizontalAlignment="Center" VerticalAlignment="Center">
+      <ContentControl.DataTemplates>
+        <DataTemplate DataType="jvm:JiraSiteDialog">
+          <Border Classes="dkCard" Width="540" Padding="22,18" Background="#2B2B2F">
+            <StackPanel Spacing="8">
+              <TextBlock Text="{Binding Title}" FontSize="16" FontWeight="SemiBold" />
+              <TextBlock Text="Name" Classes="dkMuted" />
+              <TextBox Name="SiteNameBox" Classes="dkField" Text="{Binding Name}" PlaceholderText="Work" />
+              <TextBlock Text="Address" Classes="dkMuted" />
+              <TextBox Name="SiteUrlBox" Classes="dkField" Text="{Binding Url}" PlaceholderText="https://your-company.atlassian.net" />
+              <TextBlock Text="Sign in with" Classes="dkMuted" />
+              <ComboBox Name="AuthBox" ItemsSource="{x:Static jvm:JiraSiteDialog.AuthChoices}" SelectedIndex="{Binding AuthIndex}" HorizontalAlignment="Stretch" />
+              <TextBlock Text="{Binding UserLabel}" Classes="dkMuted" IsVisible="{Binding NeedsUser}" />
+              <TextBox Name="SiteUserBox" Classes="dkField" Text="{Binding User}" IsVisible="{Binding NeedsUser}" />
+              <TextBlock Text="{Binding SecretLabel}" Classes="dkMuted" />
+              <TextBox Name="SiteSecretBox" Classes="dkField" PasswordChar="•" RevealPassword="False" Text="{Binding Secret}"
+                       PlaceholderText="{Binding HasSecret, Converter={x:Static jv:JiraConverters.SecretPlaceholder}}" />
+              <TextBlock Text="{Binding SecretHint}" Classes="dkMuted" FontSize="11" TextWrapping="Wrap" />
+              <CheckBox Content="Keep it in the system keyring" IsChecked="{Binding Keep}" IsVisible="{Binding CanKeep}" />
+              <TextBlock Text="Without a keyring, Karvon asks for it once a session." Classes="dkMuted" FontSize="11" IsVisible="{Binding !CanKeep}" />
+              <Grid ColumnDefinitions="*,12,*" RowDefinitions="Auto,Auto">
+                <TextBlock Text="Start date field (optional)" Classes="dkMuted" />
+                <TextBox Grid.Row="1" Classes="dkField" Text="{Binding StartDateField}" PlaceholderText="customfield_10015" />
+                <TextBlock Grid.Column="2" Text="End date field (optional)" Classes="dkMuted" />
+                <TextBox Grid.Row="1" Grid.Column="2" Classes="dkField" Text="{Binding EndDateField}" PlaceholderText="duedate" />
+              </Grid>
+              <TextBlock Name="TestMessage" Text="{Binding TestMessage}" TextWrapping="Wrap" IsVisible="{Binding TestMessage, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
+                         Foreground="{Binding TestFailed, Converter={x:Static jv:JiraConverters.MessageBrush}}" />
+              <Grid ColumnDefinitions="Auto,*,Auto">
+                <Button Classes="dkOutline" Command="{Binding TestCommand}" Content="Test connection" IsEnabled="{Binding !IsTesting}" />
+                <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8">
+                  <Button Classes="dkOutline" Command="{Binding CancelCommand}" Content="Cancel" IsCancel="True" />
+                  <Button Classes="dkPrimary" Command="{Binding ConfirmCommand}" Content="{Binding ConfirmText}" IsEnabled="{Binding CanConfirm}" IsDefault="True" />
+                </StackPanel>
+              </Grid>
+            </StackPanel>
+          </Border>
+        </DataTemplate>
+
+        <DataTemplate DataType="jvm:JiraSecretDialog">
+          <Border Classes="dkCard" Width="440" Padding="22,18" Background="#2B2B2F">
+            <StackPanel Spacing="12">
+              <TextBlock Text="{Binding Title}" FontSize="16" FontWeight="SemiBold" />
+              <TextBlock Text="{Binding Question}" TextWrapping="Wrap" Classes="dkMuted" />
+              <TextBox Name="SecretBox" Classes="dkField" PasswordChar="•" RevealPassword="False" Text="{Binding Secret}" />
+              <CheckBox Content="Keep it in the system keyring" IsChecked="{Binding Keep}" IsVisible="{Binding CanKeep}" />
+              <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">
+                <Button Classes="dkOutline" Command="{Binding CancelCommand}" Content="Cancel" IsCancel="True" />
+                <Button Classes="dkPrimary" Command="{Binding ConfirmCommand}" Content="{Binding ConfirmText}" IsDefault="True" />
+              </StackPanel>
+            </StackPanel>
+          </Border>
+        </DataTemplate>
+
+        <DataTemplate DataType="jvm:JiraCreateDialog">
+          <Border Classes="dkCard" Width="560" Padding="22,18" Background="#2B2B2F">
+            <StackPanel Spacing="8">
+              <TextBlock Text="{Binding Title}" FontSize="16" FontWeight="SemiBold" />
+              <Grid ColumnDefinitions="*,12,*" RowDefinitions="Auto,Auto">
+                <TextBlock Text="Project" Classes="dkMuted" />
+                <ComboBox Name="ProjectBox" Grid.Row="1" ItemsSource="{Binding Projects}" SelectedItem="{Binding Project}" HorizontalAlignment="Stretch">
+                  <ComboBox.ItemTemplate>
+                    <DataTemplate x:DataType="j:JiraProject">
+                      <TextBlock><Run Text="{Binding Key}" FontWeight="SemiBold" /><Run Text="  " /><Run Text="{Binding Name}" /></TextBlock>
+                    </DataTemplate>
+                  </ComboBox.ItemTemplate>
+                </ComboBox>
+                <TextBlock Grid.Column="2" Text="Type" Classes="dkMuted" />
+                <ComboBox Name="TypeBox" Grid.Row="1" Grid.Column="2" ItemsSource="{Binding Types}" SelectedItem="{Binding Type}" HorizontalAlignment="Stretch">
+                  <ComboBox.ItemTemplate>
+                    <DataTemplate x:DataType="j:JiraIssueType">
+                      <TextBlock Text="{Binding Name}" />
+                    </DataTemplate>
+                  </ComboBox.ItemTemplate>
+                </ComboBox>
+              </Grid>
+              <TextBlock Text="Summary" Classes="dkMuted" />
+              <TextBox Name="SummaryBox" Classes="dkField" Text="{Binding Summary}" />
+              <TextBlock Text="Description" Classes="dkMuted" />
+              <TextBox Classes="dkField" Text="{Binding Description}" AcceptsReturn="True" TextWrapping="Wrap" Height="110" />
+              <Grid ColumnDefinitions="*,12,*" RowDefinitions="Auto,Auto">
+                <TextBlock Text="Start" Classes="dkMuted" />
+                <TextBox Grid.Row="1" Classes="dkField" Text="{Binding Start}" PlaceholderText="2026-10-24" />
+                <TextBlock Grid.Column="2" Text="End" Classes="dkMuted" />
+                <TextBox Grid.Row="1" Grid.Column="2" Classes="dkField" Text="{Binding End}" PlaceholderText="2026-10-27" />
+              </Grid>
+              <TextBlock Text="{Binding Error}" Foreground="#F14C4C" TextWrapping="Wrap" IsVisible="{Binding Error, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+              <TextBlock Text="It is made as yours (the signed-in user is its assignee)." Classes="dkMuted" FontSize="11" />
+              <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">
+                <Button Classes="dkOutline" Command="{Binding CancelCommand}" Content="Cancel" IsCancel="True" />
+                <Button Classes="dkPrimary" Command="{Binding ConfirmCommand}" Content="{Binding ConfirmText}" IsEnabled="{Binding CanConfirm}" />
+              </StackPanel>
+            </StackPanel>
+          </Border>
+        </DataTemplate>
+
+        <DataTemplate DataType="ui:ConfirmDialog">
+          <Border Classes="dkCard" Width="440" Padding="22,18" Background="#2B2B2F">
+            <StackPanel Spacing="12">
+              <TextBlock Text="{Binding Title}" FontSize="16" FontWeight="SemiBold" />
+              <TextBlock Text="{Binding Message}" TextWrapping="Wrap" Classes="dkMuted" />
+              <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">
+                <Button Classes="dkOutline" Command="{Binding CancelCommand}" Content="Cancel" IsCancel="True" />
+                <Button Classes="dkDanger" Command="{Binding ConfirmCommand}" Content="{Binding ConfirmText}" />
+              </StackPanel>
+            </StackPanel>
+          </Border>
+        </DataTemplate>
+      </ContentControl.DataTemplates>
+    </ContentControl>
+  </Panel>
+</UserControl>

@@ -48,6 +48,7 @@ src/Karvon.Core/        the workbench; it knows no module
 src/Karvon.Database/    module: the Database Explorer (Bengine Data Studio's views and view models, on Avalonia 12)
 src/Karvon.Docker/      module: the Docker Explorer
 src/Karvon.Servers/     module: SSH servers
+src/Karvon.Jira/        module: Jira Cloud, Server and Data Center sites, their issues and boards, Claude's Jira tools
 src/Karvon.Mcp/         module: MCP Servers
 src/Karvon.Skills/      module: Skills (uses Karvon.Mcp)
 src/Karvon.DotNet/      module: .NET (solutions and projects, Roslyn, netcoredbg, dotnet build, the SDK's templates, NuGet, vstest)

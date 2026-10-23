@@ -1,0 +1,82 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:v="using:Karvon.Views"
+             xmlns:j="using:Karvon.Jira"
+             xmlns:jvm="using:Karvon.Jira.ViewModels"
+             xmlns:jv="using:Karvon.Jira.Views"
+             x:Class="Karvon.Jira.Views.JiraBoardPageView"
+             x:DataType="jvm:JiraBoardPageViewModel">
+  <UserControl.Styles>
+    <StyleInclude Source="avares://Karvon.Core/Themes/ExplorerStyles.axaml" />
+    <Style Selector="Border.card">
+      <Setter Property="Background" Value="#333337" />
+      <Setter Property="CornerRadius" Value="4" />
+      <Setter Property="Padding" Value="10,8" />
+      <Setter Property="Margin" Value="0,0,0,6" />
+      <Setter Property="Cursor" Value="Hand" />
+    </Style>
+    <Style Selector="Border.card:pointerover">
+      <Setter Property="Background" Value="#3E3E42" />
+    </Style>
+  </UserControl.Styles>
+
+  <DockPanel Background="{StaticResource VsToolWindowBrush}">
+    <Border DockPanel.Dock="Top" Padding="16,10" BorderBrush="{StaticResource VsBorderBrush}" BorderThickness="0,0,0,1">
+      <StackPanel Spacing="6">
+        <StackPanel Orientation="Horizontal" Spacing="10">
+          <TextBlock Text="{Binding Board.Name}" FontSize="18" VerticalAlignment="Center" />
+          <ComboBox Name="SprintBox" ItemsSource="{Binding Sprints}" SelectedItem="{Binding Sprint}" MinWidth="180" IsVisible="{Binding HasSprints}">
+            <ComboBox.ItemTemplate>
+              <DataTemplate x:DataType="j:JiraSprint">
+                <TextBlock><Run Text="{Binding Name}" /><Run Text="  " /><Run Text="{Binding State}" Foreground="#9D9D9D" /></TextBlock>
+              </DataTemplate>
+            </ComboBox.ItemTemplate>
+          </ComboBox>
+          <Button Classes="tbi" Command="{Binding RefreshCommand}" ToolTip.Tip="Refresh"><v:VsIcon Kind="Refresh" /></Button>
+          <ProgressBar IsIndeterminate="True" IsVisible="{Binding IsBusy}" Width="80" Height="3" MinWidth="0" VerticalAlignment="Center" />
+        </StackPanel>
+        <TextBlock Name="BoardError" Text="{Binding Error}" Foreground="#F14C4C" TextWrapping="Wrap" IsVisible="{Binding Error, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+      </StackPanel>
+    </Border>
+    <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
+      <ItemsControl Name="Columns" ItemsSource="{Binding Columns}" Margin="12">
+        <ItemsControl.ItemsPanel>
+          <ItemsPanelTemplate>
+            <StackPanel Orientation="Horizontal" Spacing="12" />
+          </ItemsPanelTemplate>
+        </ItemsControl.ItemsPanel>
+        <ItemsControl.ItemTemplate>
+          <DataTemplate x:DataType="jvm:JiraColumn">
+            <Border Width="280" Background="#252528" CornerRadius="6" Padding="8" DragDrop.AllowDrop="True">
+              <DockPanel>
+                <TextBlock DockPanel.Dock="Top" Text="{Binding Header}" FontWeight="SemiBold" Classes="dkMuted" Margin="4,2,4,8" />
+                <ScrollViewer HorizontalScrollBarVisibility="Disabled">
+                  <ItemsControl ItemsSource="{Binding Cards}">
+                    <ItemsControl.ItemTemplate>
+                      <DataTemplate x:DataType="j:JiraIssueSummary">
+                        <Border Classes="card" Tag="{Binding}" ToolTip.Tip="Drag it to another column to move it; a double click opens it">
+                          <Border.ContextMenu>
+                            <ContextMenu>
+                              <MenuItem Header="Open" Command="{Binding $parent[UserControl].((jvm:JiraBoardPageViewModel)DataContext).OpenCommand}" CommandParameter="{Binding}" />
+                            </ContextMenu>
+                          </Border.ContextMenu>
+                          <StackPanel Spacing="4">
+                            <TextBlock Text="{Binding Summary}" TextWrapping="Wrap" MaxLines="3" TextTrimming="CharacterEllipsis" />
+                            <Grid ColumnDefinitions="Auto,*,Auto">
+                              <TextBlock Text="{Binding Key}" Foreground="#4DAAFC" FontSize="11" />
+                              <TextBlock Grid.Column="2" Text="{Binding Assignee}" Classes="dkMuted" FontSize="11" TextTrimming="CharacterEllipsis" MaxWidth="140" />
+                            </Grid>
+                          </StackPanel>
+                        </Border>
+                      </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                  </ItemsControl>
+                </ScrollViewer>
+              </DockPanel>
+            </Border>
+          </DataTemplate>
+        </ItemsControl.ItemTemplate>
+      </ItemsControl>
+    </ScrollViewer>
+  </DockPanel>
+</UserControl>

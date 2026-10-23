@@ -7,7 +7,7 @@ public static class BuiltInModules
 {
     public static IReadOnlyList<KarvonModule> Create() =>
     [
-        new Database.DatabaseModule(), new Docker.DockerModule(), new Servers.ServersModule(), new Mcp.McpModule(), new Skills.SkillsModule(),
+        new Database.DatabaseModule(), new Docker.DockerModule(), new Servers.ServersModule(), new Jira.JiraModule(), new Mcp.McpModule(), new Skills.SkillsModule(),
         new DotNet.DotNetModule(), new TypeScript.TypeScriptModule(), new Python.PythonModule(), new Go.GoModule(), new Rust.RustModule(), new Cpp.CppModule(), new Java.JavaModule(), new Kotlin.KotlinModule(),
         new Claude.ClaudeModule(),
     ];

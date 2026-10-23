@@ -42,7 +42,7 @@ public sealed class VsIcon : Control
         "Docker", "DockerContainer", "DockerStack", "DockerImage", "DockerVolume", "DockerNetwork", "DockerPlay", "DockerStop", "DockerRestart",
         "DockerPause", "DockerDelete", "DockerMore", "DockerLink", "DockerBack", "DockerTerminal", "DockerLogs", "DockerStats", "DockerInspect",
         "ToolExplorer", "ToolTests", "ToolGit", "ToolDatabase", "ToolErrors", "ToolOutput", "ToolFind", "ToolLocals", "ToolCallStack", "ToolTerminal",
-        "ToolServers", "ToolMcp", "ToolSkills",
+        "ToolServers", "ToolMcp", "ToolSkills", "ToolJira",
     ];
 
     public string? Kind
@@ -526,6 +526,10 @@ public sealed class VsIcon : Control
                 break;
             case "ToolServers":
                 Line(dc, "M4.5 3.5h15a1 1 0 0 1 1 1v5a1 1 0 0 1-1 1h-15a1 1 0 0 1-1-1v-5a1 1 0 0 1 1-1z M4.5 13.5h15a1 1 0 0 1 1 1v5a1 1 0 0 1-1 1h-15a1 1 0 0 1-1-1v-5a1 1 0 0 1 1-1z M7.5 7h.01 M7.5 17h.01 M11 7h6 M11 17h6", fg, 1.6);
+                break;
+            case "ToolJira":
+                // A board: its columns and their cards (Jira's issues).
+                Line(dc, "M3.5 3.5h17v17h-17z M9.2 3.5v17 M14.8 3.5v17 M5.3 6.5h2.1 M5.3 9.5h2.1 M5.3 12.5h2.1 M11 6.5h2 M11 9.5h2 M16.6 6.5h2.1", fg, 1.6);
                 break;
             case "ToolSkills":
                 // An open book: a skill's instructions.

@@ -8,6 +8,7 @@
     <Project Path="src/Karvon.Docker/Karvon.Docker.csproj" />
     <Project Path="src/Karvon.Mcp/Karvon.Mcp.csproj" />
     <Project Path="src/Karvon.Servers/Karvon.Servers.csproj" />
+    <Project Path="src/Karvon.Jira/Karvon.Jira.csproj" />
     <Project Path="src/Karvon.Skills/Karvon.Skills.csproj" />
     <Project Path="src/Karvon.DotNet/Karvon.DotNet.csproj" />
     <Project Path="src/Karvon.TypeScript/Karvon.TypeScript.csproj" />

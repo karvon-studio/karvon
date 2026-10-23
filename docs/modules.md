@@ -10,6 +10,7 @@ Each module is a project of its own, referencing `Karvon.Core`. The core referen
 - Database Explorer (`src/Karvon.Database`);
 - Docker Explorer (`src/Karvon.Docker`);
 - Servers (`src/Karvon.Servers`);
+- Jira (`src/Karvon.Jira`): Jira's REST API (Cloud's and Server's), its sites' secrets in the keyring, and Claude's Jira tools;
 - MCP Servers (`src/Karvon.Mcp`);
 - Skills (`src/Karvon.Skills`, which uses MCP Servers);
 - TypeScript and JavaScript (`src/Karvon.TypeScript`): a workload, so the example of one: a language server, its

@@ -113,6 +113,21 @@ its logs (the journal, a unit's or a file's, followed as they come, secrets hidd
 host key is shown to compare before it is trusted; passwords and passphrases are asked once and can go to the system
 keyring; a production machine asks before every change, yours and Claude's.
 
+## Jira (View > Jira)
+
+Jira Cloud sites (an email and an API token) and Server or Data Center sites (a personal access token, or a name and
+password); Test connection says as whom it signs in. The token or password stays in the system keyring (without one,
+Karvon asks for it once a session); `jira.json` in Karvon's settings has only the sites. Under each site: the issues
+assigned to you and those you reported, your favourite filters, the boards. An issue opens as a page: its fields,
+description and comments (as the site renders them), Move to (its workflow's transitions now), a comment, Assign to
+me, Open in Jira, and Ask Claude. A board opens as its columns, of its active sprint; a card dragged to another column
+moves by its workflow's transition. JQL search, and New Issue (its project's types, by their ids; yours; its dates).
+
+Claude Code's Jira tools work through Karvon's sign-in, so Claude never sees a token: `jira_sites`, `jira_search`
+(JQL), `jira_issue`, `jira_projects`, and, each asking you first, `jira_create` (assigned to the signed-in user, its
+type by the project's id, its start and end in the site's date fields), `jira_transition` (by the transition's or the
+status's name, in the workflow's own language), `jira_comment` and `jira_assign`.
+
 ## MCP Servers (View > MCP Servers)
 
 The MCP servers of every agent's configuration in one tree, this folder's
