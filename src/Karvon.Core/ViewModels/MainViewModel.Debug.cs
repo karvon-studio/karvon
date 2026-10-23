@@ -168,6 +168,9 @@ public partial class MainViewModel
         if (debugger.PrepareAsync is { } prepare && !await prepare(launch))
             return;
         var configuration = TaskVariables.ForFile(launch.Configuration, solution.Directory, ActiveEditor?.FilePath);
+        if (await AskInputsAsync(TaskInputs.TextsOf(configuration), launch.Inputs, DebugOutput.Append) is not { } answers)
+            return;
+        configuration = (System.Text.Json.Nodes.JsonObject)TaskInputs.Put(configuration, answers)!;
         if (noDebug && debugger.RunWithoutDebuggingAsync is { } run)
         {
             Modules.WorkspaceTask? program;

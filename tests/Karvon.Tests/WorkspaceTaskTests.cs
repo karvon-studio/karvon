@@ -171,6 +171,95 @@ public class WorkspaceTaskTests
         Directory.Delete(dir, recursive: true);
     }
 
+    /// <summary>Answers to the inputs a task asks for, in turn; null as a cancelled dialog.</summary>
+    sealed class InputDialogs : Karvon.ViewModels.IDialogService
+    {
+        public Queue<string?> Answers { get; } = [];
+
+        public List<string> Asked { get; } = [];
+
+        public Task<string?> PickSolutionAsync() => Task.FromResult<string?>(null);
+
+        public Task<string?> PromptAsync(string title, string label, string initial) => PromptAsync(title, label, initial, false);
+
+        public Task<string?> PromptAsync(string title, string label, string initial, bool secret)
+        {
+            Asked.Add($"prompt {title}: {label} [{initial}]{(secret ? " secret" : "")}");
+            return Task.FromResult(Answers.Dequeue());
+        }
+
+        public Task<string?> PickAsync(string title, string label, IReadOnlyList<string> options, string? initial)
+        {
+            Asked.Add($"pick {title}: {label} {string.Join('|', options)} [{initial}]");
+            return Task.FromResult(Answers.Dequeue());
+        }
+
+        public Task<bool?> ConfirmSaveAsync(string fileName) => Task.FromResult<bool?>(false);
+
+        public Task<bool?> ConfirmAsync(string title, string message) => Task.FromResult<bool?>(false);
+
+        public Task<Karvon.ViewModels.NewItemChoice?> ChooseNewItemAsync(string title, string folder, ItemTemplate initial) => Task.FromResult<Karvon.ViewModels.NewItemChoice?>(null);
+
+        public Task<IReadOnlyList<string>> PickFilesAsync(string title) => Task.FromResult<IReadOnlyList<string>>([]);
+    }
+
+    [AvaloniaFact]
+    public async Task Inputs_are_asked_when_a_task_runs()
+    {
+        var dir = NewFolder();
+        File.WriteAllText(VsCodeTasks.FileOf(dir), """
+            { "version": "2.0.0",
+              "inputs": [
+                { "id": "name", "type": "promptString", "description": "Who to greet", "default": "World" },
+                { "id": "color", "type": "pickString", "description": "A color", "options": ["red", { "label": "Blue", "value": "blue" }], "default": "blue" },
+                { "id": "token", "type": "promptString", "description": "Token", "password": true },
+                { "id": "picked", "type": "command", "command": "extension.pick" }
+              ],
+              "tasks": [
+                { "label": "greet", "type": "shell", "command": "echo ${input:name} ${input:color} ${input:name} > out.txt" },
+                { "label": "login", "type": "shell", "command": "echo ${input:token} > token.txt" },
+                { "label": "by command", "type": "shell", "command": "echo ${input:picked}" },
+                { "label": "undefined", "type": "shell", "command": "echo ${input:nope}" }
+              ] }
+            """);
+        File.WriteAllText(VsCodeLaunch.FileOf(dir), """
+            { "configurations": [ { "name": "App", "type": "node", "request": "launch", "args": ["${input:port}"] } ],
+              "inputs": [ { "id": "port", "type": "promptString", "default": "3000" } ] }
+            """);
+        Assert.Equal("3000", Assert.Single(VsCodeLaunch.Read(dir)).Inputs["port"].Default);
+
+        var vm = NewViewModel();
+        var window = new MainWindow { DataContext = vm, Width = 1280, Height = 800 };
+        window.Show();
+        await vm.OpenSolutionAsync(dir);
+        var dialogs = new InputDialogs();
+        vm.Dialogs = dialogs;
+        WorkspaceTask Named(string name) => vm.WorkspaceTasks.Single(t => t.Name == name);
+
+        // Each input once, as VS Code asks it: a text with its default, one of the options (their values).
+        dialogs.Answers.Enqueue("Ada");
+        dialogs.Answers.Enqueue("red");
+        await vm.RunTaskCommand.ExecuteAsync(Named("greet"));
+        await WaitUntil(() => File.Exists(Path.Combine(dir, "out.txt")) && !vm.IsTaskRunning(Named("greet")), TimeSpan.FromSeconds(10));
+        Assert.Equal("Ada red Ada\n", File.ReadAllText(Path.Combine(dir, "out.txt")));
+        Assert.Equal(["prompt name: Who to greet [World]", "pick color: A color red|blue [blue]"], dialogs.Asked);
+
+        // A password is asked as one; cancelled, the task does not run.
+        dialogs.Answers.Enqueue(null);
+        await vm.RunTaskCommand.ExecuteAsync(Named("login"));
+        Assert.Equal("prompt token: Token [] secret", dialogs.Asked[^1]);
+        Assert.False(File.Exists(Path.Combine(dir, "token.txt")));
+        Assert.Contains("${input:token} was not answered, so it does not start.", vm.TasksOutput.Document.Text);
+
+        // A command input, and one that is not there: said, nothing runs.
+        await vm.RunTaskCommand.ExecuteAsync(Named("by command"));
+        Assert.Contains("${input:picked} is a \"command\" input, which Karvon does not ask (only promptString and pickString).", vm.TasksOutput.Document.Text);
+        await vm.RunTaskCommand.ExecuteAsync(Named("undefined"));
+        Assert.Contains("${input:nope} is not an input of the folder's tasks.json or launch.json.", vm.TasksOutput.Document.Text);
+        Assert.True(await vm.CloseSolutionCoreAsync());
+        Directory.Delete(dir, recursive: true);
+    }
+
     [Fact]
     public void Package_json_scripts_are_tasks_of_its_package_manager()
     {

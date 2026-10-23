@@ -7,7 +7,8 @@ namespace Karvon.Workspace;
 /// <summary>
 /// The launch configurations of a folder's .vscode/launch.json, as VS Code reads them: each is given to the debugger of its
 /// type as it is, the platform's own section (linux, osx, windows) over the rest. Its variables are put in when it starts.
-/// Not followed yet: compounds (several configurations at once), and ${input:...} and ${command:...}.
+/// Its ${input:...} asks when it starts (promptString, pickString). Not followed yet: compounds (several configurations at
+/// once), and ${command:...}.
 /// </summary>
 public static class VsCodeLaunch
 {
@@ -30,6 +31,7 @@ public static class VsCodeLaunch
         var root = JsonNode.Parse(File.ReadAllText(file), documentOptions: Jsonc);
         if (root is not JsonObject { } document || document["configurations"] is not JsonArray configurations)
             return [];
+        var inputs = TaskInputs.Read(document);
         var result = new List<DebugLaunch>();
         foreach (var node in configurations)
         {
@@ -43,7 +45,7 @@ public static class VsCodeLaunch
                 own.Remove(key);
             var label = own["name"] is JsonValue n && n.TryGetValue<string>(out var text) ? text : own["type"]!.ToString();
             if (result.All(l => l.Name != label))
-                result.Add(new DebugLaunch(label, own) { Source = Source });
+                result.Add(new DebugLaunch(label, own) { Source = Source, Inputs = inputs });
         }
         return result;
     }

@@ -56,7 +56,7 @@ public class DevCertificateTests
         SampleSolution.EnsureConfigIsolated();
         var dialogs = new Dialogs(answer: true);
         var trusted = false;
-        var vm = new MainViewModel { Dialogs = dialogs };
+        var vm = new MainViewModel(new Karvon.Services.Settings()) { Dialogs = dialogs };
         var dotnet = vm.Module<DotNetModule>()!;
         dotnet.CheckDevCertificate = _ => Task.FromResult(trusted ? DevCertificateTrust.Trusted : DevCertificateTrust.NotTrusted);
         dotnet.TrustDevCertificateTool = (log, _) =>
@@ -87,7 +87,7 @@ public class DevCertificateTests
         // Every start of Karvon is a new session; a Partial trust (no NSS trust for Chromium) must not ask each time.
         for (var session = 0; session < 2; session++)
         {
-            var vm = new MainViewModel { Dialogs = dialogs };
+            var vm = new MainViewModel(new Karvon.Services.Settings()) { Dialogs = dialogs };
             var dotnet = vm.Module<DotNetModule>()!;
             dotnet.CheckDevCertificate = _ => Task.FromResult(DevCertificateTrust.Partial);
             dotnet.TrustDevCertificateTool = (_, _) => throw new InvalidOperationException("must not trust again");
@@ -102,7 +102,7 @@ public class DevCertificateTests
         SampleSolution.EnsureConfigIsolated();
         var dialogs = new Dialogs(answer: false);
         var trustCalls = 0;
-        var vm = new MainViewModel { Dialogs = dialogs };
+        var vm = new MainViewModel(new Karvon.Services.Settings()) { Dialogs = dialogs };
         var dotnet = vm.Module<DotNetModule>()!;
         dotnet.CheckDevCertificate = _ => Task.FromResult(DevCertificateTrust.NotTrusted);
         dotnet.TrustDevCertificateTool = (_, _) =>

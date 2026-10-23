@@ -8,7 +8,8 @@ namespace Karvon.Workspace;
 /// process task as it is, an npm task as npm run in its path. Its group makes it a Build or a Test task ("build", or
 /// { "kind": "build", "isDefault": true }); the platform's own section (linux, osx, windows) wins over the task's. Its
 /// dependsOn runs first (together, or in sequence), and its problemMatcher reads a build's errors (VS Code's $msCompile,
-/// $tsc, $gcc and $go, or its own pattern of one line; without one, file(line,col): error lines are read).
+/// $tsc, $gcc and $go, or its own pattern of one line; without one, file(line,col): error lines are read). Its
+/// ${input:...} asks when it runs (promptString, pickString).
 /// </summary>
 public static class VsCodeTasks
 {
@@ -30,10 +31,11 @@ public static class VsCodeTasks
         var root = doc.RootElement;
         if (root.ValueKind != JsonValueKind.Object || !root.TryGetProperty("tasks", out var tasks) || tasks.ValueKind != JsonValueKind.Array)
             return [];
+        var inputs = TaskInputs.Read(System.Text.Json.Nodes.JsonNode.Parse(root.GetRawText(), documentOptions: Jsonc));
         var result = new List<WorkspaceTask>();
         foreach (var task in tasks.EnumerateArray())
             if (task.ValueKind == JsonValueKind.Object && TaskOf(workspace, root, task) is { } read && result.All(t => t.Name != read.Name))
-                result.Add(read);
+                result.Add(read with { Inputs = inputs });
         return result;
     }
 

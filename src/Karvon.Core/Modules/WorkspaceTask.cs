@@ -45,6 +45,9 @@ public sealed record WorkspaceTask(string Name, WorkspaceTaskKind Kind, string P
     /// <summary>Its dependencies run one after another, each once the one before succeeded (dependsOrder "sequence"); else together.</summary>
     public bool DependsInSequence { get; init; }
 
+    /// <summary>The inputs its ${input:id} asks for when it runs (its tasks.json's "inputs"), by their ids.</summary>
+    public IReadOnlyDictionary<string, Workspace.TaskInput> Inputs { get; init; } = new Dictionary<string, Workspace.TaskInput>();
+
     /// <summary>A task that only runs its dependencies (tasks.json's task with dependsOn and no command).</summary>
     public bool IsCompound => Program.Length == 0;
 
@@ -66,6 +69,9 @@ public sealed record DebugLaunch(string Name, JsonObject Configuration)
 {
     /// <summary>Where it comes from ("launch.json", "npm"), shown beside its name.</summary>
     public string Source { get; init; } = "";
+
+    /// <summary>The inputs its ${input:id} asks for when it starts (its launch.json's "inputs"), by their ids.</summary>
+    public IReadOnlyDictionary<string, Workspace.TaskInput> Inputs { get; init; } = new Dictionary<string, Workspace.TaskInput>();
 
     public string Type => Text("type") ?? "";
 

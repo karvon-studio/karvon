@@ -260,6 +260,43 @@ public partial class MainViewModel
     static bool IsStartFailure(Exception ex) => ex is InvalidOperationException or System.ComponentModel.Win32Exception or IOException;
 
     /// <summary>
+    /// The answers to the ${input:id} in some texts, asked once each as VS Code asks them (a text, or one of its options);
+    /// null when one was cancelled, is not defined, or is of a type Karvon does not ask, why in <paramref name="output"/>.
+    /// </summary>
+    async Task<IReadOnlyDictionary<string, string>?> AskInputsAsync(IEnumerable<string> texts, IReadOnlyDictionary<string, TaskInput> inputs, Action<string> output)
+    {
+        var answers = new Dictionary<string, string>(StringComparer.Ordinal);
+        foreach (var id in TaskInputs.AskedIn(texts))
+        {
+            if (!inputs.TryGetValue(id, out var input))
+            {
+                output($"${{input:{id}}} is not an input of the folder's tasks.json or launch.json.");
+                return null;
+            }
+            var label = input.Description ?? input.Id;
+            var answer = input.Type switch
+            {
+                "promptString" => Dialogs is null ? null : await Dialogs.PromptAsync(input.Id, label, input.Default ?? "", input.Password),
+                "pickString" when input.Options.Count > 0 => Dialogs is null ? null : await Dialogs.PickAsync(input.Id, label, input.Options, input.Default),
+                _ => null,
+            };
+            if (answer is null)
+            {
+                output(input.Type is "promptString" or "pickString"
+                    ? $"${{input:{id}}} was not answered, so it does not start."
+                    : $"${{input:{id}}} is a \"{input.Type}\" input, which Karvon does not ask (only promptString and pickString).");
+                return null;
+            }
+            answers[id] = answer;
+        }
+        return answers;
+    }
+
+    /// <summary>A task as it runs: its inputs asked (null when one was not answered).</summary>
+    async Task<WorkspaceTask?> AnswerInputsAsync(WorkspaceTask task, Action<string> output) =>
+        await AskInputsAsync(TaskInputs.TextsOf(task), task.Inputs, output) is { } answers ? TaskInputs.Put(task, answers) : null;
+
+    /// <summary>
     /// A task's dependsOn, first: each in Output (Tasks), together or one after another (dependsOrder "sequence"), their
     /// own dependencies before them; a background one is started and not waited for (a watch). Whether all succeeded; why
     /// not goes to <paramref name="output"/>.
@@ -312,6 +349,9 @@ public partial class MainViewModel
         if (IsBuilding)
             return false;
         SaveAll();
+        if (await AnswerInputsAsync(task, BuildOutput.Append) is not { } answered)
+            return false;
+        task = answered;
         if (!await RunDependenciesAsync(task, BuildOutput.Append))
             return ReportBuild("Build", task.Name, false, TimeSpan.Zero, null);
         if (task.IsCompound)
@@ -373,6 +413,9 @@ public partial class MainViewModel
         ShowToolWindow(ToolWindows.Output);
         if (note is not null)
             DebugOutput.Append(note);
+        if (await AnswerInputsAsync(task, DebugOutput.Append) is not { } answered)
+            return;
+        task = answered;
         if (!await RunDependenciesAsync(task, DebugOutput.Append) || task.IsCompound)
             return;
         DebugOutput.Append("> " + task.CommandLine);
@@ -419,6 +462,9 @@ public partial class MainViewModel
             return;
         SaveAll();
         TestsOutput.Clear();
+        if (await AnswerInputsAsync(task, TestsOutput.Append) is not { } answered)
+            return;
+        task = answered;
         if (!await RunDependenciesAsync(task, TestsOutput.Append) || task.IsCompound)
             return;
         IsTesting = true;
@@ -469,6 +515,9 @@ public partial class MainViewModel
             SelectedOutput = TasksOutput;
             ShowToolWindow(ToolWindows.Output);
         }
+        if (await AnswerInputsAsync(task, TasksOutput.Append) is not { } answered)
+            return null;
+        task = answered;
         if (withDependencies && !await RunDependenciesAsync(task, TasksOutput.Append))
             return null;
         if (task.IsCompound)

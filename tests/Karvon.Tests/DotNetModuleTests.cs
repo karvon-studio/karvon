@@ -234,5 +234,8 @@ public class DotNetModuleTests
         var tools = window.MainMenu.Items.OfType<MenuItem>().Single(m => (string?)m.Header == "_Tools");
         Assert.Equal(["_Restart Language Server", "-", "_Modules..."], Lines(tools.Items.OfType<object>()));
         Assert.True(await vm.CloseSolutionCoreAsync());
+        // The tests' settings are shared: the module is on again for the next.
+        vm.Settings.DisabledModules = [];
+        vm.Settings.Save();
     }
 }

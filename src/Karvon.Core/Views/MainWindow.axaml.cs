@@ -275,9 +275,11 @@ public partial class MainWindow : Window, IDialogService
         return folders.Count == 0 ? null : folders[0].TryGetLocalPath();
     }
 
-    public async Task<string?> PromptAsync(string title, string label, string initial)
+    public Task<string?> PromptAsync(string title, string label, string initial) => PromptAsync(title, label, initial, secret: false);
+
+    public async Task<string?> PromptAsync(string title, string label, string initial, bool secret)
     {
-        var box = new TextBox { Text = initial, Width = 340 };
+        var box = new TextBox { Text = initial, Width = 340, PasswordChar = secret ? '•' : default };
         var dialog = CreateDialog(title, new StackPanel { Spacing = 8, Children = { new TextBlock { Text = label }, box } },
             ("OK", true), ("Cancel", false));
         box.AttachedToVisualTree += (_, _) => Dispatcher.UIThread.Post(() =>
@@ -292,6 +294,20 @@ public partial class MainWindow : Window, IDialogService
         };
         var ok = await dialog.ShowDialog<bool?>(this);
         return ok == true ? box.Text : null;
+    }
+
+    public async Task<string?> PickAsync(string title, string label, IReadOnlyList<string> options, string? initial)
+    {
+        var list = new ListBox { ItemsSource = options, SelectedItem = initial is not null && options.Contains(initial) ? initial : options.FirstOrDefault(), MaxHeight = 320, Width = 340 };
+        var dialog = CreateDialog(title, new StackPanel { Spacing = 8, Children = { new TextBlock { Text = label }, list } }, ("OK", true), ("Cancel", false));
+        list.AttachedToVisualTree += (_, _) => Dispatcher.UIThread.Post(() => list.Focus());
+        list.DoubleTapped += (_, _) => dialog.Close(true);
+        list.KeyDown += (_, e) =>
+        {
+            if (e.Key == Key.Enter)
+                dialog.Close(true);
+        };
+        return await dialog.ShowDialog<bool?>(this) == true ? list.SelectedItem as string : null;
     }
 
     public Task<bool?> ConfirmSaveAsync(string fileName)

@@ -43,6 +43,10 @@ public interface IDialogService
     /// <summary>A folder to open; null when cancelled.</summary>
     Task<string?> PickFolderAsync(string title) => Task.FromResult<string?>(null);
     Task<string?> PromptAsync(string title, string label, string initial);
+    /// <summary>A text that does not show as it is typed (a password) when <paramref name="secret"/>; null when cancelled.</summary>
+    Task<string?> PromptAsync(string title, string label, string initial, bool secret) => PromptAsync(title, label, initial);
+    /// <summary>One of <paramref name="options"/> (<paramref name="initial"/> chosen first); null when cancelled.</summary>
+    Task<string?> PickAsync(string title, string label, IReadOnlyList<string> options, string? initial) => Task.FromResult<string?>(null);
     /// <summary>Returns true = save, false = discard, null = cancel.</summary>
     Task<bool?> ConfirmSaveAsync(string fileName);
     /// <summary>Yes/No question; returns true for Yes.</summary>
