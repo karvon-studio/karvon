@@ -26,7 +26,8 @@ it does today all along.
   with `preLaunchTask` and `postDebugTask`; not yet: compounds, `${input:}`, problem matchers, `dependsOn`).
 - Claude's IDE tools (`run_build`, `run_tests`, `app_control`, `debug_*`) work for any workload (in now, for a folder's
   tasks and launch configurations).
-- Debug Tests for a folder's test task (Vitest, Jest under js-debug).
+- Debug Tests for a folder's test task (in now: Debug All Tests runs a `package.json` test script under js-debug;
+  next, its tests in Test Explorer).
 - Mixed repositories: a frontend's `package.json` folder shows as a project beside the solution's.
 
 ## 0c. Every platform

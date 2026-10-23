@@ -125,6 +125,7 @@ public partial class MainViewModel
         BuildSolutionCommand.NotifyCanExecuteChanged();
         RebuildSolutionCommand.NotifyCanExecuteChanged();
         RunAllTestsCommand.NotifyCanExecuteChanged();
+        DebugAllTestsCommand.NotifyCanExecuteChanged();
         StartWithoutDebuggingCommand.NotifyCanExecuteChanged();
         StartDebuggingCommand.NotifyCanExecuteChanged();
     }

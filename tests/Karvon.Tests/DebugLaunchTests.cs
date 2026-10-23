@@ -118,7 +118,13 @@ public class DebugLaunchTests
             }
             console.log("area", area(3, 4));
             """);
-        File.WriteAllText(Path.Combine(dir, "package.json"), """{ "name": "probe", "private": true, "scripts": { "start": "node main.js" } }""");
+        File.WriteAllText(Path.Combine(dir, "package.json"), """{ "name": "probe", "private": true, "scripts": { "start": "node main.js", "test": "node check.js" } }""");
+        var check = Path.Combine(dir, "check.js");
+        File.WriteAllText(check, """
+            const expected = 12;
+            if (3 * 4 !== expected) process.exit(1);
+            console.log("checked");
+            """);
         File.WriteAllText(VsCodeTasks.FileOf(dir), """{ "version": "2.0.0", "tasks": [ { "label": "prepare", "type": "shell", "command": "echo prepared" } ] }""");
         File.WriteAllText(VsCodeLaunch.FileOf(dir), """
             { "configurations": [
@@ -157,6 +163,18 @@ public class DebugLaunchTests
         Assert.True(vm.DebugOutput.Document.Text.Contains("area 12"), vm.DebugOutput.Document.Text);
         Assert.Contains("> node main.js", vm.DebugOutput.Document.Text);
         Assert.DoesNotContain("Could not read source map", vm.DebugOutput.Document.Text);
+
+        // Debug All Tests: the test script under the debugger, stopped in the test.
+        vm.Breakpoints.Toggle(check, 3);
+        Assert.True(vm.DebugAllTestsCommand.CanExecute(null));
+        await vm.DebugAllTestsCommand.ExecuteAsync(null);
+        await WaitUntil(() => vm.Mode == DebugMode.Break && vm.CallStack.Count > 0, TimeSpan.FromSeconds(30));
+        Assert.True(vm.CallStack.FirstOrDefault()?.SourcePath == check, vm.DebugOutput.Document.Text);
+        Assert.Equal(3, vm.CallStack[0].Line);
+        await vm.StartDebuggingCommand.ExecuteAsync(null);
+        await WaitEnded();
+        Assert.Contains("checked", vm.DebugOutput.Document.Text);
+        Assert.Contains("The program 'npm: test' has exited.", vm.DebugOutput.Document.Text);
 
         // Ctrl+F5 on the launch configuration: it runs without the debugger, past the breakpoint.
         vm.StartupItem = vm.StartupItems[0];

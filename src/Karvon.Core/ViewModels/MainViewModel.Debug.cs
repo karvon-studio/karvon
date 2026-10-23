@@ -558,7 +558,10 @@ public partial class MainViewModel
             w.Type = "";
         }
         Breakpoints.ClearVerification();
-        DebugOutput.Append($"The program '{_debuggedProject}' has exited with code {exitCode ?? 0} (0x{exitCode ?? 0:x}).");
+        // js-debug does not say how a program exited.
+        DebugOutput.Append(exitCode is { } code
+            ? $"The program '{_debuggedProject}' has exited with code {code} (0x{code:x})."
+            : $"The program '{_debuggedProject}' has exited.");
         Mode = DebugMode.Design;
         SetStatus("Ready", Solution is null ? StatusKind.NoSolution : StatusKind.Ready);
         _ = session.DisposeAsync().AsTask();

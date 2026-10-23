@@ -65,8 +65,11 @@ public partial class MainViewModel
     [RelayCommand(CanExecute = nameof(CanRunTests))]
     Task RepeatLastTestRun() => RunTestsAsync(_lastRun.Count > 0 ? _lastRun : null);
 
-    [RelayCommand(CanExecute = nameof(CanRunTests))]
-    Task DebugAllTests() => RunTestsAsync(null, debug: true);
+    /// <summary>A solution's tests under the debugger, or a folder's test task when its module debugs it (a package.json test script).</summary>
+    bool CanDebugAllTests => CanRunTests || IsFolderWorkspace && TestTask?.Debug is not null && !IsTesting && !IsBuilding && Mode == DebugMode.Design;
+
+    [RelayCommand(CanExecute = nameof(CanDebugAllTests))]
+    Task DebugAllTests() => IsFolderWorkspace && TestTask is { Debug: { } launch } ? LaunchConfigurationAsync(launch, noDebug: false) : RunTestsAsync(null, debug: true);
 
     [RelayCommand(CanExecute = nameof(CanRunTests))]
     Task DebugSelectedTests() => RunTestsAsync(SelectedTest?.CaseIds().ToList() ?? [], debug: true);
