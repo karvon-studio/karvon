@@ -231,11 +231,21 @@ public sealed partial class DockerExplorerViewModel : ObservableObject, IDisposa
     [RelayCommand]
     public Task RefreshAllAsync() => Task.WhenAll(RefreshContainersAsync(), RefreshDiskAsync(), RefreshNetworksAsync());
 
+    /// <summary>
+    /// Each refresh's number, by what it reads, and the newest one shown: a refresh that ends after a later one was shown
+    /// (the engine answered it slower) is older than what shows, and is dropped.
+    /// </summary>
+    int _containersRead, _diskRead, _networksRead, _containersShown, _diskShown, _networksShown;
+
     internal async Task RefreshContainersAsync()
     {
         try
         {
+            var read = ++_containersRead;
             var containers = await Engine.ContainersAsync();
+            if (read < _containersShown)
+                return;
+            _containersShown = read;
             Containers.Apply(containers);
             Networks.ApplyContainers(containers);
             UpdateTotals();
@@ -252,7 +262,11 @@ public sealed partial class DockerExplorerViewModel : ObservableObject, IDisposa
     {
         try
         {
+            var read = ++_diskRead;
             var usage = await Engine.DiskUsageAsync();
+            if (read < _diskShown)
+                return;
+            _diskShown = read;
             Images.Apply(usage);
             Volumes.Apply(usage.Volumes);
             DiskText = $"Disk {DockerFormat.Size(usage.Total)} used";
@@ -269,7 +283,12 @@ public sealed partial class DockerExplorerViewModel : ObservableObject, IDisposa
     {
         try
         {
-            Networks.Apply(await Engine.NetworksAsync());
+            var read = ++_networksRead;
+            var networks = await Engine.NetworksAsync();
+            if (read < _networksShown)
+                return;
+            _networksShown = read;
+            Networks.Apply(networks);
             SyncTree();
             CloseGone();
         }
