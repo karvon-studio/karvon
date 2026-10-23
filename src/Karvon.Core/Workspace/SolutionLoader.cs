@@ -10,8 +10,11 @@ public sealed class SolutionInfo
 
     public bool IsProjectOnly => !IsFolder && SolutionLoader.IsProjectFile(FilePath);
 
-    /// <summary>A .sln or .slnx: what Solution Explorer's solution commands change.</summary>
-    public bool IsSolutionFile => !IsFolder && SolutionLoader.IsSolutionFile(FilePath);
+    /// <summary>A solution its module can change (a .sln or .slnx): what Solution Explorer's solution commands change.</summary>
+    public bool IsSolutionFile => Editor is not null;
+
+    /// <summary>How its module changes its solution file; null for a folder or a project opened on its own.</summary>
+    public ISolutionEditor? Editor { get; init; }
 
     public string Name => IsFolder ? Path.GetFileName(FilePath.TrimEnd(Path.DirectorySeparatorChar)) : Path.GetFileNameWithoutExtension(FilePath);
     public string Directory => IsFolder ? FilePath : Path.GetDirectoryName(FilePath)!;

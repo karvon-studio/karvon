@@ -18,8 +18,8 @@ it does today all along.
   tests; in now: .NET's vstest is the module's), run and debug (startup items; in now: F5 on the startup project is a
   launch configuration of the module's netcoredbg, Ctrl+F5 its dotnet run), the build (in now: the module's dotnet
   build), Roslyn (a solution's language server; in now: the module's), and last the solution itself (a module opens
-  .sln, .slnx and .csproj files; the core opens folders; in now: they are the module's to open and read; next, the
-  solution's model and its editing, and the startup project).
+  .sln, .slnx and .csproj files; the core opens folders; in now: they are the module's to open, read and change;
+  next, the solution's model and the startup project).
 - Modules can be turned on and off; everything still ships in one package.
 
 ## 0b. Languages

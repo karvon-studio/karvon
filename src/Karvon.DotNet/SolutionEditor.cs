@@ -1,17 +1,20 @@
+using Karvon.Workspace;
 using Microsoft.VisualStudio.SolutionPersistence.Model;
 using Microsoft.VisualStudio.SolutionPersistence.Serializer;
 
-namespace Karvon.Workspace;
+namespace Karvon.DotNet;
 
 /// <summary>
-/// The changes Solution Explorer makes to a .sln/.slnx (Add > New / Existing Project, New Solution Folder, solution items,
-/// Remove, Rename), made through Microsoft's own solution model, as Visual Studio and <c>dotnet sln</c> make them.
-/// Solution folders are named by their path in the solution: "/Solution Items/", "/src/libs/".
+/// The changes Solution Explorer makes to a .sln/.slnx, made through Microsoft's own solution model, as Visual Studio
+/// and <c>dotnet sln</c> make them.
 /// </summary>
-public static class SolutionEditor
+public sealed class SolutionEditor : ISolutionEditor
 {
-    /// <summary>The folder VS adds solution items to when they are added to the solution itself.</summary>
-    public const string SolutionItems = "/Solution Items/";
+    public static SolutionEditor Instance { get; } = new();
+
+    SolutionEditor()
+    {
+    }
 
     /// <summary>Why a solution folder cannot be named <paramref name="name"/>, or null when it can.</summary>
     public static string? ValidateFolderName(string name) =>
@@ -20,8 +23,7 @@ public static class SolutionEditor
             ? $"'{name}' is not a valid solution folder name."
             : null;
 
-    /// <summary>Adds projects (skipping those already in it) to the solution, in a solution folder when one is given.</summary>
-    public static Task AddProjectsAsync(string solutionPath, IEnumerable<string> projects, string? folder = null) =>
+    public Task AddProjectsAsync(string solutionPath, IEnumerable<string> projects, string? folder = null) =>
         EditAsync(solutionPath, (model, dir) =>
         {
             var parent = folder is null ? null : model.FindFolder(folder) ?? model.AddFolder(folder);
@@ -30,15 +32,14 @@ public static class SolutionEditor
                     model.AddProject(ModelPath(dir, project), null, parent);
         });
 
-    public static Task RemoveProjectAsync(string solutionPath, string project) =>
+    public Task RemoveProjectAsync(string solutionPath, string project) =>
         EditAsync(solutionPath, (model, dir) =>
         {
             if (ProjectAt(model, dir, project) is { } found)
                 model.RemoveProject(found);
         });
 
-    /// <summary>Points the solution at a project's new file (Rename on a project renames its project file).</summary>
-    public static Task MoveProjectAsync(string solutionPath, string from, string to) =>
+    public Task MoveProjectAsync(string solutionPath, string from, string to) =>
         EditAsync(solutionPath, (model, dir) =>
         {
             var project = ProjectAt(model, dir, from) ?? throw new InvalidOperationException($"{Path.GetFileName(from)} is not in the solution.");
@@ -46,8 +47,7 @@ public static class SolutionEditor
             project.DisplayName = Path.GetFileNameWithoutExtension(to);
         });
 
-    /// <summary>Adds a solution folder named <paramref name="name"/> under <paramref name="parent"/> (null: the solution) and returns its path.</summary>
-    public static async Task<string> AddFolderAsync(string solutionPath, string? parent, string name)
+    public async Task<string> AddFolderAsync(string solutionPath, string? parent, string name)
     {
         if (ValidateFolderName(name) is { } error)
             throw new InvalidOperationException(error);
@@ -61,8 +61,7 @@ public static class SolutionEditor
         return path;
     }
 
-    /// <summary>Renames a solution folder; returns its new path.</summary>
-    public static async Task<string> RenameFolderAsync(string solutionPath, string folder, string name)
+    public async Task<string> RenameFolderAsync(string solutionPath, string folder, string name)
     {
         if (ValidateFolderName(name) is { } error)
             throw new InvalidOperationException(error);
@@ -77,16 +76,14 @@ public static class SolutionEditor
         return renamed;
     }
 
-    /// <summary>Removes a solution folder with everything in it (its projects stay on disk).</summary>
-    public static Task RemoveFolderAsync(string solutionPath, string folder) =>
+    public Task RemoveFolderAsync(string solutionPath, string folder) =>
         EditAsync(solutionPath, (model, _) =>
         {
             if (model.FindFolder(folder) is { } found)
                 model.RemoveFolder(found);
         });
 
-    /// <summary>Adds files to a solution folder (created when it is not there yet) as solution items; they stay where they are.</summary>
-    public static Task AddFilesAsync(string solutionPath, string folder, IEnumerable<string> files) =>
+    public Task AddFilesAsync(string solutionPath, string folder, IEnumerable<string> files) =>
         EditAsync(solutionPath, (model, dir) =>
         {
             var found = model.FindFolder(folder) ?? model.AddFolder(folder);
@@ -95,15 +92,14 @@ public static class SolutionEditor
                     found.AddFile(ModelPath(dir, file));
         });
 
-    public static Task RemoveFileAsync(string solutionPath, string folder, string file) =>
+    public Task RemoveFileAsync(string solutionPath, string folder, string file) =>
         EditAsync(solutionPath, (model, dir) =>
         {
             if (model.FindFolder(folder) is { } found && FileIn(found, dir, file) is { } entry)
                 found.RemoveFile(entry);
         });
 
-    /// <summary>A solution item's new name or place.</summary>
-    public static Task MoveFileAsync(string solutionPath, string folder, string from, string to) =>
+    public Task MoveFileAsync(string solutionPath, string folder, string from, string to) =>
         EditAsync(solutionPath, (model, dir) =>
         {
             if (model.FindFolder(folder) is not { } found)
@@ -134,6 +130,10 @@ public static class SolutionEditor
             catch (IOException) when (attempt < 20 && File.Exists(solutionPath))
             {
                 await Task.Delay(100);
+            }
+            catch (Exception ex) when (ex is SolutionException or ArgumentException)
+            {
+                throw new InvalidOperationException(ex.Message, ex);
             }
         }
     }

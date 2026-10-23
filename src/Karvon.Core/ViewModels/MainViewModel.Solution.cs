@@ -14,8 +14,8 @@ public sealed record ProjectReferenceChoice(string Name, string Path, bool IsRef
 /// <summary>
 /// Solution Explorer's commands on the solution, its solution folders, projects and dependencies, as Visual Studio's
 /// context menus have them: Add > New / Existing Project, New Solution Folder and solution items, Remove, Rename, project
-/// references and packages, user secrets, restore, a Git repository. The solution file changes through
-/// <see cref="SolutionEditor"/>; then the tree is read again, with what was expanded still expanded.
+/// references, a Git repository. The solution file changes through its module's <see cref="ISolutionEditor"/>; then
+/// the tree is read again, with what was expanded still expanded.
 /// </summary>
 public partial class MainViewModel
 {
@@ -145,17 +145,16 @@ public partial class MainViewModel
             && (!_structureRead.TryGetValue(f, out var read) || File.GetLastWriteTimeUtc(f) != read));
 
     /// <summary>A change to the solution file; false, with the reason in the status bar, when it could not be made.</summary>
-    async Task<bool> EditSolutionAsync(Func<string, Task> change)
+    async Task<bool> EditSolutionAsync(Func<ISolutionEditor, string, Task> change)
     {
-        if (Solution is not { IsSolutionFile: true } solution)
+        if (Solution is not { Editor: { } editor } solution)
             return false;
         try
         {
-            await change(solution.FilePath);
+            await change(editor, solution.FilePath);
             return true;
         }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException or NotSupportedException
-                                       or ArgumentException or Microsoft.VisualStudio.SolutionPersistence.Model.SolutionException)
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException or NotSupportedException or ArgumentException)
         {
             SetStatus(ex.Message);
             return false;
@@ -188,7 +187,7 @@ public partial class MainViewModel
     async Task<bool> AddProjectsAsync(IReadOnlyList<string> projects, ExplorerNode? node)
     {
         var folder = node is { Kind: NodeKind.SolutionFolder } ? node.SolutionFolder : null;
-        if (projects.Count == 0 || !await EditSolutionAsync(solution => SolutionEditor.AddProjectsAsync(solution, projects, folder)))
+        if (projects.Count == 0 || !await EditSolutionAsync((editor, solution) => editor.AddProjectsAsync(solution, projects, folder)))
             return false;
         await ReloadSolutionAsync(projects[0]);
         SetStatus(projects.Count == 1 ? $"{Path.GetFileNameWithoutExtension(projects[0])} was added to the solution." : $"{projects.Count} projects were added to the solution.");
@@ -204,7 +203,7 @@ public partial class MainViewModel
         var taken = parent.Children.Select(c => c.Name).ToHashSet(StringComparer.OrdinalIgnoreCase);
         var name = Enumerable.Range(1, 1000).Select(i => "NewFolder" + i).First(n => !taken.Contains(n));
         var path = "";
-        if (!await EditSolutionAsync(async solution => path = await SolutionEditor.AddFolderAsync(solution, parent.SolutionFolder, name)))
+        if (!await EditSolutionAsync(async (editor, solution) => path = await editor.AddFolderAsync(solution, parent.SolutionFolder, name)))
             return null;
         await ReloadSolutionAsync(path);
         var created = FindExplorerNode(ExplorerRoots[0], "folder:" + path.Trim('/'));
@@ -221,10 +220,10 @@ public partial class MainViewModel
     {
         if (Dialogs is null || Solution is not { } solution)
             return null;
-        var folder = node.SolutionFolder ?? SolutionEditor.SolutionItems;
+        var folder = node.SolutionFolder ?? ISolutionEditor.SolutionItems;
         var choice = await Dialogs.ChooseNewItemAsync($"Add New Item - {folder.Trim('/').Split('/')[^1]}", solution.Directory, template ?? ItemTemplates.TextFile);
         if (choice is null || WriteItem(solution.Directory, choice.Template, choice.Name) is not { } path
-            || !await EditSolutionAsync(sln => SolutionEditor.AddFilesAsync(sln, folder, [path])))
+            || !await EditSolutionAsync((editor, sln) => editor.AddFilesAsync(sln, folder, [path])))
             return null;
         await ReloadSolutionAsync(path);
         OpenDocument(path);
@@ -237,7 +236,7 @@ public partial class MainViewModel
         if (Dialogs is null)
             return [];
         var files = await Dialogs.PickFilesAsync("Add Existing Item");
-        if (files.Count == 0 || !await EditSolutionAsync(sln => SolutionEditor.AddFilesAsync(sln, node.SolutionFolder ?? SolutionEditor.SolutionItems, files)))
+        if (files.Count == 0 || !await EditSolutionAsync((editor, sln) => editor.AddFilesAsync(sln, node.SolutionFolder ?? ISolutionEditor.SolutionItems, files)))
             return [];
         await ReloadSolutionAsync(files[^1]);
         return files;
@@ -265,11 +264,11 @@ public partial class MainViewModel
     {
         if (Dialogs is null || !HasSolutionFile || node is null)
             return false;
-        Func<string, Task>? change = node switch
+        Func<ISolutionEditor, string, Task>? change = node switch
         {
-            { Kind: NodeKind.Project, Path: { } project } => solution => SolutionEditor.RemoveProjectAsync(solution, project),
-            { Kind: NodeKind.SolutionFolder, SolutionFolder: { } folder } => solution => SolutionEditor.RemoveFolderAsync(solution, folder),
-            { IsSolutionItem: true, Path: { } file } => solution => SolutionEditor.RemoveFileAsync(solution, node.SolutionFolder!, file),
+            { Kind: NodeKind.Project, Path: { } project } => (editor, solution) => editor.RemoveProjectAsync(solution, project),
+            { Kind: NodeKind.SolutionFolder, SolutionFolder: { } folder } => (editor, solution) => editor.RemoveFolderAsync(solution, folder),
+            { IsSolutionItem: true, Path: { } file } => (editor, solution) => editor.RemoveFileAsync(solution, node.SolutionFolder!, file),
             _ => null,
         };
         if (change is null)
@@ -292,7 +291,7 @@ public partial class MainViewModel
         {
             case { Kind: NodeKind.SolutionFolder, SolutionFolder: { } folder } when newName != node.Name:
                 var renamed = "";
-                if (!await EditSolutionAsync(async solution => renamed = await SolutionEditor.RenameFolderAsync(solution, folder, newName)))
+                if (!await EditSolutionAsync(async (editor, solution) => renamed = await editor.RenameFolderAsync(solution, folder, newName)))
                     return false;
                 await ReloadSolutionAsync(renamed);
                 return true;
@@ -308,7 +307,7 @@ public partial class MainViewModel
                 var target = Path.Combine(directory, newName);
                 if (!MovePaths([(file, target)]))
                     return false;
-                if (!await EditSolutionAsync(solution => SolutionEditor.MoveFileAsync(solution, node.SolutionFolder!, file, target)))
+                if (!await EditSolutionAsync((editor, solution) => editor.MoveFileAsync(solution, node.SolutionFolder!, file, target)))
                 {
                     MovePaths([(target, file)]);
                     return false;
@@ -335,7 +334,7 @@ public partial class MainViewModel
         var wasStartup = StartupProject?.FilePath == project;
         if (!MovePaths([(project, target)]))
             return false;
-        if (!await EditSolutionAsync(sln => SolutionEditor.MoveProjectAsync(sln, project, target)))
+        if (!await EditSolutionAsync((editor, sln) => editor.MoveProjectAsync(sln, project, target)))
         {
             MovePaths([(target, project)]);
             return false;

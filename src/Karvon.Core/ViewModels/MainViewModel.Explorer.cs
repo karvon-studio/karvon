@@ -269,7 +269,7 @@ public partial class MainViewModel
             }
         }
         ReloadExplorerFolders(paths);
-        if (node.IsSolutionItem && await EditSolutionAsync(solution => SolutionEditor.RemoveFileAsync(solution, node.SolutionFolder!, path)))
+        if (node.IsSolutionItem && await EditSolutionAsync((editor, solution) => editor.RemoveFileAsync(solution, node.SolutionFolder!, path)))
             await ReloadSolutionAsync();
         SaveSession();
         return true;

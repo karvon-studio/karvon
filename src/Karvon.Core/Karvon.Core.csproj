@@ -20,7 +20,6 @@
     <PackageReference Include="TextMateSharp.Grammars" Version="2.0.4" />
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2" />
     <PackageReference Include="Markdig" Version="0.37.0" />
-    <PackageReference Include="Microsoft.VisualStudio.SolutionPersistence" Version="1.0.52" />
     <PackageReference Include="Exclr8.Terminal" Version="1.0.9" />
     <PackageReference Include="Exclr8.Terminal.Pty" Version="1.0.4" />
   </ItemGroup>

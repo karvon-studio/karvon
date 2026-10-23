@@ -420,7 +420,7 @@ public class SolutionExplorerTests
         Assert.True(File.Exists(library));
 
         // A change made outside Solution Explorer (dotnet sln, git, an editor) shows by itself.
-        await SolutionEditor.AddFolderAsync(sln, null, "docs");
+        await Karvon.DotNet.SolutionEditor.Instance.AddFolderAsync(sln, null, "docs");
         await WaitUntil(() => Root().Children.Any(c => c.Name == "docs"), TimeSpan.FromSeconds(10));
         Assert.Contains(Root().Children, c => c.Name == "docs");
 

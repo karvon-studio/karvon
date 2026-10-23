@@ -60,7 +60,7 @@ public static class SolutionReader
             root.Children.Add(child);
         root.IsExpanded = true;
 
-        return new SolutionInfo { FilePath = solutionPath, Projects = projects, Root = root };
+        return new SolutionInfo { FilePath = solutionPath, Projects = projects, Root = root, Editor = SolutionEditor.Instance };
     }
 
     /// <summary>A project opened without a solution: VS shows it under an implicit solution of the same name.</summary>
