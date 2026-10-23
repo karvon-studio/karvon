@@ -2,6 +2,7 @@ using Avalonia.Controls;
 using Avalonia.Headless.XUnit;
 using Avalonia.Input;
 using Avalonia.VisualTree;
+using Karvon.DotNet.Templates;
 using Karvon.ViewModels;
 using Karvon.Views;
 using Karvon.Workspace;
@@ -35,13 +36,13 @@ public class ItemTemplateTests
         Assert.Equal("Acme.Web.Pages", ItemTemplates.Namespace(ProjectInfo.Load("Web", declared), Path.Combine(Path.GetDirectoryName(declared)!, "Pages")));
 
         Assert.Equal("namespace Shop.Api;\n\npublic interface IOrders\n{\n}\n",
-            ItemTemplates.Render(ItemTemplates.All.Single(t => t.Name == "Interface"), "IOrders.cs", dir, project));
-        Assert.Equal("<h3>OrderList</h3>\n\n@code {\n\n}\n", ItemTemplates.Render(ItemTemplates.RazorComponent, "OrderList.razor", dir, project));
+            ItemTemplates.Render(CSharpItemTemplates.All.Single(t => t.Name == "Interface"), "IOrders.cs", dir, project));
+        Assert.Equal("<h3>OrderList</h3>\n\n@code {\n\n}\n", ItemTemplates.Render(CSharpItemTemplates.RazorComponent, "OrderList.razor", dir, project));
 
         File.WriteAllText(Path.Combine(dir, "Class1.cs"), "");
-        Assert.Equal("Class2.cs", ItemTemplates.SuggestName(ItemTemplates.Class, dir));
-        Assert.Equal("Widget.razor", ItemTemplates.FileName(ItemTemplates.RazorComponent, "Widget"));
-        Assert.Equal("notes.txt", ItemTemplates.FileName(ItemTemplates.Class, " notes.txt "));
+        Assert.Equal("Class2.cs", ItemTemplates.SuggestName(CSharpItemTemplates.Class, dir));
+        Assert.Equal("Widget.razor", ItemTemplates.FileName(CSharpItemTemplates.RazorComponent, "Widget"));
+        Assert.Equal("notes.txt", ItemTemplates.FileName(CSharpItemTemplates.Class, " notes.txt "));
         Assert.Contains("already exists", ItemTemplates.Validate(dir, "Class1.cs"));
         Assert.NotNull(ItemTemplates.Validate(dir, "a/b.cs"));
         Assert.Null(ItemTemplates.Validate(dir, "Order.cs"));
@@ -52,7 +53,7 @@ public class ItemTemplateTests
     {
         var dir = Path.GetDirectoryName(NewProject("App"))!;
         File.WriteAllText(Path.Combine(dir, "Class1.cs"), "");
-        var vm = new AddItemViewModel(dir, ItemTemplates.Class);
+        var vm = new AddItemViewModel(dir, [.. CSharpItemTemplates.All, .. ItemTemplates.General], CSharpItemTemplates.Class);
         Assert.Equal("Class", vm.SelectedTemplate?.Name);
         Assert.Equal("Class2.cs", vm.Name);
 
@@ -61,7 +62,7 @@ public class ItemTemplateTests
         vm.Name = "IOrders";
         vm.SelectedTemplate = vm.Templates.Single(t => t.Name == "Record");
         Assert.Equal("IOrders", vm.Name);
-        Assert.Equal(new NewItemChoice(ItemTemplates.All.Single(t => t.Name == "Record"), "IOrders"), vm.Result);
+        Assert.Equal(new NewItemChoice(CSharpItemTemplates.All.Single(t => t.Name == "Record"), "IOrders"), vm.Result);
 
         vm.Search = "razor";
         Assert.Equal("Razor Component", Assert.Single(vm.Templates).Name);
@@ -248,7 +249,7 @@ public class SolutionExplorerTests
         Assert.Contains("Delete", Headers(window.ExplorerMenuItems(program)));
 
         // Add > New Item: the chosen template becomes a file in the folder's namespace, shown, selected and opened.
-        dialogs.NextItem = new NewItemChoice(ItemTemplates.Class, "OrderService");
+        dialogs.NextItem = new NewItemChoice(CSharpItemTemplates.Class, "OrderService");
         var created = await vm.AddNewItemAsync(web);
         Assert.Equal(Path.Combine(dir, "Web", "OrderService.cs"), created);
         Assert.Equal("namespace Web;\n\npublic class OrderService\n{\n}\n", File.ReadAllText(created!));
@@ -272,7 +273,7 @@ public class SolutionExplorerTests
         Assert.False(models.IsRenaming);
 
         // A class in a folder gets the folder in its namespace; Add Existing Item copies files in.
-        dialogs.NextItem = new NewItemChoice(ItemTemplates.Class, "Order");
+        dialogs.NextItem = new NewItemChoice(CSharpItemTemplates.Class, "Order");
         Assert.StartsWith("namespace Web.Models;", File.ReadAllText((await vm.AddNewItemAsync(models))!));
         var outside = Path.Combine(Path.GetTempPath(), "karvon-existing-" + Guid.NewGuid().ToString("N") + ".json");
         File.WriteAllText(outside, "{}");

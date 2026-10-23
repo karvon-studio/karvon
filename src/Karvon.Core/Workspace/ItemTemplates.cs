@@ -3,7 +3,10 @@ using System.Xml.Linq;
 
 namespace Karvon.Workspace;
 
-/// <summary>An "Add New Item" template: what it makes and the text of the new file.</summary>
+/// <summary>
+/// An "Add New Item" template: what it makes and the text of the new file, from the namespace of the folder it goes in
+/// and its name.
+/// </summary>
 public sealed record ItemTemplate(string Name, string Description, string Extension, string BaseName, Func<string, string, string> Content)
 {
     /// <summary>A file of this kind, for its Solution Explorer icon.</summary>
@@ -13,22 +16,14 @@ public sealed record ItemTemplate(string Name, string Description, string Extens
 }
 
 /// <summary>
-/// The item templates Visual Studio offers in Add New Item for C# and Blazor projects, writing what VS's templates
-/// write (file-scoped namespace from the project's root namespace and the folder, as `dotnet new class` does).
+/// Add New Item's templates that are no language's (a text file, JSON, Markdown...), after the modules' (C#'s), and
+/// what makes a new item's name and text: its namespace is the project's root namespace and the folders down to it, as
+/// Visual Studio names it.
 /// </summary>
 public static class ItemTemplates
 {
-    static string CSharp(string ns, string body) => $"namespace {ns};\n\n{body}\n";
-
-    public static IReadOnlyList<ItemTemplate> All { get; } =
+    public static IReadOnlyList<ItemTemplate> General { get; } =
     [
-        new("Class", "An empty class definition", ".cs", "Class", (ns, name) => CSharp(ns, $"public class {name}\n{{\n}}")),
-        new("Interface", "An empty interface definition", ".cs", "Interface", (ns, name) => CSharp(ns, $"public interface {name}\n{{\n}}")),
-        new("Record", "An empty record definition", ".cs", "Record", (ns, name) => CSharp(ns, $"public record {name};")),
-        new("Struct", "An empty struct definition", ".cs", "Struct", (ns, name) => CSharp(ns, $"public struct {name}\n{{\n}}")),
-        new("Enum", "An enumeration", ".cs", "Enum", (ns, name) => CSharp(ns, $"public enum {name}\n{{\n}}")),
-        new("Razor Component", "A Razor component for Blazor", ".razor", "Component", (_, name) => $"<h3>{name}</h3>\n\n@code {{\n\n}}\n"),
-        new("Code File", "An empty C# code file", ".cs", "CodeFile", (_, _) => ""),
         new("JSON File", "A JSON file", ".json", "JSONFile", (_, _) => "{\n}\n"),
         new("Text File", "A blank text file", ".txt", "TextFile", (_, _) => ""),
         new("XML File", "A blank XML file", ".xml", "XMLFile", (_, _) => "<?xml version=\"1.0\" encoding=\"utf-8\" ?>\n"),
@@ -39,12 +34,8 @@ public static class ItemTemplates
         new("Markdown File", "A Markdown file", ".md", "Markdown", (_, name) => $"# {name}\n"),
     ];
 
-    public static ItemTemplate Class => All[0];
-
-    public static ItemTemplate RazorComponent => All.First(t => t.Extension == ".razor");
-
-    /// <summary>What Add New Item suggests for a solution item.</summary>
-    public static ItemTemplate TextFile => All.First(t => t.Extension == ".txt");
+    /// <summary>What Add New Item suggests for a solution item, and in a folder no module has templates for.</summary>
+    public static ItemTemplate TextFile => General.First(t => t.Extension == ".txt");
 
     /// <summary>"Class1.cs", "Class2.cs"...: the first name not taken in <paramref name="folder"/>, as VS suggests.</summary>
     public static string SuggestName(ItemTemplate template, string folder)

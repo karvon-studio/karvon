@@ -303,7 +303,7 @@ public partial class MainWindow : Window, IDialogService
     }
 
     public Task<NewItemChoice?> ChooseNewItemAsync(string title, string folder, ItemTemplate initial) =>
-        new AddItemWindow { Title = title, DataContext = new AddItemViewModel(folder, initial) }.ShowDialog<NewItemChoice?>(this);
+        new AddItemWindow { Title = title, DataContext = new AddItemViewModel(folder, Vm?.NewItemTemplates ?? ItemTemplates.General, initial) }.ShowDialog<NewItemChoice?>(this);
 
     public async Task<IReadOnlyList<string>> PickFilesAsync(string title)
     {
@@ -582,10 +582,7 @@ public partial class MainWindow : Window, IDialogService
             Item("Existing Item...", () => _ = vm.AddExistingItemsAsync(node), "Shift+Alt+A"),
             Item("New Folder", () => vm.AddNewFolder(node)),
             Item("New EditorConfig", () => _ = vm.AddEditorConfigAsync(node)),
-            new Separator(),
-            .. project is null ? Array.Empty<object>() : [Item("Project Reference...", () => _ = vm.EditProjectReferencesAsync(project)), new Separator()],
-            Item("Class...", () => _ = vm.AddNewItemAsync(node, ItemTemplates.Class)),
-            Item("Razor Component...", () => _ = vm.AddNewItemAsync(node, ItemTemplates.RazorComponent)),
+            .. project is null ? Array.Empty<object>() : [new Separator(), Item("Project Reference...", () => _ = vm.EditProjectReferencesAsync(project))],
         ]);
         // Add on the solution or a solution folder: projects, solution items, solution folders.
         MenuItem SolutionAddMenu() => Menu("Add",
@@ -692,12 +689,17 @@ public partial class MainWindow : Window, IDialogService
                 break;
         }
         // What the modules add (a project's Manage NuGet Packages...): each after the item of Karvon's it names, in the
-        // order the module gives them, the rest after Karvon's own.
+        // order the module gives them, or at the end of the submenu it names (Add), the rest after Karvon's own.
         var placed = new Dictionary<string, object>();
         foreach (var module in vm.Modules)
             foreach (var extra in module.ExplorerMenu(node))
             {
                 var control = ModuleMenuControl(vm, extra);
+                if (extra.In is { } submenu && items.OfType<MenuItem>().FirstOrDefault(i => i.Header is string header && header == submenu) is { } parent)
+                {
+                    parent.Items.Add(control);
+                    continue;
+                }
                 var anchor = extra.After is not { } after ? null
                     : placed.TryGetValue(after, out var last) ? last
                     : items.FirstOrDefault(i => i is MenuItem { Header: string header } && header == after);

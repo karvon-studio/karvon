@@ -70,6 +70,9 @@ public sealed record ModuleMenuItem(string Header, Func<Task>? Run)
 
     /// <summary>In a Solution Explorer menu: the item of Karvon's it goes after, by its header ("Run Tests").</summary>
     public string? After { get; init; }
+
+    /// <summary>In a Solution Explorer menu: the submenu of Karvon's it goes in, at its end, by its header ("Add").</summary>
+    public string? In { get; init; }
 }
 
 /// <summary>A module's submenu of the main menu: under the top menu (Tools), first in it, its items in it.</summary>
@@ -151,12 +154,16 @@ public abstract partial class KarvonModule : ObservableObject, IDisposable, IAsy
 
     /// <summary>
     /// What it adds to Solution Explorer's menu of a node (a project's Manage NuGet Packages...): each item after the
-    /// item of Karvon's its After names, the rest at the end of Karvon's own (before Open in Terminal, Copy Full Path...).
+    /// item of Karvon's its After names, or at the end of the submenu its In names, the rest at the end of Karvon's own
+    /// (before Open in Terminal, Copy Full Path...).
     /// </summary>
     public virtual IReadOnlyList<ModuleMenuItem> ExplorerMenu(ExplorerNode node) => [];
 
     /// <summary>Its submenus of the main menu (Tools > NuGet Package Manager).</summary>
     public virtual IReadOnlyList<ModuleSubmenu> MainMenus => [];
+
+    /// <summary>Its Add New Item templates (C#'s class, interface...), before those that are no language's.</summary>
+    public virtual IReadOnlyList<ItemTemplate> ItemTemplates => [];
 
     /// <summary>
     /// Its project templates listed later, the first time New Project shows its templates (.NET's come from the SDK,

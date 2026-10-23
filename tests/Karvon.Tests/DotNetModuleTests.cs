@@ -47,6 +47,12 @@ public class DotNetModuleTests
         Assert.Equal(["Manage NuGet Packages...", "-", "Remove"], Lines(window.ExplorerMenuItems(xunit)));
         Assert.All(window.ExplorerMenuItems(xunit).OfType<MenuItem>(), item => Assert.True(item.IsEnabled));
         Assert.Equal(vm.Solution!.Projects.Single(p => p.Name == "Tests"), vm.ProjectOf(xunit));
+        // Add > Class... and Razor Component... in a project and its folders, after Karvon's own items; C#'s templates first in Add New Item.
+        var add = window.ExplorerMenuItems(Node("Web")).OfType<MenuItem>().Single(m => (string?)m.Header == "Add");
+        Assert.Equal(["New Item...", "Existing Item...", "New Folder", "New EditorConfig", "-", "Project Reference...", "-", "Class...", "Razor Component..."],
+            Lines(add.Items.OfType<object>()));
+        Assert.Equal("Class", vm.NewItemTemplates[0].Name);
+        Assert.Equal(["Class", "Interface", "Record", "Struct", "Enum", "Razor Component", "Code File", "JSON File", "Text File"], vm.NewItemTemplates.Take(9).Select(t => t.Name));
         // Tools > NuGet Package Manager first, as in Visual Studio.
         var tools = window.MainMenu.Items.OfType<MenuItem>().Single(m => (string?)m.Header == "_Tools");
         Assert.Equal(["_NuGet Package Manager", "-", "_Restart Language Server"], Lines(tools.Items.OfType<object>()).Take(3));
@@ -100,6 +106,10 @@ public class DotNetModuleTests
         Assert.Equal(["Build Solution", "Rebuild Solution", "Clean Solution", "Run Tests", "-", "Add"],
             Between(window.ExplorerMenuItems(vm.ExplorerRoots[0]), "Build Solution", "Add"));
         Assert.DoesNotContain(vm.Modules, m => m.Id == "dotnet");
+        var web = vm.ExplorerRoots[0].Children.Single(c => c.Name == "Web");
+        var add = window.ExplorerMenuItems(web).OfType<MenuItem>().Single(m => (string?)m.Header == "Add");
+        Assert.Equal(["New Item...", "Existing Item...", "New Folder", "New EditorConfig", "-", "Project Reference..."], Lines(add.Items.OfType<object>()));
+        Assert.Equal(ItemTemplates.General, vm.NewItemTemplates);
         Assert.Contains(vm.AllModules, m => m.Id == "dotnet" && m.Components.Count == 2);
         var tools = window.MainMenu.Items.OfType<MenuItem>().Single(m => (string?)m.Header == "_Tools");
         Assert.Equal("_Restart Language Server", ((MenuItem)tools.Items[0]!).Header);

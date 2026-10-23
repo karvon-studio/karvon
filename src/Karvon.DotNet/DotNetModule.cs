@@ -42,6 +42,8 @@ public sealed class DotNetModule : KarvonModule
     /// <summary>The SDK's project templates (dotnet new's), as Visual Studio lists them.</summary>
     public override Task<IReadOnlyList<ProjectTemplate>> LoadProjectTemplatesAsync(CancellationToken ct) => TemplateCatalog.LoadAsync(ct);
 
+    public override IReadOnlyList<ItemTemplate> ItemTemplates => CSharpItemTemplates.All;
+
     public override IReadOnlyList<IDataTemplate> DocumentTemplates => [Document<NuGetViewModel>(_ => new NuGetView())];
 
     public override IReadOnlyList<ModuleSubmenu> MainMenus =>
@@ -60,7 +62,10 @@ public sealed class DotNetModule : KarvonModule
                     new("Restore NuGet Packages", () => RestorePackagesAsync()) { After = "Run Tests" },
                 ];
             case NodeKind.Project when node.Project is { } project:
-                return [new("Manage NuGet Packages...", () => ManagePackagesAsync(project)) { After = "Add" }];
+                return [.. AddItems(node), new("Manage NuGet Packages...", () => ManagePackagesAsync(project)) { After = "Add" }];
+            // A folder of a project.
+            case NodeKind.Folder when Workbench.ProjectOf(node) is not null:
+                return AddItems(node);
             case NodeKind.Dependencies or NodeKind.DependencyGroup:
             {
                 var owner = Workbench.ProjectOf(node);
@@ -80,6 +85,14 @@ public sealed class DotNetModule : KarvonModule
                 return [];
         }
     }
+
+    /// <summary>Add > Class... and Razor Component..., as Visual Studio has them in a project and its folders.</summary>
+    IReadOnlyList<ModuleMenuItem> AddItems(ExplorerNode node) =>
+    [
+        ModuleMenuItem.Separator with { In = "Add" },
+        new("Class...", () => Workbench.AddNewItemAsync(node, CSharpItemTemplates.Class)) { In = "Add" },
+        new("Razor Component...", () => Workbench.AddNewItemAsync(node, CSharpItemTemplates.RazorComponent)) { In = "Add" },
+    ];
 
     /// <summary>The Output window's Package Manager, as Visual Studio's: what NuGet's commands say.</summary>
     OutputChannel Output => Workbench.Output("Package Manager");

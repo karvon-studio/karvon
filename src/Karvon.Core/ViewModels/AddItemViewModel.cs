@@ -23,10 +23,10 @@ public sealed partial class AddItemViewModel : ObservableObject
     bool _nameEdited;
     bool _suggesting;
 
-    public AddItemViewModel(string folder, ItemTemplate initial)
+    public AddItemViewModel(string folder, IReadOnlyList<ItemTemplate> templates, ItemTemplate initial)
     {
         Folder = folder;
-        _all = ItemTemplates.All.Select(t => new ItemTemplateEntry(t)).ToList();
+        _all = templates.Select(t => new ItemTemplateEntry(t)).ToList();
         foreach (var entry in _all)
             Templates.Add(entry);
         SelectedTemplate = _all.FirstOrDefault(e => e.Template == initial) ?? _all[0];

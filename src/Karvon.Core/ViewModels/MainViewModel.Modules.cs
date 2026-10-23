@@ -114,6 +114,11 @@ public partial class MainViewModel : IWorkbench
 
     Task IWorkbench.ReloadSolutionAsync() => ReloadSolutionAsync();
 
+    Task<string?> IWorkbench.AddNewItemAsync(Workspace.ExplorerNode node, Workspace.ItemTemplate template) => AddNewItemAsync(node, template);
+
+    /// <summary>Add New Item's templates: the modules' (C#'s), then those that are no language's.</summary>
+    public IReadOnlyList<Workspace.ItemTemplate> NewItemTemplates => [.. Modules.SelectMany(m => m.ItemTemplates), .. Workspace.ItemTemplates.General];
+
     /// <summary>The project a Solution Explorer node is (a project's) or is under (its Dependencies, a package), in a solution folder or not.</summary>
     public Workspace.ProjectInfo? ProjectOf(Workspace.ExplorerNode node)
     {

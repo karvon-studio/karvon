@@ -29,6 +29,9 @@ public interface IWorkbench
     /// <summary>The project a Solution Explorer node is in (its Dependencies, a package of it), or null.</summary>
     ProjectInfo? ProjectOf(ExplorerNode node);
 
+    /// <summary>Add New Item in a node's folder, the template chosen first; the new file's path, or null.</summary>
+    Task<string?> AddNewItemAsync(ExplorerNode node, ItemTemplate template);
+
     /// <summary>A solution was opened or closed.</summary>
     event Action? WorkspaceChanged;
 

@@ -14,7 +14,7 @@ it does today all along.
 - .NET becomes the first workload: Roslyn, netcoredbg, Test Explorer, NuGet and the templates move behind it. It goes
   feature by feature, each through an extension point the core gets for it: the NuGet window (menu and Solution
   Explorer items from modules; in now: `Karvon.DotNet` has it, with Roslyn's and netcoredbg's downloads), the
-  templates (New Project, Add New Item; in now: New Project's are the modules', .NET's too), Test Explorer (a
+  templates (New Project, Add New Item; in now: both are the modules', .NET's too), Test Explorer (a
   workspace's tests), run and debug (startup items), the build, Roslyn (a solution's language server), and last the
   solution itself (a module opens .sln, .slnx and .csproj files; the core opens folders).
 - Modules can be turned on and off; everything still ships in one package.

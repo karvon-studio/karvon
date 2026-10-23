@@ -47,7 +47,8 @@ public partial class MainViewModel
         if (Dialogs is null || FolderOf(node ?? ExplorerTarget()) is not { } folder)
             return null;
         var owner = ProjectContaining(folder)?.Name ?? Solution?.Name ?? "";
-        var choice = await Dialogs.ChooseNewItemAsync($"Add New Item - {owner}", folder, template ?? ItemTemplates.Class);
+        // A module's first (C#'s Class), as Visual Studio suggests in a project.
+        var choice = await Dialogs.ChooseNewItemAsync($"Add New Item - {owner}", folder, template ?? NewItemTemplates[0]);
         return choice is null ? null : CreateItem(folder, choice.Template, choice.Name);
     }
 
