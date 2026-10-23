@@ -15,9 +15,9 @@ it does today all along.
   feature by feature, each through an extension point the core gets for it: the NuGet window (menu and Solution
   Explorer items from modules; in now: `Karvon.DotNet` has it, with Roslyn's and netcoredbg's downloads), the
   templates (New Project, Add New Item; in now: both are the modules', .NET's too), Test Explorer (a workspace's
-  tests; in now: .NET's vstest is the module's), run and debug (startup items), the build, Roslyn (a solution's
-  language server), and last the solution itself (a module opens .sln, .slnx and .csproj files; the core opens
-  folders).
+  tests; in now: .NET's vstest is the module's), run and debug (startup items; in now: F5 on the startup project is a
+  launch configuration of the module's netcoredbg), the build, Roslyn (a solution's language server), and last the
+  solution itself (a module opens .sln, .slnx and .csproj files; the core opens folders).
 - Modules can be turned on and off; everything still ships in one package.
 
 ## 0b. Languages

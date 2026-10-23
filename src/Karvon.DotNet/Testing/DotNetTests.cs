@@ -1,8 +1,6 @@
 using System.Text.Json.Nodes;
-using Karvon.Build;
 using Karvon.Modules;
 using Karvon.Testing;
-using Karvon.Workspace;
 using Microsoft.VisualStudio.TestPlatform.ObjectModel;
 
 namespace Karvon.DotNet.Testing;
@@ -15,9 +13,6 @@ sealed class DotNetTests(IWorkbench workbench, TestFrameworkStart start) : TestF
 {
     VsTestHost? _host;
     readonly Dictionary<Guid, TestCase> _cases = [];
-
-    /// <summary>The test projects' output assemblies, by project file, configuration and when the project file changed.</summary>
-    static readonly Dictionary<(string Project, string Configuration, DateTime Written), string> TargetPaths = [];
 
     public override string Id => "dotnet";
 
@@ -35,7 +30,7 @@ sealed class DotNetTests(IWorkbench workbench, TestFrameworkStart start) : TestF
             return TestDiscovery.Failed("Build failed; fix the errors to discover tests.");
         var assemblies = new List<string>();
         foreach (var project in solution.Projects.Where(p => p.IsTestProject))
-            if (await TargetPathAsync(project, workbench.Configuration) is { } dll && File.Exists(dll))
+            if (await DotNetProjects.TargetPathAsync(project, workbench.Configuration) is { } dll && File.Exists(dll))
                 assemblies.Add(dll);
         if (assemblies.Count == 0)
             return TestDiscovery.Failed("No test assemblies were built.");
@@ -52,32 +47,6 @@ sealed class DotNetTests(IWorkbench workbench, TestFrameworkStart start) : TestF
         foreach (var c in cases)
             _cases[c.Id] = c;
         return new TestDiscovery(ItemsOf(cases));
-    }
-
-    /// <summary>The project's output assembly, as MSBuild computes it (honors AssemblyName, OutputPath, TFM).</summary>
-    static async Task<string?> TargetPathAsync(ProjectInfo project, string configuration)
-    {
-        var key = (project.FilePath, configuration, File.GetLastWriteTimeUtc(project.FilePath));
-        lock (TargetPaths)
-            if (TargetPaths.TryGetValue(key, out var cached))
-                return cached;
-        var lines = new List<string>();
-        using var runner = ProcessRunner.Start(DotnetCli.Executable,
-            ["msbuild", project.FilePath, "-getProperty:TargetPath", $"-p:Configuration={configuration}", "-nologo"],
-            project.Directory, line =>
-            {
-                lock (lines)
-                    lines.Add(line);
-            });
-        if (await runner.WaitAsync() != 0)
-            return null;
-        string? path;
-        lock (lines)
-            path = lines.Select(l => l.Trim()).LastOrDefault(l => l.EndsWith(".dll", StringComparison.OrdinalIgnoreCase));
-        if (path is not null)
-            lock (TargetPaths)
-                TargetPaths[key] = path;
-        return path;
     }
 
     /// <summary>The cases as Test Explorer shows them: by project, namespace, class; a theory's rows under its method, named as VS names them.</summary>

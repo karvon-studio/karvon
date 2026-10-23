@@ -1,9 +1,7 @@
 using System.Collections.ObjectModel;
-using System.Text.RegularExpressions;
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-using Karvon.Build;
 using Karvon.Debugging;
 using Karvon.Workspace;
 
@@ -12,7 +10,6 @@ namespace Karvon.ViewModels;
 /// <summary>Debugger integration: F5 / F10 / F11, breakpoints, Locals, Watch and Call Stack.</summary>
 public partial class MainViewModel
 {
-    readonly Dictionary<(string Project, string Configuration), string> _targetPaths = [];
     DebugSession? _session;
     int _stoppedThread;
     string _stopReason = "";
@@ -20,11 +17,8 @@ public partial class MainViewModel
     string? _debuggedProject;
     string? _postDebugTask;
 
-    /// <summary>The debuggers F5 starts for a launch configuration's type: the modules', and netcoredbg for coreclr.</summary>
-    IEnumerable<Modules.DebuggerInfo> Debuggers => Modules.SelectMany(m => m.Debuggers).Append(Netcoredbg);
-
-    static readonly Modules.DebuggerInfo Netcoredbg = new("netcoredbg", $"netcoredbg {NetcoredbgLocator.Version}", ["coreclr"],
-        async start => DebugSession.Netcoredbg(await NetcoredbgLocator.EnsureInstalledAsync(start.Log, start.Cancellation)));
+    /// <summary>The debuggers F5 starts for a launch configuration's type: the modules' (.NET's netcoredbg for coreclr and dotnet).</summary>
+    IEnumerable<Modules.DebuggerInfo> Debuggers => Modules.SelectMany(m => m.Debuggers);
 
     public BreakpointStore Breakpoints { get; } = new();
     public ObservableCollection<StackFrameItem> CallStack { get; } = [];
@@ -127,86 +121,35 @@ public partial class MainViewModel
             return;
         if (!await RunBuildAsync("build", "Build", project.FilePath))
             return;
+        await OfferDevCertificateTrustAsync(project.LaunchProfiles.FirstOrDefault(p => p.Name == LaunchProfile));
+        await LaunchConfigurationAsync(StartupLaunch(project), noDebug: false, withSolution: true);
+    }
 
-        DebugOutput.Clear();
-        SelectedOutput = DebugOutput;
-        ShowToolWindow(ToolWindows.Output);
-        var program = await GetTargetPathAsync(project);
-        if (program is null || !File.Exists(program))
+    /// <summary>
+    /// F5 on the startup project as a launch configuration of the .NET module's "dotnet" type: the project, the launch
+    /// profile and the build configuration chosen on the toolbar.
+    /// </summary>
+    Modules.DebugLaunch StartupLaunch(ProjectInfo project)
+    {
+        var configuration = new System.Text.Json.Nodes.JsonObject
         {
-            DebugOutput.Append($"Could not find the output assembly of {project.Name}.");
-            return;
-        }
-
-        string adapter;
-        try
-        {
-            adapter = await NetcoredbgLocator.EnsureInstalledAsync(DebugOutput.Append, CancellationToken.None);
-        }
-        catch (Exception ex)
-        {
-            DebugOutput.Append("Could not install the debugger (netcoredbg): " + ex.Message);
-            return;
-        }
-
-        var profile = project.LaunchProfiles.FirstOrDefault(p => p.Name == LaunchProfile);
-        await OfferDevCertificateTrustAsync(profile);
-        var env = new Dictionary<string, string>(profile?.EnvironmentVariables ?? new Dictionary<string, string>());
-        // dotnet run turns applicationUrl into ASPNETCORE_URLS; launching the dll directly must do the same.
-        if (profile?.ApplicationUrl is { Length: > 0 } urls && !env.ContainsKey("ASPNETCORE_URLS"))
-            env["ASPNETCORE_URLS"] = urls;
-        foreach (var (name, value) in ProgramOutputEnvironment)
-            env.TryAdd(name, value);
-        var args = new List<string> { program };
-        if (profile?.CommandLineArgs is { Length: > 0 } extra)
-            args.AddRange(extra.Split(' ', StringSplitOptions.RemoveEmptyEntries));
-
-        DebugOutput.Append($"Debugging {project.Name} ({Path.GetFileName(program)}) with netcoredbg {NetcoredbgLocator.Version}");
-        _serverReady = null;
-        StartWithSolution();
-        _debuggedProject = project.Name;
-        Mode = DebugMode.Running;
-        SetStatus("Running", StatusKind.Running);
-        var browserOpened = false;
-        var breakpoints = Breakpoints.All;
-        try
-        {
-            _session = await DebugSession.LaunchAsync(
-                adapter,
-                new LaunchRequest(DotnetCli.Executable, args, project.Directory, env),
-                breakpoints,
-                (file, results) => Dispatcher.UIThread.Post(() => Breakpoints.SetVerification(file, breakpoints[file], results)),
-                session =>
-                {
-                    WireSession(session);
-                    session.Output += (category, text) =>
-                    {
-                        if (!browserOpened && profile is { LaunchBrowser: true } && text.Contains("Now listening on:", StringComparison.Ordinal))
-                        {
-                            browserOpened = true;
-                            var url = Regex.Match(text, @"https?://[^\s\u001b]+").Value;
-                            if (url.Length > 0)
-                                OpenBrowser(url.TrimEnd('/') + "/" + (profile.LaunchUrl ?? ""));
-                        }
-                    };
-                },
-                CancellationToken.None);
-        }
-        catch (Exception ex)
-        {
-            DebugOutput.Append("Failed to start debugging: " + StartFailure(ex));
-            _session = null;
-            StopStartedWithSolution();
-            Mode = DebugMode.Design;
-            SetStatus("Ready", StatusKind.Ready);
-        }
+            ["name"] = project.Name,
+            ["type"] = "dotnet",
+            ["request"] = "launch",
+            ["projectPath"] = project.FilePath,
+            ["configuration"] = Configuration,
+        };
+        if (LaunchProfile is { } profile)
+            configuration["launchProfile"] = profile;
+        return new Modules.DebugLaunch(project.Name, configuration);
     }
 
     /// <summary>
     /// A launch configuration started: its preLaunchTask first, then the debugger of its type with it (its variables put
-    /// in), the breakpoints set; without them when it runs without debugging (Ctrl+F5, noDebug as VS Code has it).
+    /// in), the breakpoints set; without them when it runs without debugging (Ctrl+F5, noDebug as VS Code has it). With
+    /// the solution, the projects that start with the startup project start beside it.
     /// </summary>
-    async Task LaunchConfigurationAsync(Modules.DebugLaunch launch, bool noDebug)
+    async Task LaunchConfigurationAsync(Modules.DebugLaunch launch, bool noDebug, bool withSolution = false)
     {
         if (Solution is not { } solution || Mode != DebugMode.Design || IsRunning)
             return;
@@ -225,7 +168,6 @@ public partial class MainViewModel
         var configuration = TaskVariables.ForFile(launch.Configuration, solution.Directory, ActiveEditor?.FilePath);
         if (noDebug)
             configuration["noDebug"] = true;
-        _serverReady = ServerReadyAction.Of(configuration, DebugOutput.Append);
         _debuggedProject = launch.Name;
         _postDebugTask = launch.PostDebugTask;
         Mode = DebugMode.Running;
@@ -243,6 +185,10 @@ public partial class MainViewModel
             return;
         }
         DebugOutput.Append(noDebug ? $"Running {launch.Name} (without debugging) with {debugger.Name}" : $"Debugging {launch.Name} with {debugger.Name}");
+        // After the debugger completed the configuration (a "dotnet" one gets its launch profile's browser).
+        _serverReady = ServerReadyAction.Of(configuration, DebugOutput.Append);
+        if (withSolution)
+            StartWithSolution();
         var breakpoints = noDebug ? new Dictionary<string, IReadOnlyList<int>>() : Breakpoints.All;
         try
         {
@@ -254,6 +200,7 @@ public partial class MainViewModel
         {
             DebugOutput.Append("Failed to start debugging: " + StartFailure(ex));
             _session = null;
+            StopStartedWithSolution();
             Mode = DebugMode.Design;
             SetStatus("Ready", StatusKind.Ready);
         }
@@ -335,23 +282,6 @@ public partial class MainViewModel
         await LaunchConfigurationAsync(launch, noDebug: false);
         if (_session is null || _session == before)
             throw new InvalidOperationException($"{launch.Name} did not start under the debugger: see Output (Debug).");
-    }
-
-    /// <summary>The project's output assembly, as MSBuild computes it (honors AssemblyName, OutputPath, TFM).</summary>
-    async Task<string?> GetTargetPathAsync(ProjectInfo project)
-    {
-        if (_targetPaths.TryGetValue((project.FilePath, Configuration), out var cached))
-            return cached;
-        var lines = new List<string>();
-        using var runner = ProcessRunner.Start(DotnetCli.Executable,
-            ["msbuild", project.FilePath, "-getProperty:TargetPath", $"-p:Configuration={Configuration}", "-nologo"],
-            project.Directory, lines.Add);
-        if (await runner.WaitAsync() != 0)
-            return null;
-        var path = lines.Select(l => l.Trim()).LastOrDefault(l => l.EndsWith(".dll", StringComparison.OrdinalIgnoreCase));
-        if (path is not null)
-            _targetPaths[(project.FilePath, Configuration)] = path;
-        return path;
     }
 
     bool CanStepping => Mode == DebugMode.Break && _session is not null;

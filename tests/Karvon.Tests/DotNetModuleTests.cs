@@ -1,6 +1,9 @@
+using System.Text.Json.Nodes;
 using Avalonia.Controls;
 using Avalonia.Headless.XUnit;
+using Karvon.Build;
 using Karvon.DotNet;
+using Karvon.DotNet.Debugging;
 using Karvon.Modules;
 using Karvon.Services;
 using Karvon.ViewModels;
@@ -94,6 +97,66 @@ public class DotNetModuleTests
         await none.EnsureTemplatesAsync();
         Assert.Empty(none.Templates);
         Assert.Equal("No project templates: the modules that have them are off (Tools > Modules).", none.Message);
+    }
+
+    /// <summary>A console project in a folder of its own, restored from nuget.org only.</summary>
+    static string NewConsoleProject(string launchSettings)
+    {
+        var dir = Directory.CreateTempSubdirectory("karvon-dotnet-launch-").FullName;
+        File.Copy(Path.Combine(AppContext.BaseDirectory, "TestAssets", "BlazorSample", "nuget.config"), Path.Combine(dir, "nuget.config"));
+        File.WriteAllText(Path.Combine(dir, "Shop.csproj"),
+            "<Project Sdk=\"Microsoft.NET.Sdk\"><PropertyGroup><OutputType>Exe</OutputType><TargetFramework>net10.0</TargetFramework><AssemblyName>Shop.App</AssemblyName></PropertyGroup></Project>");
+        File.WriteAllText(Path.Combine(dir, "Program.cs"), "System.Console.WriteLine(\"hi\");");
+        Directory.CreateDirectory(Path.Combine(dir, "Properties"));
+        File.WriteAllText(Path.Combine(dir, "Properties", "launchSettings.json"), launchSettings);
+        return Path.Combine(dir, "Shop.csproj");
+    }
+
+    [AvaloniaFact]
+    public async Task A_dotnet_configuration_is_the_projects_assembly_with_its_launch_profile()
+    {
+        var project = NewConsoleProject("""
+            { "profiles": { "https": { "commandName": "Project", "launchBrowser": true, "launchUrl": "swagger",
+              "applicationUrl": "https://localhost:7001;http://localhost:5001", "commandLineArgs": "--seed 3",
+              "environmentVariables": { "ASPNETCORE_ENVIRONMENT": "Development" } } } }
+            """);
+        var dir = Path.GetDirectoryName(project)!;
+        var vm = NewViewModel();
+        JsonObject Config(string profile) => JsonNode.Parse($$"""
+            { "type": "dotnet", "request": "launch", "projectPath": {{JsonValue.Create(project).ToJsonString()}}, "launchProfile": "{{profile}}",
+              "args": ["--fast"], "env": { "SHOP": "1" } }
+            """)!.AsObject();
+        var log = new List<string>();
+
+        // Not built yet: it says so.
+        var error = await Assert.ThrowsAsync<InvalidOperationException>(() => DotNetDebugger.ResolveAsync(Config("https"), vm, log.Add));
+        Assert.Contains("build it first", error.Message);
+
+        using (var build = ProcessRunner.Start(DotnetCli.Executable, ["build", project, "-nologo", "-v:quiet"], dir, _ => { }))
+            Assert.Equal(0, await build.WaitAsync());
+        var config = Config("https");
+        await DotNetDebugger.ResolveAsync(config, vm, log.Add);
+        Assert.Equal("coreclr", config["type"]!.GetValue<string>());
+        Assert.Equal(DotnetCli.Executable, config["program"]!.GetValue<string>());
+        var args = config["args"]!.AsArray().Select(a => a!.GetValue<string>()).ToList();
+        Assert.EndsWith("Shop.App.dll", args[0]);
+        Assert.Equal(["--seed", "3", "--fast"], args.Skip(1));
+        Assert.Equal(dir, config["cwd"]!.GetValue<string>());
+        var env = config["env"]!.AsObject();
+        Assert.Equal("https://localhost:7001;http://localhost:5001", env["ASPNETCORE_URLS"]!.GetValue<string>());
+        Assert.Equal("Development", env["ASPNETCORE_ENVIRONMENT"]!.GetValue<string>());
+        Assert.Equal("1", env["SHOP"]!.GetValue<string>());
+        // launchBrowser: the browser opens at the launchUrl of where the app listens.
+        var ready = Karvon.Debugging.ServerReadyAction.Of(config, log.Add)!;
+        Assert.Equal("https://localhost:7001/swagger", ready.Match("info: Microsoft.Hosting.Lifetime[14]\n      Now listening on: https://localhost:7001\n"));
+
+        // A profile the project does not have: it starts without one, and says so.
+        var none = Config("Docker");
+        await DotNetDebugger.ResolveAsync(none, vm, log.Add);
+        Assert.Null(none["serverReadyAction"]);
+        Assert.Null(none["env"]!["ASPNETCORE_URLS"]);
+        Assert.Contains(log, l => l.Contains("no launch profile 'Docker'"));
+        Directory.Delete(dir, recursive: true);
     }
 
     [AvaloniaFact]

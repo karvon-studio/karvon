@@ -65,7 +65,6 @@ public partial class MainViewModel
             ?? StartupProjects.FirstOrDefault();
         if (profile is not null && LaunchProfiles.Contains(profile))
             LaunchProfile = profile;
-        _targetPaths.Clear();
         AddWorkspaceProjects(reloaded);
         NoteStructureRead(reloaded);
         reloaded.Root.RefreshGitBadges();

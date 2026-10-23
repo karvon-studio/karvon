@@ -33,8 +33,8 @@ public sealed class DotNetModule : KarvonModule
         {
             Description = "roslyn-language-server (MIT), Visual Studio's C# engine, from nuget.org.",
         },
-        new("netcoredbg", ".NET debugger", Debugging.NetcoredbgLocator.Version, Debugging.NetcoredbgLocator.InstallRoot,
-            () => Debugging.NetcoredbgLocator.Find() is not null, Debugging.NetcoredbgLocator.EnsureInstalledAsync)
+        new("netcoredbg", ".NET debugger", Karvon.Debugging.NetcoredbgLocator.Version, Karvon.Debugging.NetcoredbgLocator.InstallRoot,
+            () => Karvon.Debugging.NetcoredbgLocator.Find() is not null, Karvon.Debugging.NetcoredbgLocator.EnsureInstalledAsync)
         {
             Description = "Samsung's netcoredbg (MIT), from its GitHub release.",
         },
@@ -44,6 +44,9 @@ public sealed class DotNetModule : KarvonModule
     public override Task<IReadOnlyList<ProjectTemplate>> LoadProjectTemplatesAsync(CancellationToken ct) => TemplateCatalog.LoadAsync(ct);
 
     public override IReadOnlyList<ItemTemplate> ItemTemplates => CSharpItemTemplates.All;
+
+    /// <summary>netcoredbg, for "coreclr" configurations and "dotnet" ones (a project and its launch profile: F5 on the startup project).</summary>
+    public override IReadOnlyList<DebuggerInfo> Debuggers => [Debugging.DotNetDebugger.Info(Workbench)];
 
     /// <summary>The solution's xUnit, NUnit and MSTest tests, through the SDK's vstest; in Test Explorer once it has a test project.</summary>
     public override IReadOnlyList<Karvon.Testing.TestFramework> TestFrameworks(TestFrameworkStart start) => [new Testing.DotNetTests(Workbench, start)];
