@@ -16,6 +16,7 @@ Each module is a project of its own, referencing `Karvon.Core`. The core referen
 - Python (`src/Karvon.Python`): Pyright's language server, debugpy and pytest, with the workspace's interpreter;
 - Go (`src/Karvon.Go`): gopls, Delve, a module's go tasks (with Go's own problem matcher) and go test;
 - Rust (`src/Karvon.Rust`): rust-analyzer, CodeLLDB (which builds a launch configuration's "cargo" first), cargo's tasks;
+- C and C++ (`src/Karvon.Cpp`): clangd, CodeLLDB, CMake's and Make's builds; it and Rust share CodeLLDB (`src/Karvon.Lldb`);
 - Claude Code (`src/Karvon.Claude`).
 
 .NET still lives in the core and is to become a workload module.

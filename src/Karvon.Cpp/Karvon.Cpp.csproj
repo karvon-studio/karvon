@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- The C and C++ module: clangd in the editor, CodeLLDB for F5, CMake's and Make's builds as a folder's tasks. -->
+  <PropertyGroup>
+    <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
+    <RootNamespace>Karvon.Cpp</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="Karvon.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Karvon.Core\Karvon.Core.csproj" />
+    <ProjectReference Include="..\Karvon.Lldb\Karvon.Lldb.csproj" />
+  </ItemGroup>
+</Project>
