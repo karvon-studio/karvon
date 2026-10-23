@@ -41,9 +41,9 @@ sealed class FakePackages(string directory) : PackageSource
 
     public override IReadOnlyList<DependencyPackage> Dependencies() => [.. Installed];
 
-    public override WorkspaceTask Add(string id, string version, string? group) => new($"add {id}", WorkspaceTaskKind.Other, "fake", ["add", $"{id}@{version}", group ?? ""], directory);
+    public override PackageChange Add(string id, string version, string? group) => new WorkspaceTask($"add {id}", WorkspaceTaskKind.Other, "fake", ["add", $"{id}@{version}", group ?? ""], directory);
 
-    public override WorkspaceTask Remove(DependencyPackage package) => new($"remove {package.Id}", WorkspaceTaskKind.Other, "fake", ["remove", package.Id], directory);
+    public override PackageChange Remove(DependencyPackage package) => new WorkspaceTask($"remove {package.Id}", WorkspaceTaskKind.Other, "fake", ["remove", package.Id], directory);
 }
 
 public class PackagesTests
@@ -164,8 +164,8 @@ public class PackagesTests
         Assert.Equal(("pnpm", "shop"), (source.Name, source.Project));
         Assert.Equal([new DependencyPackage("left-pad", "^1.3.0", null, "dependencies"), new DependencyPackage("vite", "^8.0.0", "8.1.2", "devDependencies")],
             source.Dependencies());
-        Assert.Equal(["add", "is-odd@3.0.1", "--dev"], source.Add("is-odd", "3.0.1", "devDependencies").Arguments);
-        Assert.Equal(["remove", "vite"], source.Remove(source.Dependencies()[1]).Arguments);
+        Assert.Equal(["add", "is-odd@3.0.1", "--dev"], source.Add("is-odd", "3.0.1", "devDependencies").Command!.Arguments);
+        Assert.Equal(["remove", "vite"], source.Remove(source.Dependencies()[1]).Command!.Arguments);
 
         // The menu opens it as a document, once.
         item.RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(MenuItem.ClickEvent));
@@ -176,8 +176,8 @@ public class PackagesTests
 
         // npm without a lock file of another's.
         File.Delete(Path.Combine(dir, "pnpm-lock.yaml"));
-        Assert.Equal(["install", "is-odd@3.0.1", "--save-dev"], new NpmPackages(dir).Add("is-odd", "3.0.1", "devDependencies").Arguments);
-        Assert.Equal(["uninstall", "vite"], new NpmPackages(dir).Remove(source.Dependencies()[1]).Arguments);
+        Assert.Equal(["install", "is-odd@3.0.1", "--save-dev"], new NpmPackages(dir).Add("is-odd", "3.0.1", "devDependencies").Command!.Arguments);
+        Assert.Equal(["uninstall", "vite"], new NpmPackages(dir).Remove(source.Dependencies()[1]).Command!.Arguments);
         Assert.True(await vm.CloseSolutionCoreAsync());
         window.Close();
         Directory.Delete(dir, recursive: true);

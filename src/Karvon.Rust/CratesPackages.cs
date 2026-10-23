@@ -132,9 +132,9 @@ public sealed class CratesPackages(string directory) : PackageSource
         _ => [],
     };
 
-    public override WorkspaceTask Add(string id, string version, string? group) =>
-        new($"cargo: add {id}", WorkspaceTaskKind.Other, "cargo", ["add", $"{id}@{version}", .. GroupFlag(group)], directory) { Source = CargoTasks.Source };
+    public override PackageChange Add(string id, string version, string? group) =>
+new WorkspaceTask($"cargo: add {id}", WorkspaceTaskKind.Other, "cargo", ["add", $"{id}@{version}", .. GroupFlag(group)], directory) { Source = CargoTasks.Source };
 
-    public override WorkspaceTask Remove(DependencyPackage package) =>
-        new($"cargo: remove {package.Id}", WorkspaceTaskKind.Other, "cargo", ["remove", package.Id, .. GroupFlag(package.Group)], directory) { Source = CargoTasks.Source };
+    public override PackageChange Remove(DependencyPackage package) =>
+new WorkspaceTask($"cargo: remove {package.Id}", WorkspaceTaskKind.Other, "cargo", ["remove", package.Id, .. GroupFlag(package.Group)], directory) { Source = CargoTasks.Source };
 }

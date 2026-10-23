@@ -359,14 +359,27 @@ public sealed partial class PackagesViewModel : DocumentTab
         await ChangeAsync($"Updating {updates.Count} package(s)...", [.. updates.Select(u => _source.Add(u.Id, _latest[u.Id].LatestVersion!, u.Group))]);
     }
 
-    /// <summary>The package manager's commands, one after another, their output in Output (Package Manager); then all read again.</summary>
-    async Task ChangeAsync(string message, IReadOnlyList<WorkspaceTask> commands)
+    /// <summary>The changes, one after another (the package manager's commands, their output in Output (Package Manager)); then all read again.</summary>
+    async Task ChangeAsync(string message, IReadOnlyList<PackageChange> changes)
     {
         string? failure = null;
         await BusyAsync(message, async ct =>
         {
-            foreach (var command in commands)
+            foreach (var change in changes)
             {
+                if (change.Command is not { } command)
+                {
+                    try
+                    {
+                        _log(change.Title + ": " + await change.Edit!(ct));
+                    }
+                    catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException or System.Xml.XmlException)
+                    {
+                        failure = $"{change.Title} failed: {ex.Message}";
+                        return;
+                    }
+                    continue;
+                }
                 _log("> " + command.CommandLine);
                 var lines = new List<string>();
                 var code = await _run(command, line =>

@@ -204,11 +204,11 @@ public sealed partial class PypiPackages(string directory) : PackageSource
         ? System.IO.Path.Combine(bin, OperatingSystem.IsWindows() ? "python.exe" : "python")
         : OperatingSystem.IsWindows() ? "python" : "python3";
 
-    public override WorkspaceTask Add(string id, string version, string? group) => IsUv
-        ? new($"uv: add {id}", WorkspaceTaskKind.Other, "uv", ["add", $"{id}=={version}", .. group is null or "dependencies" ? Array.Empty<string>() : ["--group", group]], directory)
-        : new($"pip: install {id}", WorkspaceTaskKind.Other, Python, ["-m", "pip", "install", $"{id}=={version}"], directory);
+    public override PackageChange Add(string id, string version, string? group) => IsUv
+        ? new WorkspaceTask($"uv: add {id}", WorkspaceTaskKind.Other, "uv", ["add", $"{id}=={version}", .. group is null or "dependencies" ? Array.Empty<string>() : ["--group", group]], directory)
+        : new WorkspaceTask($"pip: install {id}", WorkspaceTaskKind.Other, Python, ["-m", "pip", "install", $"{id}=={version}"], directory);
 
-    public override WorkspaceTask Remove(DependencyPackage package) => IsUv
-        ? new($"uv: remove {package.Id}", WorkspaceTaskKind.Other, "uv", ["remove", package.Id, .. package.Group is "dependencies" ? Array.Empty<string>() : ["--group", package.Group]], directory)
-        : new($"pip: uninstall {package.Id}", WorkspaceTaskKind.Other, Python, ["-m", "pip", "uninstall", "-y", package.Id], directory);
+    public override PackageChange Remove(DependencyPackage package) => IsUv
+        ? new WorkspaceTask($"uv: remove {package.Id}", WorkspaceTaskKind.Other, "uv", ["remove", package.Id, .. package.Group is "dependencies" ? Array.Empty<string>() : ["--group", package.Group]], directory)
+        : new WorkspaceTask($"pip: uninstall {package.Id}", WorkspaceTaskKind.Other, Python, ["-m", "pip", "uninstall", "-y", package.Id], directory);
 }

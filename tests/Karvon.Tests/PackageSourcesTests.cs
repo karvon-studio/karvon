@@ -1,4 +1,5 @@
 using Karvon.Go;
+using Karvon.Java;
 using Karvon.Packages;
 using Karvon.Python;
 using Karvon.Rust;
@@ -23,6 +24,8 @@ public class PackageSourcesTests
         Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".cargo", "bin"),
         "/usr/local/go/bin",
     }.OfType<string>());
+
+    static Task<(int Code, string Output)> RunAsync(PackageChange change) => RunAsync(change.Command!);
 
     /// <summary>A package manager's command, run where it runs: its exit code and output.</summary>
     static async Task<(int Code, string Output)> RunAsync(Karvon.Modules.WorkspaceTask task)
@@ -98,9 +101,9 @@ public class PackageSourcesTests
             new DependencyPackage("proptest", "1.4", null, "dev-dependencies"),
             new DependencyPackage("tokio", "1.38", null, "dependencies"),
         ], crates.Dependencies());
-        Assert.Equal(["add", "rand@0.8.5", "--dev"], crates.Add("rand", "0.8.5", "dev-dependencies").Arguments);
-        Assert.Equal(["add", "rand@0.8.5"], crates.Add("rand", "0.8.5", "dependencies").Arguments);
-        Assert.Equal(["remove", "proptest", "--dev"], crates.Remove(crates.Dependencies()[3]).Arguments);
+        Assert.Equal(["add", "rand@0.8.5", "--dev"], crates.Add("rand", "0.8.5", "dev-dependencies").Command!.Arguments);
+        Assert.Equal(["add", "rand@0.8.5"], crates.Add("rand", "0.8.5", "dependencies").Command!.Arguments);
+        Assert.Equal(["remove", "proptest", "--dev"], crates.Remove(crates.Dependencies()[3]).Command!.Arguments);
         Directory.Delete(dir, recursive: true);
     }
 
@@ -130,8 +133,8 @@ public class PackageSourcesTests
             new DependencyPackage("rich", null, null, "dependencies"),
             new DependencyPackage("pytest", ">=8", null, "dev"),
         ], uv.Dependencies());
-        Assert.Equal(["add", "httpx==0.27.0", "--group", "dev"], uv.Add("httpx", "0.27.0", "dev").Arguments);
-        Assert.Equal(["remove", "pytest", "--group", "dev"], uv.Remove(uv.Dependencies()[3]).Arguments);
+        Assert.Equal(["add", "httpx==0.27.0", "--group", "dev"], uv.Add("httpx", "0.27.0", "dev").Command!.Arguments);
+        Assert.Equal(["remove", "pytest", "--group", "dev"], uv.Remove(uv.Dependencies()[3]).Command!.Arguments);
 
         // No project of its own: its requirements.txt, pip into its virtual environment.
         File.Delete(Path.Combine(dir, "pyproject.toml"));
@@ -140,8 +143,8 @@ public class PackageSourcesTests
         Assert.Equal(("pip", 0), (pip.Name, pip.Groups.Count));
         Assert.Equal(["requests", "flask"], pip.Dependencies().Select(d => d.Id));
         var install = pip.Add("flask", "3.0.3", null);
-        Assert.Equal(Path.Combine(dir, ".venv", "bin", "python"), install.Program);
-        Assert.Equal(["-m", "pip", "install", "flask==3.0.3"], install.Arguments);
+        Assert.Equal(Path.Combine(dir, ".venv", "bin", "python"), install.Command!.Program);
+        Assert.Equal(["-m", "pip", "install", "flask==3.0.3"], install.Command.Arguments);
 
         // PEP 440's order and prereleases.
         Assert.True(PypiPackages.CompareVersions("2.0.0rc1", "2.0.0") < 0);
@@ -173,9 +176,122 @@ public class PackageSourcesTests
         Assert.Equal(("go", "example.com/shop"), (go.Name, go.Project));
         Assert.Equal([new DependencyPackage("github.com/google/uuid", "v1.6.0", "v1.6.0", "require"), new DependencyPackage("golang.org/x/text", "v0.16.0", "v0.16.0", "require"),
             new DependencyPackage("rsc.io/quote", "v1.5.2", "v1.5.2", "indirect")], go.Dependencies());
-        Assert.Equal(["get", "github.com/google/uuid@v1.5.0"], go.Add("github.com/google/uuid", "v1.5.0", null).Arguments);
-        Assert.Equal(["get", "golang.org/x/text@none"], go.Remove(go.Dependencies()[1]).Arguments);
+        Assert.Equal(["get", "github.com/google/uuid@v1.5.0"], go.Add("github.com/google/uuid", "v1.5.0", null).Command!.Arguments);
+        Assert.Equal(["get", "golang.org/x/text@none"], go.Remove(go.Dependencies()[1]).Command!.Arguments);
         Directory.Delete(dir, recursive: true);
+    }
+
+    [Fact]
+    public async Task A_maven_projects_pom_is_edited_as_it_is_written()
+    {
+        var dir = NewFolder();
+        var pom = Path.Combine(dir, "pom.xml");
+        File.WriteAllText(pom, """
+            <?xml version="1.0" encoding="UTF-8"?>
+            <!-- The shop. -->
+            <project xmlns="http://maven.apache.org/POM/4.0.0">
+              <modelVersion>4.0.0</modelVersion>
+              <artifactId>shop</artifactId>
+              <properties>
+                <junit.version>5.11.0</junit.version>
+              </properties>
+            </project>
+
+            """);
+        var maven = new MavenPackages(dir);
+        Assert.Equal(("maven", "shop", "Maven Central"), (maven.Name, maven.Project, maven.Registry));
+        Assert.Empty(maven.Dependencies());
+        var ct = TestContext.Current.CancellationToken;
+
+        // Added where there were none: a dependencies element, indented as the file is.
+        Assert.Equal("com.google.guava:guava 33.4.0-jre added to pom.xml", await maven.Add("com.google.guava:guava", "33.4.0-jre", "compile").Edit!(ct));
+        Assert.Equal("org.junit.jupiter:junit-jupiter 5.11.0 added to pom.xml (test)", await maven.Add("org.junit.jupiter:junit-jupiter", "5.11.0", "test").Edit!(ct));
+        Assert.Equal("""
+            <?xml version="1.0" encoding="UTF-8"?>
+            <!-- The shop. -->
+            <project xmlns="http://maven.apache.org/POM/4.0.0">
+              <modelVersion>4.0.0</modelVersion>
+              <artifactId>shop</artifactId>
+              <properties>
+                <junit.version>5.11.0</junit.version>
+              </properties>
+              <dependencies>
+                <dependency>
+                  <groupId>com.google.guava</groupId>
+                  <artifactId>guava</artifactId>
+                  <version>33.4.0-jre</version>
+                </dependency>
+                <dependency>
+                  <groupId>org.junit.jupiter</groupId>
+                  <artifactId>junit-jupiter</artifactId>
+                  <version>5.11.0</version>
+                  <scope>test</scope>
+                </dependency>
+              </dependencies>
+            </project>
+
+            """, File.ReadAllText(pom));
+        Assert.Equal([new DependencyPackage("com.google.guava:guava", "33.4.0-jre", "33.4.0-jre", "compile"), new DependencyPackage("org.junit.jupiter:junit-jupiter", "5.11.0", "5.11.0", "test")],
+            maven.Dependencies());
+
+        // Another version, then removed; a version from a property is read as it is.
+        await maven.Add("com.google.guava:guava", "33.7.2-jre", "compile").Edit!(ct);
+        Assert.Contains("<version>33.7.2-jre</version>", File.ReadAllText(pom));
+        await maven.Remove(maven.Dependencies()[0]).Edit!(ct);
+        Assert.DoesNotContain("guava", File.ReadAllText(pom));
+        Assert.Contains("  <dependencies>\n    <dependency>\n      <groupId>org.junit.jupiter</groupId>", File.ReadAllText(pom));
+        File.WriteAllText(pom, File.ReadAllText(pom).Replace("<version>5.11.0</version>", "<version>${junit.version}</version>"));
+        Assert.Equal("5.11.0", Assert.Single(maven.Dependencies()).Version);
+        Directory.Delete(dir, recursive: true);
+    }
+
+    [Fact]
+    public async Task A_gradle_projects_build_file_is_edited_as_it_is_written()
+    {
+        var dir = NewFolder();
+        var build = Path.Combine(dir, "build.gradle.kts");
+        File.WriteAllText(build, "plugins {\n    java\n}\n\ndependencies {\n    testImplementation(\"org.junit.jupiter:junit-jupiter:5.11.0\")\n}\n");
+        var gradle = new MavenPackages(dir);
+        Assert.Equal("gradle", gradle.Name);
+        Assert.Equal([new DependencyPackage("org.junit.jupiter:junit-jupiter", "5.11.0", "5.11.0", "testImplementation")], gradle.Dependencies());
+        var ct = TestContext.Current.CancellationToken;
+        await gradle.Add("com.google.guava:guava", "33.4.0-jre", "implementation").Edit!(ct);
+        await gradle.Add("org.junit.jupiter:junit-jupiter", "5.12.0", "testImplementation").Edit!(ct);
+        Assert.Equal("plugins {\n    java\n}\n\ndependencies {\n    testImplementation(\"org.junit.jupiter:junit-jupiter:5.12.0\")\n    implementation(\"com.google.guava:guava:33.4.0-jre\")\n}\n",
+            File.ReadAllText(build));
+        await gradle.Remove(gradle.Dependencies()[0]).Edit!(ct);
+        Assert.Equal("com.google.guava:guava", Assert.Single(gradle.Dependencies()).Id);
+
+        // Groovy's form.
+        File.Delete(build);
+        File.WriteAllText(Path.Combine(dir, "build.gradle"), "dependencies {\n  implementation 'com.google.guava:guava:33.4.0-jre'\n}\n");
+        await new MavenPackages(dir).Add("org.slf4j:slf4j-api", "2.0.16", "implementation").Edit!(ct);
+        Assert.Equal("dependencies {\n  implementation 'com.google.guava:guava:33.4.0-jre'\n  implementation 'org.slf4j:slf4j-api:2.0.16'\n}\n", File.ReadAllText(Path.Combine(dir, "build.gradle")));
+
+        // Maven's order of versions.
+        Assert.False(MavenPackages.IsPrerelease("33.4.0-jre"));
+        Assert.True(MavenPackages.IsPrerelease("2.0.0-rc1") && MavenPackages.IsPrerelease("6.0.0-M2") && MavenPackages.IsPrerelease("1.0-SNAPSHOT"));
+        Assert.True(MavenPackages.CompareVersions("33.7.2-jre", "33.4.0-jre") > 0);
+        Assert.True(MavenPackages.CompareVersions("1.10", "1.9") > 0);
+        Assert.True(MavenPackages.CompareVersions("1.0-rc1", "1.0") < 0);
+        Assert.True(MavenPackages.CompareVersions("1.0", "1.0.0") == 0);
+        Assert.True(MavenPackages.CompareVersions("1.0.1", "1.0-rc1") > 0);
+        Directory.Delete(dir, recursive: true);
+    }
+
+    [Fact]
+    public async Task Maven_central_is_searched_and_its_versions_read()
+    {
+        Assert.SkipUnless(Environment.GetEnvironmentVariable("KARVON_JAVA_LIVE") == "1", "Set KARVON_JAVA_LIVE=1 to search Maven Central.");
+        var maven = new MavenPackages(NewFolder());
+        var ct = TestContext.Current.CancellationToken;
+        Assert.Contains(await maven.SearchAsync("guava", ct), p => p.Id == "com.google.guava:guava");
+        var guava = (await maven.FindAsync("com.google.guava:guava", ct))!;
+        Assert.Contains("Apache", guava.License);
+        Assert.False(MavenPackages.IsPrerelease(guava.LatestVersion!));
+        var versions = await maven.VersionsAsync("com.google.guava:guava", false, ct);
+        Assert.Contains("33.4.0-jre", versions);
+        Assert.Equal(guava.LatestVersion, versions[0]);
     }
 
     [Fact]

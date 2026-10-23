@@ -149,9 +149,9 @@ public sealed partial class GoPackages(string directory) : PackageSource
         return found;
     }
 
-    public override WorkspaceTask Add(string id, string version, string? group) =>
-        new($"go: get {id}", WorkspaceTaskKind.Other, "go", ["get", $"{id}@{version}"], directory) { Source = GoTasks.Source };
+    public override PackageChange Add(string id, string version, string? group) =>
+new WorkspaceTask($"go: get {id}", WorkspaceTaskKind.Other, "go", ["get", $"{id}@{version}"], directory) { Source = GoTasks.Source };
 
-    public override WorkspaceTask Remove(DependencyPackage package) =>
-        new($"go: get {package.Id}@none", WorkspaceTaskKind.Other, "go", ["get", $"{package.Id}@none"], directory) { Source = GoTasks.Source };
+    public override PackageChange Remove(DependencyPackage package) =>
+new WorkspaceTask($"go: get {package.Id}@none", WorkspaceTaskKind.Other, "go", ["get", $"{package.Id}@none"], directory) { Source = GoTasks.Source };
 }

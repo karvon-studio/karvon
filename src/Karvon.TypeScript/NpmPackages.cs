@@ -132,7 +132,7 @@ public sealed class NpmPackages(string directory) : PackageSource
         return null;
     }
 
-    public override WorkspaceTask Add(string id, string version, string? group)
+    public override PackageChange Add(string id, string version, string? group)
     {
         var dev = group == "devDependencies";
         List<string> args = _manager switch
@@ -144,6 +144,6 @@ public sealed class NpmPackages(string directory) : PackageSource
         return new WorkspaceTask($"{_manager}: add {id}", WorkspaceTaskKind.Other, _manager, args, directory) { Source = PackageScripts.Source };
     }
 
-    public override WorkspaceTask Remove(DependencyPackage package) =>
-        new($"{_manager}: remove {package.Id}", WorkspaceTaskKind.Other, _manager, [_manager == "npm" ? "uninstall" : "remove", package.Id], directory) { Source = PackageScripts.Source };
+    public override PackageChange Remove(DependencyPackage package) =>
+new WorkspaceTask($"{_manager}: remove {package.Id}", WorkspaceTaskKind.Other, _manager, [_manager == "npm" ? "uninstall" : "remove", package.Id], directory) { Source = PackageScripts.Source };
 }

@@ -14,6 +14,20 @@ public sealed record RegistryPackage(string Id, string? LatestVersion, string? D
     public string? License { get; init; }
 }
 
+/// <summary>
+/// What adds or removes a package: its package manager's command, or an edit of the manifest for one that has no command
+/// for it (Maven's pom.xml).
+/// </summary>
+public sealed record PackageChange(string Title)
+{
+    public WorkspaceTask? Command { get; init; }
+
+    /// <summary>The edit, made in Karvon: what it says it did.</summary>
+    public Func<CancellationToken, Task<string>>? Edit { get; init; }
+
+    public static implicit operator PackageChange(WorkspaceTask task) => new(task.CommandLine) { Command = task };
+}
+
 /// <summary>A package a project depends on: what its manifest asks for, what is installed (null: not yet), and its group.</summary>
 public sealed record DependencyPackage(string Id, string? Requested, string? Version, string Group);
 
@@ -51,11 +65,11 @@ public abstract class PackageSource
     /// <summary>What the project depends on, read from its manifest and what is installed. Quick: it reads files.</summary>
     public abstract IReadOnlyList<DependencyPackage> Dependencies();
 
-    /// <summary>The package manager's command that adds a package (or moves it to another version) in a group.</summary>
-    public abstract WorkspaceTask Add(string id, string version, string? group);
+    /// <summary>What adds a package (or moves it to another version) in a group: the package manager's command, as a rule.</summary>
+    public abstract PackageChange Add(string id, string version, string? group);
 
-    /// <summary>The package manager's command that removes a package.</summary>
-    public abstract WorkspaceTask Remove(DependencyPackage package);
+    /// <summary>What removes a package.</summary>
+    public abstract PackageChange Remove(DependencyPackage package);
 
     /// <summary>Which of two of its versions is newer, as semantic versions are ordered (a prerelease before its release).</summary>
     public virtual int Compare(string a, string b) => PackageVersions.Compare(a, b);

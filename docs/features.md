@@ -150,6 +150,8 @@ package manager, from Solution Explorer's menu of its folder or its manifest:
 - Python: PyPI (a package by its name: pypi.org's search is for browsers), a uv project's dependencies and dependency
   groups (`uv add`, `uv remove`), else `pip` into the folder's virtual environment for its requirements.txt.
 - Go: pkg.go.dev's search and the module proxy's versions, go.mod's requirements (`go get module@version`, `@none`).
+- Java: Maven Central, a pom.xml's dependencies by their scopes or a build.gradle's (.kts) by their configurations;
+  Maven and Gradle have no command that adds one, so Karvon edits the file as it is written.
 
 ## Claude Code (Ctrl+Esc)
 
