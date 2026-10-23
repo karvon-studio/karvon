@@ -299,8 +299,8 @@ public sealed partial class StartViewModel : ObservableObject
     {
         if (PickFolder is null || await PickFolder("Open Folder") is not { } folder)
             return;
-        // Its solution when it has one, as VS offers; else the folder as it is.
-        Choose(FindSolution(folder) ?? folder);
+        // The folder as it is, as File > Open Folder opens it: what is in it is its modules' to find.
+        Choose(folder);
     }
 
     [RelayCommand]
@@ -336,36 +336,18 @@ public sealed partial class StartViewModel : ObservableObject
     void Choose(string path) => SolutionChosen?.Invoke(Path.GetFullPath(path));
 
     /// <summary>
-    /// What to open for a folder: its solution (top level first, then the shallowest one below), or, like VS
-    /// opening a project on its own, its project file when there is no solution. Build and VCS folders are skipped.
+    /// A cloned repository's solution: the one .sln or .slnx at its root, or null (it opens as a folder, as it is: its
+    /// languages' modules find what is in it, deeper too).
     /// </summary>
-    public static string? FindSolution(string folder) =>
-        Find(folder, Workspace.SolutionLoader.IsSolutionFile) ?? Find(folder, Workspace.SolutionLoader.IsProjectFile);
-
-    static string? Find(string folder, Func<string, bool> match)
+    public static string? RootSolution(string folder)
     {
-        var level = new List<string> { folder };
-        for (var depth = 0; depth < 4 && level.Count > 0; depth++)
+        try
         {
-            var found = level.SelectMany(d => SafeEnumerate(() => Directory.EnumerateFiles(d))).Where(match).Order(StringComparer.Ordinal).FirstOrDefault();
-            if (found is not null)
-                return found;
-            level = level.SelectMany(d => SafeEnumerate(() => Directory.EnumerateDirectories(d)))
-                .Where(d => Path.GetFileName(d) is not (".git" or "bin" or "obj" or "node_modules" or ".vs" or ".idea"))
-                .ToList();
+            return Directory.GetFiles(folder).Where(Workspace.SolutionLoader.IsSolutionFile).ToList() is [var one] ? one : null;
         }
-        return null;
-
-        static IEnumerable<string> SafeEnumerate(Func<IEnumerable<string>> list)
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
-            try
-            {
-                return list().ToList();
-            }
-            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-            {
-                return [];
-            }
+            return null;
         }
     }
 
@@ -711,10 +693,7 @@ public sealed partial class StartViewModel : ObservableObject
                 Message = "Clone failed: " + (result.Output.Split('\n', StringSplitOptions.RemoveEmptyEntries).LastOrDefault()?.Trim() ?? "git exited with an error.");
                 return;
             }
-            if (FindSolution(ClonePath) is { } solution)
-                Choose(solution);
-            else
-                Message = $"Cloned into \"{ClonePath}\", but it has no solution or project file to open.";
+            Choose(RootSolution(ClonePath) ?? ClonePath);
         }
         catch (Exception ex) when (ex is InvalidOperationException or IOException or System.ComponentModel.Win32Exception)
         {

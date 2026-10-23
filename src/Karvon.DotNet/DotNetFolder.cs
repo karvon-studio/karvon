@@ -10,7 +10,9 @@ namespace Karvon.DotNet;
 /// A folder opened as it is with .NET in it (a repository with its backend's project and no solution at its root): its
 /// solutions and projects, in it and up to two folders down, and their tasks. dotnet build is the build (the folder's one
 /// solution, else each project, one after another), dotnet test each test project's, and dotnet run each project's that
-/// runs, by its launch profile; F5 debugs one with netcoredbg once its build succeeded.
+/// runs, by its launch profile; F5 debugs one with netcoredbg once its build succeeded. They are the folder's own build,
+/// test and run (the defaults) only for .NET in it or a folder down: one deeper (a sample in a Rust repository) leaves
+/// those to the folder's own language.
 /// </summary>
 public static class DotNetFolder
 {
@@ -55,8 +57,12 @@ public static class DotNetFolder
         static List<string> Build(string target) => ["build", target, "-nologo", "-v:minimal", "-clp:NoSummary;ForceNoAlign"];
         List<WorkspaceTask> tasks = [];
         IReadOnlyList<string> targets = solutions.Count == 1 ? solutions : projects.Count > 0 ? [.. projects.Select(p => p.FilePath)] : solutions;
+        // In the folder or a folder down: its own.
+        var root = Path.TrimEndingDirectorySeparator(folder);
+        bool Same(string? a) => a is not null && string.Equals(a, root, Services.FilePaths.Comparison);
+        bool Own(string file) => Path.GetDirectoryName(file) is { } dir && (Same(dir) || Same(Path.GetDirectoryName(dir)));
         if (targets.Count == 1)
-            tasks.Add(new("dotnet: build", WorkspaceTaskKind.Build, DotnetCli.Executable, Build(targets[0]), folder) { Source = Source, IsDefault = true });
+            tasks.Add(new("dotnet: build", WorkspaceTaskKind.Build, DotnetCli.Executable, Build(targets[0]), folder) { Source = Source, IsDefault = Own(targets[0]) });
         else
         {
             var each = targets.Select(t => new WorkspaceTask($"dotnet: build - {Path.GetFileNameWithoutExtension(t)}", WorkspaceTaskKind.Build,
@@ -64,7 +70,7 @@ public static class DotNetFolder
             tasks.Add(new("dotnet: build", WorkspaceTaskKind.Build, "", [], folder)
             {
                 Source = Source,
-                IsDefault = true,
+                IsDefault = targets.Any(Own),
                 DependsOn = [.. each.Select(t => t.Name)],
                 DependsInSequence = true,
             });
@@ -78,7 +84,7 @@ public static class DotNetFolder
             tasks.Add(new($"dotnet: test - {project.Name}", WorkspaceTaskKind.Test, DotnetCli.Executable, ["test", project.FilePath, "-nologo"], project.Directory)
             {
                 Source = Source,
-                IsDefault = project == tests[0],
+                IsDefault = project == tests[0] && Own(project.FilePath),
                 Environment = DotNetDebugger.OutputEnvironment,
             });
 
@@ -103,7 +109,7 @@ public static class DotNetFolder
                 ["run", "--project", project.FilePath, .. profile is not null ? ["--launch-profile", profile.Name] : new[] { "--no-launch-profile" }], project.Directory)
             {
                 Source = Source,
-                IsDefault = project == runnable[0],
+                IsDefault = project == runnable[0] && Own(project.FilePath),
                 Environment = DotNetDebugger.OutputEnvironment,
                 ServerReadyAction = profile is { LaunchBrowser: true } ? DotNetDebugger.BrowserAt(profile) : null,
                 Debug = new DebugLaunch(name, debug) { Source = Source },

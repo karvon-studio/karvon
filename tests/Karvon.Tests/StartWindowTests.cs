@@ -281,17 +281,27 @@ public class StartViewModelTests
     }
 
     [Fact]
-    public void Finds_the_solution_or_project_in_a_folder()
+    public async Task Open_folder_opens_the_folder_and_a_clone_its_root_solution()
     {
         var root = Path.Combine(Path.GetTempPath(), "karvon-find-" + Guid.NewGuid().ToString("N"));
-        Directory.CreateDirectory(Path.Combine(root, "src", "App", "bin"));
+        Directory.CreateDirectory(Path.Combine(root, "src", "App"));
         File.WriteAllText(Path.Combine(root, "src", "App", "App.csproj"), "<Project />");
-        File.WriteAllText(Path.Combine(root, "src", "App", "bin", "Copy.sln"), "");
-        // No solution (the one under bin/ does not count): the project opens on its own.
-        Assert.Equal(Path.Combine(root, "src", "App", "App.csproj"), StartViewModel.FindSolution(root));
         File.WriteAllText(Path.Combine(root, "src", "All.slnx"), "<Solution />");
-        Assert.Equal(Path.Combine(root, "src", "All.slnx"), StartViewModel.FindSolution(root));
-        Assert.Null(StartViewModel.FindSolution(Path.Combine(root, "src", "App", "bin", "missing")));
+
+        // Open a local folder: the folder itself, though a project and a solution are in it.
+        var vm = new StartViewModel(new Settings()) { PickFolder = _ => Task.FromResult<string?>(root) };
+        string? chosen = null;
+        vm.SolutionChosen += path => chosen = path;
+        await vm.OpenFolderCommand.ExecuteAsync(null);
+        Assert.Equal(root, chosen);
+
+        // A clone opens the one solution at its root, else the folder (one deeper is not its to choose).
+        Assert.Null(StartViewModel.RootSolution(root));
+        File.WriteAllText(Path.Combine(root, "Repo.slnx"), "<Solution />");
+        Assert.Equal(Path.Combine(root, "Repo.slnx"), StartViewModel.RootSolution(root));
+        File.WriteAllText(Path.Combine(root, "Other.sln"), "");
+        Assert.Null(StartViewModel.RootSolution(root));
+        Directory.Delete(root, recursive: true);
     }
 
     [Theory]

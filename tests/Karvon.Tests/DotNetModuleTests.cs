@@ -28,6 +28,30 @@ public class DotNetModuleTests
         return start < 0 ? [] : lines[start..(lines.IndexOf(last, start) + 1)];
     }
 
+    [Fact]
+    public void A_folders_own_dotnet_is_its_default_and_one_deeper_is_not()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "karvon-dotnet-folder-" + Guid.NewGuid().ToString("N"));
+        const string App = """<Project Sdk="Microsoft.NET.Sdk"><PropertyGroup><OutputType>Exe</OutputType><TargetFramework>net10.0</TargetFramework></PropertyGroup></Project>""";
+        // A backend a folder down (a repository with its frontend beside it): the folder's build and run.
+        Directory.CreateDirectory(Path.Combine(root, "Shop.Backend"));
+        File.WriteAllText(Path.Combine(root, "Shop.Backend", "Shop.Backend.csproj"), App);
+        var own = DotNetFolder.Tasks(root);
+        Assert.True(own.Single(t => t.Name == "dotnet: build").IsDefault);
+        Assert.True(own.Single(t => t.Name == "dotnet: run - Shop.Backend").IsDefault);
+
+        // A sample two folders down (in a Rust repository): its tasks are there, the folder's defaults are its own language's.
+        Directory.Delete(Path.Combine(root, "Shop.Backend"), recursive: true);
+        Directory.CreateDirectory(Path.Combine(root, "samples", "app"));
+        File.WriteAllText(Path.Combine(root, "samples", "app", "app.csproj"), App);
+        var deep = DotNetFolder.Tasks(root);
+        Assert.Equal(["dotnet: build", "dotnet: run - app"], deep.Select(t => t.Name));
+        Assert.DoesNotContain(deep, t => t.IsDefault);
+        Assert.True(DotNetFolder.Has(root));
+        Directory.Delete(root, recursive: true);
+        Assert.Empty(DotNetFolder.Tasks(Path.GetTempPath() + "karvon-missing-" + Guid.NewGuid().ToString("N")));
+    }
+
     [AvaloniaFact]
     public async Task A_folder_with_projects_and_no_solution_builds_runs_debugs_and_tests_them()
     {
