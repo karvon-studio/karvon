@@ -648,8 +648,6 @@ public partial class MainWindow : Window, IDialogService
                 items.Add(Item("Clean", () => vm.CleanProjectCommand.Execute(project)));
                 if (project.IsTestProject)
                     items.Add(Item("Run Tests", () => vm.RunProjectTestsCommand.Execute(project), enabled: vm.RunProjectTestsCommand.CanExecute(project)));
-                items.Add(Item("Pack", () => vm.PackProjectCommand.Execute(project)));
-                items.Add(Item("Publish to Folder", () => vm.PublishProjectCommand.Execute(project)));
                 items.Add(new Separator());
                 items.Add(AddMenu(project));
                 items.Add(Item("Set as Startup Project", () => vm.SetStartupProjectCommand.Execute(project), enabled: project.IsRunnable));

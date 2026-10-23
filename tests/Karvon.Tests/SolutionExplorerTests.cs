@@ -27,13 +27,13 @@ public class ItemTemplateTests
     {
         var csproj = NewProject("Shop.Api");
         var dir = Path.GetDirectoryName(csproj)!;
-        var project = ProjectInfo.Load("Shop.Api", csproj);
+        var project = Karvon.DotNet.ProjectReader.Load("Shop.Api", csproj);
         Assert.Equal("Shop.Api", ItemTemplates.Namespace(project, dir));
         Assert.Equal("Shop.Api.Services.Orders", ItemTemplates.Namespace(project, Path.Combine(dir, "Services", "Orders")));
         Assert.Equal("Shop.Api._2024_reports", ItemTemplates.Namespace(project, Path.Combine(dir, "2024 reports")));
 
         var declared = NewProject("Web", rootNamespace: "Acme.Web");
-        Assert.Equal("Acme.Web.Pages", ItemTemplates.Namespace(ProjectInfo.Load("Web", declared), Path.Combine(Path.GetDirectoryName(declared)!, "Pages")));
+        Assert.Equal("Acme.Web.Pages", ItemTemplates.Namespace(Karvon.DotNet.ProjectReader.Load("Web", declared), Path.Combine(Path.GetDirectoryName(declared)!, "Pages")));
 
         Assert.Equal("namespace Shop.Api;\n\npublic interface IOrders\n{\n}\n",
             ItemTemplates.Render(CSharpItemTemplates.All.Single(t => t.Name == "Interface"), "IOrders.cs", dir, project));

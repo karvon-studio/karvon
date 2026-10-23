@@ -182,6 +182,13 @@ public abstract partial class KarvonModule : ObservableObject, IDisposable, IAsy
     public virtual IReadOnlyList<WorkspaceProject> WorkspaceProjects(string workspace) => [];
 
     /// <summary>
+    /// How F5 and Ctrl+F5 start a solution's startup project of its kind: a launch configuration of one of its debuggers
+    /// (.NET's: netcoredbg's "dotnet", the project with the launch profile and build configuration chosen on the toolbar).
+    /// Null for another's project.
+    /// </summary>
+    public virtual DebugLaunch? StartupLaunch(ProjectInfo project, string? launchProfile, string configuration) => null;
+
+    /// <summary>
     /// The packages of a project of its language in a folder (npm's of a package.json folder), or null: Solution
     /// Explorer shows them in the folder's Dependencies. Quick: it looks for the project's manifest.
     /// </summary>

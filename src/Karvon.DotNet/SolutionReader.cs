@@ -24,7 +24,7 @@ public static class SolutionReader
         var dir = Path.GetDirectoryName(solutionPath)!;
 
         var projects = model.SolutionProjects
-            .Select(p => ProjectInfo.Load(p.ActualDisplayName, Path.GetFullPath(Path.Combine(dir, p.FilePath.Replace('\\', '/')))))
+            .Select(p => ProjectReader.Load(p.ActualDisplayName, Path.GetFullPath(Path.Combine(dir, p.FilePath.Replace('\\', '/')))))
             .ToList();
         var byPath = projects.ToDictionary(p => p.FilePath);
 
@@ -68,7 +68,7 @@ public static class SolutionReader
     {
         if (!File.Exists(projectPath))
             throw new FileNotFoundException("The project file was not found.", projectPath);
-        var project = ProjectInfo.Load(Path.GetFileNameWithoutExtension(projectPath), Path.GetFullPath(projectPath));
+        var project = ProjectReader.Load(Path.GetFileNameWithoutExtension(projectPath), Path.GetFullPath(projectPath));
         var root = new ExplorerNode(NodeKind.Solution, $"Solution '{project.Name}'", projectPath) { Detail = "(1 of 1 project)" };
         root.Children.Add(ProjectNode(project));
         root.IsExpanded = true;

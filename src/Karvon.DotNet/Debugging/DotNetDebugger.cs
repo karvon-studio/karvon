@@ -51,7 +51,7 @@ static class DotNetDebugger
             return null;
         }
         return workbench.Solution?.Projects.FirstOrDefault(x => x.FilePath == path)
-            ?? (File.Exists(path) ? ProjectInfo.Load(Path.GetFileNameWithoutExtension(path), path) : null);
+            ?? (File.Exists(path) ? ProjectReader.Load(Path.GetFileNameWithoutExtension(path), path) : null);
     }
 
     static LaunchProfile? ProfileOf(JsonObject configuration, ProjectInfo project) =>

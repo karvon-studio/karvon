@@ -40,7 +40,7 @@ public static class DotNetFolder
                 if (SolutionLoader.IsSolutionFile(file))
                     solutions.Add(file);
                 else if (SolutionLoader.IsProjectFile(file))
-                    projects.Add(ProjectInfo.Load(Path.GetFileNameWithoutExtension(file), file));
+                    projects.Add(ProjectReader.Load(Path.GetFileNameWithoutExtension(file), file));
         }
         return (solutions, projects);
     }

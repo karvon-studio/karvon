@@ -53,6 +53,12 @@ public interface IWorkbench
     /// <summary>Build Solution, as the menu builds it, its output in Output (Build): whether it built.</summary>
     Task<bool> BuildAsync();
 
+    /// <summary>
+    /// A verb of the build ("build", "pack", "publish") on one of the solution's projects, as its module's BuildSolution
+    /// does it, in Output (Build) and the Error List: whether it succeeded.
+    /// </summary>
+    Task<bool> BuildAsync(string verb, ProjectInfo project);
+
     /// <summary>Add New Item in a node's folder, the template chosen first; the new file's path, or null.</summary>
     Task<string?> AddNewItemAsync(ExplorerNode node, ItemTemplate template);
 

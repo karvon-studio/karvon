@@ -124,6 +124,24 @@ public sealed partial class DotNetModule : KarvonModule
 
     public override bool OpensWorkspace(string path) => SolutionReader.Opens(path);
 
+    /// <summary>F5 on a solution's startup project: netcoredbg's "dotnet" launch configuration of it.</summary>
+    public override DebugLaunch? StartupLaunch(ProjectInfo project, string? launchProfile, string configuration)
+    {
+        if (!SolutionLoader.IsProjectFile(project.FilePath))
+            return null;
+        var launch = new System.Text.Json.Nodes.JsonObject
+        {
+            ["name"] = project.Name,
+            ["type"] = "dotnet",
+            ["request"] = "launch",
+            ["projectPath"] = project.FilePath,
+            ["configuration"] = configuration,
+        };
+        if (launchProfile is not null)
+            launch["launchProfile"] = launchProfile;
+        return new DebugLaunch(project.Name, launch);
+    }
+
     /// <summary>A folder opened as it is with .NET in it: dotnet build, test and run of its solution and projects.</summary>
     public override IReadOnlyList<WorkspaceTask> WorkspaceTasks(string workspace) =>
         Workbench.Solution is { IsFolder: true } ? DotNetFolder.Tasks(workspace) : [];
@@ -208,6 +226,10 @@ public sealed partial class DotNetModule : KarvonModule
             case NodeKind.Project when node.Project is { } project:
                 return
                 [
+                    // Pack (dotnet pack: its NuGet package in bin/<configuration>) and Publish to a folder (dotnet publish, as
+                    // VS's folder profile), after Clean (and Run Tests), as Visual Studio has them.
+                    new("Pack", () => Workbench.BuildAsync("pack", project)) { After = project.IsTestProject ? "Run Tests" : "Clean" },
+                    new("Publish to Folder", () => Workbench.BuildAsync("publish", project)) { After = project.IsTestProject ? "Run Tests" : "Clean" },
                     .. AddItems(node),
                     new("Manage NuGet Packages...", () => ManagePackagesAsync(project)) { After = "Add" },
                     .. project.IsRunnable ? [new ModuleMenuItem("Manage User Secrets", () => ManageUserSecretsAsync(project)) { After = "Add" }] : Array.Empty<ModuleMenuItem>(),

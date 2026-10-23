@@ -116,6 +116,9 @@ public partial class MainViewModel : IWorkbench
 
     Task<bool> IWorkbench.BuildAsync() => RunBuildAsync("build", "Build");
 
+    Task<bool> IWorkbench.BuildAsync(string verb, Workspace.ProjectInfo project) =>
+        RunBuildAsync(verb, verb.Length > 0 ? char.ToUpperInvariant(verb[0]) + verb[1..] : "Build", project.FilePath);
+
     Task<bool?> IWorkbench.ConfirmAsync(string title, string message) => Dialogs?.ConfirmAsync(title, message) ?? Task.FromResult<bool?>(null);
 
     Task IWorkbench.RestartLanguageServersAsync() => RestartLanguageServer();

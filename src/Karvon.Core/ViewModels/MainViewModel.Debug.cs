@@ -151,26 +151,21 @@ public partial class MainViewModel
             return;
         if (!await RunBuildAsync("build", "Build", project.FilePath))
             return;
-        await LaunchConfigurationAsync(StartupLaunch(project), noDebug: false, withSolution: true);
+        if (StartupLaunch(project) is { } startup)
+            await LaunchConfigurationAsync(startup, noDebug: false, withSolution: true);
     }
 
     /// <summary>
-    /// F5 on the startup project as a launch configuration of the .NET module's "dotnet" type: the project, the launch
-    /// profile and the build configuration chosen on the toolbar.
+    /// F5 and Ctrl+F5 on the startup project: the launch configuration its module starts it with (.NET's: netcoredbg's
+    /// "dotnet", the project with the launch profile and the build configuration chosen on the toolbar); null, said, when
+    /// no module starts it.
     /// </summary>
-    Modules.DebugLaunch StartupLaunch(ProjectInfo project)
+    Modules.DebugLaunch? StartupLaunch(ProjectInfo project)
     {
-        var configuration = new System.Text.Json.Nodes.JsonObject
-        {
-            ["name"] = project.Name,
-            ["type"] = "dotnet",
-            ["request"] = "launch",
-            ["projectPath"] = project.FilePath,
-            ["configuration"] = Configuration,
-        };
-        if (LaunchProfile is { } profile)
-            configuration["launchProfile"] = profile;
-        return new Modules.DebugLaunch(project.Name, configuration);
+        if (Modules.Select(m => m.StartupLaunch(project, LaunchProfile, Configuration)).FirstOrDefault(l => l is not null) is { } launch)
+            return launch;
+        SetStatus($"No module starts {project.Name}: its module is off (Tools > Modules).");
+        return null;
     }
 
     /// <summary>

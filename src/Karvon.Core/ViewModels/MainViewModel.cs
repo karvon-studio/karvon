@@ -548,14 +548,6 @@ public partial class MainViewModel : ObservableObject
     [RelayCommand]
     Task CleanProject(ProjectInfo? project) => project is null ? Task.CompletedTask : RunBuildAsync("clean", "Clean", project.FilePath);
 
-    /// <summary>Pack: the project's NuGet package (dotnet pack), in bin/&lt;configuration&gt;.</summary>
-    [RelayCommand]
-    Task PackProject(ProjectInfo? project) => project is null ? Task.CompletedTask : RunBuildAsync("pack", "Pack", project.FilePath);
-
-    /// <summary>Publish to a folder (dotnet publish): bin/&lt;configuration&gt;/&lt;framework&gt;/publish, as VS's folder profile.</summary>
-    [RelayCommand]
-    Task PublishProject(ProjectInfo? project) => project is null ? Task.CompletedTask : RunBuildAsync("publish", "Publish", project.FilePath);
-
     [RelayCommand]
     void SetStartupProject(ProjectInfo? project)
     {
@@ -966,7 +958,8 @@ public partial class MainViewModel : ObservableObject
         // Like VS: build first, run only if the build succeeded.
         if (!await RunBuildAsync("build", "Build", project.FilePath))
             return;
-        await LaunchConfigurationAsync(StartupLaunch(project), noDebug: true, withSolution: true);
+        if (StartupLaunch(project) is { } startup)
+            await LaunchConfigurationAsync(startup, noDebug: true, withSolution: true);
     }
 
     /// <summary>A page in the desktop's browser; when there is none, the URL is in the Output window anyway.</summary>
