@@ -41,7 +41,7 @@ jobs:
           cache: false
 
       # The Python module's uv projects: the runner has no uv.
-      - uses: astral-sh/setup-uv@v10
+      - uses: astral-sh/setup-uv@v10.2.0
         with:
           enable-cache: false
 
