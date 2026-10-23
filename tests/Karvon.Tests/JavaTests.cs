@@ -27,13 +27,27 @@ public class JavaTests
         Assert.Equal(("/w/src/main/java/App.java", 12, 5, DiagnosticSeverity.Error, "cannot find symbol"), (maven.File, maven.Line, maven.Column, maven.Severity, maven.Message));
         Assert.Equal(12, JavaTasks.Problem("/w/src/App.java:12: error: cannot find symbol")!.Line);
         Assert.Null(JavaTasks.Problem("[INFO] BUILD SUCCESS"));
+
+        // A JDK's version, from its release file (through the links the PATH's java is).
+        var jdk = Path.Combine(dir, "jdk-21", "bin");
+        Directory.CreateDirectory(jdk);
+        File.WriteAllText(Path.Combine(jdk, "java"), "");
+        File.WriteAllText(Path.Combine(dir, "jdk-21", "release"), "IMPLEMENTOR=\"Eclipse Adoptium\"\nJAVA_VERSION=\"21.0.5\"\n");
+        Assert.Equal(21, JavaTools.MajorOf(Path.Combine(jdk, "java")));
+        if (!OperatingSystem.IsWindows())
+        {
+            File.CreateSymbolicLink(Path.Combine(dir, "java"), Path.Combine(jdk, "java"));
+            Assert.Equal(21, JavaTools.MajorOf(Path.Combine(dir, "java")));
+        }
+        File.WriteAllText(Path.Combine(dir, "jdk-21", "release"), "JAVA_VERSION=\"1.8.0_412\"\n");
+        Assert.Equal(8, JavaTools.MajorOf(Path.Combine(jdk, "java")));
         Directory.Delete(dir, recursive: true);
     }
 
     [AvaloniaFact]
     public async Task Jdtls_checks_and_java_debug_debugs()
     {
-        Assert.SkipUnless(Environment.GetEnvironmentVariable("KARVON_JAVA_LIVE") == "1" && JavaTools.FindJava(Environment.GetEnvironmentVariable("PATH") ?? "") is not null,
+        Assert.SkipUnless(Environment.GetEnvironmentVariable("KARVON_JAVA_LIVE") == "1" && JavaTools.FindJava(Environment.GetEnvironmentVariable("PATH") ?? "", 21) is not null,
             "Set KARVON_JAVA_LIVE=1, with a JDK 21 installed, to download jdtls and java-debug and try them.");
         var dir = Path.Combine(Path.GetTempPath(), "karvon-java-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(Path.Combine(dir, "src"));

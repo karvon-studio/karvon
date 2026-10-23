@@ -28,13 +28,57 @@ public static class JavaTools
 
     public static string JavaDebugRoot => Root("java-debug", JavaDebugVersion);
 
+    static string JavaName => OperatingSystem.IsWindows() ? "java.exe" : "java";
+
     /// <summary>A JDK's java: JAVA_HOME's, else the PATH's; null when there is none.</summary>
     public static string? FindJava(string path)
     {
-        var name = OperatingSystem.IsWindows() ? "java.exe" : "java";
-        if (Environment.GetEnvironmentVariable("JAVA_HOME") is { Length: > 0 } home && File.Exists(Path.Combine(home, "bin", name)))
-            return Path.Combine(home, "bin", name);
-        return TaskVariables.Find(name, path, "/");
+        if (Environment.GetEnvironmentVariable("JAVA_HOME") is { Length: > 0 } home && File.Exists(Path.Combine(home, "bin", JavaName)))
+            return Path.Combine(home, "bin", JavaName);
+        return TaskVariables.Find(JavaName, path, "/");
+    }
+
+    /// <summary>
+    /// A java of at least <paramref name="major"/> (jdtls needs 21): JAVA_HOME's or the PATH's when it is, else one of the
+    /// other JDKs installed where they go (/usr/lib/jvm, SDKMAN's, macOS's), the newest; null when none is.
+    /// </summary>
+    public static string? FindJava(string path, int major)
+    {
+        if (FindJava(path) is { } own && MajorOf(own) >= major)
+            return own;
+        var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+        IEnumerable<string> roots = ["/usr/lib/jvm", Path.Combine(home, ".sdkman", "candidates", "java"), "/Library/Java/JavaVirtualMachines", Path.Combine(home, ".jdks")];
+        return roots.Where(Directory.Exists).SelectMany(Directory.EnumerateDirectories)
+            .Select(jdk => Path.Combine(jdk, OperatingSystem.IsMacOS() && File.Exists(Path.Combine(jdk, "Contents", "Home", "bin", JavaName)) ? Path.Combine("Contents", "Home", "bin") : "bin", JavaName))
+            .Where(File.Exists)
+            .Select(java => (Java: java, Major: MajorOf(java)))
+            .Where(j => j.Major >= major)
+            .OrderByDescending(j => j.Major)
+            .Select(j => j.Java)
+            .FirstOrDefault();
+    }
+
+    /// <summary>A java's major version, read from its JDK's release file (JAVA_VERSION="21.0.5"); 0 when it cannot be.</summary>
+    public static int MajorOf(string java)
+    {
+        try
+        {
+            // The PATH's java is a link (to /etc/alternatives, then to the JDK's).
+            var file = new FileInfo(java);
+            var target = file.LinkTarget is null ? file.FullName : file.ResolveLinkTarget(returnFinalTarget: true)?.FullName ?? file.FullName;
+            var release = Path.Combine(Path.GetDirectoryName(Path.GetDirectoryName(target)!)!, "release");
+            if (!File.Exists(release))
+                return 0;
+            var line = File.ReadLines(release).FirstOrDefault(l => l.StartsWith("JAVA_VERSION=", StringComparison.Ordinal));
+            var version = line?["JAVA_VERSION=".Length..].Trim('"');
+            var first = version?.Split('.')[0];
+            // Java 8's is "1.8.0_x".
+            return first == "1" ? 8 : int.TryParse(first, out var n) ? n : 0;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            return 0;
+        }
     }
 
     /// <summary>jdtls's launcher jar (Equinox's), or null.</summary>

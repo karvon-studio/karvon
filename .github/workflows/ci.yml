@@ -28,6 +28,12 @@ jobs:
         with:
           dotnet-version: 10.0.x
 
+      # jdtls runs on Java 21 or newer: the runner's default is older.
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
       # Delve takes the last Go versions only: the runner's own Go may be older.
       - uses: actions/setup-go@v5
         with:

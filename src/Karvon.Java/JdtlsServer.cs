@@ -30,8 +30,10 @@ public sealed class JdtlsServer : LspClient
     public static async Task<JdtlsServer> StartAsync(LanguageServerStart start)
     {
         var path = Environment.GetEnvironmentVariable("PATH") ?? "";
-        var java = JavaTools.FindJava(path)
-            ?? throw new InvalidOperationException("Java was not found: jdtls runs on a JDK 21 or newer (set JAVA_HOME, or put java on the PATH).");
+        var java = JavaTools.FindJava(path, 21)
+            ?? throw new InvalidOperationException(JavaTools.FindJava(path) is { } old
+                ? $"jdtls runs on Java 21 or newer, and {old} is Java {JavaTools.MajorOf(old)}: install a JDK 21 (or set JAVA_HOME to one)."
+                : "Java was not found: jdtls runs on a JDK 21 or newer (set JAVA_HOME, or put java on the PATH).");
         var launcher = await JavaTools.EnsureJdtlsAsync(start.Log, start.Cancellation);
         var debug = await JavaTools.EnsureJavaDebugAsync(start.Log, start.Cancellation);
         var psi = new ProcessStartInfo(java,
