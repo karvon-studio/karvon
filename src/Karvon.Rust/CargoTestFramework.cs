@@ -200,7 +200,8 @@ public sealed partial class CargoTestFramework(TestFrameworkStart start) : TestF
             {
             }
         }, ct, logJson: false);
-        return problem is null ? binaries : null;
+        // By their targets (src/ before tests/), not by when each was built.
+        return problem is null ? [.. binaries.OrderBy(b => b.Item1, StringComparer.Ordinal)] : null;
     }
 
     /// <summary>What cargo test sets for a test binary as it runs it (some tests read their package's folder).</summary>
