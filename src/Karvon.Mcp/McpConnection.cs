@@ -23,7 +23,7 @@ public sealed record McpReply(string Text, bool IsError = false);
 /// Karvon's own connection to one MCP server, made when the server is opened (never at start: npx may download it first):
 /// what it offers (tools, resources, prompts), calls to them, and a log of everything said, the server's stderr with it.
 /// </summary>
-public sealed class McpConnection(McpServerDefinition server, string? workingDirectory, McpSignIn? signIn = null) : IAsyncDisposable
+public sealed partial class McpConnection(McpServerDefinition server, string? workingDirectory, McpSignIn? signIn = null) : IAsyncDisposable
 {
     const int MaxLog = 2000;
     static readonly TimeSpan Timeout = TimeSpan.FromMinutes(2);
@@ -184,8 +184,10 @@ public sealed class McpConnection(McpServerDefinition server, string? workingDir
                 var message = ex is OperationCanceledException ? signingIn ? "the sign-in was not finished within five minutes" : "it did not answer within two minutes" : Explain(Describe(ex));
                 Write("error", message);
                 await CloseAsync();
-                var wantsSignIn = ex is SignInNeededException || ex.GetBaseException() is SignInNeededException || message.Contains("401", StringComparison.Ordinal) || message.Contains("403", StringComparison.Ordinal)
-                    || message.Contains("Unauthorized", StringComparison.OrdinalIgnoreCase);
+                // Only an HTTP server signs in, and only its 401 or 403 says so (not a number in a path: a program that
+                // does not start names its folder).
+                var wantsSignIn = ex is SignInNeededException || ex.GetBaseException() is SignInNeededException
+                    || Server.IsHttp && (HttpRefusal().IsMatch(message) || message.Contains("Unauthorized", StringComparison.OrdinalIgnoreCase));
                 SetStatus(wantsSignIn && !signingIn ? McpStatus.NeedsSignIn : McpStatus.Failed, wantsSignIn && !signingIn ? "the server wants you to sign in" : message);
             }
         }
@@ -194,6 +196,9 @@ public sealed class McpConnection(McpServerDefinition server, string? workingDir
             _gate.Release();
         }
     }
+
+    [System.Text.RegularExpressions.GeneratedRegex(@"\b40[13]\b")]
+    private static partial System.Text.RegularExpressions.Regex HttpRefusal();
 
     /// <summary>A sign-in is needed, and the connection was not asked to open the browser.</summary>
     sealed class SignInNeededException() : Exception("the server wants you to sign in");
