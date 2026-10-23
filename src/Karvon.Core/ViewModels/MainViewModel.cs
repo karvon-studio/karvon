@@ -939,8 +939,9 @@ public partial class MainViewModel : ObservableObject
     void CancelBuild() => _buildCts?.Cancel();
 
     /// <summary>
-    /// Runs dotnet build/clean and feeds the Output window and Error List. Returns true on success. A folder builds by its
-    /// build task (and has no clean).
+    /// Builds (or cleans, packs, publishes) the solution or one of its projects as the solution's module does it (.NET's
+    /// dotnet build), into the Output window and the Error List: whether it succeeded. A folder builds by its build task
+    /// (and has no clean).
     /// </summary>
     async Task<bool> RunBuildAsync(string verb, string title, string? target = null)
     {
@@ -953,9 +954,14 @@ public partial class MainViewModel : ObservableObject
             SetStatus(verb is "build" or "rebuild" ? "The folder has no build task (.vscode/tasks.json, package.json)." : $"A folder has no {verb}.");
             return false;
         }
+        var request = new Modules.BuildRequest(verb, target ?? solution.FilePath, Configuration);
+        if (Modules.Select(m => m.BuildSolution(solution, request)).FirstOrDefault(c => c is not null) is not { } command)
+        {
+            SetStatus($"No module builds {Path.GetFileName(solution.FilePath)}: its module is off (Tools > Modules).");
+            return false;
+        }
         SaveAll();
         IsBuilding = true;
-        _usedBuildServers = true;
         SelectedOutput = BuildOutput;
         ShowToolWindow(ToolWindows.Output);
         BuildOutput.Clear();
@@ -965,21 +971,17 @@ public partial class MainViewModel : ObservableObject
         var sw = Stopwatch.StartNew();
         BuildOutput.Append($"{title} started at {DateTime.Now:HH:mm}...");
 
-        var args = new List<string> { verb is "clean" or "pack" or "publish" ? verb : "build", target ?? solution.FilePath, "-c", Configuration, "-nologo", "-v:minimal", "-clp:NoSummary;ForceNoAlign" };
-        if (verb == "rebuild")
-            args.Add("--no-incremental");
-
         var succeeded = 0;
         var cts = _buildCts = new CancellationTokenSource();
         int exitCode;
         try
         {
-            using var runner = ProcessRunner.Start(DotnetCli.Executable, args, solution.Directory, line =>
+            using var runner = ProcessRunner.Start(command.Program, command.Arguments, solution.Directory, line =>
             {
                 BuildOutput.Append(line);
-                if (line.Contains(" -> ", StringComparison.Ordinal))
+                if (command.ProjectBuilt?.Invoke(line) == true)
                     Interlocked.Increment(ref succeeded);
-                if (BuildOutputParser.Parse(line) is { } d)
+                if (command.Problems(line) is { } d)
                     Dispatcher.UIThread.Post(() => AddBuildError(d));
             });
             exitCode = await runner.WaitAsync(cts.Token);
@@ -996,7 +998,7 @@ public partial class MainViewModel : ObservableObject
 
         await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
         var verbLabel = verb switch { "clean" => "Clean", "rebuild" => "Rebuild All", "pack" => "Pack", "publish" => "Publish", _ => "Build" };
-        return ReportBuild(verbLabel, Path.GetFileName(target ?? solution.FilePath), exitCode == 0, sw.Elapsed, succeeded);
+        return ReportBuild(verbLabel, Path.GetFileName(target ?? solution.FilePath), exitCode == 0, sw.Elapsed, command.ProjectBuilt is null ? null : succeeded);
     }
 
     /// <summary>A build's last lines in Output, the status bar, and the Error List when it failed with errors.</summary>

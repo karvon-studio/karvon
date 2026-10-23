@@ -62,7 +62,8 @@ public class UiTests
         configure?.Invoke(settings);
         var vm = new MainViewModel(settings, modules);
         // Other tests may be building in parallel: never shut down the shared build servers.
-        vm.ShutdownBuildServers = () => Task.CompletedTask;
+        if (vm.Module<Karvon.DotNet.DotNetModule>() is { } dotnet)
+            dotnet.ShutdownBuildServers = () => Task.CompletedTask;
         vm.Settings.Solutions.Clear();
         vm.Settings.Layout = new();
         // The Claude panel's language is shared by every window: each test starts in English.
@@ -142,7 +143,7 @@ public class UiTests
 
         // Closing Karvon after building shuts down the compiler server and MSBuild nodes the builds left running.
         var shutdowns = 0;
-        vm.ShutdownBuildServers = () => { shutdowns++; return Task.CompletedTask; };
+        vm.Module<Karvon.DotNet.DotNetModule>()!.ShutdownBuildServers = () => { shutdowns++; return Task.CompletedTask; };
         window.Close();
         await WaitUntil(() => !window.IsVisible, TimeSpan.FromSeconds(30));
         Assert.Equal(1, shutdowns);

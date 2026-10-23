@@ -64,6 +64,13 @@ public class DotNetModuleTests
         // Test Explorer has the solution's xUnit tests through the module.
         Assert.True(vm.RunAllTestsCommand.CanExecute(null));
 
+        // Build, Rebuild, Clean, Pack and Publish are its dotnet build; a verb it has not is none of its.
+        var build = vm.Module<DotNetModule>()!.BuildSolution(vm.Solution!, new BuildRequest("rebuild", sln, "Release"))!;
+        Assert.Equal(DotnetCli.Executable, build.Program);
+        Assert.Equal(["build", sln, "-c", "Release", "-nologo", "-v:minimal", "-clp:NoSummary;ForceNoAlign", "--no-incremental"], build.Arguments);
+        Assert.True(build.ProjectBuilt!("  Web -> /out/Web.dll"));
+        Assert.Null(vm.Module<DotNetModule>()!.BuildSolution(vm.Solution!, new BuildRequest("deploy", sln, "Debug")));
+
         // Remove on a package: out of the project file, and out of Dependencies; what dotnet said in Output (Package Manager).
         var dotnet = vm.Module<DotNetModule>()!;
         var tests = vm.Solution!.Projects.Single(p => p.Name == "Tests");
@@ -176,6 +183,9 @@ public class DotNetModuleTests
         Assert.Equal(["New Item...", "Existing Item...", "New Folder", "New EditorConfig", "-", "Project Reference..."], Lines(add.Items.OfType<object>()));
         Assert.Equal(ItemTemplates.General, vm.NewItemTemplates);
         Assert.False(vm.RunAllTestsCommand.CanExecute(null));
+        // No module builds the solution: Build says so, and runs nothing.
+        await vm.BuildSolutionCommand.ExecuteAsync(null);
+        Assert.Equal("No module builds BlazorSample.sln: its module is off (Tools > Modules).", vm.StatusText);
         Assert.Contains(vm.AllModules, m => m.Id == "dotnet" && m.Components.Count == 2);
         var tools = window.MainMenu.Items.OfType<MenuItem>().Single(m => (string?)m.Header == "_Tools");
         Assert.Equal("_Restart Language Server", ((MenuItem)tools.Items[0]!).Header);

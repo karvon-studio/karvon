@@ -19,11 +19,11 @@ Each module is a project of its own, referencing `Karvon.Core`. The core referen
 - C and C++ (`src/Karvon.Cpp`): clangd, CodeLLDB, CMake's and Make's builds; it and Rust share CodeLLDB (`src/Karvon.Lldb`);
 - Java (`src/Karvon.Java`): jdtls, with java-debug in it (one jdtls for the editor and F5), Maven's and Gradle's builds;
 - .NET (`src/Karvon.DotNet`): the SDK's project templates, C#'s and Razor's Add New Item templates, Test Explorer's
-  xUnit, NUnit and MSTest tests (vstest), netcoredbg (F5), the NuGet Package Manager and Solution Explorer's NuGet
-  commands so far, and Roslyn's and netcoredbg's downloads as its components;
+  xUnit, NUnit and MSTest tests (vstest), netcoredbg (F5), dotnet build, the NuGet Package Manager and Solution
+  Explorer's NuGet commands so far, and Roslyn's and netcoredbg's downloads as its components;
 - Claude Code (`src/Karvon.Claude`).
 
-The rest of .NET (solutions, builds, the C# editor, Start Without Debugging) still lives in the core and
+The rest of .NET (solutions, the C# editor, Start Without Debugging) still lives in the core and
 moves to the .NET module one part at a time.
 
 A module's resources are its assembly's (`avares://Karvon.Database/Assets/...`); the core's are
@@ -68,6 +68,7 @@ application's project references.
 | `ProjectTemplates`, `LoadProjectTemplatesAsync(ct)` | Its new projects, in New Project in the modules' order (`LoadProjectTemplatesAsync` when they take a while to list: .NET's are the SDK's). A folder template (`ProjectTemplate.OfModule`: a Go module, a Cargo package...) makes its project folder with its tools or its files (`TemplateSteps`) in `Create`, and that folder opens. One that `MakesSolution` (dotnet new's) makes the solution around its project, which opens; one with `AddToSolution` is in Add > New Project too, and returns the project files the solution adds. |
 | `ExplorerMenu(node)` | What it adds to Solution Explorer's context menu of a node (`ModuleMenuItem`: a header, what it runs, whether it is enabled; one with nothing to run is a separator). An item whose `After` names one of Karvon's items ("Run Tests") goes after it, with the others of the same `After` in the order given; one whose `In` names a submenu of Karvon's ("Add") goes at its end; the rest go after Karvon's own items, before Open in Terminal and Copy Full Path. `Workbench.ProjectOf(node)` is the project a node is under. |
 | `MainMenus` | Its submenus of the main menu (`ModuleSubmenu`: Tools > NuGet Package Manager), first in their top menu, a separator after them. |
+| `BuildSolution(solution, request)` | How it builds a solution that is its (`BuildCommand`: a program and its arguments, run in the solution's folder; how a line of its output says an error or a warning, MSBuild's format by default, and that a project was built). Build, Rebuild, Clean, Pack and Publish ask it, for the solution or one of its projects, with the toolbar's configuration; its output goes to Output (Build) and its errors to the Error List. .NET's is dotnet build. |
 | `ItemTemplates` | Its Add New Item templates (`ItemTemplate`: C#'s class, interface...), before those that are no language's (a text file, JSON, Markdown). Its first is what Add New Item suggests in a project. |
 | `Debuggers` | The debuggers it brings (`DebuggerInfo`: the launch configuration types it debugs, and how its `DebugAdapter` starts: a program on stdin and stdout, or a DAP server whose child sessions are connections of their own). F5 starts the one of the chosen launch configuration's type, with the configuration (its variables put in), which it may complete. A task it debugs carries its `DebugLaunch` in `WorkspaceTask.Debug`. A launch configuration's `serverReadyAction` opens the browser once the program listens. netcoredbg is the .NET module's, for `coreclr` and `dotnet` (a project and its launch profile, as F5 starts a solution's startup project). |
 | `ClaudeTools()` | The tools it gives the Claude Code sessions Karvon starts (`mcp__karvon__*`). A module that is off gives none. |

@@ -100,7 +100,6 @@ public partial class MainWindow : Window, IDialogService
         if (await vm.CloseSolutionCoreAsync())
         {
             await vm.ShutdownTerminalAsync();
-            await vm.ShutdownBuildServersAsync();
             await vm.ShutdownModulesAsync();
             _closingConfirmed = true;
             Close();

@@ -168,6 +168,13 @@ public abstract partial class KarvonModule : ObservableObject, IDisposable, IAsy
     /// <summary>Its submenus of the main menu (Tools > NuGet Package Manager).</summary>
     public virtual IReadOnlyList<ModuleSubmenu> MainMenus => [];
 
+    /// <summary>
+    /// How it builds a solution that is its (.NET's: dotnet build of a .sln, a .slnx or a project): Build, Rebuild, Clean,
+    /// Pack and Publish run it, its output in Output (Build), its errors in the Error List. Null for a solution, or a
+    /// verb, that is not its.
+    /// </summary>
+    public virtual BuildCommand? BuildSolution(SolutionInfo solution, BuildRequest request) => null;
+
     /// <summary>Its Add New Item templates (C#'s class, interface...), before those that are no language's.</summary>
     public virtual IReadOnlyList<ItemTemplate> ItemTemplates => [];
 

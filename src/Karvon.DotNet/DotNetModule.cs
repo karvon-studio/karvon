@@ -1,4 +1,5 @@
 using Avalonia.Controls.Templates;
+using Karvon.Build;
 using Karvon.DotNet.NuGet;
 using Karvon.DotNet.Templates;
 using Karvon.Modules;
@@ -42,6 +43,53 @@ public sealed class DotNetModule : KarvonModule
 
     /// <summary>The SDK's project templates (dotnet new's), as Visual Studio lists them.</summary>
     public override Task<IReadOnlyList<ProjectTemplate>> LoadProjectTemplatesAsync(CancellationToken ct) => TemplateCatalog.LoadAsync(ct);
+
+    /// <summary>dotnet build (clean, pack, publish) of the solution or of one of its projects, as Visual Studio builds it.</summary>
+    public override BuildCommand? BuildSolution(SolutionInfo solution, BuildRequest request)
+    {
+        if (solution.IsFolder || request.Verb is not ("build" or "rebuild" or "clean" or "pack" or "publish"))
+            return null;
+        _usedBuildServers = true;
+        List<string> args = [request.Verb == "rebuild" ? "build" : request.Verb, request.Target, "-c", request.Configuration, "-nologo", "-v:minimal", "-clp:NoSummary;ForceNoAlign"];
+        if (request.Verb == "rebuild")
+            args.Add("--no-incremental");
+        return new BuildCommand(DotnetCli.Executable, args) { ProjectBuilt = line => line.Contains(" -> ", StringComparison.Ordinal) };
+    }
+
+    /// <summary>
+    /// Whether it built. dotnet build leaves the C# compiler server (VBCSCompiler) and MSBuild nodes running for the next
+    /// build, about a gigabyte together, and they only exit after several idle minutes: Karvon keeps them while it is
+    /// open and shuts them down when it exits, if it built anything.
+    /// </summary>
+    bool _usedBuildServers;
+
+    /// <summary>`dotnet build-server shutdown` (replaced in tests, whose builds share the servers with other tests).</summary>
+    public Func<Task> ShutdownBuildServers { get; set; } = ShutdownBuildServersCoreAsync;
+
+    public override async ValueTask DisposeAsync()
+    {
+        if (_usedBuildServers)
+        {
+            _usedBuildServers = false;
+            await ShutdownBuildServers();
+        }
+        await base.DisposeAsync();
+    }
+
+    static async Task ShutdownBuildServersCoreAsync()
+    {
+        try
+        {
+            using var runner = ProcessRunner.Start(DotnetCli.Executable, ["build-server", "shutdown"],
+                Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), _ => { });
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(15));
+            await runner.WaitAsync(cts.Token);
+        }
+        catch (Exception ex) when (ex is OperationCanceledException or InvalidOperationException or System.ComponentModel.Win32Exception or IOException)
+        {
+            // Leaving them to exit on their own is fine.
+        }
+    }
 
     public override IReadOnlyList<ItemTemplate> ItemTemplates => CSharpItemTemplates.All;
 
