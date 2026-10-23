@@ -278,9 +278,14 @@ public partial class MainViewModel
         }
     }
 
-    /// <summary>Routes a session's events into break mode, the Output window and breakpoint state.</summary>
+    /// <summary>
+    /// Routes a session's events into break mode, the Output window and breakpoint state. It is the session from now on,
+    /// before the program runs: a program that stops at once (debugpy's, on its first lines) stops before the session is
+    /// started, and its stop would find none.
+    /// </summary>
     void WireSession(DebugSession session)
     {
+        _session = session;
         session.Stopped += (thread, reason, text) => Dispatcher.UIThread.Post(() => _ = OnStoppedAsync(thread, reason, text));
         session.Continued += () => Dispatcher.UIThread.Post(BeginRunning);
         session.Ended += code => Dispatcher.UIThread.Post(() => OnDebugEnded(session, code));
