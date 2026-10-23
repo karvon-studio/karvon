@@ -78,6 +78,7 @@ public partial class MainViewModel
         startup ??= StartupItem?.Name;
         var tasks = new List<WorkspaceTask>();
         var launches = new List<DebugLaunch>();
+        IReadOnlyList<VsCodeLaunch.Compound> compounds = [];
         if (Solution is { } solution)
         {
             if (IsFolderWorkspace)
@@ -85,6 +86,7 @@ public partial class MainViewModel
                 try
                 {
                     launches.AddRange(VsCodeLaunch.Read(solution.Directory));
+                    compounds = VsCodeLaunch.ReadCompounds(solution.Directory, launches);
                 }
                 catch (Exception ex) when (ex is JsonException or IOException or UnauthorizedAccessException)
                 {
@@ -116,6 +118,8 @@ public partial class MainViewModel
         StartupItems.Clear();
         foreach (var launch in launches)
             StartupItems.Add(StartupItem.Of(launch));
+        foreach (var compound in compounds)
+            StartupItems.Add(StartupItem.Of(compound));
         foreach (var task in tasks)
         {
             WorkspaceTasks.Add(task);

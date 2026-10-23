@@ -10,7 +10,24 @@ namespace Karvon.ViewModels;
 /// <summary>Debugger integration: F5 / F10 / F11, breakpoints, Locals, Watch and Call Stack.</summary>
 public partial class MainViewModel
 {
+    /// <summary>
+    /// The session the debugger's windows show (Call Stack, Locals, the editor's line) and F10, F11 and Continue act on:
+    /// the one that stopped last, else the last started. One of <see cref="_sessions"/>.
+    /// </summary>
     DebugSession? _session;
+
+    /// <summary>The sessions running: one, or several started together (a compound's), each its program's.</summary>
+    readonly List<DebugSession> _sessions = [];
+
+    /// <summary>Each session's program (its configuration's name) and its postDebugTask.</summary>
+    readonly Dictionary<DebugSession, (string Name, string? PostDebugTask)> _sessionLaunches = [];
+
+    /// <summary>A compound's sessions that stop together (its stopAll): one that ends ends the rest.</summary>
+    readonly HashSet<DebugSession> _stopTogether = [];
+
+    /// <summary>The sessions stopped now, where (their thread, why): the one shown, and those waiting to be.</summary>
+    readonly Dictionary<DebugSession, (int Thread, string Reason, string? Text)> _stoppedSessions = [];
+
     int _stoppedThread;
     string _stopReason = "";
     string? _stopText;
@@ -56,18 +73,19 @@ public partial class MainViewModel
             _state.Breakpoints = Breakpoints.Snapshot();
             SaveSession();
         }
-        if (_session is not { HasEnded: false } session)
-            return;
-        // Breakpoints added or removed while debugging take effect immediately.
+        // Breakpoints added or removed while debugging take effect immediately, in every session.
         var lines = Breakpoints.For(file).ToList();
-        try
+        foreach (var session in _sessions.Where(s => !s.HasEnded).ToList())
         {
-            var results = await session.SetBreakpointsAsync(file, lines);
-            Breakpoints.SetVerification(file, lines, results);
-        }
-        catch (Exception ex) when (ex is DapException or IOException)
-        {
-            DebugOutput.Append("Failed to update breakpoints: " + ex.Message);
+            try
+            {
+                var results = await session.SetBreakpointsAsync(file, lines);
+                Breakpoints.SetVerification(file, lines, results);
+            }
+            catch (Exception ex) when (ex is DapException or IOException)
+            {
+                DebugOutput.Append("Failed to update breakpoints: " + ex.Message);
+            }
         }
     }
 
@@ -96,6 +114,12 @@ public partial class MainViewModel
         if (Mode == DebugMode.Break && _session is { } running)
         {
             await StepAsync(s => s.ContinueAsync(_stoppedThread));
+            // Another session stopped meanwhile (a compound's other program): it is the one shown now.
+            if (_stoppedSessions.Keys.FirstOrDefault(s => s != running) is { } waiting)
+            {
+                var (thread, reason, text) = _stoppedSessions[waiting];
+                await OnStoppedAsync(waiting, thread, reason, text);
+            }
             return;
         }
         await LaunchDebuggerAsync();
@@ -108,6 +132,9 @@ public partial class MainViewModel
         {
             switch (StartupItem)
             {
+                case { Compound: { } compound }:
+                    await LaunchCompoundAsync(compound, noDebug: false);
+                    break;
                 case { Debug: { } launch }:
                     await LaunchConfigurationAsync(launch, noDebug: false);
                     break;
@@ -144,17 +171,42 @@ public partial class MainViewModel
     }
 
     /// <summary>
+    /// A launch.json compound: its preLaunchTask, then its configurations, each beside those started before it, as VS
+    /// Code starts them; with stopAll, one that ends ends the rest.
+    /// </summary>
+    async Task LaunchCompoundAsync(VsCodeLaunch.Compound compound, bool noDebug)
+    {
+        if (Solution is null || Mode != DebugMode.Design || IsRunning)
+            return;
+        DebugOutput.Clear();
+        if (compound.PreLaunchTask is { } pre && !await RunPreLaunchTaskAsync(pre))
+            return;
+        var started = new List<DebugSession>();
+        foreach (var launch in compound.Launches)
+        {
+            var before = _session;
+            await LaunchConfigurationAsync(launch, noDebug, beside: started.Count > 0);
+            if (_session is { } session && session != before && !started.Contains(session))
+                started.Add(session);
+        }
+        if (compound.StopAll && started.Count > 1)
+            foreach (var session in started)
+                _stopTogether.Add(session);
+    }
+
+    /// <summary>
     /// A launch configuration started: its preLaunchTask first, then the debugger of its type with it (its variables put
     /// in), the breakpoints set; without them when it runs without debugging (Ctrl+F5, noDebug as VS Code has it, or the
     /// program its debugger runs for that). With the solution, the projects that start with the startup project start
-    /// beside it.
+    /// beside it. Beside the sessions running (a compound's next one), it starts one more.
     /// </summary>
-    async Task LaunchConfigurationAsync(Modules.DebugLaunch launch, bool noDebug, bool withSolution = false)
+    async Task LaunchConfigurationAsync(Modules.DebugLaunch launch, bool noDebug, bool withSolution = false, bool beside = false)
     {
-        if (Solution is not { } solution || Mode != DebugMode.Design || IsRunning)
+        if (Solution is not { } solution || (Mode != DebugMode.Design && !beside) || IsRunning)
             return;
         SaveAll();
-        DebugOutput.Clear();
+        if (!beside)
+            DebugOutput.Clear();
         if (launch.PreLaunchTask is { } pre && !await RunPreLaunchTaskAsync(pre))
             return;
         SelectedOutput = DebugOutput;
@@ -194,8 +246,11 @@ public partial class MainViewModel
             configuration["noDebug"] = true;
         _debuggedProject = launch.Name;
         _postDebugTask = launch.PostDebugTask;
-        Mode = DebugMode.Running;
-        SetStatus("Running", StatusKind.Running);
+        if (Mode == DebugMode.Design)
+        {
+            Mode = DebugMode.Running;
+            SetStatus("Running", StatusKind.Running);
+        }
         DebugAdapter adapter;
         try
         {
@@ -204,8 +259,11 @@ public partial class MainViewModel
         catch (Exception ex)
         {
             DebugOutput.Append($"{debugger.Name} could not start: {ex.Message}");
-            Mode = DebugMode.Design;
-            SetStatus("Ready", StatusKind.Ready);
+            if (_sessions.Count == 0)
+            {
+                Mode = DebugMode.Design;
+                SetStatus("Ready", StatusKind.Ready);
+            }
             return;
         }
         DebugOutput.Append(noDebug ? $"Running {launch.Name} (without debugging) with {debugger.Name}" : $"Debugging {launch.Name} with {debugger.Name}");
@@ -223,10 +281,13 @@ public partial class MainViewModel
         catch (Exception ex)
         {
             DebugOutput.Append("Failed to start debugging: " + StartFailure(ex));
-            _session = null;
-            StopStartedWithSolution();
-            Mode = DebugMode.Design;
-            SetStatus("Ready", StatusKind.Ready);
+            _session = _sessions.LastOrDefault();
+            if (_sessions.Count == 0)
+            {
+                StopStartedWithSolution();
+                Mode = DebugMode.Design;
+                SetStatus("Ready", StatusKind.Ready);
+            }
         }
     }
 
@@ -271,8 +332,17 @@ public partial class MainViewModel
     void WireSession(DebugSession session)
     {
         _session = session;
-        session.Stopped += (thread, reason, text) => Dispatcher.UIThread.Post(() => _ = OnStoppedAsync(thread, reason, text));
-        session.Continued += () => Dispatcher.UIThread.Post(BeginRunning);
+        _sessions.Add(session);
+        _sessionLaunches[session] = (_debuggedProject ?? "", _postDebugTask);
+        var ready = _serverReady;
+        session.Stopped += (thread, reason, text) => Dispatcher.UIThread.Post(() => _ = OnStoppedAsync(session, thread, reason, text));
+        // Another session's going on is not this one's: the one shown stays where it stopped.
+        session.Continued += () => Dispatcher.UIThread.Post(() =>
+        {
+            _stoppedSessions.Remove(session);
+            if (_session == session)
+                BeginRunning();
+        });
         session.Ended += code => Dispatcher.UIThread.Post(() => OnDebugEnded(session, code));
         session.BreakpointChanged += (file, line, verified) => Dispatcher.UIThread.Post(() =>
             Breakpoints.SetVerification(file, [line], [new BreakpointResult(verified, line, null)]));
@@ -288,7 +358,7 @@ public partial class MainViewModel
             }
             DebugOutput.AppendRaw(text);
             // The program listens: its launch configuration's serverReadyAction opens the browser.
-            if (_serverReady?.Match(text) is { } url)
+            if (ready?.Match(text) is { } url)
                 Dispatcher.UIThread.Post(() => OpenBrowser(url));
         };
     }
@@ -327,6 +397,7 @@ public partial class MainViewModel
     {
         if (_session is not { } session)
             return;
+        _stoppedSessions.Remove(session);
         BeginRunning();
         try
         {
@@ -344,7 +415,7 @@ public partial class MainViewModel
     [RelayCommand(CanExecute = nameof(IsRunningUnderDebugger))]
     async Task BreakAll()
     {
-        if (_session is { } session)
+        foreach (var session in _sessions.ToList())
             await session.PauseAsync();
     }
 
@@ -356,19 +427,28 @@ public partial class MainViewModel
     async Task Stop()
     {
         _runProcess?.Kill();
-        if (_session is { } session)
+        foreach (var session in _sessions.ToList())
             await session.TerminateAsync();
     }
 
     [RelayCommand(CanExecute = nameof(IsDebugging))]
     async Task Restart()
     {
-        if (_session is { } session)
+        if (_sessions.Count > 0)
         {
-            var ended = new TaskCompletionSource();
-            session.Ended += _ => ended.TrySetResult();
-            await session.TerminateAsync();
-            await ended.Task.WaitAsync(TimeSpan.FromSeconds(10));
+            var ended = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            void OnEnded() => ended.TrySetResult();
+            DebugEnded += OnEnded;
+            try
+            {
+                foreach (var session in _sessions.ToList())
+                    await session.TerminateAsync();
+                await ended.Task.WaitAsync(TimeSpan.FromSeconds(10));
+            }
+            finally
+            {
+                DebugEnded -= OnEnded;
+            }
             await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
         }
         await LaunchDebuggerAsync();
@@ -401,14 +481,15 @@ public partial class MainViewModel
         }
     }
 
-    async Task OnStoppedAsync(int threadId, string reason, string? text)
+    /// <summary>How many stops were shown or are being shown: a stop shows only when no later one has come meanwhile.</summary>
+    int _stops;
+
+    async Task OnStoppedAsync(DebugSession session, int threadId, string reason, string? text)
     {
-        if (_session is not { } session)
+        if (!_sessions.Contains(session))
             return;
-        _stoppedThread = threadId;
-        (_stopReason, _stopText) = (reason, text);
-        Mode = DebugMode.Break;
-        SetStatus(reason == "exception" ? $"Exception thrown: {text}" : "Break mode", StatusKind.Running);
+        _stoppedSessions[session] = (threadId, reason, text);
+        var stop = ++_stops;
         if (reason == "exception")
             DebugOutput.Append($"Exception thrown: {text}");
 
@@ -420,8 +501,17 @@ public partial class MainViewModel
         catch (Exception ex) when (ex is DapException or IOException)
         {
             DebugOutput.Append("Could not read the call stack: " + ex.Message);
-            return;
+            frames = [];
         }
+        // A later stop (another session's) is the one shown, this one waits its turn; one that went on is not shown.
+        if (stop != _stops || !_stoppedSessions.ContainsKey(session))
+            return;
+        // The session that stopped is the one shown, and the one F10, F11 and Continue act on: all of it at once.
+        _session = session;
+        _stoppedThread = threadId;
+        (_stopReason, _stopText) = (reason, text);
+        Mode = DebugMode.Break;
+        SetStatus(reason == "exception" ? $"Exception thrown: {text}" : "Break mode", StatusKind.Running);
         CallStack.Clear();
         foreach (var f in frames)
             CallStack.Add(new StackFrameItem(f.Id, f.Name, f.SourcePath, f.Line, f.Column));
@@ -538,9 +628,34 @@ public partial class MainViewModel
 
     void OnDebugEnded(DebugSession session, int? exitCode)
     {
-        if (_session != session)
+        if (!_sessions.Remove(session))
             return;
+        _stoppedSessions.Remove(session);
+        var (name, post) = _sessionLaunches.Remove(session, out var launched) ? launched : (_debuggedProject ?? "", _postDebugTask);
+        // A compound's that stop together: the rest go with it.
+        if (_stopTogether.Remove(session))
+        {
+            foreach (var other in _stopTogether.ToList())
+                _ = other.TerminateAsync();
+            _stopTogether.Clear();
+        }
+        if (_sessions.Count > 0)
+        {
+            // Others run on: this program's end, and the windows show another.
+            DebugOutput.Append(exitCode is { } exited ? $"The program '{name}' has exited with code {exited} (0x{exited:x})." : $"The program '{name}' has exited.");
+            _ = session.DisposeAsync().AsTask();
+            if (post is not null)
+                _ = RunTask(WorkspaceTasks.FirstOrDefault(t => t.Name == post));
+            if (_session == session)
+            {
+                _session = _sessions[^1];
+                BeginRunning();
+            }
+            return;
+        }
         _session = null;
+        _debuggedProject = name;
+        _postDebugTask = post;
         foreach (var doc in Editors)
         {
             doc.Host.SetExecutionLine(null);
@@ -563,10 +678,10 @@ public partial class MainViewModel
         Mode = DebugMode.Design;
         SetStatus("Ready", Solution is null ? StatusKind.NoSolution : StatusKind.Ready);
         _ = session.DisposeAsync().AsTask();
-        if (_postDebugTask is { } post)
+        if (_postDebugTask is { } after)
         {
             _postDebugTask = null;
-            _ = RunTask(WorkspaceTasks.FirstOrDefault(t => t.Name == post));
+            _ = RunTask(WorkspaceTasks.FirstOrDefault(t => t.Name == after));
         }
     }
 }

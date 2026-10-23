@@ -371,7 +371,7 @@ public partial class MainViewModel : ObservableObject
                 return false;
 
         _runProcess?.Kill();
-        if (_session is { } debugSession)
+        foreach (var debugSession in _sessions.ToList())
             await debugSession.TerminateAsync();
         _buildCts?.Cancel();
         StopWorkspaceTasks();
@@ -945,6 +945,9 @@ public partial class MainViewModel : ObservableObject
         {
             switch (StartupItem)
             {
+                case { Compound: { } compound }:
+                    await LaunchCompoundAsync(compound, noDebug: true);
+                    break;
                 case { Task: { } task }:
                     await RunProgramTaskAsync(task);
                     break;

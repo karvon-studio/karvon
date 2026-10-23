@@ -293,4 +293,85 @@ public class DebugLaunchTests
         window.Close();
         Directory.Delete(dir, recursive: true);
     }
+
+    [AvaloniaFact]
+    public async Task A_compound_debugs_its_programs_together()
+    {
+        Assert.SkipUnless(Environment.GetEnvironmentVariable("KARVON_TYPESCRIPT_LIVE") == "1", "Set KARVON_TYPESCRIPT_LIVE=1 to download js-debug and debug with it.");
+        var path = string.Join(Path.PathSeparator, Karvon.Build.NodeLocator.DirectoryOffPath() ?? "", Environment.GetEnvironmentVariable("PATH") ?? "");
+        Assert.SkipUnless(TaskVariables.Find("node", path, "/") is not null, "Node.js is not installed.");
+        var dir = NewFolder();
+        // Two programs that each stop at a breakpoint a moment after they start (when both sessions are up), then wait
+        // to be told to end.
+        var server = Path.Combine(dir, "server.js");
+        File.WriteAllText(server, """
+            function listen(port) {
+              console.log("server on", port);
+            }
+            setTimeout(() => listen(8080), 1000);
+            setTimeout(() => {}, 60000);
+            """);
+        File.WriteAllText(Path.Combine(dir, "quick.js"), "console.log(\"quick done\");\n");
+        var client = Path.Combine(dir, "client.js");
+        File.WriteAllText(client, """
+            function ask(what) {
+              console.log("client asks", what);
+            }
+            setTimeout(() => ask("hello"), 1000);
+            setTimeout(() => {}, 60000);
+            """);
+        File.WriteAllText(VsCodeLaunch.FileOf(dir), """
+            { "configurations": [
+                { "name": "Server", "type": "node", "request": "launch", "program": "${workspaceFolder}/server.js" },
+                { "name": "Client", "type": "node", "request": "launch", "program": "${workspaceFolder}/client.js" },
+                { "name": "Quick", "type": "node", "request": "launch", "program": "${workspaceFolder}/quick.js" }
+              ],
+              "compounds": [
+                { "name": "Both", "configurations": ["Server", "Client"], "stopAll": true },
+                { "name": "Server and quick", "configurations": ["Server", "Quick"], "stopAll": true },
+                { "name": "Nothing known", "configurations": ["Missing"] }
+              ] }
+            """);
+        var vm = NewViewModel();
+        var window = new MainWindow { DataContext = vm, Width = 1280, Height = 800 };
+        window.Show();
+        await vm.OpenSolutionAsync(dir);
+        // The compound after the configurations; one of none the file has is left out.
+        Assert.Equal(["Server", "Client", "Quick", "Both", "Server and quick"], vm.StartupItems.Select(i => i.Name));
+        vm.StartupItem = vm.StartupItems.Single(i => i.Name == "Both");
+
+        // F5: both under js-debug at once; each stops at its breakpoint, and the one that stopped is the one shown.
+        vm.Breakpoints.Toggle(server, 2);
+        vm.Breakpoints.Toggle(client, 2);
+        await vm.StartDebuggingCommand.ExecuteAsync(null);
+        var stoppedIn = new HashSet<string>();
+        for (var i = 0; i < 4 && stoppedIn.Count < 2; i++)
+        {
+            await WaitUntil(() => vm.Mode == DebugMode.Break && vm.CallStack.Count > 0, TimeSpan.FromMinutes(2));
+            Assert.True(vm.Mode == DebugMode.Break && vm.CallStack.Count > 0, $"{vm.Mode} at {i}, stopped in {string.Join(", ", stoppedIn.Select(Path.GetFileName))}\n{vm.DebugOutput.Document.Text}");
+            Assert.Equal(2, vm.CallStack[0].Line);
+            stoppedIn.Add(vm.CallStack[0].SourcePath!);
+            // Continue: the shown one goes on, and the other, stopped meanwhile or later, is shown.
+            await vm.StartDebuggingCommand.ExecuteAsync(null);
+        }
+        Assert.Equal([client, server], stoppedIn.Order());
+        await WaitUntil(() => vm.DebugOutput.Document.Text.Contains("server on 8080") && vm.DebugOutput.Document.Text.Contains("client asks hello"), TimeSpan.FromSeconds(30));
+        Assert.Equal(DebugMode.Running, vm.Mode);
+
+        // Stop: both go.
+        await vm.StopCommand.ExecuteAsync(null);
+        await WaitUntil(() => vm.Mode == DebugMode.Design, TimeSpan.FromSeconds(30));
+        Assert.Equal(DebugMode.Design, vm.Mode);
+
+        // stopAll: the program that ends by itself ends the one that would have run on.
+        vm.Breakpoints.Toggle(server, 2);
+        vm.Breakpoints.Toggle(client, 2);
+        vm.StartupItem = vm.StartupItems.Single(i => i.Name == "Server and quick");
+        await vm.StartDebuggingCommand.ExecuteAsync(null);
+        await WaitUntil(() => vm.DebugOutput.Document.Text.Contains("quick done") && vm.Mode == DebugMode.Design, TimeSpan.FromSeconds(30));
+        Assert.True(vm.Mode == DebugMode.Design, vm.DebugOutput.Document.Text);
+        Assert.True(await vm.CloseSolutionCoreAsync());
+        window.Close();
+        Directory.Delete(dir, recursive: true);
+    }
 }
