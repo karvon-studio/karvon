@@ -39,7 +39,8 @@ it does today all along.
 ## 0c. Every platform
 
 - No Linux-only code in Core: paths, process trees, the trash, opening files and URLs, the default shell (in now:
-  opening files, folders and URLs, and the trash, on Linux, macOS and Windows; process trees on Linux and macOS).
+  opening files, folders and URLs, and the trash, on Linux, macOS and Windows; process trees on Linux and macOS;
+  netcoredbg's build for Linux x64 and Arm64, Apple Silicon and Windows x64).
 - Cmd on macOS where Ctrl is on Linux and Windows.
 - CI builds and tests on Linux, macOS and Windows.
 
@@ -57,7 +58,7 @@ HTML and CSS.
 
 ## 3. macOS release
 
-A signed and notarized `.dmg`, Homebrew, a debugger for Apple Silicon.
+A signed and notarized `.dmg`, Homebrew; .NET debugging on Apple Silicon (netcoredbg's build is in; an Intel Mac has none).
 
 ## 4. More languages and Windows
 
