@@ -56,7 +56,20 @@ public sealed record LanguageServerStart(string Workspace, Action<string> Log, C
 /// <summary>A workload's debugger: the launch.json types it debugs ("node", "coreclr"...), and how it starts for one.</summary>
 /// <param name="Types">The configurations' types it debugs.</param>
 /// <param name="StartAsync">Its adapter (installed the first time); it may complete the configuration (its own name for the type...).</param>
-public sealed record DebuggerInfo(string Id, string Name, IReadOnlyList<string> Types, Func<DebuggerStart, Task<Debugging.DebugAdapter>> StartAsync);
+public sealed record DebuggerInfo(string Id, string Name, IReadOnlyList<string> Types, Func<DebuggerStart, Task<Debugging.DebugAdapter>> StartAsync)
+{
+    /// <summary>
+    /// What it asks before one of its configurations starts, after its preLaunchTask (.NET's: whether to trust the
+    /// development certificate for an https launch profile): false, and it does not start.
+    /// </summary>
+    public Func<DebugLaunch, Task<bool>>? PrepareAsync { get; init; }
+
+    /// <summary>
+    /// Ctrl+F5 of one of its configurations (its variables put in), when it runs that without a debugger: the program it
+    /// runs (.NET's "dotnet": dotnet run with the launch profile). Null, and the debugger runs it with noDebug.
+    /// </summary>
+    public Func<JsonObject, Task<WorkspaceTask?>>? RunWithoutDebuggingAsync { get; init; }
+}
 
 /// <summary>What a debugger starts with.</summary>
 /// <param name="Configuration">The launch configuration, its variables put in: launch.json's, or a module's for its task.</param>
@@ -66,25 +79,31 @@ public sealed record DebuggerStart(string Workspace, JsonObject Configuration, s
 
 /// <summary>
 /// An item a module puts in one of Karvon's menus: its header (with its access key, "Manage NuGet Packages for
-/// _Solution..."), what it runs; one with nothing to run is a separator.
+/// _Solution..."), what it runs, or the items of its submenu; one with neither is a separator.
 /// </summary>
 public sealed record ModuleMenuItem(string Header, Func<Task>? Run)
 {
     public static ModuleMenuItem Separator { get; } = new("-", null);
 
-    public bool IsSeparator => Run is null;
+    public bool IsSeparator => Run is null && Items is null;
+
+    /// <summary>Its submenu's items: it opens a submenu (Tools > NuGet Package Manager) and runs nothing.</summary>
+    public IReadOnlyList<ModuleMenuItem>? Items { get; init; }
 
     public bool IsEnabled { get; init; } = true;
 
-    /// <summary>In a Solution Explorer menu: the item of Karvon's it goes after, by its header ("Run Tests").</summary>
+    /// <summary>The item of Karvon's it goes after, by its header ("Run Tests"; in the main menu, its access key aside).</summary>
     public string? After { get; init; }
 
     /// <summary>In a Solution Explorer menu: the submenu of Karvon's it goes in, at its end, by its header ("Add").</summary>
     public string? In { get; init; }
 }
 
-/// <summary>A module's submenu of the main menu: under the top menu (Tools), first in it, its items in it.</summary>
-public sealed record ModuleSubmenu(string Menu, string Header, IReadOnlyList<ModuleMenuItem> Items);
+/// <summary>
+/// A module's item of the main menu: in a top menu (Tools), after the item of Karvon's its After names, else first in
+/// it, a separator after the modules' first items.
+/// </summary>
+public sealed record ModuleMainMenuItem(string Menu, ModuleMenuItem Item);
 
 /// <summary>What a module's test frameworks start with.</summary>
 /// <param name="Workspace">The open folder, or the solution's.</param>
@@ -173,8 +192,8 @@ public abstract partial class KarvonModule : ObservableObject, IDisposable, IAsy
     /// </summary>
     public virtual IReadOnlyList<ModuleMenuItem> ExplorerMenu(ExplorerNode node) => [];
 
-    /// <summary>Its submenus of the main menu (Tools > NuGet Package Manager).</summary>
-    public virtual IReadOnlyList<ModuleSubmenu> MainMenus => [];
+    /// <summary>Its items of the main menu (Tools > NuGet Package Manager, Tools > Trust ASP.NET Core Development Certificate).</summary>
+    public virtual IReadOnlyList<ModuleMainMenuItem> MainMenus => [];
 
     /// <summary>
     /// How it builds a solution that is its (.NET's: dotnet build of a .sln, a .slnx or a project): Build, Rebuild, Clean,

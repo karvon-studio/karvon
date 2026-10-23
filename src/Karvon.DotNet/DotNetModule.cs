@@ -17,7 +17,7 @@ namespace Karvon.DotNet;
 /// commands and C#'s language server and debugger as its components. The rest of .NET (solutions, builds, the C# editor,
 /// F5) is still Karvon's own, and comes here one part at a time.
 /// </summary>
-public sealed class DotNetModule : KarvonModule
+public sealed partial class DotNetModule : KarvonModule
 {
     public override string Id => "dotnet";
 
@@ -162,15 +162,18 @@ public sealed class DotNetModule : KarvonModule
     public override IReadOnlyList<ItemTemplate> ItemTemplates => CSharpItemTemplates.All;
 
     /// <summary>netcoredbg, for "coreclr" configurations and "dotnet" ones (a project and its launch profile: F5 on the startup project).</summary>
-    public override IReadOnlyList<DebuggerInfo> Debuggers => [Debugging.DotNetDebugger.Info(Workbench)];
+    public override IReadOnlyList<DebuggerInfo> Debuggers => [Debugging.DotNetDebugger.Info(Workbench, OfferDevCertificateTrustAsync)];
 
     /// <summary>The solution's xUnit, NUnit and MSTest tests, through the SDK's vstest; in Test Explorer once it has a test project.</summary>
     public override IReadOnlyList<Karvon.Testing.TestFramework> TestFrameworks(TestFrameworkStart start) => [new Testing.DotNetTests(Workbench, start)];
 
     public override IReadOnlyList<IDataTemplate> DocumentTemplates => [Document<NuGetViewModel>(_ => new NuGetView())];
 
-    public override IReadOnlyList<ModuleSubmenu> MainMenus =>
-        [new("Tools", "_NuGet Package Manager", [new("Manage NuGet Packages for _Solution...", () => ManagePackagesAsync(null))])];
+    public override IReadOnlyList<ModuleMainMenuItem> MainMenus =>
+    [
+        new("Tools", new("_NuGet Package Manager", null) { Items = [new("Manage NuGet Packages for _Solution...", () => ManagePackagesAsync(null))] }),
+        new("Tools", new("_Trust ASP.NET Core Development Certificate", TrustDevCertificateAsync) { After = "Restart Language Server" }),
+    ];
 
     public override IReadOnlyList<ModuleMenuItem> ExplorerMenu(ExplorerNode node)
     {
@@ -185,7 +188,12 @@ public sealed class DotNetModule : KarvonModule
                     new("Restore NuGet Packages", () => RestorePackagesAsync()) { After = "Run Tests" },
                 ];
             case NodeKind.Project when node.Project is { } project:
-                return [.. AddItems(node), new("Manage NuGet Packages...", () => ManagePackagesAsync(project)) { After = "Add" }];
+                return
+                [
+                    .. AddItems(node),
+                    new("Manage NuGet Packages...", () => ManagePackagesAsync(project)) { After = "Add" },
+                    .. project.IsRunnable ? [new ModuleMenuItem("Manage User Secrets", () => ManageUserSecretsAsync(project)) { After = "Add" }] : Array.Empty<ModuleMenuItem>(),
+                ];
             // A folder of a project.
             case NodeKind.Folder when Workbench.ProjectOf(node) is not null:
                 return AddItems(node);

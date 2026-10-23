@@ -59,7 +59,8 @@ public class DotNetModuleTests
         Assert.Equal(["Class", "Interface", "Record", "Struct", "Enum", "Razor Component", "Code File", "JSON File", "Text File"], vm.NewItemTemplates.Take(9).Select(t => t.Name));
         // Tools > NuGet Package Manager first, as in Visual Studio.
         var tools = window.MainMenu.Items.OfType<MenuItem>().Single(m => (string?)m.Header == "_Tools");
-        Assert.Equal(["_NuGet Package Manager", "-", "_Restart Language Server"], Lines(tools.Items.OfType<object>()).Take(3));
+        Assert.Equal(["_NuGet Package Manager", "-", "_Restart Language Server", "_Trust ASP.NET Core Development Certificate", "-", "_Modules..."],
+            Lines(tools.Items.OfType<object>()));
         Assert.Equal(["Manage NuGet Packages for _Solution..."], Lines(((MenuItem)tools.Items[0]!).Items.OfType<object>()));
         Assert.Contains(vm.OutputChannels, c => c.Name == "Package Manager");
         // Test Explorer has the solution's xUnit tests through the module.
@@ -158,6 +159,14 @@ public class DotNetModuleTests
         var ready = Karvon.Debugging.ServerReadyAction.Of(config, log.Add)!;
         Assert.Equal("https://localhost:7001/swagger", ready.Match("info: Microsoft.Hosting.Lifetime[14]\n      Now listening on: https://localhost:7001\n"));
 
+        // Ctrl+F5: dotnet run of what the build made, with the launch profile, the browser opening where it listens.
+        var debugger = vm.Module<DotNetModule>()!.Debuggers.Single();
+        var run = (await debugger.RunWithoutDebuggingAsync!(Config("https")))!;
+        Assert.Equal(("Shop", DotnetCli.Executable, dir), (run.Name, run.Program, run.WorkingDirectory));
+        Assert.Equal(["run", "--project", project, "-c", "Debug", "--no-build", "--launch-profile", "https"], run.Arguments);
+        Assert.Equal("%s/swagger", run.ServerReadyAction!["uriFormat"]!.GetValue<string>());
+        Assert.Null(await debugger.RunWithoutDebuggingAsync!(new JsonObject { ["type"] = "coreclr", ["program"] = "app.dll" }));
+
         // A profile the project does not have: it starts without one, and says so.
         var none = Config("Docker");
         await DotNetDebugger.ResolveAsync(none, vm, log.Add);
@@ -218,7 +227,7 @@ public class DotNetModuleTests
         Assert.Equal("No module builds BlazorSample.sln: its module is off (Tools > Modules).", vm.StatusText);
         Assert.Contains(vm.AllModules, m => m.Id == "dotnet" && m.Components.Count == 2);
         var tools = window.MainMenu.Items.OfType<MenuItem>().Single(m => (string?)m.Header == "_Tools");
-        Assert.Equal("_Restart Language Server", ((MenuItem)tools.Items[0]!).Header);
+        Assert.Equal(["_Restart Language Server", "-", "_Modules..."], Lines(tools.Items.OfType<object>()));
         Assert.True(await vm.CloseSolutionCoreAsync());
     }
 }

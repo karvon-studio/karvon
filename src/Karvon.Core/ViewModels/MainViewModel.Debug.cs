@@ -121,7 +121,6 @@ public partial class MainViewModel
             return;
         if (!await RunBuildAsync("build", "Build", project.FilePath))
             return;
-        await OfferDevCertificateTrustAsync(project.LaunchProfiles.FirstOrDefault(p => p.Name == LaunchProfile));
         await LaunchConfigurationAsync(StartupLaunch(project), noDebug: false, withSolution: true);
     }
 
@@ -146,8 +145,9 @@ public partial class MainViewModel
 
     /// <summary>
     /// A launch configuration started: its preLaunchTask first, then the debugger of its type with it (its variables put
-    /// in), the breakpoints set; without them when it runs without debugging (Ctrl+F5, noDebug as VS Code has it). With
-    /// the solution, the projects that start with the startup project start beside it.
+    /// in), the breakpoints set; without them when it runs without debugging (Ctrl+F5, noDebug as VS Code has it, or the
+    /// program its debugger runs for that). With the solution, the projects that start with the startup project start
+    /// beside it.
     /// </summary>
     async Task LaunchConfigurationAsync(Modules.DebugLaunch launch, bool noDebug, bool withSolution = false)
     {
@@ -165,7 +165,28 @@ public partial class MainViewModel
             SetStatus($"No debugger for '{launch.Type}'");
             return;
         }
+        if (debugger.PrepareAsync is { } prepare && !await prepare(launch))
+            return;
         var configuration = TaskVariables.ForFile(launch.Configuration, solution.Directory, ActiveEditor?.FilePath);
+        if (noDebug && debugger.RunWithoutDebuggingAsync is { } run)
+        {
+            Modules.WorkspaceTask? program;
+            try
+            {
+                program = await run(configuration);
+            }
+            catch (Exception ex) when (ex is InvalidOperationException or IOException)
+            {
+                DebugOutput.Append($"{launch.Name} could not run: {ex.Message}");
+                SetStatus($"{launch.Name} could not run: {ex.Message}");
+                return;
+            }
+            if (program is not null)
+            {
+                await RunProgramTaskAsync(program, withSolution: withSolution);
+                return;
+            }
+        }
         if (noDebug)
             configuration["noDebug"] = true;
         _debuggedProject = launch.Name;

@@ -425,7 +425,7 @@ public class SolutionExplorerTests
         Assert.Contains(Root().Children, c => c.Name == "docs");
 
         // Manage User Secrets: an id for the project, its secrets.json open (in the tests' home, not the user's).
-        var secrets = await vm.ManageUserSecretsAsync(Node("Web").Project);
+        var secrets = await vm.Module<Karvon.DotNet.DotNetModule>()!.ManageUserSecretsAsync(Node("Web").Project!);
         Assert.NotNull(secrets);
         Assert.StartsWith(Karvon.Mcp.McpConfigs.Home, secrets);
         Assert.Equal(secrets, vm.ActiveEditor?.FilePath);

@@ -1,5 +1,5 @@
 using Avalonia.Headless.XUnit;
-using Karvon.Build;
+using Karvon.DotNet;
 using Karvon.ViewModels;
 using Karvon.Workspace;
 
@@ -56,28 +56,26 @@ public class DevCertificateTests
         SampleSolution.EnsureConfigIsolated();
         var dialogs = new Dialogs(answer: true);
         var trusted = false;
-        var vm = new MainViewModel
+        var vm = new MainViewModel { Dialogs = dialogs };
+        var dotnet = vm.Module<DotNetModule>()!;
+        dotnet.CheckDevCertificate = _ => Task.FromResult(trusted ? DevCertificateTrust.Trusted : DevCertificateTrust.NotTrusted);
+        dotnet.TrustDevCertificateTool = (log, _) =>
         {
-            Dialogs = dialogs,
-            CheckDevCertificate = _ => Task.FromResult(trusted ? DevCertificateTrust.Trusted : DevCertificateTrust.NotTrusted),
-            TrustDevCertificateTool = (log, _) =>
-            {
-                log("Trusting the HTTPS development certificate was requested.");
-                trusted = true;
-                return Task.FromResult(true);
-            },
+            log("Trusting the HTTPS development certificate was requested.");
+            trusted = true;
+            return Task.FromResult(true);
         };
 
-        await vm.OfferDevCertificateTrustAsync(Profile("http://localhost:5280"));
+        await dotnet.OfferDevCertificateTrustAsync(Profile("http://localhost:5280"));
         Assert.Empty(dialogs.Asked);
 
-        await vm.OfferDevCertificateTrustAsync(Profile("https://localhost:7042;http://localhost:5280"));
+        await dotnet.OfferDevCertificateTrustAsync(Profile("https://localhost:7042;http://localhost:5280"));
         Assert.Equal(["Trust the ASP.NET Core SSL certificate?"], dialogs.Asked);
         Assert.True(trusted);
         Assert.Contains("The ASP.NET Core development certificate is trusted.", vm.DebugOutput.Document.Text);
 
         // Once per session.
-        await vm.OfferDevCertificateTrustAsync(Profile("https://localhost:7042"));
+        await dotnet.OfferDevCertificateTrustAsync(Profile("https://localhost:7042"));
         Assert.Single(dialogs.Asked);
     }
 
@@ -89,13 +87,11 @@ public class DevCertificateTests
         // Every start of Karvon is a new session; a Partial trust (no NSS trust for Chromium) must not ask each time.
         for (var session = 0; session < 2; session++)
         {
-            var vm = new MainViewModel
-            {
-                Dialogs = dialogs,
-                CheckDevCertificate = _ => Task.FromResult(DevCertificateTrust.Partial),
-                TrustDevCertificateTool = (_, _) => throw new InvalidOperationException("must not trust again"),
-            };
-            await vm.OfferDevCertificateTrustAsync(Profile("https://localhost:7101"));
+            var vm = new MainViewModel { Dialogs = dialogs };
+            var dotnet = vm.Module<DotNetModule>()!;
+            dotnet.CheckDevCertificate = _ => Task.FromResult(DevCertificateTrust.Partial);
+            dotnet.TrustDevCertificateTool = (_, _) => throw new InvalidOperationException("must not trust again");
+            await dotnet.OfferDevCertificateTrustAsync(Profile("https://localhost:7101"));
         }
         Assert.Empty(dialogs.Asked);
     }
@@ -106,17 +102,15 @@ public class DevCertificateTests
         SampleSolution.EnsureConfigIsolated();
         var dialogs = new Dialogs(answer: false);
         var trustCalls = 0;
-        var vm = new MainViewModel
+        var vm = new MainViewModel { Dialogs = dialogs };
+        var dotnet = vm.Module<DotNetModule>()!;
+        dotnet.CheckDevCertificate = _ => Task.FromResult(DevCertificateTrust.NotTrusted);
+        dotnet.TrustDevCertificateTool = (_, _) =>
         {
-            Dialogs = dialogs,
-            CheckDevCertificate = _ => Task.FromResult(DevCertificateTrust.NotTrusted),
-            TrustDevCertificateTool = (_, _) =>
-            {
-                trustCalls++;
-                return Task.FromResult(true);
-            },
+            trustCalls++;
+            return Task.FromResult(true);
         };
-        await vm.OfferDevCertificateTrustAsync(Profile("https://localhost:7042"));
+        await dotnet.OfferDevCertificateTrustAsync(Profile("https://localhost:7042"));
         Assert.Single(dialogs.Asked);
         Assert.Equal(0, trustCalls);
         Assert.Contains("Tools > Trust ASP.NET Core Development Certificate", vm.DebugOutput.Document.Text);

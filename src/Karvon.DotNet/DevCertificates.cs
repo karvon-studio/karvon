@@ -1,6 +1,7 @@
 using System.Text.Json;
+using Karvon.Build;
 
-namespace Karvon.Build;
+namespace Karvon.DotNet;
 
 public enum DevCertificateTrust
 {

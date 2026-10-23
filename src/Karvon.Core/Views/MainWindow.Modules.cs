@@ -31,8 +31,8 @@ public partial class MainWindow
                     app.DataTemplates.Add(template);
             foreach (var tool in module.ToolWindows)
                 AddModuleToolWindow(vm, tool);
-            foreach (var submenu in module.MainMenus)
-                AddModuleSubmenu(vm, submenu);
+            foreach (var item in module.MainMenus)
+                AddModuleMainMenuItem(vm, item);
             if (module.OverlayTemplate is { } overlay)
             {
                 var host = new ContentControl
@@ -71,30 +71,53 @@ public partial class MainWindow
         ViewMenu.Items.Insert(ViewMenu.Items.IndexOf(ViewTerminalItem), menu);
     }
 
-    /// <summary>How many of the modules' submenus each top menu has, first in it.</summary>
-    readonly Dictionary<MenuItem, int> _moduleSubmenus = [];
+    /// <summary>How many of the modules' first items each top menu has.</summary>
+    readonly Dictionary<MenuItem, int> _moduleFirstItems = [];
 
-    /// <summary>A module's submenu, after the other modules' first in its top menu (Tools), a separator after them.</summary>
-    void AddModuleSubmenu(MainViewModel vm, ModuleSubmenu submenu)
+    /// <summary>The modules' items placed after one of Karvon's, by top menu and that item's header: the last placed.</summary>
+    readonly Dictionary<(MenuItem Menu, string After), object> _modulePlaced = [];
+
+    static string Plain(object? header) => header is string text ? text.Replace("_", "") : "";
+
+    /// <summary>
+    /// A module's item of the main menu: after the item of Karvon's it names (the modules' in their order), else after the
+    /// other modules' first in its top menu (Tools), a separator after them.
+    /// </summary>
+    void AddModuleMainMenuItem(MainViewModel vm, ModuleMainMenuItem item)
     {
-        if (MainMenu.Items.OfType<MenuItem>().FirstOrDefault(m => m.Header is string header && header.Replace("_", "") == submenu.Menu) is not { } top)
+        if (MainMenu.Items.OfType<MenuItem>().FirstOrDefault(m => Plain(m.Header) == item.Menu) is not { } top)
             return;
-        var menu = new MenuItem { Header = submenu.Header };
-        foreach (var item in submenu.Items)
-            menu.Items.Add(ModuleMenuControl(vm, item));
-        var count = _moduleSubmenus.GetValueOrDefault(top);
+        var control = ModuleMenuControl(vm, item.Item);
+        if (item.Item.After is { } after)
+        {
+            var anchor = _modulePlaced.TryGetValue((top, after), out var last) ? last
+                : top.Items.OfType<MenuItem>().FirstOrDefault(m => Plain(m.Header) == Plain(after));
+            if (anchor is not null)
+            {
+                top.Items.Insert(top.Items.IndexOf(anchor) + 1, control);
+                _modulePlaced[(top, after)] = control;
+                return;
+            }
+        }
+        var count = _moduleFirstItems.GetValueOrDefault(top);
         if (count == 0)
             top.Items.Insert(0, new Separator());
-        top.Items.Insert(count, menu);
-        _moduleSubmenus[top] = count + 1;
+        top.Items.Insert(count, control);
+        _moduleFirstItems[top] = count + 1;
     }
 
-    /// <summary>A module's menu item as a menu has it: a separator, or an item running what the module gives it.</summary>
+    /// <summary>A module's menu item as a menu has it: a separator, a submenu, or an item running what the module gives it.</summary>
     internal static Control ModuleMenuControl(MainViewModel vm, ModuleMenuItem item)
     {
         if (item.IsSeparator)
             return new Separator();
         var control = new MenuItem { Header = item.Header, IsEnabled = item.IsEnabled };
+        if (item.Items is { } items)
+        {
+            foreach (var child in items)
+                control.Items.Add(ModuleMenuControl(vm, child));
+            return control;
+        }
         control.Click += async (_, _) =>
         {
             try

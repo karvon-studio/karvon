@@ -174,7 +174,7 @@ src/Karvon.Core/        the workbench; it knows no module
   Ui/          what the modules' views share: overlay dialogs, read-only editors
   Lsp/         JSON-RPC, the language server client, file watching
   Workspace/   solution and project loading, Solution Explorer tree
-  Build/       dotnet runner, MSBuild output parser, dev certificates
+  Build/       process runner, the dotnet CLI, MSBuild's error format
   Debugging/   DAP client and sessions (child sessions too), netcoredbg
   Testing/     what a test framework is (Test Explorer shows the modules')
   Git/         git CLI wrapper and line diff

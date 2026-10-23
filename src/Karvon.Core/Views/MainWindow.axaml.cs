@@ -636,8 +636,6 @@ public partial class MainWindow : Window, IDialogService
                 items.Add(Item("Publish to Folder", () => vm.PublishProjectCommand.Execute(project)));
                 items.Add(new Separator());
                 items.Add(AddMenu(project));
-                if (project.IsRunnable)
-                    items.Add(Item("Manage User Secrets", () => _ = vm.ManageUserSecretsAsync(project)));
                 items.Add(Item("Set as Startup Project", () => vm.SetStartupProjectCommand.Execute(project), enabled: project.IsRunnable));
                 items.Add(new Separator());
                 items.Add(Item("Edit Project File", () => vm.EditProjectFile(project)));

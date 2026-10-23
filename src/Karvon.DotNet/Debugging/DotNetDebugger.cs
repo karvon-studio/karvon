@@ -15,13 +15,73 @@ namespace Karvon.DotNet.Debugging;
 /// </summary>
 static class DotNetDebugger
 {
-    public static DebuggerInfo Info(IWorkbench workbench) =>
+    /// <param name="offerTrust">Asks whether to trust the development certificate, for a launch profile that listens on https.</param>
+    public static DebuggerInfo Info(IWorkbench workbench, Func<LaunchProfile?, Task> offerTrust) =>
         new("netcoredbg", $"netcoredbg {NetcoredbgLocator.Version}", ["coreclr", "dotnet"], async start =>
         {
-            if (start.Configuration["type"]?.GetValue<string>() == "dotnet")
+            if (IsDotnet(start.Configuration))
                 await ResolveAsync(start.Configuration, workbench, start.Log);
             return DebugSession.Netcoredbg(await NetcoredbgLocator.EnsureInstalledAsync(start.Log, start.Cancellation));
-        });
+        })
+        {
+            // Visual Studio asks on the first HTTPS run, with or without the debugger.
+            PrepareAsync = async launch =>
+            {
+                if (IsDotnet(launch.Configuration) && ProjectOf(launch.Configuration, workbench) is { } project)
+                    await offerTrust(ProfileOf(launch.Configuration, project));
+                return true;
+            },
+            RunWithoutDebuggingAsync = configuration => Task.FromResult(IsDotnet(configuration) ? Run(configuration, workbench) : null),
+        };
+
+    static bool IsDotnet(System.Text.Json.Nodes.JsonObject configuration) => configuration["type"]?.GetValue<string>() == "dotnet";
+
+    /// <summary>The project a "dotnet" configuration names, or null when it is not there.</summary>
+    static ProjectInfo? ProjectOf(JsonObject configuration, IWorkbench workbench)
+    {
+        if (configuration["projectPath"]?.GetValue<string>() is not { Length: > 0 } p)
+            return null;
+        string path;
+        try
+        {
+            path = Path.GetFullPath(p);
+        }
+        catch (Exception ex) when (ex is ArgumentException or NotSupportedException or PathTooLongException)
+        {
+            return null;
+        }
+        return workbench.Solution?.Projects.FirstOrDefault(x => x.FilePath == path)
+            ?? (File.Exists(path) ? ProjectInfo.Load(Path.GetFileNameWithoutExtension(path), path) : null);
+    }
+
+    static LaunchProfile? ProfileOf(JsonObject configuration, ProjectInfo project) =>
+        configuration["launchProfile"]?.GetValue<string>() is { } name ? project.LaunchProfiles.FirstOrDefault(x => x.Name == name) : null;
+
+    /// <summary>
+    /// Ctrl+F5 of a "dotnet" configuration, as Visual Studio runs a project without the debugger: dotnet run of what the
+    /// build made, with its launch profile (its environment, URLs and arguments), the browser opening where it listens.
+    /// </summary>
+    static WorkspaceTask Run(JsonObject configuration, IWorkbench workbench)
+    {
+        var project = ProjectOf(configuration, workbench)
+            ?? throw new InvalidOperationException($"{configuration["projectPath"]?.GetValue<string>() ?? "its projectPath"} was not found.");
+        var profile = ProfileOf(configuration, project);
+        List<string> args = ["run", "--project", project.FilePath, "-c", configuration["configuration"]?.GetValue<string>() ?? workbench.Configuration, "--no-build"];
+        args.AddRange(profile is not null ? ["--launch-profile", profile.Name] : ["--no-launch-profile"]);
+        return new WorkspaceTask(project.Name, WorkspaceTaskKind.Run, DotnetCli.Executable, args, project.Directory)
+        {
+            Environment = OutputEnvironment,
+            ServerReadyAction = profile is { LaunchBrowser: true } ? BrowserAt(profile) : null,
+        };
+    }
+
+    /// <summary>Visual Studio's launchBrowser: the browser opens where the app says it listens, at the profile's launchUrl.</summary>
+    static JsonObject BrowserAt(LaunchProfile profile) => new()
+    {
+        ["action"] = "openExternally",
+        ["pattern"] = @"\bNow listening on:\s+(https?://\S+)",
+        ["uriFormat"] = "%s/" + (profile.LaunchUrl ?? ""),
+    };
 
     /// <summary>
     /// What a .NET program writes, as a terminal shows it: its colors kept when its output is redirected, and none of
@@ -36,16 +96,15 @@ static class DotNetDebugger
     /// <summary>A "dotnet" configuration ("projectPath", "launchProfile", "configuration", "args", "env") as the "coreclr" launch it is.</summary>
     internal static async Task ResolveAsync(JsonObject configuration, IWorkbench workbench, Action<string> log)
     {
-        var path = configuration["projectPath"]?.GetValue<string>() is { Length: > 0 } p ? Path.GetFullPath(p)
-            : throw new InvalidOperationException("A \"dotnet\" configuration names its project in \"projectPath\".");
-        var project = workbench.Solution?.Projects.FirstOrDefault(x => x.FilePath == path)
-            ?? (File.Exists(path) ? ProjectInfo.Load(Path.GetFileNameWithoutExtension(path), path) : throw new InvalidOperationException($"{path} was not found."));
+        if (configuration["projectPath"]?.GetValue<string>() is not { Length: > 0 } path)
+            throw new InvalidOperationException("A \"dotnet\" configuration names its project in \"projectPath\".");
+        var project = ProjectOf(configuration, workbench) ?? throw new InvalidOperationException($"{path} was not found.");
         var buildConfiguration = configuration["configuration"]?.GetValue<string>() ?? workbench.Configuration;
         var program = await DotNetProjects.TargetPathAsync(project, buildConfiguration);
         if (program is null || !File.Exists(program))
             throw new InvalidOperationException($"the output assembly of {project.Name} was not found: build it first.");
         var profileName = configuration["launchProfile"]?.GetValue<string>();
-        var profile = profileName is null ? null : project.LaunchProfiles.FirstOrDefault(x => x.Name == profileName);
+        var profile = ProfileOf(configuration, project);
         if (profileName is not null && profile is null)
             log($"{project.Name} has no launch profile '{profileName}': it starts without one.");
 
@@ -77,14 +136,8 @@ static class DotNetDebugger
         configuration["justMyCode"] ??= true;
         configuration["enableStepFiltering"] ??= true;
         configuration["console"] ??= "internalConsole";
-        // Visual Studio's launchBrowser: the browser opens where the app says it listens, at the profile's launchUrl.
         if (profile is { LaunchBrowser: true } && configuration["serverReadyAction"] is null)
-            configuration["serverReadyAction"] = new JsonObject
-            {
-                ["action"] = "openExternally",
-                ["pattern"] = @"\bNow listening on:\s+(https?://\S+)",
-                ["uriFormat"] = "%s/" + (profile.LaunchUrl ?? ""),
-            };
+            configuration["serverReadyAction"] = BrowserAt(profile);
         log($"{project.Name}: {Path.GetFileName(program)}" + (profile is null ? "" : $", launch profile '{profile.Name}'"));
     }
 }

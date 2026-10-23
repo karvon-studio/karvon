@@ -933,17 +933,6 @@ public partial class MainViewModel : ObservableObject
     bool CanStart => Solution is not null && (IsFolderWorkspace ? StartupItem is not null : StartupProject is not null) && !IsBuilding && !IsRunning
         && Mode == DebugMode.Design;
 
-    /// <summary>
-    /// For the program Karvon runs or debugs: the console logger keeps its colors although the output is redirected (the
-    /// Output window draws them as the terminal does), and the Debug logger stays quiet, since under the debugger it
-    /// would repeat every console log line in the same window (Visual Studio shows them in separate windows).
-    /// </summary>
-    internal static readonly IReadOnlyDictionary<string, string> ProgramOutputEnvironment = new Dictionary<string, string>
-    {
-        ["DOTNET_SYSTEM_CONSOLE_ALLOW_ANSI_COLOR_REDIRECTION"] = "1",
-        ["Logging__Debug__LogLevel__Default"] = "None",
-    };
-
     [RelayCommand(CanExecute = nameof(CanStart))]
     async Task StartWithoutDebugging()
     {
@@ -961,51 +950,12 @@ public partial class MainViewModel : ObservableObject
             }
             return;
         }
-        if (Solution is not { } solution || StartupProject is not { } project)
+        if (Solution is null || StartupProject is not { } project)
             return;
         // Like VS: build first, run only if the build succeeded.
         if (!await RunBuildAsync("build", "Build", project.FilePath))
             return;
-
-        var profile = project.LaunchProfiles.FirstOrDefault(p => p.Name == LaunchProfile);
-        await OfferDevCertificateTrustAsync(profile);
-        var args = new List<string> { "run", "--project", project.FilePath, "-c", Configuration, "--no-build" };
-        if (profile is not null)
-            args.AddRange(["--launch-profile", profile.Name]);
-        else
-            args.Add("--no-launch-profile");
-
-        DebugOutput.Clear();
-        SelectedOutput = DebugOutput;
-        ShowToolWindow(ToolWindows.Output);
-        DebugOutput.Append($"> dotnet {string.Join(' ', args)}");
-        StartWithSolution();
-        _lastExitCode = null;
-        IsRunning = true;
-        SetStatus($"Running {project.Name}", StatusKind.Running);
-
-        var browserOpened = false;
-        var runner = ProcessRunner.Start(DotnetCli.Executable, args, project.Directory, line =>
-        {
-            DebugOutput.Append(line);
-            if (!browserOpened && profile is { LaunchBrowser: true } && line.Contains("Now listening on:", StringComparison.Ordinal))
-            {
-                browserOpened = true;
-                var url = Regex.Match(line, @"https?://[^\s\u001b]+").Value;
-                if (url.Length > 0)
-                    OpenBrowser(url.TrimEnd('/') + "/" + (profile.LaunchUrl ?? ""));
-            }
-        }, ProgramOutputEnvironment);
-        _runProcess = runner;
-        var exit = await runner.WaitAsync();
-        DebugOutput.Append($"The program '{project.Name}' has exited with code {exit} (0x{exit:x}).");
-        _lastExitCode = exit;
-        if (_runProcess == runner)
-            _runProcess = null;
-        runner.Dispose();
-        StopStartedWithSolution();
-        IsRunning = false;
-        SetStatus("Ready", Solution is null ? StatusKind.NoSolution : StatusKind.Ready);
+        await LaunchConfigurationAsync(StartupLaunch(project), noDebug: true, withSolution: true);
     }
 
     /// <summary>A page in the desktop's browser; when there is none, the URL is in the Output window anyway.</summary>

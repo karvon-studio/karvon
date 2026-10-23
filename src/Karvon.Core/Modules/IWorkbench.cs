@@ -32,6 +32,9 @@ public interface IWorkbench
     /// <summary>The project a Solution Explorer node is in (its Dependencies, a package of it), or null.</summary>
     ProjectInfo? ProjectOf(ExplorerNode node);
 
+    /// <summary>A question with Yes and No (and the dialog closed: null), as Karvon asks its own.</summary>
+    Task<bool?> ConfirmAsync(string title, string message);
+
     /// <summary>The build configuration chosen on the toolbar ("Debug", "Release").</summary>
     string Configuration { get; }
 

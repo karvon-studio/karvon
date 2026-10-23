@@ -228,7 +228,6 @@
       </MenuItem>
       <MenuItem Header="_Tools">
         <MenuItem Header="_Restart Language Server" Command="{Binding RestartLanguageServerCommand}" />
-        <MenuItem Header="_Trust ASP.NET Core Development Certificate" Command="{Binding TrustDevCertificateCommand}" />
         <Separator />
         <MenuItem Header="_Modules..." Click="OnModules" />
       </MenuItem>

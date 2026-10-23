@@ -116,6 +116,8 @@ public partial class MainViewModel : IWorkbench
 
     Task<bool> IWorkbench.BuildAsync() => RunBuildAsync("build", "Build");
 
+    Task<bool?> IWorkbench.ConfirmAsync(string title, string message) => Dialogs?.ConfirmAsync(title, message) ?? Task.FromResult<bool?>(null);
+
     Task<string?> IWorkbench.AddNewItemAsync(Workspace.ExplorerNode node, Workspace.ItemTemplate template) => AddNewItemAsync(node, template);
 
     /// <summary>Add New Item's templates: the modules' (C#'s), then those that are no language's.</summary>

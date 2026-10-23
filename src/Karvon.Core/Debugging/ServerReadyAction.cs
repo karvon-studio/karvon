@@ -27,10 +27,12 @@ public sealed partial class ServerReadyAction
     private static partial Regex Escapes();
 
     /// <summary>The configuration's action, or null when it has none; why one is left out goes to <paramref name="log"/>.</summary>
-    public static ServerReadyAction? Of(JsonObject configuration, Action<string> log)
+    public static ServerReadyAction? Of(JsonObject configuration, Action<string> log) =>
+        configuration["serverReadyAction"] is JsonObject action ? From(action, log) : null;
+
+    /// <summary>The action itself (a configuration's serverReadyAction, a run task's), or null when it opens nothing.</summary>
+    public static ServerReadyAction? From(JsonObject action, Action<string> log)
     {
-        if (configuration["serverReadyAction"] is not JsonObject action)
-            return null;
         var kind = action["action"]?.GetValue<string>() ?? "openExternally";
         if (kind != "openExternally")
         {

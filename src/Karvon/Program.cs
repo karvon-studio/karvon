@@ -11,7 +11,7 @@ static class Program
         // Child tools that look up `dotnet` on PATH (vstest.console, MSBuild nodes) must find the same SDK Karvon uses,
         // not a distro package that happens to be first on a desktop session's PATH.
         Build.DotnetCli.ApplyToCurrentProcess();
-        Build.DevCertificates.ApplyToCurrentProcess();
+        DotNet.DevCertificates.ApplyToCurrentProcess();
         // The components removed in Tools > Modules go before anything can run them.
         Modules.ModuleComponent.RemovePending(Services.Settings.Load(), Modules.ModuleComponent.DataRoot);
         BuildAvaloniaApp().StartWithClassicDesktopLifetime(args);

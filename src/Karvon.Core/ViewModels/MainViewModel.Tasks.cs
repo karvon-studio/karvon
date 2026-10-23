@@ -311,7 +311,7 @@ public partial class MainViewModel
     /// A folder's Start Without Debugging: the run task as the program, its output in Output (Debug) until it ends or Stop
     /// (a note first, when there is one to say).
     /// </summary>
-    async Task RunProgramTaskAsync(WorkspaceTask task, string? note = null)
+    async Task RunProgramTaskAsync(WorkspaceTask task, string? note = null, bool withSolution = false)
     {
         if (IsRunning || IsBuilding || Mode != DebugMode.Design)
             return;
@@ -323,10 +323,17 @@ public partial class MainViewModel
             DebugOutput.Append(note);
         DebugOutput.Append("> " + task.CommandLine);
         _lastExitCode = null;
+        // A run that opens the browser once it listens (a web project's launch profile).
+        var ready = task.ServerReadyAction is { } action ? Debugging.ServerReadyAction.From(action, DebugOutput.Append) : null;
         ProcessRunner runner;
         try
         {
-            runner = StartTask(task, DebugOutput.Append);
+            runner = StartTask(task, line =>
+            {
+                DebugOutput.Append(line);
+                if (ready?.Match(line) is { } url)
+                    Dispatcher.UIThread.Post(() => OpenBrowser(url));
+            });
         }
         catch (Exception ex) when (IsStartFailure(ex))
         {
@@ -334,6 +341,8 @@ public partial class MainViewModel
             SetStatus($"{task.Name} could not start: {ex.Message}");
             return;
         }
+        if (withSolution)
+            StartWithSolution();
         IsRunning = true;
         SetStatus($"Running {task.Name}", StatusKind.Running);
         _runProcess = runner;
@@ -343,6 +352,8 @@ public partial class MainViewModel
         if (_runProcess == runner)
             _runProcess = null;
         runner.Dispose();
+        if (withSolution)
+            StopStartedWithSolution();
         IsRunning = false;
         SetStatus("Ready", Solution is null ? StatusKind.NoSolution : StatusKind.Ready);
     }

@@ -427,47 +427,6 @@ public partial class MainViewModel
         return ok;
     }
 
-    /// <summary>
-    /// Manage User Secrets: the project's secrets.json (in ~/.microsoft/usersecrets, outside the solution), opened; a
-    /// project without a UserSecretsId gets one first (dotnet user-secrets init), as VS does.
-    /// </summary>
-    public async Task<string?> ManageUserSecretsAsync(ProjectInfo? project)
-    {
-        if (project is null)
-            return null;
-        var id = UserSecretsId(project.FilePath);
-        if (id is null && await RunDotnetAsync(["user-secrets", "init", "--project", project.FilePath]))
-            id = UserSecretsId(project.FilePath);
-        if (id is null)
-            return null;
-        var file = Path.Combine(UserHome.Path, ".microsoft", "usersecrets", id, "secrets.json");
-        try
-        {
-            Directory.CreateDirectory(Path.GetDirectoryName(file)!);
-            if (!File.Exists(file))
-                File.WriteAllText(file, "{\n}\n");
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-        {
-            SetStatus(ex.Message);
-            return null;
-        }
-        OpenDocument(file);
-        return file;
-    }
-
-    static string? UserSecretsId(string projectFile)
-    {
-        try
-        {
-            return XDocument.Load(projectFile).Descendants().FirstOrDefault(e => e.Name.LocalName == "UserSecretsId")?.Value.Trim() is { Length: > 0 } id ? id : null;
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Xml.XmlException)
-        {
-            return null;
-        }
-    }
-
     // ---- The solution ------------------------------------------------------------------------------------------
 
     /// <summary>Create Git Repository: git init in the solution's folder, the SDK's .gitignore for .NET when it has none, then Git Changes.</summary>

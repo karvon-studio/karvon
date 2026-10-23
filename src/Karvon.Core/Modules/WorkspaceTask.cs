@@ -39,6 +39,9 @@ public sealed record WorkspaceTask(string Name, WorkspaceTaskKind Kind, string P
     /// <summary>Variables set for it over Karvon's own (a PATH with its runtime's folder first...).</summary>
     public IReadOnlyDictionary<string, string>? Environment { get; init; }
 
+    /// <summary>A run's serverReadyAction, as a launch configuration has it: the browser opens once its output says it listens.</summary>
+    public System.Text.Json.Nodes.JsonObject? ServerReadyAction { get; init; }
+
     /// <summary>The command as the Output window shows it: the program by its name, an argument with a space quoted.</summary>
     public string CommandLine =>
         string.Join(' ', [Path.IsPathRooted(Program) ? Path.GetFileName(Program) : Program, .. Arguments.Select(a => a.Length == 0 || a.Any(char.IsWhiteSpace) ? $"\"{a}\"" : a)]);
