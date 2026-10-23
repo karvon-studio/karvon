@@ -40,6 +40,11 @@ public class LspClient : IAsyncDisposable
     /// <summary>The server's classifications changed (a project loaded, a referenced file was edited...).</summary>
     public event Action? SemanticTokensRefreshRequested;
 
+    /// <summary>
+    /// The server's own edit (workspace/applyEdit, as a command it ran makes one: ESLint's fixes): whether it was applied.
+    /// </summary>
+    public event Func<IReadOnlyList<LspFileOperation>, Task<bool>>? EditRequested;
+
     /// <summary>The server's semantic token types, by index (its legend); empty when it has none.</summary>
     public IReadOnlyList<string> SemanticTokenTypes { get; private set; } = [];
 
@@ -196,7 +201,7 @@ public class LspClient : IAsyncDisposable
                 {
                     codeActionKind = new
                     {
-                        valueSet = new[] { "", "quickfix", "refactor", "refactor.extract", "refactor.inline", "refactor.rewrite", "source", "source.organizeImports" },
+                        valueSet = new[] { "", "quickfix", "refactor", "refactor.extract", "refactor.inline", "refactor.rewrite", "source", "source.organizeImports", "source.fixAll" },
                     },
                 },
             },
@@ -225,6 +230,12 @@ public class LspClient : IAsyncDisposable
             return Task.FromResult<object?>(null);
         });
         Rpc.OnRequest("window/workDoneProgress/create", _ => Task.FromResult<object?>(null));
+        Rpc.OnRequest("workspace/applyEdit", async p =>
+        {
+            var ops = p.TryGetProperty("edit", out var edit) ? LspParse.WorkspaceEdit(edit) : [];
+            var applied = EditRequested is { } apply && await apply(ops);
+            return new { applied };
+        });
         Rpc.OnRequest("workspace/diagnostic/refresh", _ =>
         {
             DiagnosticsRefreshRequested?.Invoke();
@@ -438,9 +449,13 @@ public class LspClient : IAsyncDisposable
         return edits;
     }
 
+    /// <summary>Whether it offers code actions (Ctrl+.).</summary>
+    public bool ProvidesCodeActions => Capabilities.ValueKind == JsonValueKind.Object && Capabilities.TryGetProperty("codeActionProvider", out var provider)
+        && provider.ValueKind is JsonValueKind.True or JsonValueKind.Object;
+
     /// <summary>Quick Actions and Refactorings (Ctrl+.) for a range, given the diagnostics it overlaps.</summary>
     public async Task<IReadOnlyList<LspCodeAction>> CodeActionsAsync(string path, LspRange range, IReadOnlyList<LspDiagnostic> diagnostics, CancellationToken ct) =>
-        LspParse.CodeActions(await QueryAsync("textDocument/codeAction", new
+        [.. LspParse.CodeActions(await QueryAsync("textDocument/codeAction", new
         {
             textDocument = new { uri = ToUri(path) },
             range,
@@ -450,7 +465,21 @@ public class LspClient : IAsyncDisposable
                 diagnostics = diagnostics.Where(d => d.Raw.ValueKind == JsonValueKind.Object).Select(d => d.Raw).ToArray(),
                 triggerKind = 1,
             },
-        }, ct));
+        }, ct)).Select(Own)];
+
+    LspCodeAction Own(LspCodeAction action) => action with { Server = this, Children = [.. action.Children.Select(Own)] };
+
+    /// <summary>A code action's command (ESLint's fixes), run by the server: the edit it makes comes as workspace/applyEdit.</summary>
+    public async Task RunCommandAsync(LspCodeAction action, CancellationToken ct)
+    {
+        if (!action.HasCommand)
+            return;
+        var command = action.Raw.GetProperty("command");
+        var arguments = command.TryGetProperty("arguments", out var args) && args.ValueKind == JsonValueKind.Array
+            ? args.EnumerateArray().Select(a => (object?)a.Clone()).ToArray()
+            : [];
+        await ExecuteCommandAsync(command.GetProperty("command").GetString()!, arguments, ct);
+    }
 
     /// <summary>Computes the edit for a code action (codeAction/resolve unless the server already sent it).</summary>
     public async Task<IReadOnlyList<LspFileOperation>> ResolveCodeActionAsync(LspCodeAction action, CancellationToken ct)

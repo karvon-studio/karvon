@@ -39,6 +39,8 @@ public sealed partial class EditorHost : IDisposable, IDebugLineSource
     LspClient? _lsp;
     /// <summary>The linters on the file beside its server (ESLint beside TypeScript's): its text and their diagnostics only.</summary>
     readonly List<LspClient> _linters = [];
+    /// <summary>Each server's diagnostics of the file, as last pulled: Ctrl+. asks each for the fixes of its own.</summary>
+    Dictionary<LspClient, IReadOnlyList<LspDiagnostic>> _diagnosticsBy = [];
     int _version = 1;
     bool _flushScheduled;
     bool _chordCtrlK;
@@ -499,6 +501,7 @@ public sealed partial class EditorHost : IDisposable, IDebugLineSource
             var lists = await Task.WhenAll(servers.Select(Of));
             if (ct.IsCancellationRequested || lists.All(l => l is null))
                 return;
+            _diagnosticsBy = servers.Zip(lists).Where(p => p.Second is not null).ToDictionary(p => p.First, p => p.Second!);
             ShowDiagnostics([.. lists.OfType<IReadOnlyList<LspDiagnostic>>().SelectMany(l => l)]);
         }
         catch (OperationCanceledException)
@@ -855,7 +858,8 @@ public sealed partial class EditorHost : IDisposable, IDebugLineSource
     /// <summary>Code actions for the selection, or for the diagnostic under (or on the line of) the caret.</summary>
     internal async Task<IReadOnlyList<LspCodeAction>> GetQuickActionsAsync()
     {
-        if (_lsp is not { } lsp)
+        var servers = new[] { _lsp }.Concat(_linters).OfType<LspClient>().ToList();
+        if (servers.Count == 0)
             return [];
         FlushChanges();
         var caret = Editor.CaretOffset;
@@ -872,15 +876,24 @@ public sealed partial class EditorHost : IDisposable, IDebugLineSource
             range = diagnostics[0].Range;
         else
             range = new LspRange(TextPositions.ToPosition(Document, caret), TextPositions.ToPosition(Document, caret));
-        try
+        // The file's server's, then each linter's for its own problems there.
+        var actions = new List<LspCodeAction>();
+        foreach (var server in servers)
         {
-            return await lsp.CodeActionsAsync(FilePath, range, diagnostics, CancellationToken.None);
+            var own = _diagnosticsBy.TryGetValue(server, out var its) ? diagnostics.Where(its.Contains).ToList() : diagnostics;
+            if (server != _lsp && (own.Count == 0 || !server.ProvidesCodeActions))
+                continue;
+            try
+            {
+                actions.AddRange(await server.CodeActionsAsync(FilePath, range, own, CancellationToken.None));
+            }
+            catch (Exception ex) when (ex is LspException or IOException)
+            {
+                if (server == _lsp)
+                    StatusMessage?.Invoke(ex.Message);
+            }
         }
-        catch (Exception ex) when (ex is LspException or IOException)
-        {
-            StatusMessage?.Invoke(ex.Message);
-            return [];
-        }
+        return actions;
     }
 
     public async void ShowQuickActions() => await ShowQuickActionsAsync();
@@ -926,25 +939,39 @@ public sealed partial class EditorHost : IDisposable, IDebugLineSource
 
     internal async Task ApplyCodeActionAsync(LspCodeAction action)
     {
-        if (_lsp is not { } lsp)
+        if ((action.Server ?? _lsp) is not { } lsp)
             return;
         IReadOnlyList<LspFileOperation> ops;
         try
         {
-            ops = await lsp.ResolveCodeActionAsync(action, CancellationToken.None);
+            // One that runs a command of the server's (ESLint's fixes) has no edit to resolve: the command makes it.
+            ops = action.HasCommand && !action.Raw.TryGetProperty("edit", out _) ? [] : await lsp.ResolveCodeActionAsync(action, CancellationToken.None);
         }
         catch (Exception ex) when (ex is LspException or IOException)
         {
             StatusMessage?.Invoke(ex.Message);
             return;
         }
-        if (ops.Count == 0)
+        if (ops.Count == 0 && !action.HasCommand)
             return;
         if (WorkspaceOperationsRequested is not null)
             await WorkspaceOperationsRequested.Invoke(ops);
         else
             foreach (var op in ops.Where(o => o.Kind == "edit" && o.Path == FilePath))
                 ApplyEdits(op.Edits);
+        if (action.HasCommand)
+        {
+            FlushChanges();
+            try
+            {
+                await lsp.RunCommandAsync(action, CancellationToken.None);
+            }
+            catch (Exception ex) when (ex is LspException or IOException)
+            {
+                StatusMessage?.Invoke(ex.Message);
+                return;
+            }
+        }
         StatusMessage?.Invoke($"Applied: {action.Title}");
     }
 

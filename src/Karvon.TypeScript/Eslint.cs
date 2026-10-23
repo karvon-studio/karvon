@@ -77,8 +77,9 @@ public static class EslintLocator
 public sealed class EslintServer : LspClient
 {
     readonly string _root;
+    readonly Action<string>? _openUrl;
 
-    EslintServer(Process process, JsonRpcConnection rpc, string root) : base(process, rpc, root) => _root = root;
+    EslintServer(Process process, JsonRpcConnection rpc, string root, Action<string>? openUrl) : base(process, rpc, root) => (_root, _openUrl) = (root, openUrl);
 
     /// <summary>The files it checks: TypeScript's server's (.js, .jsx, .ts, .tsx and their module kinds).</summary>
     public static bool Serves(string path) => TypeScriptServer.Serves(path);
@@ -131,19 +132,26 @@ public sealed class EslintServer : LspClient
             return Task.FromResult<object?>(new { });
         });
         Rpc.OnRequest("eslint/probeFailed", _ => Task.FromResult<object?>(new { }));
-        Rpc.OnRequest("eslint/openDoc", _ => Task.FromResult<object?>(new { }));
+        // Show documentation for a rule: its page in the browser.
+        Rpc.OnRequest("eslint/openDoc", p =>
+        {
+            if (p.TryGetProperty("url", out var url) && url.GetString() is { } page && Uri.TryCreate(page, UriKind.Absolute, out var uri) && uri.Scheme is "https" or "http")
+                _openUrl?.Invoke(page);
+            return Task.FromResult<object?>(new { });
+        });
         Rpc.OnNotification("eslint/status", _ => { });
         Rpc.OnNotification("eslint/exitCalled", _ => OnLog("ESLint: a plugin or the configuration called process.exit."));
     }
 
-    public static async Task<LspClient> StartAsync(LanguageServerStart start)
+    /// <param name="openUrl">Opens a rule's documentation in the browser.</param>
+    public static async Task<LspClient> StartAsync(LanguageServerStart start, Action<string>? openUrl = null)
     {
         await EslintLocator.EnsureInstalledAsync(start.Log, start.Cancellation);
         var server = EslintLocator.Find() ?? throw new InvalidOperationException("ESLint's language server is not installed.");
         var path = string.Join(Path.PathSeparator, new[] { Build.NodeLocator.DirectoryOffPath(), Environment.GetEnvironmentVariable("PATH") }.OfType<string>());
         var node = TaskVariables.Find("node", path, start.Workspace) ?? throw new InvalidOperationException("Node.js was not found: ESLint runs on it.");
         var (process, rpc) = Launch(new ProcessStartInfo(node, [server, "--stdio"]) { WorkingDirectory = start.Workspace });
-        var client = new EslintServer(process, rpc, start.Workspace);
+        var client = new EslintServer(process, rpc, start.Workspace, openUrl);
         try
         {
             await client.InitializeAsync(start.Workspace, null, start.Cancellation);

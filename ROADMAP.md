@@ -71,8 +71,8 @@ it does today all along.
 
 TypeScript 7's own language server (`tsc --lsp`), the `package.json` scripts as tasks, js-debug for F5 and Vitest in
 Test Explorer, Jest's too, VS Code's HTML, CSS (with SCSS and Less) and JSON language servers, and a page debugged in
-Chrome or Edge by a launch.json configuration, and ESLint's diagnostics beside TypeScript's, where the user lets it run the
-folder's own ESLint (in now: the TypeScript and JavaScript module); next, ESLint's fixes.
+Chrome or Edge by a launch.json configuration, and ESLint's diagnostics and fixes (Ctrl+.) beside TypeScript's, where the
+user lets it run the folder's own ESLint (in now: the TypeScript and JavaScript module).
 
 ## 3. macOS release
 

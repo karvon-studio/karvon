@@ -90,7 +90,7 @@ public sealed class TypeScriptModule : KarvonModule
         var installing = EslintLocator.Find() is null;
         if (installing)
             Workbench.Status($"Installing ESLint's language server {EslintLocator.Version}...");
-        var server = await EslintServer.StartAsync(start);
+        var server = await EslintServer.StartAsync(start, url => Avalonia.Threading.Dispatcher.UIThread.Post(() => Workbench.OpenUrl(url)));
         if (installing)
             Workbench.Status($"ESLint's language server {EslintLocator.Version} installed.");
         return server;

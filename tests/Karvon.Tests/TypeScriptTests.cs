@@ -184,9 +184,13 @@ public class TypeScriptTests
             Assert.Equal((DiagnosticSeverity.Error, 0), (noVar.Severity, noVar.Range.Start.Line));
             Assert.Equal(DiagnosticSeverity.Warning, doc.Host.Diagnostics.Single(d => d.Code == "no-unused-vars").Severity);
 
-            // The fix, typed: its problem goes.
-            doc.Host.Document.Replace(0, 3, "let");
-            await WaitUntil(() => Rules() is ["no-unused-vars"], TimeSpan.FromSeconds(30));
+            // Ctrl+. on its problem: ESLint's fix (its command, the edit it sends back), and its problem goes.
+            doc.Host.Editor.CaretOffset = 1;
+            var fixes = await doc.Host.GetQuickActionsAsync();
+            Assert.Contains(fixes, a => a.Title == "Disable no-var for this line");
+            await doc.Host.ApplyCodeActionAsync(fixes.Single(a => a.Title == "Fix this no-var problem"));
+            await WaitUntil(() => doc.Host.Document.Text.StartsWith("let count", StringComparison.Ordinal) && Rules() is ["no-unused-vars"], TimeSpan.FromSeconds(30));
+            Assert.StartsWith("let count = 1;", doc.Host.Document.Text);
             Assert.Equal(["no-unused-vars"], Rules());
             doc.Host.Save();
 
@@ -197,6 +201,14 @@ public class TypeScriptTests
             await WaitUntil(() => Rules() is ["no-unused-vars"], TimeSpan.FromMinutes(1));
             Assert.Equal(["no-unused-vars"], Rules());
             Assert.Equal(2, dialogs.Asked.Count);
+
+            // A problem's rule turned off for its line, by its comment.
+            doc.Host.Editor.CaretOffset = doc.Host.Document.Text.IndexOf("unused", StringComparison.Ordinal) + 1;
+            fixes = await doc.Host.GetQuickActionsAsync();
+            await doc.Host.ApplyCodeActionAsync(fixes.Single(a => a.Title == "Disable no-unused-vars for this line"));
+            await WaitUntil(() => Rules() is [], TimeSpan.FromSeconds(30));
+            Assert.Contains("// eslint-disable-next-line no-unused-vars\nconst unused", doc.Host.Document.Text);
+            doc.Host.Save();
             Assert.True(await vm.CloseSolutionCoreAsync());
             window.Close();
         }

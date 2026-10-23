@@ -113,6 +113,12 @@ public partial class MainViewModel
                 return null;
             }
             lsp.Log += ServerOutput.Append;
+            // Its own edits (those of a command it ran: ESLint's fixes), applied as Ctrl+.'s are.
+            lsp.EditRequested += async ops =>
+            {
+                await Dispatcher.UIThread.InvokeAsync(() => ApplyWorkspaceOperationsAsync(ops));
+                return true;
+            };
             if (workspace)
             {
                 lsp.Progress += text => Dispatcher.UIThread.Post(() =>

@@ -24,8 +24,9 @@ jdtls, java-debug and JUnit's console launcher. gopls and Delve are built with y
 
 ## Editor
 
-C# and Razor IntelliSense, Quick Info, parameter info, squiggles, Ctrl+. quick actions and refactorings,
-Go To Definition / Implementation, Find All References, Rename, Format Document, outlining (Ctrl+M), Find in Files, zoom.
+IntelliSense in each language by its language server (C# and Razor by Roslyn), Quick Info, parameter info, squiggles,
+Ctrl+. quick actions and refactorings (a linter's fixes too: ESLint's), Go To Definition / Implementation, Find All
+References, Rename, Format Document, outlining (Ctrl+M), Find in Files, zoom.
 Markdown files open with a live preview to the right or below (VS 2022's Markdown editor), following the editor's scrolling.
 
 ## Solutions

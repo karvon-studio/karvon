@@ -28,7 +28,14 @@ public enum DiagnosticSeverity
 public sealed record LspDiagnostic(LspRange Range, DiagnosticSeverity Severity, string Code, string Message, bool IsUnnecessary, JsonElement Raw = default);
 
 /// <summary>A Quick Action / refactoring offered by the server; resolved lazily into a workspace edit.</summary>
-public sealed record LspCodeAction(string Title, string? Kind, bool IsPreferred, JsonElement Raw, IReadOnlyList<LspCodeAction> Children);
+public sealed record LspCodeAction(string Title, string? Kind, bool IsPreferred, JsonElement Raw, IReadOnlyList<LspCodeAction> Children)
+{
+    /// <summary>The server it came from (a linter's, beside the file's own): the one that resolves and runs it.</summary>
+    public LspClient? Server { get; init; }
+
+    /// <summary>The server's command it runs (ESLint's fixes: eslint.applySingleFix), its edit coming as workspace/applyEdit.</summary>
+    public bool HasCommand => Raw.ValueKind == JsonValueKind.Object && Raw.TryGetProperty("command", out var command) && command.ValueKind == JsonValueKind.Object;
+}
 
 /// <summary>One step of a workspace edit, applied in order: create/rename/delete a file or edit its text.</summary>
 public sealed record LspFileOperation(string Kind, string Path, string? NewPath, IReadOnlyList<LspTextEdit> Edits);
