@@ -246,4 +246,51 @@ public class DebugLaunchTests
             Assert.True(vm.Mode == DebugMode.Design, vm.DebugOutput.Document.Text);
         }
     }
+
+    [AvaloniaFact]
+    public async Task F5_debugs_a_page_in_chrome_with_js_debug()
+    {
+        var path = string.Join(Path.PathSeparator, Karvon.Build.NodeLocator.DirectoryOffPath() ?? "", Environment.GetEnvironmentVariable("PATH") ?? "");
+        Assert.SkipUnless(Environment.GetEnvironmentVariable("KARVON_TYPESCRIPT_LIVE") == "1" && TaskVariables.Find("node", path, "/") is not null
+            && (TaskVariables.Find("google-chrome", path, "/") ?? TaskVariables.Find("chromium", path, "/")) is not null,
+            "Set KARVON_TYPESCRIPT_LIVE=1, with Node.js and Chrome installed, to debug a page in Chrome with js-debug.");
+        var dir = NewFolder();
+        var script = Path.Combine(dir, "app.js");
+        File.WriteAllText(script, """
+            function total(prices) {
+              const sum = prices.reduce((a, b) => a + b, 0);
+              return sum;
+            }
+            document.title = "total " + total([3, 4, 5]);
+            """);
+        File.WriteAllText(Path.Combine(dir, "index.html"), "<!DOCTYPE html>\n<html><head><title>shop</title></head><body><script src=\"app.js\"></script></body></html>\n");
+        // A browser of its own (js-debug's profile, not the user's), and no window: headless.
+        File.WriteAllText(VsCodeLaunch.FileOf(dir), """
+            { "configurations": [
+              { "name": "Page in Chrome", "type": "chrome", "request": "launch", "url": "file://${workspaceFolder}/index.html", "webRoot": "${workspaceFolder}",
+                "runtimeArgs": ["--headless=new", "--no-first-run", "--no-default-browser-check"] }
+            ] }
+            """);
+        var vm = NewViewModel();
+        var window = new MainWindow { DataContext = vm, Width = 1280, Height = 800 };
+        window.Show();
+        await vm.OpenSolutionAsync(dir);
+        Assert.Equal("Page in Chrome", vm.StartupItem?.Name);
+
+        // F5: Chrome under js-debug (a child session for the page), stopped in the page's script.
+        vm.Breakpoints.Toggle(script, 3);
+        var debugging = vm.StartDebuggingCommand.ExecuteAsync(null);
+        await WaitUntil(() => vm.Mode == DebugMode.Break && vm.CallStack.Count > 0, TimeSpan.FromMinutes(2));
+        Assert.True(vm.Mode == DebugMode.Break, vm.DebugOutput.Document.Text);
+        Assert.Equal((script, 3), (vm.CallStack[0].SourcePath, vm.CallStack[0].Line));
+        await debugging;
+
+        // Stop: the browser goes with the session.
+        await vm.StopCommand.ExecuteAsync(null);
+        await WaitUntil(() => vm.Mode == DebugMode.Design, TimeSpan.FromSeconds(30));
+        Assert.Equal(DebugMode.Design, vm.Mode);
+        Assert.True(await vm.CloseSolutionCoreAsync());
+        window.Close();
+        Directory.Delete(dir, recursive: true);
+    }
 }
