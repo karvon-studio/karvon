@@ -36,12 +36,14 @@ public sealed class RoslynClient : LspClient
     /// <summary>Roslyn is ready once the solution's projects are loaded, not when it has started.</summary>
     protected override bool ReadyOnceInitialized => false;
 
-    public static async Task<RoslynClient> StartAsync(RoslynServerInstall install, string solutionPath, string logDir, CancellationToken ct)
+    /// <param name="root">Its workspace's folder (a folder opened as it is); null, the solution's or the project's.</param>
+    public static async Task<RoslynClient> StartAsync(RoslynServerInstall install, string solutionPath, string logDir, CancellationToken ct, string? root = null)
     {
         Directory.CreateDirectory(logDir);
         // Build hosts a server left behind (Karvon killed, or one that exited by itself before Karvon ended them).
         _ = Task.Run(() => Services.ProcessTree.KillOrphans(RoslynServerLocator.InstallRoot, "BuildHost", "Microsoft.CodeAnalysis.LanguageServer"));
-        var psi = new ProcessStartInfo(install.Executable) { WorkingDirectory = Path.GetDirectoryName(solutionPath)! };
+        root ??= Path.GetDirectoryName(solutionPath)!;
+        var psi = new ProcessStartInfo(install.Executable) { WorkingDirectory = root };
         foreach (var a in new[]
                  {
                      "--stdio", "--logLevel", "Information", "--extensionLogDirectory", logDir,
@@ -56,7 +58,6 @@ public sealed class RoslynClient : LspClient
         psi.Environment.TryAdd("DOTNET_gcServer", "0");
 
         var (process, rpc) = Launch(psi);
-        var root = Path.GetDirectoryName(solutionPath)!;
         var client = new RoslynClient(process, rpc, root);
         await client.InitializeAsync(root, null, ct);
         if (Workspace.SolutionLoader.IsProjectFile(solutionPath))

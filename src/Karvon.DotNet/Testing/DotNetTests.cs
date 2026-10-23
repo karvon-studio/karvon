@@ -1,6 +1,7 @@
 using System.Text.Json.Nodes;
 using Karvon.Modules;
 using Karvon.Testing;
+using Karvon.Workspace;
 using Microsoft.VisualStudio.TestPlatform.ObjectModel;
 
 namespace Karvon.DotNet.Testing;
@@ -20,7 +21,10 @@ sealed class DotNetTests(IWorkbench workbench, TestFrameworkStart start) : TestF
 
     public override bool CanDebug => true;
 
-    public override bool IsAvailable => workbench.Solution is { } solution && solution.Projects.Any(p => p.IsTestProject);
+    public override bool IsAvailable => workbench.Solution is { } solution && ProjectsOf(solution).Any(p => p.IsTestProject);
+
+    /// <summary>A solution's projects; a folder's, those in it (it builds them as dotnet does, Debug).</summary>
+    static IReadOnlyList<ProjectInfo> ProjectsOf(SolutionInfo solution) => solution.IsFolder ? DotNetFolder.Find(solution.Directory).Projects : solution.Projects;
 
     public override async Task<TestDiscovery> DiscoverAsync(CancellationToken ct)
     {
@@ -29,8 +33,8 @@ sealed class DotNetTests(IWorkbench workbench, TestFrameworkStart start) : TestF
         if (!await workbench.BuildAsync())
             return TestDiscovery.Failed("Build failed; fix the errors to discover tests.");
         var assemblies = new List<string>();
-        foreach (var project in solution.Projects.Where(p => p.IsTestProject))
-            if (await DotNetProjects.TargetPathAsync(project, workbench.Configuration) is { } dll && File.Exists(dll))
+        foreach (var project in ProjectsOf(solution).Where(p => p.IsTestProject))
+            if (await DotNetProjects.TargetPathAsync(project, solution.IsFolder ? "Debug" : workbench.Configuration) is { } dll && File.Exists(dll))
                 assemblies.Add(dll);
         if (assemblies.Count == 0)
             return TestDiscovery.Failed("No test assemblies were built.");

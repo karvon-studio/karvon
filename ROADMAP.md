@@ -24,7 +24,8 @@ it does today all along.
 
 ## 0b. Languages
 
-- Open Folder: any folder, not only a solution or a project.
+- Open Folder: any folder, not only a solution or a project (in now: with .NET in it too, as VS Code's C# Dev Kit has it:
+  Roslyn loads its solution or projects, dotnet build, test and run are its tasks, F5 debugs an app).
 - A generic LSP client and DAP session, out of today's Roslyn and netcoredbg ones (in now: the modules bring language
   servers and debuggers; a debugger may be a DAP server with child sessions, as js-debug is).
 - A workload describes a language: how its projects are found (`package.json`, `pyproject.toml`, `go.mod`…), its

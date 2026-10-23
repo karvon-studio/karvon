@@ -29,6 +29,59 @@ public class DotNetModuleTests
     }
 
     [AvaloniaFact]
+    public async Task A_folder_with_projects_and_no_solution_builds_runs_debugs_and_tests_them()
+    {
+        // The sample's projects without their solution, opened as a folder, as a repository with a backend in it is.
+        var sln = SolutionExplorerTests.CopySample();
+        var dir = Path.GetDirectoryName(sln)!;
+        File.Delete(sln);
+        using (var probe = new System.Net.Sockets.TcpListener(System.Net.IPAddress.Loopback, 0))
+        {
+            probe.Start();
+            var port = ((System.Net.IPEndPoint)probe.LocalEndpoint).Port;
+            probe.Stop();
+            var settings = Path.Combine(dir, "Web", "Properties", "launchSettings.json");
+            File.WriteAllText(settings, File.ReadAllText(settings).Replace("5280", port.ToString()));
+        }
+        var vm = NewViewModel();
+        var window = new MainWindow { DataContext = vm, Width = 1280, Height = 800 };
+        window.Show();
+        await vm.OpenSolutionAsync(dir);
+        Assert.True(vm.IsFolderWorkspace);
+
+        // Its tasks: the build (each project's, one after another), the tests', and the app's run, which is what starts.
+        Assert.Equal(["dotnet: build", "dotnet: build - Components", "dotnet: build - Tests", "dotnet: build - Web", "dotnet: test - Tests", "dotnet: run - Web"],
+            vm.WorkspaceTasks.Select(t => t.Name));
+        Assert.Equal("dotnet: build", vm.BuildTask?.Name);
+        Assert.True(vm.WorkspaceTasks.Single(t => t.Name == "dotnet: build").DependsInSequence);
+        Assert.Equal("dotnet: run - Web", vm.StartupItem?.Name);
+        Assert.Equal(["run", "--project", Path.Combine(dir, "Web", "Web.csproj"), "--launch-profile", "http"], vm.StartupItem!.Task!.Arguments);
+
+        // Roslyn loads its projects: C# in the editor.
+        await WaitUntil(() => vm.ServerStatus == "IntelliSense: ready", TimeSpan.FromMinutes(3));
+        Assert.Equal("IntelliSense: ready", vm.ServerStatus);
+        var program = Path.Combine(dir, "Web", "Program.cs");
+        var doc = vm.OpenDocument(program)!;
+        await WaitUntil(() => doc.Host.HasLanguageServer, TimeSpan.FromSeconds(30));
+        Assert.True(doc.Host.HasLanguageServer);
+
+        // Test Explorer has its tests.
+        Assert.True(vm.HasTestFrameworksForClaude);
+
+        // F5: the build, then the app under netcoredbg, stopped at its breakpoint.
+        vm.Breakpoints.Toggle(program, 2);
+        await vm.StartDebuggingCommand.ExecuteAsync(null);
+        await WaitUntil(() => vm.Mode == DebugMode.Break && vm.CallStack.Count > 0, TimeSpan.FromMinutes(4));
+        Assert.True(vm.Mode == DebugMode.Break, vm.DebugOutput.Document.Text + "\n" + vm.BuildOutput.Document.Text[^Math.Min(3000, vm.BuildOutput.Document.TextLength)..]);
+        Assert.Equal((program, 2), (vm.CallStack[0].SourcePath, vm.CallStack[0].Line));
+        await vm.StopCommand.ExecuteAsync(null);
+        await WaitUntil(() => vm.Mode == DebugMode.Design, TimeSpan.FromSeconds(60));
+        Assert.True(await vm.CloseSolutionCoreAsync());
+        window.Close();
+        Directory.Delete(dir, recursive: true);
+    }
+
+    [AvaloniaFact]
     public async Task Solution_explorer_and_tools_have_its_nuget_commands_where_visual_studio_has_them()
     {
         var sln = SolutionExplorerTests.CopySample();

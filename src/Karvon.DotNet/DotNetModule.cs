@@ -48,7 +48,7 @@ public sealed partial class DotNetModule : KarvonModule
     /// loads its projects, and serves their files from then on.
     /// </summary>
     public override IReadOnlyList<LanguageServerInfo> LanguageServers =>
-        [new("roslyn", "C# and Razor language server (Roslyn)", RoslynClient.Serves, StartRoslynAsync) { ForWorkspace = solution => !solution.IsFolder }];
+        [new("roslyn", "C# and Razor language server (Roslyn)", RoslynClient.Serves, StartRoslynAsync) { ForWorkspace = solution => !solution.IsFolder || DotNetFolder.Has(solution.Directory) }];
 
     /// <summary>The running Roslyn, and the project files it was told of.</summary>
     RoslynClient? _roslyn;
@@ -58,9 +58,19 @@ public sealed partial class DotNetModule : KarvonModule
     {
         var solution = Workbench.Solution ?? throw new InvalidOperationException("No solution is open.");
         var install = await RoslynServerLocator.EnsureInstalledAsync(start.Log, start.Cancellation);
-        var lsp = await RoslynClient.StartAsync(install, solution.FilePath, Path.Combine(Path.GetTempPath(), "Karvon", "roslyn-logs"), start.Cancellation);
+        // A folder: its one solution, else its projects.
+        var (target, projects) = (solution.FilePath, solution.Projects.Select(p => p.FilePath).ToList());
+        if (solution.IsFolder)
+        {
+            var (solutions, found) = DotNetFolder.Find(solution.Directory);
+            projects = [.. found.Select(p => p.FilePath)];
+            target = solutions.Count == 1 || projects.Count == 0 ? solutions[0] : projects[0];
+        }
+        var lsp = await RoslynClient.StartAsync(install, target, Path.Combine(Path.GetTempPath(), "Karvon", "roslyn-logs"), start.Cancellation, solution.Directory);
+        if (solution.IsFolder && SolutionLoader.IsProjectFile(target) && projects.Count > 1)
+            await lsp.OpenProjectsAsync(projects.Skip(1));
         _roslyn = lsp;
-        _roslynProjects = [.. solution.Projects.Select(p => p.FilePath)];
+        _roslynProjects = [.. projects];
         lsp.RestoreRequested += projects => Dispatcher.UIThread.Post(() => _ = RestoreForRoslynAsync(projects));
         lsp.ProjectsLoaded += () => _ = WarmUpRazorAsync(lsp);
         return lsp;
@@ -87,7 +97,7 @@ public sealed partial class DotNetModule : KarvonModule
     /// <summary>The solution read again: Roslyn loads the projects it does not have yet (added, or a project file renamed).</summary>
     void OnSolutionReloaded()
     {
-        if (_roslyn is not { IsDisposed: false } lsp || Workbench.Solution is not { } solution)
+        if (_roslyn is not { IsDisposed: false } lsp || Workbench.Solution is not { IsFolder: false } solution)
             return;
         var added = solution.Projects.Select(p => p.FilePath).Where(p => !_roslynProjects.Contains(p)).ToList();
         _roslynProjects = [.. solution.Projects.Select(p => p.FilePath)];
@@ -113,6 +123,10 @@ public sealed partial class DotNetModule : KarvonModule
     public override Task<IReadOnlyList<ProjectTemplate>> LoadProjectTemplatesAsync(CancellationToken ct) => TemplateCatalog.LoadAsync(ct);
 
     public override bool OpensWorkspace(string path) => SolutionReader.Opens(path);
+
+    /// <summary>A folder opened as it is with .NET in it: dotnet build, test and run of its solution and projects.</summary>
+    public override IReadOnlyList<WorkspaceTask> WorkspaceTasks(string workspace) =>
+        Workbench.Solution is { IsFolder: true } ? DotNetFolder.Tasks(workspace) : [];
 
     public override Task<SolutionInfo> OpenWorkspaceAsync(string path, CancellationToken ct) => SolutionReader.LoadAsync(path, ct);
 

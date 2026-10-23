@@ -76,7 +76,7 @@ static class DotNetDebugger
     }
 
     /// <summary>Visual Studio's launchBrowser: the browser opens where the app says it listens, at the profile's launchUrl.</summary>
-    static JsonObject BrowserAt(LaunchProfile profile) => new()
+    internal static JsonObject BrowserAt(LaunchProfile profile) => new()
     {
         ["action"] = "openExternally",
         ["pattern"] = @"\bNow listening on:\s+(https?://\S+)",
@@ -87,7 +87,7 @@ static class DotNetDebugger
     /// What a .NET program writes, as a terminal shows it: its colors kept when its output is redirected, and none of
     /// the Debug logger's lines (the Output window has them already).
     /// </summary>
-    static readonly IReadOnlyDictionary<string, string> OutputEnvironment = new Dictionary<string, string>
+    internal static readonly IReadOnlyDictionary<string, string> OutputEnvironment = new Dictionary<string, string>
     {
         ["DOTNET_SYSTEM_CONSOLE_ALLOW_ANSI_COLOR_REDIRECTION"] = "1",
         ["Logging__Debug__LogLevel__Default"] = "None",

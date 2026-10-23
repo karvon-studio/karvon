@@ -44,7 +44,9 @@ Secrets; in Dependencies, Remove for packages and project references. A solution
 ## Folders (File > Open Folder)
 
 Any folder as it is, built, run and tested by its tasks: `.vscode/tasks.json`'s (shell,
-process and npm tasks, their build and test groups) and its `package.json` scripts (npm, pnpm, yarn or bun). Build
+process and npm tasks, their build and test groups), its `package.json` scripts (npm, pnpm, yarn or bun) and its .NET
+solution's or projects' (`dotnet build`, `dotnet test`, and `dotnet run` of each app by its launch profile, which F5
+debugs after its build; Roslyn loads them, and Test Explorer has their tests), as each language's module finds them. Build
 (Ctrl+Shift+B) runs the build task with its errors in the Error List, Run All Tests the test task; Build > Run Task
 runs any of them, a watch beside the rest. The toolbar chooses what starts: a `.vscode/launch.json` configuration (F5
 debugs it with the debugger of its type, after its `preLaunchTask`; Ctrl+F5 runs it without) or a run task (dev,
