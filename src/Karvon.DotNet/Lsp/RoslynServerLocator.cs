@@ -41,6 +41,10 @@ public static class RoslynServerLocator
     {
         if (Find() is { } existing)
             return existing;
+        // dotnet tool install writes into the folder as it goes: one at a time, the next finding it there.
+        await using var held = await Modules.InstallLock.AcquireAsync(InstallRoot, ct);
+        if (Find() is { } installed)
+            return installed;
 
         log($"Installing {PackageId} {Version} into {InstallRoot} ...");
         System.IO.Directory.CreateDirectory(InstallRoot);

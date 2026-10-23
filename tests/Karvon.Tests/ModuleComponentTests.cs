@@ -44,6 +44,22 @@ public class ModuleComponentTests
         Assert.All(vm.Components, c => Assert.True(FilePaths.IsUnder(c.Component.InstallRoot, ModuleComponent.DataRoot), c.Component.InstallRoot));
     }
 
+    [Fact]
+    public async Task A_component_installs_once_at_a_time()
+    {
+        // Two starts of the same server at once: the second waits for the first, then finds it there.
+        var folder = Path.Combine(Path.GetTempPath(), "karvon-lock-" + Guid.NewGuid().ToString("N"), "server");
+        var first = await InstallLock.AcquireAsync(folder, TestContext.Current.CancellationToken);
+        var second = InstallLock.AcquireAsync(folder, TestContext.Current.CancellationToken);
+        await Task.Delay(300, TestContext.Current.CancellationToken);
+        Assert.False(second.IsCompleted);
+        Assert.True(File.Exists(folder + ".lock"));
+        await first.DisposeAsync();
+        await (await second.WaitAsync(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken)).DisposeAsync();
+        Assert.False(File.Exists(folder + ".lock"));
+        Directory.Delete(Path.GetDirectoryName(folder)!, recursive: true);
+    }
+
     [AvaloniaFact]
     public async Task A_module_turned_on_downloads_its_components_then()
     {
