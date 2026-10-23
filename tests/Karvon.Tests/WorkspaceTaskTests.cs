@@ -100,6 +100,78 @@ public class WorkspaceTaskTests
     }
 
     [Fact]
+    public void Problem_matchers_read_a_tasks_errors_as_VS_Code_does()
+    {
+        static Func<string, Karvon.Build.BuildDiagnostic?> Matcher(string json, string workspace = "/w") =>
+            ProblemMatchers.Of(System.Text.Json.JsonDocument.Parse(json).RootElement, text => TaskVariables.Expand(text, workspace))!;
+
+        // VS Code's own, by their names.
+        Assert.Equal(new Karvon.Build.BuildDiagnostic(Karvon.Lsp.DiagnosticSeverity.Warning, "", "unused variable 'x'", "src/main.c", 4, 7, null),
+            Matcher("\"$gcc\"")("src/main.c:4:7: warning: unused variable 'x'"));
+        Assert.Equal(("./main.go", 12, 3, "undefined: y"), Matcher("\"$go\"")("./main.go:12:3: undefined: y") is { } go ? (go.File, go.Line, go.Column, go.Message) : default);
+        Assert.Equal("TS2322", Matcher("\"$tsc\"")("src/app.ts(3,5): error TS2322: Type 'string' is not assignable.")!.Code);
+        Assert.Null(Matcher("\"$gcc\"")("make: Nothing to be done."));
+
+        // A task's own: its groups, its severity, where its files are; a list tries each.
+        var own = Matcher("""
+            [ "$gcc", { "owner": "lint", "severity": "info", "fileLocation": ["relative", "${workspaceFolder}/src"],
+                "pattern": { "regexp": "^(.*)@(\\d+),(\\d+) \\[([\\w-]+)\\] (.*)$", "file": 1, "line": 2, "column": 3, "code": 4, "message": 5 } } ]
+            """);
+        Assert.Equal(new Karvon.Build.BuildDiagnostic(Karvon.Lsp.DiagnosticSeverity.Information, "no-var", "use let", "/w/src/app.js", 8, 2, null),
+            own("app.js@8,2 [no-var] use let"));
+        Assert.Equal("src/x.c", own("src/x.c:1:1: error: boom")!.File);
+        var located = Matcher("""{ "pattern": { "regexp": "^(.+):(\\d+:\\d+): (\\w+): (.*)$", "location": 2, "severity": 3 } }""");
+        Assert.Equal((Karvon.Lsp.DiagnosticSeverity.Warning, 10, 4, "deprecated"), located("a.py:10:4: warning: deprecated") is { } l ? (l.Severity, l.Line, l.Column, l.Message) : default);
+
+        // One that reads several lines, or that Karvon does not know: none (a build then reads file(line,col): error lines).
+        Assert.Null(ProblemMatchers.Of(System.Text.Json.JsonDocument.Parse("""{ "pattern": [{ "regexp": "^(.*)$" }, { "regexp": "x" }] }""").RootElement, s => s));
+        Assert.Null(ProblemMatchers.Of(System.Text.Json.JsonDocument.Parse("\"$eslint-stylish\"").RootElement, s => s));
+    }
+
+    [AvaloniaFact]
+    public async Task Depends_on_runs_first_in_sequence_or_together()
+    {
+        var dir = NewFolder();
+        File.WriteAllText(VsCodeTasks.FileOf(dir), """
+            { "version": "2.0.0", "tasks": [
+              { "label": "a", "type": "shell", "command": "echo a >> order.txt" },
+              { "label": "b", "type": "shell", "command": "echo b >> order.txt" },
+              { "label": "fail", "type": "shell", "command": "exit 3" },
+              { "label": "both", "dependsOn": ["a", "b"], "dependsOrder": "sequence" },
+              { "label": "build", "type": "shell", "command": "echo built >> order.txt", "dependsOn": "both", "group": { "kind": "build", "isDefault": true } },
+              { "label": "broken", "type": "shell", "command": "echo never >> order.txt", "dependsOn": ["fail"] },
+              { "label": "ping", "type": "shell", "command": "echo ping", "dependsOn": "pong" },
+              { "label": "pong", "type": "shell", "command": "echo pong", "dependsOn": "ping" },
+              { "label": "lost", "type": "shell", "command": "echo lost", "dependsOn": "nowhere" }
+            ] }
+            """);
+        var vm = NewViewModel();
+        var window = new MainWindow { DataContext = vm, Width = 1280, Height = 800 };
+        window.Show();
+        await vm.OpenSolutionAsync(dir);
+        var both = vm.WorkspaceTasks.Single(t => t.Name == "both");
+        Assert.True(both.IsCompound);
+        Assert.Equal("dependsOn: a, b", both.CommandLine);
+
+        // Build: its dependencies first, one after another, then the build.
+        await vm.BuildSolutionCommand.ExecuteAsync(null);
+        Assert.Equal("a\nb\nbuilt\n", File.ReadAllText(Path.Combine(dir, "order.txt")));
+
+        // A dependency that fails, one in a loop, one that is not there: the task does not run, and Output says why.
+        WorkspaceTask Named(string name) => vm.WorkspaceTasks.Single(t => t.Name == name);
+        await vm.RunTaskCommand.ExecuteAsync(Named("broken"));
+        Assert.DoesNotContain("never", File.ReadAllText(Path.Combine(dir, "order.txt")));
+        Assert.Contains("'fail', which 'broken' depends on, did not succeed, so 'broken' does not run.", vm.TasksOutput.Document.Text);
+        await vm.RunTaskCommand.ExecuteAsync(Named("ping"));
+        Assert.Contains("The task 'pong' depends on 'ping', which depends on it: neither runs.", vm.TasksOutput.Document.Text);
+        await vm.RunTaskCommand.ExecuteAsync(Named("lost"));
+        Assert.Contains("The task 'lost' depends on 'nowhere', which is not a task of the folder.", vm.TasksOutput.Document.Text);
+        Assert.DoesNotContain("> ping:", vm.TasksOutput.Document.Text);
+        Assert.True(await vm.CloseSolutionCoreAsync());
+        Directory.Delete(dir, recursive: true);
+    }
+
+    [Fact]
     public void Package_json_scripts_are_tasks_of_its_package_manager()
     {
         var dir = NewFolder();

@@ -6,8 +6,9 @@ namespace Karvon.Workspace;
 /// <summary>
 /// The tasks of a folder's .vscode/tasks.json (version 2.0.0), as VS Code runs them: a shell task through the shell, a
 /// process task as it is, an npm task as npm run in its path. Its group makes it a Build or a Test task ("build", or
-/// { "kind": "build", "isDefault": true }); the platform's own section (linux, osx, windows) wins over the task's.
-/// Not followed yet: dependsOn, and problem matchers (a build's errors come from its file(line,col): error lines).
+/// { "kind": "build", "isDefault": true }); the platform's own section (linux, osx, windows) wins over the task's. Its
+/// dependsOn runs first (together, or in sequence), and its problemMatcher reads a build's errors (VS Code's $msCompile,
+/// $tsc, $gcc and $go, or its own pattern of one line; without one, file(line,col): error lines are read).
 /// </summary>
 public static class VsCodeTasks
 {
@@ -48,10 +49,22 @@ public static class VsCodeTasks
         var directory = cwd is null ? workspace : Path.GetFullPath(Expand(cwd), workspace);
         var label = Str(task, "label") ?? Str(task, "taskName");
 
+        var dependsOn = Prop(task, "dependsOn") switch
+        {
+            { ValueKind: JsonValueKind.String } one => [one.GetString()!],
+            { ValueKind: JsonValueKind.Array } many => many.EnumerateArray().Select(d => Str(d) ?? Str(Prop(d, "label"))).OfType<string>().ToList(),
+            _ => new List<string>(),
+        };
+
         string program;
         List<string> arguments;
         switch (type)
         {
+            // Only its dependencies: "dependsOn" and no command.
+            case not "npm" when command is null && dependsOn.Count > 0:
+                program = "";
+                arguments = [];
+                break;
             case "npm" when Str(Prop(task, "script")) is { } script:
                 var path = Str(Prop(task, "path"))?.Trim('/');
                 program = "npm";
@@ -90,6 +103,9 @@ public static class VsCodeTasks
             IsDefault = isDefault,
             IsBackground = Prop(task, "isBackground") is { ValueKind: JsonValueKind.True },
             Environment = environment.Count > 0 ? environment : null,
+            DependsOn = dependsOn,
+            DependsInSequence = Str(Prop(task, "dependsOrder")) == "sequence",
+            Problems = ProblemMatchers.Of(Prop(task, "problemMatcher"), Expand),
         };
     }
 

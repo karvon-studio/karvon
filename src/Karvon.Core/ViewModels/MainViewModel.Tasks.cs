@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.Text.Json;
@@ -258,12 +259,63 @@ public partial class MainViewModel
 
     static bool IsStartFailure(Exception ex) => ex is InvalidOperationException or System.ComponentModel.Win32Exception or IOException;
 
+    /// <summary>
+    /// A task's dependsOn, first: each in Output (Tasks), together or one after another (dependsOrder "sequence"), their
+    /// own dependencies before them; a background one is started and not waited for (a watch). Whether all succeeded; why
+    /// not goes to <paramref name="output"/>.
+    /// </summary>
+    async Task<bool> RunDependenciesAsync(WorkspaceTask task, Action<string> output, ImmutableStack<string>? chain = null)
+    {
+        if (task.DependsOn.Count == 0)
+            return true;
+        chain = (chain ?? ImmutableStack<string>.Empty).Push(task.Name);
+        async Task<bool> RunOne(string name)
+        {
+            if (chain.Contains(name))
+            {
+                output($"The task '{task.Name}' depends on '{name}', which depends on it: neither runs.");
+                return false;
+            }
+            if (WorkspaceTasks.FirstOrDefault(t => t.Name == name) is not { } dependency)
+            {
+                output($"The task '{task.Name}' depends on '{name}', which is not a task of the folder.");
+                return false;
+            }
+            if (!await RunDependenciesAsync(dependency, output, chain))
+                return false;
+            if (dependency.IsCompound)
+                return true;
+            if (dependency.IsBackground)
+            {
+                if (!IsTaskRunning(dependency))
+                    _ = RunOtherTaskAsync(dependency, show: false, withDependencies: false);
+                return true;
+            }
+            if (await RunOtherTaskAsync(dependency, show: false, withDependencies: false) is 0)
+                return true;
+            output($"'{name}', which '{task.Name}' depends on, did not succeed, so '{task.Name}' does not run.");
+            return false;
+        }
+        if (task.DependsInSequence)
+        {
+            foreach (var name in task.DependsOn)
+                if (!await RunOne(name))
+                    return false;
+            return true;
+        }
+        return (await Task.WhenAll(task.DependsOn.Select(RunOne))).All(ok => ok);
+    }
+
     /// <summary>A folder's Build: its build task, the Output window and the Error List fed as by a .NET build.</summary>
     async Task<bool> RunBuildTaskAsync(WorkspaceTask task)
     {
         if (IsBuilding)
             return false;
         SaveAll();
+        if (!await RunDependenciesAsync(task, BuildOutput.Append))
+            return ReportBuild("Build", task.Name, false, TimeSpan.Zero, null);
+        if (task.IsCompound)
+            return ReportBuild("Build", task.Name, true, TimeSpan.Zero, null);
         IsBuilding = true;
         SelectedOutput = BuildOutput;
         ShowToolWindow(ToolWindows.Output);
@@ -321,6 +373,8 @@ public partial class MainViewModel
         ShowToolWindow(ToolWindows.Output);
         if (note is not null)
             DebugOutput.Append(note);
+        if (!await RunDependenciesAsync(task, DebugOutput.Append) || task.IsCompound)
+            return;
         DebugOutput.Append("> " + task.CommandLine);
         _lastExitCode = null;
         // A run that opens the browser once it listens (a web project's launch profile).
@@ -364,8 +418,10 @@ public partial class MainViewModel
         if (IsTesting || IsBuilding)
             return;
         SaveAll();
-        IsTesting = true;
         TestsOutput.Clear();
+        if (!await RunDependenciesAsync(task, TestsOutput.Append) || task.IsCompound)
+            return;
+        IsTesting = true;
         SelectedOutput = TestsOutput;
         ShowToolWindow(ToolWindows.Output);
         TestsOutput.Append("> " + task.CommandLine);
@@ -400,7 +456,7 @@ public partial class MainViewModel
     /// A task of no kind or a background one, in Output (Tasks) beside the rest (put in front, unless it starts beside
     /// another); run again while it runs, it stops. Its exit code once it ends; null when it did not start, or was stopped.
     /// </summary>
-    async Task<int?> RunOtherTaskAsync(WorkspaceTask task, bool show = true)
+    async Task<int?> RunOtherTaskAsync(WorkspaceTask task, bool show = true, bool withDependencies = true)
     {
         if (_otherTasks.Remove(task.Name, out var running))
         {
@@ -413,6 +469,10 @@ public partial class MainViewModel
             SelectedOutput = TasksOutput;
             ShowToolWindow(ToolWindows.Output);
         }
+        if (withDependencies && !await RunDependenciesAsync(task, TasksOutput.Append))
+            return null;
+        if (task.IsCompound)
+            return 0;
         TasksOutput.Append($"> {task.Name}: {task.CommandLine}");
         ProcessRunner runner;
         try

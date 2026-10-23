@@ -30,14 +30,16 @@ it does today all along.
 - A workload describes a language: how its projects are found (`package.json`, `pyproject.toml`, `go.mod`…), its
   language server, debugger, build, run and test commands, package manager and templates.
 - `.vscode/launch.json` and `tasks.json` are read, so existing projects run as they are (in now: `tasks.json` and the
-  modules' tasks build, run and test a folder; `launch.json`'s configurations start under the debugger of their type,
-  with `preLaunchTask` and `postDebugTask`, and `serverReadyAction` opens the browser; not yet: compounds,
-  `${input:}`, problem matchers, `dependsOn`).
+  modules' tasks build, run and test a folder, a task's `dependsOn` first (together, or in sequence) and its
+  `problemMatcher` reading its errors (VS Code's `$msCompile`, `$tsc`, `$gcc` and `$go`, or its own pattern of one
+  line); `launch.json`'s configurations start under the debugger of their type, with `preLaunchTask` and
+  `postDebugTask`, and `serverReadyAction` opens the browser; not yet: compounds, `${input:}`, problem patterns of
+  several lines).
 - Claude's IDE tools (`run_build`, `run_tests`, `app_control`, `debug_*`) work for any workload (in now, for a folder's
   tasks and launch configurations).
 - Test Explorer for any workload: a module's test frameworks find and run their tests (in now: .NET's through vstest,
-  Vitest's and Jest's, run or debugged under js-debug; Debug All Tests runs a folder's `package.json` test script under
-  js-debug when no framework is known).
+  Vitest's and Jest's under js-debug, pytest, go test, cargo test and CTest, run or debugged; Debug All Tests runs a
+  folder's `package.json` test script under js-debug when no framework is known).
 - Mixed repositories: a frontend's `package.json` folder shows as a project beside the solution's (in now, with its
   scripts in Run Task, and Start with the Solution: its dev server runs beside the startup project, as VS's multiple
   startup projects do; next, debugging both at once).

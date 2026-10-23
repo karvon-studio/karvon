@@ -39,11 +39,20 @@ public sealed record WorkspaceTask(string Name, WorkspaceTaskKind Kind, string P
     /// <summary>Variables set for it over Karvon's own (a PATH with its runtime's folder first...).</summary>
     public IReadOnlyDictionary<string, string>? Environment { get; init; }
 
+    /// <summary>The tasks it runs first, by their names (tasks.json's dependsOn); one with no program of its own only runs them.</summary>
+    public IReadOnlyList<string> DependsOn { get; init; } = [];
+
+    /// <summary>Its dependencies run one after another, each once the one before succeeded (dependsOrder "sequence"); else together.</summary>
+    public bool DependsInSequence { get; init; }
+
+    /// <summary>A task that only runs its dependencies (tasks.json's task with dependsOn and no command).</summary>
+    public bool IsCompound => Program.Length == 0;
+
     /// <summary>A run's serverReadyAction, as a launch configuration has it: the browser opens once its output says it listens.</summary>
     public System.Text.Json.Nodes.JsonObject? ServerReadyAction { get; init; }
 
     /// <summary>The command as the Output window shows it: the program by its name, an argument with a space quoted.</summary>
-    public string CommandLine =>
+    public string CommandLine => IsCompound ? "dependsOn: " + string.Join(", ", DependsOn) :
         string.Join(' ', [Path.IsPathRooted(Program) ? Path.GetFileName(Program) : Program, .. Arguments.Select(a => a.Length == 0 || a.Any(char.IsWhiteSpace) ? $"\"{a}\"" : a)]);
 
     public override string ToString() => Name;
