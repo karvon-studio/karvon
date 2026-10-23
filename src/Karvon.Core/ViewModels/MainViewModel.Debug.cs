@@ -163,6 +163,7 @@ public partial class MainViewModel
             args.AddRange(extra.Split(' ', StringSplitOptions.RemoveEmptyEntries));
 
         DebugOutput.Append($"Debugging {project.Name} ({Path.GetFileName(program)}) with netcoredbg {NetcoredbgLocator.Version}");
+        StartWithSolution();
         _debuggedProject = project.Name;
         Mode = DebugMode.Running;
         SetStatus("Running", StatusKind.Running);
@@ -195,6 +196,7 @@ public partial class MainViewModel
         {
             DebugOutput.Append("Failed to start debugging: " + ex.Message);
             _session = null;
+            StopStartedWithSolution();
             Mode = DebugMode.Design;
             SetStatus("Ready", StatusKind.Ready);
         }
@@ -558,6 +560,7 @@ public partial class MainViewModel
             w.Type = "";
         }
         Breakpoints.ClearVerification();
+        StopStartedWithSolution();
         // js-debug does not say how a program exited.
         DebugOutput.Append(exitCode is { } code
             ? $"The program '{_debuggedProject}' has exited with code {code} (0x{code:x})."

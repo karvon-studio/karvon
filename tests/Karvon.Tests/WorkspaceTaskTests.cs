@@ -26,6 +26,24 @@ sealed class FakeTaskModule : KarvonModule
     ];
 }
 
+/// <summary>A module whose project is a frontend beside the solution's: its folder, and its dev server (a shell command).</summary>
+sealed class FakeFrontendModule : KarvonModule
+{
+    public override string Id => "fake-frontend";
+
+    public override string Name => "Fake frontend";
+
+    public override string Description => "A frontend beside the solution for the tests.";
+
+    static string FolderOf(string workspace) => Path.Combine(workspace, "frontend");
+
+    public override IReadOnlyList<WorkspaceProject> WorkspaceProjects(string workspace) =>
+        Directory.Exists(FolderOf(workspace)) ? [new("frontend", FolderOf(workspace), Path.Combine(FolderOf(workspace), "package.json")) { Kind = "fake" }] : [];
+
+    public override IReadOnlyList<WorkspaceTask> WorkspaceTasks(string workspace) =>
+        Directory.Exists(FolderOf(workspace)) ? [new("fake: dev - frontend", WorkspaceTaskKind.Run, "sh", ["-c", "echo 'frontend ready'; sleep 30"], FolderOf(workspace)) { Source = "fake" }] : [];
+}
+
 /// <summary>A folder's tasks: .vscode/tasks.json's and the modules' (package.json's scripts), and what Build, Start and Run All Tests do with them.</summary>
 public class WorkspaceTaskTests
 {
@@ -284,6 +302,49 @@ public class WorkspaceTaskTests
         // The solution read again keeps it, once.
         await vm.ReloadSolutionAsync();
         Assert.Single(vm.ExplorerRoots.Single().Children, n => n.WorkspaceProject is not null);
+        Assert.True(await vm.CloseSolutionCoreAsync());
+        window.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task A_frontend_starts_with_the_solution()
+    {
+        var sln = SolutionExplorerTests.CopySample();
+        var dir = Path.GetDirectoryName(sln)!;
+        Directory.CreateDirectory(Path.Combine(dir, "frontend"));
+        var vm = NewViewModel(modules: [.. Karvon.BuiltInModules.Create(), new FakeFrontendModule()]);
+        vm.RestoresSolutionState = true;
+        var window = new MainWindow { DataContext = vm, Width = 1280, Height = 800 };
+        window.Show();
+        await vm.OpenSolutionAsync(sln);
+        var node = vm.ExplorerRoots.Single().Children.Single(n => n.WorkspaceProject is { Kind: "fake" });
+        var frontend = node.WorkspaceProject!;
+        Assert.Equal("fake: dev - frontend", vm.RunTaskOf(frontend)?.Name);
+
+        // Solution Explorer's Start with the Solution, off until it is turned on; it comes back with the solution.
+        MenuItem StartWith() => window.ExplorerMenuItems(node).OfType<MenuItem>().Single(i => i.Header as string == "Start with the Solution");
+        Assert.False(StartWith().IsChecked);
+        vm.ToggleStartWithSolutionCommand.Execute(frontend);
+        Assert.True(StartWith().IsChecked);
+        Assert.True(await vm.CloseSolutionCoreAsync());
+        await vm.OpenSolutionAsync(sln);
+        node = vm.ExplorerRoots.Single().Children.Single(n => n.WorkspaceProject is { Kind: "fake" });
+        Assert.True(StartWith().IsChecked);
+
+        // The startup project starts: the frontend's dev server runs beside it, in Output (Tasks), until it ends.
+        vm.StartWithSolution();
+        var dev = vm.RunTaskOf(node.WorkspaceProject!)!;
+        await WaitUntil(() => vm.TasksOutput.Document.Text.Contains("frontend ready"), TimeSpan.FromSeconds(10));
+        Assert.True(vm.IsTaskRunning(dev));
+        Assert.Contains("frontend starts with the solution: fake: dev - frontend", vm.DebugOutput.Document.Text);
+        vm.StopStartedWithSolution();
+        await WaitUntil(() => vm.TasksOutput.Document.Text.Contains("exited with code"), TimeSpan.FromSeconds(10));
+        Assert.False(vm.IsTaskRunning(dev));
+
+        // Off again: nothing starts with it.
+        vm.ToggleStartWithSolutionCommand.Execute(node.WorkspaceProject);
+        vm.StartWithSolution();
+        Assert.False(vm.IsTaskRunning(dev));
         Assert.True(await vm.CloseSolutionCoreAsync());
         window.Close();
     }

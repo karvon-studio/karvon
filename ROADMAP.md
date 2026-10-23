@@ -28,8 +28,9 @@ it does today all along.
   tasks and launch configurations).
 - Debug Tests for a folder's test task (in now: Debug All Tests runs a `package.json` test script under js-debug;
   next, its tests in Test Explorer).
-- Mixed repositories: a frontend's `package.json` folder shows as a project beside the solution's (in now, its scripts
-  in Run Task; next, starting it with the solution's startup project).
+- Mixed repositories: a frontend's `package.json` folder shows as a project beside the solution's (in now, with its
+  scripts in Run Task, and Start with the Solution: its dev server runs beside the startup project, as VS's multiple
+  startup projects do; next, debugging both at once).
 
 ## 0c. Every platform
 

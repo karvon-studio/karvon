@@ -1100,6 +1100,7 @@ public partial class MainViewModel : ObservableObject
         SelectedOutput = DebugOutput;
         ShowToolWindow(ToolWindows.Output);
         DebugOutput.Append($"> dotnet {string.Join(' ', args)}");
+        StartWithSolution();
         _lastExitCode = null;
         IsRunning = true;
         SetStatus($"Running {project.Name}", StatusKind.Running);
@@ -1123,6 +1124,7 @@ public partial class MainViewModel : ObservableObject
         if (_runProcess == runner)
             _runProcess = null;
         runner.Dispose();
+        StopStartedWithSolution();
         IsRunning = false;
         SetStatus("Ready", Solution is null ? StatusKind.NoSolution : StatusKind.Ready);
     }

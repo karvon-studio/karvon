@@ -16,8 +16,11 @@ public sealed class SolutionState
     public string? StartupProject { get; set; }
     public string? LaunchProfile { get; set; }
 
-    /// <summary>A folder's run task chosen on the toolbar (in place of a startup project).</summary>
+    /// <summary>A folder's startup item chosen on the toolbar (in place of a startup project), by its name.</summary>
     public string? StartupTask { get; set; }
+
+    /// <summary>The modules' projects (a frontend's folder) that start with the startup project, by their folders.</summary>
+    public List<string> StartWith { get; set; } = [];
     public string Configuration { get; set; } = "Debug";
 
     /// <summary>Tab groups side by side (New Vertical Tab Group) rather than one above the other.</summary>
@@ -141,6 +144,7 @@ public sealed class SolutionState
         Breakpoints = Breakpoints.ToDictionary(kv => Convert(kv.Key)!, kv => kv.Value);
         ExpandedNodes = ExpandedNodes.Select(n => Convert(n)!).ToList();
         SelectedNode = Convert(SelectedNode);
+        StartWith = StartWith.Select(p => Convert(p)!).ToList();
         return this;
     }
 }

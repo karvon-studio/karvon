@@ -675,6 +675,15 @@ public partial class MainWindow : Window, IDialogService
                 items.Add(Item("Remove", () => _ = vm.RemoveProjectReferenceAsync(owner!, path), enabled: owner is not null));
                 break;
             case NodeKind.Folder when path is not null:
+                // A project beside the solution's (a frontend): it can start with the startup project, as VS's multiple startup projects do.
+                if (node.WorkspaceProject is { } companion)
+                {
+                    var start = Item("Start with the Solution", () => vm.ToggleStartWithSolutionCommand.Execute(companion), enabled: vm.RunTaskOf(companion) is not null);
+                    start.ToggleType = MenuItemToggleType.CheckBox;
+                    start.IsChecked = vm.StartsWithSolution(companion);
+                    items.Add(start);
+                    items.Add(new Separator());
+                }
                 items.Add(AddMenu(null));
                 items.Add(new Separator());
                 items.Add(Item("Rename", () => vm.BeginRename(node), "F2"));

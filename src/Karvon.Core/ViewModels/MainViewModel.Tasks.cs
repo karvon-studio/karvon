@@ -25,6 +25,9 @@ public partial class MainViewModel
     OutputChannel? _tasksOutput;
     OutputChannel? _testsOutput;
 
+    /// <summary>The run tasks started with the startup project (a frontend's dev server), by name: they stop with it.</summary>
+    readonly HashSet<string> _startedWithSolution = new(StringComparer.Ordinal);
+
     /// <summary>The last test task run: its name and exit code (for Claude's run_tests).</summary>
     (string Task, int ExitCode)? _lastTestTask;
 
@@ -178,6 +181,60 @@ public partial class MainViewModel
         }
     }
 
+    /// <summary>The modules' projects beside the solution's (a frontend's package.json folder), as Solution Explorer shows them.</summary>
+    public IEnumerable<WorkspaceProject> WorkspaceProjects =>
+        ExplorerRoots.FirstOrDefault()?.Children.Select(n => n.WorkspaceProject).OfType<WorkspaceProject>() ?? [];
+
+    /// <summary>Whether a project beside the solution's starts with its startup project (Start with the Solution).</summary>
+    public bool StartsWithSolution(WorkspaceProject project) => _state.StartWith.Contains(project.Directory);
+
+    /// <summary>Solution Explorer's Start with the Solution, on a project beside the solution's: on, or off again.</summary>
+    [RelayCommand]
+    void ToggleStartWithSolution(WorkspaceProject? project)
+    {
+        if (project is null || Solution is null)
+            return;
+        if (!_state.StartWith.Remove(project.Directory))
+            _state.StartWith.Add(project.Directory);
+        SaveSession();
+    }
+
+    /// <summary>What a project beside the solution's runs: its run task (its dev or start script).</summary>
+    public WorkspaceTask? RunTaskOf(WorkspaceProject project) => WorkspaceTasks
+        .Where(t => t.Kind == WorkspaceTaskKind.Run && !t.IsBackground && t.WorkingDirectory == project.Directory)
+        .OrderByDescending(t => t.IsDefault)
+        .FirstOrDefault();
+
+    /// <summary>
+    /// F5 or Ctrl+F5 starts the startup project: the projects that start with it run beside it, in Output (Tasks), each
+    /// by its run task, until it ends.
+    /// </summary>
+    internal void StartWithSolution()
+    {
+        foreach (var project in WorkspaceProjects.Where(StartsWithSolution).ToList())
+        {
+            if (RunTaskOf(project) is not { } task)
+            {
+                TasksOutput.Append($"{project.Name} starts with the solution, but it has no run task (a dev or start script).");
+                continue;
+            }
+            if (IsTaskRunning(task))
+                continue;
+            _startedWithSolution.Add(task.Name);
+            DebugOutput.Append($"{project.Name} starts with the solution: {task.Name}, in Output (Tasks).");
+            _ = RunOtherTaskAsync(task, show: false);
+        }
+    }
+
+    /// <summary>The startup project ended: what started with it stops.</summary>
+    internal void StopStartedWithSolution()
+    {
+        foreach (var name in _startedWithSolution)
+            if (_otherTasks.Remove(name, out var runner))
+                runner.Kill();
+        _startedWithSolution.Clear();
+    }
+
     /// <summary>The PATH of the tasks: the modules' tool folders (Node.js's bin...) before Karvon's own.</summary>
     string TaskPath() =>
         string.Join(Path.PathSeparator, Modules.SelectMany(m => m.ToolDirectories).Distinct().Append(Environment.GetEnvironmentVariable("PATH") ?? ""));
@@ -322,10 +379,10 @@ public partial class MainViewModel
     }
 
     /// <summary>
-    /// A task of no kind or a background one, in Output (Tasks) beside the rest; run again while it runs, it stops. Its exit
-    /// code once it ends; null when it did not start, or was stopped.
+    /// A task of no kind or a background one, in Output (Tasks) beside the rest (put in front, unless it starts beside
+    /// another); run again while it runs, it stops. Its exit code once it ends; null when it did not start, or was stopped.
     /// </summary>
-    async Task<int?> RunOtherTaskAsync(WorkspaceTask task)
+    async Task<int?> RunOtherTaskAsync(WorkspaceTask task, bool show = true)
     {
         if (_otherTasks.Remove(task.Name, out var running))
         {
@@ -333,8 +390,11 @@ public partial class MainViewModel
             return null;
         }
         SaveAll();
-        SelectedOutput = TasksOutput;
-        ShowToolWindow(ToolWindows.Output);
+        if (show)
+        {
+            SelectedOutput = TasksOutput;
+            ShowToolWindow(ToolWindows.Output);
+        }
         TasksOutput.Append($"> {task.Name}: {task.CommandLine}");
         ProcessRunner runner;
         try
