@@ -33,6 +33,13 @@ static class TestTools
         return wrapper;
     }
 
+    /// <summary>The window's keys' modifier: Cmd on macOS, Ctrl elsewhere (the terminal's keys and Ctrl+Tab stay Ctrl).</summary>
+    public static Avalonia.Input.RawInputModifiers CommandKey =>
+        OperatingSystem.IsMacOS() ? Avalonia.Input.RawInputModifiers.Meta : Avalonia.Input.RawInputModifiers.Control;
+
+    /// <summary>VS Code's key of this platform's section in tasks.json and launch.json: linux, osx or windows.</summary>
+    public static string PlatformKey => OperatingSystem.IsWindows() ? "windows" : OperatingSystem.IsMacOS() ? "osx" : "linux";
+
     /// <summary>A test that runs Unix's shell (sh -c, its commands): not on Windows.</summary>
     public static void SkipOnWindows(string why = "It runs Unix's shell.") => Assert.SkipWhen(OperatingSystem.IsWindows(), why);
 }

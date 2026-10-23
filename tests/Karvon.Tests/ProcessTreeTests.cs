@@ -116,8 +116,13 @@ public class ProcessTreeTests
             rows.Select(r => (r.Pid, r.Parent, r.State, r.Command)));
         Assert.Equal((ulong)new DateTime(2026, 10, 3, 9, 0, 0).Ticks, rows[1].Start);
 
-        // The real ps (Linux's takes the same options) knows this process and its parent.
+        // The real ps (Linux's takes the same options) knows this process and its parent (as /proc has it, on Linux).
+        if (OperatingSystem.IsWindows())
+            return;
         var self = ProcessTree.Ps.Read().Single(r => r.Pid == Environment.ProcessId);
+        Assert.Equal(System.Diagnostics.Process.GetCurrentProcess().ProcessName.Length > 0, self.Command.Length > 0);
+        if (!OperatingSystem.IsLinux())
+            return;
         Assert.Equal(int.Parse(File.ReadAllText("/proc/self/stat").Split(") ")[1].Split(' ')[1]), self.Parent);
         Assert.Equal(File.ReadAllText("/proc/self/cmdline").Replace('\0', ' ').Trim(), self.Command);
     }

@@ -55,7 +55,8 @@ public class DebugLaunchTests
               "configurations": [
                 { "name": "Launch app", "type": "node", "request": "launch", "program": "${workspaceFolder}/src/app.js",
                   "args": ["${relativeFile}", "--port", "${env:KARVON_TEST_PORT}"], "env": { "HOME_DIR": "${userHome}" },
-                  "preLaunchTask": "npm: build", "postDebugTask": "cleanup", "linux": { "program": "${workspaceFolder}/src/linux.js" }, },
+                  "preLaunchTask": "npm: build", "postDebugTask": "cleanup", "linux": { "program": "${workspaceFolder}/src/linux.js" }, "osx": { "program": "${workspaceFolder}/src/osx.js" },
+                  "windows": { "program": "${workspaceFolder}/src/windows.js" }, },
                 { "name": "Attach", "type": "node", "request": "attach", "port": 9229 },
                 { "name": "No type" },
                 { "name": "Launch app", "type": "node", "request": "launch", "program": "again.js" },
@@ -68,17 +69,17 @@ public class DebugLaunchTests
 
         var app = launches[0];
         Assert.Equal(("node", "launch", "npm: build", "cleanup", VsCodeLaunch.Source), (app.Type, app.Request, app.PreLaunchTask, app.PostDebugTask, app.Source));
-        Assert.Null(app.Configuration["linux"]);
+        Assert.Null(app.Configuration["linux"] ?? app.Configuration["osx"] ?? app.Configuration["windows"]);
         Assert.Equal(("attach", (string?)null), (launches[1].Request, launches[1].PreLaunchTask));
 
         // Its variables go in when it starts: the platform's program, the editor's file, the environment's.
         Environment.SetEnvironmentVariable("KARVON_TEST_PORT", "8080");
         var file = Path.Combine(dir, "src", "app.js");
         var started = TaskVariables.ForFile(app.Configuration, dir, file);
-        Assert.Equal(Path.Combine(dir, "src", "linux.js"), started["program"]!.GetValue<string>());
+        Assert.Equal(Path.Combine(dir, "src", TestTools.PlatformKey + ".js"), started["program"]!.GetValue<string>());
         Assert.Equal(["src/app.js", "--port", "8080"], started["args"]!.AsArray().Select(a => a!.GetValue<string>()));
         Assert.Equal(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), started["env"]!["HOME_DIR"]!.GetValue<string>());
-        Assert.Equal("${workspaceFolder}/src/linux.js", app.Configuration["program"]!.GetValue<string>());
+        Assert.Equal($"${{workspaceFolder}}/src/{TestTools.PlatformKey}.js", app.Configuration["program"]!.GetValue<string>());
 
         // js-debug's own names for the types, the folder for its defaults, and the Output window as the console.
         JsDebugger.Complete(started, dir);

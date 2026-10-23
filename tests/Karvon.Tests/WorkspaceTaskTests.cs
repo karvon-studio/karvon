@@ -66,7 +66,7 @@ public class WorkspaceTaskTests
               "tasks": [
                 { "label": "compile", "type": "shell", "command": "tsc", "args": ["-p", "src dir"], "group": { "kind": "build", "isDefault": true },
                   "options": { "cwd": "${workspaceFolder}/web", "env": { "MODE": "${workspaceFolderBasename}" } } },
-                { "label": "lint", "type": "process", "command": "eslint", "args": ["${file}"], "linux": { "command": "eslint-linux" } },
+                { "label": "lint", "type": "process", "command": "eslint", "args": ["${file}"], "linux": { "command": "eslint-linux" }, "osx": { "command": "eslint-osx" }, "windows": { "command": "eslint-windows" } },
                 { "type": "npm", "script": "test", "path": "web/", "group": "test" },
                 { "label": "watch", "type": "shell", "command": "tsc -w", "isBackground": true, },
                 { "label": "gulp", "type": "gulp", "task": "default" },
@@ -85,7 +85,7 @@ public class WorkspaceTaskTests
 
         // The platform's section wins; ${file} waits for the editor's file, when the task runs.
         var lint = tasks[1];
-        Assert.Equal(("eslint-linux", WorkspaceTaskKind.Other), (lint.Program, lint.Kind));
+        Assert.Equal(("eslint-" + TestTools.PlatformKey, WorkspaceTaskKind.Other), (lint.Program, lint.Kind));
         Assert.Equal(["${file}"], lint.Arguments);
         var file = Path.Combine(dir, "src", "app.ts");
         Assert.Equal([file], TaskVariables.ForFile(lint, dir, file).Arguments);

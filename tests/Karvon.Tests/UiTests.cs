@@ -957,13 +957,13 @@ public class UiTests
         using var image = new Avalonia.Media.Imaging.Bitmap(new MemoryStream(RedPng()));
         await Avalonia.Input.Platform.ClipboardExtensions.SetBitmapAsync(window.Clipboard!, image);
         Assert.True(prompt.IsFocused);
-        window.KeyPress(Avalonia.Input.Key.V, Avalonia.Input.RawInputModifiers.Control, Avalonia.Input.PhysicalKey.V, "v");
+        window.KeyPress(Avalonia.Input.Key.V, TestTools.CommandKey, Avalonia.Input.PhysicalKey.V, "v");
         await WaitUntil(() => vm.Attachments.Count == 1, TimeSpan.FromSeconds(5));
         Assert.Equal(("pasted image 1.png", "image/png"), (vm.Attachments[0].Name, vm.Attachments[0].MediaType));
 
         // ...and text is pasted as text.
         await Avalonia.Input.Platform.ClipboardExtensions.SetTextAsync(window.Clipboard!, "explain this");
-        window.KeyPress(Avalonia.Input.Key.V, Avalonia.Input.RawInputModifiers.Control, Avalonia.Input.PhysicalKey.V, "v");
+        window.KeyPress(Avalonia.Input.Key.V, TestTools.CommandKey, Avalonia.Input.PhysicalKey.V, "v");
         await WaitUntil(() => vm.Prompt == "explain this", TimeSpan.FromSeconds(5));
         Assert.Equal("explain this", vm.Prompt);
         Assert.Single(vm.Attachments);
@@ -1024,8 +1024,8 @@ public class UiTests
             host.Editor.TextArea.Focus();
             void Chord(Avalonia.Input.Key second, Avalonia.Input.PhysicalKey physical)
             {
-                window.KeyPress(Avalonia.Input.Key.M, Avalonia.Input.RawInputModifiers.Control, Avalonia.Input.PhysicalKey.M, "m");
-                window.KeyPress(second, Avalonia.Input.RawInputModifiers.Control, physical, null);
+                window.KeyPress(Avalonia.Input.Key.M, TestTools.CommandKey, Avalonia.Input.PhysicalKey.M, "m");
+                window.KeyPress(second, TestTools.CommandKey, physical, null);
             }
             Chord(Avalonia.Input.Key.O, Avalonia.Input.PhysicalKey.O);
             Assert.True(At("public string Greet(string name)").IsFolded);
@@ -1203,7 +1203,7 @@ public class UiTests
         var vm = NewViewModel();
         var window = new MainWindow { DataContext = vm, Width = 1500, Height = 900 };
         window.Show();
-        window.KeyPress(Avalonia.Input.Key.Escape, Avalonia.Input.RawInputModifiers.Control, Avalonia.Input.PhysicalKey.Escape, null);
+        window.KeyPress(Avalonia.Input.Key.Escape, TestTools.CommandKey, Avalonia.Input.PhysicalKey.Escape, null);
         Assert.True(window.IsToolWindowShowing(Karvon.Claude.ClaudeModule.ToolWindowId));
         // The panel starts the CLI (the fake here) as soon as it is shown.
         await WaitUntil(() => ClaudeOf(vm).Claude.Commands.Count > 0, TimeSpan.FromSeconds(10));
@@ -1232,8 +1232,8 @@ public class UiTests
 
         // Ctrl + mouse wheel over the editor, like VS.
         var point = host.Editor.TranslatePoint(new Avalonia.Point(200, 100), window)!.Value;
-        window.MouseWheel(point, new Avalonia.Vector(0, 1), Avalonia.Input.RawInputModifiers.Control);
-        window.MouseWheel(point, new Avalonia.Vector(0, 1), Avalonia.Input.RawInputModifiers.Control);
+        window.MouseWheel(point, new Avalonia.Vector(0, 1), TestTools.CommandKey);
+        window.MouseWheel(point, new Avalonia.Vector(0, 1), TestTools.CommandKey);
         Dispatcher.UIThread.RunJobs();
         Assert.Equal(1.2, host.Zoom, 3);
         Assert.Equal("120 %", doc.ZoomText);
@@ -1244,10 +1244,10 @@ public class UiTests
 
         // Keyboard: Ctrl+Shift+, zooms out, Ctrl+0 resets.
         host.Editor.TextArea.Focus();
-        window.KeyPress(Avalonia.Input.Key.OemComma, Avalonia.Input.RawInputModifiers.Control | Avalonia.Input.RawInputModifiers.Shift,
+        window.KeyPress(Avalonia.Input.Key.OemComma, TestTools.CommandKey | Avalonia.Input.RawInputModifiers.Shift,
             Avalonia.Input.PhysicalKey.Comma, ",");
         Assert.Equal(1.1, host.Zoom, 3);
-        window.KeyPress(Avalonia.Input.Key.D0, Avalonia.Input.RawInputModifiers.Control, Avalonia.Input.PhysicalKey.Digit0, "0");
+        window.KeyPress(Avalonia.Input.Key.D0, TestTools.CommandKey, Avalonia.Input.PhysicalKey.Digit0, "0");
         Assert.Equal(1.0, host.Zoom, 3);
 
         // The last zoom carries over to newly opened documents and is remembered in settings.

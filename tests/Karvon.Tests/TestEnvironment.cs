@@ -12,6 +12,10 @@ static class TestEnvironment
     [ModuleInitializer]
     internal static void Isolate()
     {
+        // macOS's temporary folder is /var/folders/..., /var a link to /private/var, which git, MSBuild and the
+        // debugger answer with: the tests' folders are where those say they are.
+        if (OperatingSystem.IsMacOS() && Path.GetTempPath() is var temp && temp.StartsWith("/var/", StringComparison.Ordinal) && Directory.Exists("/private" + temp))
+            Environment.SetEnvironmentVariable("TMPDIR", "/private" + temp);
         // The modules the application comes with, as the application gives them.
         Karvon.Modules.ModuleCatalog.Create = Karvon.BuiltInModules.Create;
         // Never the user's real ~/.config/karvon, whichever test runs first (opening a folder saves the recent list).
