@@ -270,7 +270,7 @@ public partial class ClaudeView : UserControl
         var suggesting = vm.Suggestions.Count > 0;
         switch (e.Key)
         {
-            case Key.V when e.KeyModifiers == KeyModifiers.Control:
+            case Key.V when e.KeyModifiers == Karvon.Views.PlatformKeys.Command:
                 e.Handled = true;
                 _ = PasteAsync();
                 return;

@@ -200,7 +200,7 @@ public sealed partial class EditorHost : IDisposable, IDebugLineSource
 
     void OnPointerWheel(object? sender, PointerWheelEventArgs e)
     {
-        if (!e.KeyModifiers.HasFlag(KeyModifiers.Control) || e.Delta.Y == 0)
+        if (!Karvon.Views.PlatformKeys.HasCommand(e.KeyModifiers) || e.Delta.Y == 0)
             return;
         if (e.Delta.Y > 0)
             ZoomIn();
@@ -686,7 +686,8 @@ public sealed partial class EditorHost : IDisposable, IDebugLineSource
 
     void OnKeyDown(object? sender, KeyEventArgs e)
     {
-        var ctrl = e.KeyModifiers.HasFlag(KeyModifiers.Control);
+        // The command modifier: Ctrl, Cmd on a Mac.
+        var ctrl = Karvon.Views.PlatformKeys.HasCommand(e.KeyModifiers);
         var shift = e.KeyModifiers.HasFlag(KeyModifiers.Shift);
         if (_chordCtrlM)
         {
@@ -778,7 +779,7 @@ public sealed partial class EditorHost : IDisposable, IDebugLineSource
 
     void OnPointerPressed(object? sender, PointerPressedEventArgs e)
     {
-        if (!e.KeyModifiers.HasFlag(KeyModifiers.Control) || !e.GetCurrentPoint(Editor).Properties.IsLeftButtonPressed)
+        if (!Karvon.Views.PlatformKeys.HasCommand(e.KeyModifiers) || !e.GetCurrentPoint(Editor).Properties.IsLeftButtonPressed)
             return;
         var pos = Editor.GetPositionFromPoint(e.GetPosition(Editor));
         if (pos is { } p)

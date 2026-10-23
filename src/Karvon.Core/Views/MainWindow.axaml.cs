@@ -26,6 +26,8 @@ public partial class MainWindow : Window, IDialogService
     public MainWindow()
     {
         InitializeComponent();
+        // Cmd on a Mac where Linux and Windows have Ctrl: the window's keys and its menus' gestures.
+        PlatformKeys.Apply(this, OperatingSystem.IsMacOS());
         InitializeDocking();
         ExplorerTree.AddHandler(DoubleTappedEvent, OnExplorerDoubleTapped, RoutingStrategies.Bubble, handledEventsToo: true);
         // Before the tree item, which takes Enter for expanding.
@@ -60,7 +62,7 @@ public partial class MainWindow : Window, IDialogService
         // Ctrl+wheel zooms the Output window too, independently of the editors.
         OutputEditor.AddHandler(PointerWheelChangedEvent, (_, e) =>
         {
-            if (!e.KeyModifiers.HasFlag(KeyModifiers.Control) || e.Delta.Y == 0)
+            if (!PlatformKeys.HasCommand(e.KeyModifiers) || e.Delta.Y == 0)
                 return;
             OutputEditor.FontSize = Math.Clamp(OutputEditor.FontSize + (e.Delta.Y > 0 ? 1 : -1), 6, 48);
             e.Handled = true;
@@ -109,8 +111,9 @@ public partial class MainWindow : Window, IDialogService
 
     void OnWindowKeyDown(object? sender, KeyEventArgs e)
     {
-        var ctrl = e.KeyModifiers.HasFlag(KeyModifiers.Control);
-        if (e.Key is Key.LeftCtrl or Key.RightCtrl or Key.LeftShift or Key.RightShift or Key.LeftAlt or Key.RightAlt)
+        // The command modifier: Ctrl, Cmd on a Mac.
+        var ctrl = PlatformKeys.HasCommand(e.KeyModifiers);
+        if (e.Key is Key.LeftCtrl or Key.RightCtrl or Key.LeftShift or Key.RightShift or Key.LeftAlt or Key.RightAlt or Key.LWin or Key.RWin)
             return;
         // A module's tool window key (Ctrl+Alt+S: the Database Explorer, as Visual Studio's Server Explorer).
         // Ctrl+Esc: Claude Code, as in the VS Code extension.
@@ -120,8 +123,8 @@ public partial class MainWindow : Window, IDialogService
             e.Handled = true;
             return;
         }
-        // Ctrl+` opens the terminal (VS's View.Terminal).
-        if (ctrl && e.Key == Key.OemTilde && Vm is { } terminalVm)
+        // Ctrl+` opens the terminal (VS's View.Terminal), Ctrl on a Mac too.
+        if (e.KeyModifiers.HasFlag(KeyModifiers.Control) && e.Key == Key.OemTilde && Vm is { } terminalVm)
         {
             terminalVm.ShowTerminalCommand.Execute(null);
             e.Handled = true;
@@ -134,7 +137,7 @@ public partial class MainWindow : Window, IDialogService
         // Project > Add New Item (Ctrl+Shift+A) and Add Existing Item (Shift+Alt+A): into Solution Explorer's
         // selection when it has focus, else next to the active document.
         if (e.Key == Key.A && Vm is { HasSolution: true } addVm
-            && (e.KeyModifiers == (KeyModifiers.Control | KeyModifiers.Shift) || e.KeyModifiers == (KeyModifiers.Shift | KeyModifiers.Alt)))
+            && (e.KeyModifiers == (PlatformKeys.Command | KeyModifiers.Shift) || e.KeyModifiers == (KeyModifiers.Shift | KeyModifiers.Alt)))
         {
             var target = ExplorerTree.IsKeyboardFocusWithin ? ExplorerTree.SelectedItem as ExplorerNode : null;
             if (e.KeyModifiers.HasFlag(KeyModifiers.Alt))
@@ -155,7 +158,7 @@ public partial class MainWindow : Window, IDialogService
             e.Handled = true;
             switch (first, e.Key)
             {
-                case (Key.R, Key.A) when e.KeyModifiers.HasFlag(KeyModifiers.Control):
+                case (Key.R, Key.A) when ctrl:
                     chordVm.DebugAllTestsCommand.Execute(null);
                     break;
                 case (Key.R, Key.A):
@@ -190,7 +193,8 @@ public partial class MainWindow : Window, IDialogService
             ExplorerSearch.Focus();
             e.Handled = true;
         }
-        else if (ctrl && e.Key == Key.Tab && Vm is { Documents.Count: > 1 } vm)
+        // Ctrl+Tab, Ctrl on a Mac too (Cmd+Tab is the system's).
+        else if (e.KeyModifiers.HasFlag(KeyModifiers.Control) && e.Key == Key.Tab && Vm is { Documents.Count: > 1 } vm)
         {
             var i = vm.ActiveDocument is null ? 0 : vm.Documents.IndexOf(vm.ActiveDocument);
             var step = e.KeyModifiers.HasFlag(KeyModifiers.Shift) ? -1 : 1;
@@ -422,7 +426,7 @@ public partial class MainWindow : Window, IDialogService
         if (vm.LaunchProfiles.Count == 0)
             menu.Items.Add(new MenuItem { Header = "No launch profiles (Properties/launchSettings.json)", IsEnabled = false });
         menu.Items.Add(new Separator());
-        menu.Items.Add(new MenuItem { Header = "Start Without Debugging", Command = vm.StartWithoutDebuggingCommand, InputGesture = new KeyGesture(Key.F5, KeyModifiers.Control) });
+        menu.Items.Add(new MenuItem { Header = "Start Without Debugging", Command = vm.StartWithoutDebuggingCommand, InputGesture = PlatformKeys.Parse("Ctrl+F5") });
         menu.ShowAt(anchor);
     }
 
@@ -549,7 +553,7 @@ public partial class MainWindow : Window, IDialogService
             return [];
         MenuItem Item(string header, Action action, string? gesture = null, bool enabled = true)
         {
-            var item = new MenuItem { Header = header, IsEnabled = enabled, InputGesture = gesture is null ? null : KeyGesture.Parse(gesture) };
+            var item = new MenuItem { Header = header, IsEnabled = enabled, InputGesture = gesture is null ? null : PlatformKeys.Parse(gesture) };
             item.Click += (_, _) => action();
             return item;
         }

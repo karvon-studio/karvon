@@ -62,7 +62,7 @@ public partial class MainWindow
         var menu = new MenuItem { Header = tool.MenuHeader };
         if (tool.Gesture is { } gesture)
         {
-            menu.InputGesture = KeyGesture.Parse(gesture);
+            menu.InputGesture = PlatformKeys.Parse(gesture);
             _moduleGestures.Add((menu.InputGesture, tool));
         }
         menu.Click += (_, _) => ShowModuleToolWindow(vm, tool);

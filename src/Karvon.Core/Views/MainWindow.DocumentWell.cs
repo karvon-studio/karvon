@@ -173,7 +173,7 @@ public partial class MainWindow
         {
             var item = new MenuItem { Header = header, IsEnabled = enabled };
             if (gesture is not null)
-                item.InputGesture = KeyGesture.Parse(gesture);
+                item.InputGesture = PlatformKeys.Parse(gesture);
             item.Click += (_, _) => action();
             return item;
         }

@@ -32,7 +32,7 @@ public partial class AddItemWindow : Window
                 Close(result);
                 e.Handled = true;
             }
-            else if (e.Key == Key.E && e.KeyModifiers == KeyModifiers.Control)
+            else if (e.Key == Key.E && e.KeyModifiers == PlatformKeys.Command)
             {
                 SearchBox.Focus();
                 e.Handled = true;
