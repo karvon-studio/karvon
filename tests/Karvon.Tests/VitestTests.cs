@@ -1,5 +1,6 @@
 using Avalonia.Headless.XUnit;
 using Karvon.Testing;
+using Karvon.ViewModels;
 using Karvon.TypeScript;
 using Karvon.Views;
 using Karvon.Workspace;
@@ -90,9 +91,38 @@ public class VitestTests
         Assert.Contains("-t", vm.TestsOutput.Document.Text);
 
         // Claude's run_tests: Test Explorer's run, its failures with where they are.
-        var report = await Text(ClaudeOf(vm).ToolServer(), "run_tests", new { });
+        var server = ClaudeOf(vm).ToolServer();
+        var report = await Text(server, "run_tests", new { });
         Assert.Contains("area > of nothing > is zero", report);
         Assert.Contains("expected +0 to be 1", report);
+
+        // Debug Selected Tests: vitest under js-debug, stopped on the breakpoint in the test's TypeScript.
+        var debugged = Path.Combine(dir, "src", "debug.test.ts");
+        File.WriteAllText(debugged, """
+            import { it, expect } from "vitest";
+            it("adds", () => {
+              const sum = 2 + 3;
+              expect(sum).toBe(5);
+            });
+            """);
+        // Found again, the tree is made again, with the results it had.
+        await vm.RefreshTestsCommand.ExecuteAsync(null);
+        project = Assert.Single(vm.TestRoots);
+        var adds = project.Children.Single(n => n.Name == "src/debug.test.ts").Children.Single();
+        multiplies = project.Children.Single(n => n.Name == "src/math.test.ts").Children.Single(n => n.Name == "area").Children.Single(n => n.Name == "multiplies");
+        Assert.Equal(TestState.Passed, multiplies.State);
+        vm.SelectedTest = adds;
+        vm.Breakpoints.Toggle(debugged, 4);
+        Assert.True(vm.DebugSelectedTestsCommand.CanExecute(null));
+        var debugging = vm.DebugSelectedTestsCommand.ExecuteAsync(null);
+        await WaitUntil(() => vm.Mode == DebugMode.Break && vm.CallStack.Count > 0, TimeSpan.FromSeconds(60));
+        Assert.True(vm.Mode == DebugMode.Break, vm.DebugOutput.Document.Text + "\n" + vm.TestsOutput.Document.Text);
+        Assert.Equal((debugged, 4), (vm.CallStack[0].SourcePath, vm.CallStack[0].Line));
+        Assert.Equal("sum = 5 (number)", await Text(server, "debug_evaluate", new { expression = "sum" }));
+        await vm.StartDebuggingCommand.ExecuteAsync(null);
+        await debugging.WaitAsync(TimeSpan.FromSeconds(60), TestContext.Current.CancellationToken);
+        Assert.Equal(DebugMode.Design, vm.Mode);
+        Assert.Equal(TestState.Passed, adds.State);
         Assert.True(await vm.CloseSolutionCoreAsync());
         window.Close();
         Directory.Delete(dir, recursive: true);

@@ -59,7 +59,11 @@ public sealed record DebuggerStart(string Workspace, JsonObject Configuration, s
 /// <param name="Workspace">The open folder, or the solution's.</param>
 /// <param name="Path">The tasks' PATH (the modules' tool folders first), for the programs the tests run with.</param>
 /// <param name="Log">Output (Tests).</param>
-public sealed record TestFrameworkStart(string Workspace, string Path, Action<string> Log);
+public sealed record TestFrameworkStart(string Workspace, string Path, Action<string> Log)
+{
+    /// <summary>Runs a launch configuration under the debugger of its type, as F5 does, until its session ends.</summary>
+    public Func<DebugLaunch, Task>? DebugAsync { get; init; }
+}
 
 /// <summary>
 /// A control whose keys come before Karvon's (Bengine Data Studio's keymap in the Database Explorer): while the focus is

@@ -257,6 +257,27 @@ public partial class MainViewModel
         }
     }
 
+    /// <summary>A debug session ended (the program exited, or Stop).</summary>
+    event Action? DebugEnded;
+
+    /// <summary>A launch configuration under its debugger (a test framework's tests: Vitest's), until its session ends.</summary>
+    async Task DebugToEndAsync(Modules.DebugLaunch launch)
+    {
+        var ended = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        void OnEnded() => ended.TrySetResult();
+        DebugEnded += OnEnded;
+        try
+        {
+            await LaunchConfigurationAsync(launch, noDebug: false);
+            if (_session is not null || Mode != DebugMode.Design)
+                await ended.Task;
+        }
+        finally
+        {
+            DebugEnded -= OnEnded;
+        }
+    }
+
     /// <summary>Routes a session's events into break mode, the Output window and breakpoint state.</summary>
     void WireSession(DebugSession session)
     {
@@ -567,6 +588,7 @@ public partial class MainViewModel
         }
         Breakpoints.ClearVerification();
         StopStartedWithSolution();
+        DebugEnded?.Invoke();
         // js-debug does not say how a program exited.
         DebugOutput.Append(exitCode is { } code
             ? $"The program '{_debuggedProject}' has exited with code {code} (0x{code:x})."

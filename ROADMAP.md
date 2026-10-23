@@ -31,8 +31,8 @@ it does today all along.
 - Claude's IDE tools (`run_build`, `run_tests`, `app_control`, `debug_*`) work for any workload (in now, for a folder's
   tasks and launch configurations).
 - Test Explorer for any workload: a module's test frameworks find and run their tests (in now: .NET's through vstest,
-  Vitest's; Debug All Tests runs a folder's `package.json` test script under js-debug; next, Vitest under the debugger,
-  Jest).
+  Vitest's, run or debugged (Vitest under js-debug); Debug All Tests runs a folder's `package.json` test script under
+  js-debug when no framework is known; next, Jest).
 - Mixed repositories: a frontend's `package.json` folder shows as a project beside the solution's (in now, with its
   scripts in Run Task, and Start with the Solution: its dev server runs beside the startup project, as VS's multiple
   startup projects do; next, debugging both at once).

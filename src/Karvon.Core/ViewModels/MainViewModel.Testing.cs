@@ -71,7 +71,7 @@ public partial class MainViewModel
         _moduleTestFrameworks = [];
         if (Solution is not { } solution)
             return;
-        var start = new Modules.TestFrameworkStart(solution.Directory, TaskPath(), TestsOutput.Append);
+        var start = new Modules.TestFrameworkStart(solution.Directory, TaskPath(), TestsOutput.Append) { DebugAsync = DebugToEndAsync };
         foreach (var module in Modules)
         {
             try

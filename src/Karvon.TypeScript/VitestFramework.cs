@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using System.Text.RegularExpressions;
 using Karvon.Build;
 using Karvon.Modules;
@@ -19,6 +20,9 @@ public sealed partial class VitestFramework(string packageDirectory, TestFramewo
     public override string Id => "vitest:" + RelativeTo(start.Workspace, packageDirectory);
 
     public override string Name => "Vitest";
+
+    /// <summary>Under js-debug, as F5 debugs a launch configuration: vitest and the test files' process it starts.</summary>
+    public override bool CanDebug => start.DebugAsync is not null;
 
     /// <summary>The packages of a folder that test with Vitest, each a framework of its own.</summary>
     public static IReadOnlyList<TestFramework> In(TestFrameworkStart start) =>
@@ -104,7 +108,7 @@ public sealed partial class VitestFramework(string packageDirectory, TestFramewo
             onResult(new TestItemResult(test.Id, TestState.Running, TimeSpan.Zero, null, null, null));
         try
         {
-            if (await VitestAsync(args, ct) is { } problem)
+            if ((debug && start.DebugAsync is { } debugAsync ? await DebugAsync(debugAsync, args) : await VitestAsync(args, ct)) is { } problem)
             {
                 start.Log(problem);
                 return;
@@ -158,6 +162,32 @@ public sealed partial class VitestFramework(string packageDirectory, TestFramewo
 
     [GeneratedRegex(@"^\s+at ", RegexOptions.Multiline)]
     private static partial Regex StackLine();
+
+    /// <summary>
+    /// The package's vitest under js-debug, as VS Code debugs it: the process that runs the test files is a child session
+    /// (one file at a time), stepping goes into the test's code only. Why it could not start, or null.
+    /// </summary>
+    async Task<string?> DebugAsync(Func<DebugLaunch, Task> debugAsync, IReadOnlyList<string> args)
+    {
+        if (Entry() is not { } entry)
+            return $"Vitest is not installed in {_project}: install its packages (npm install).";
+        start.Log($"> vitest {string.Join(' ', args.Select(TaskVariables.QuoteForShell))}   ({_project}, under the debugger)");
+        var configuration = new JsonObject
+        {
+            ["type"] = "pwa-node",
+            ["request"] = "launch",
+            ["name"] = $"Vitest: {_project}",
+            ["program"] = entry,
+            ["args"] = new JsonArray([.. args.Append("--no-file-parallelism").Select(a => JsonValue.Create(a))]),
+            ["cwd"] = packageDirectory,
+            ["autoAttachChildProcesses"] = true,
+            ["smartStep"] = true,
+            ["skipFiles"] = new JsonArray("<node_internals>/**", "**/node_modules/**"),
+            ["env"] = new JsonObject { ["NO_COLOR"] = "1", ["FORCE_COLOR"] = "0", ["CI"] = "1" },
+        };
+        await debugAsync(new DebugLaunch($"Vitest: {_project}", configuration) { Source = "vitest" });
+        return null;
+    }
 
     /// <summary>Runs the package's vitest on Node.js in its folder, its output in Output (Tests); why it could not, or null.</summary>
     async Task<string?> VitestAsync(IReadOnlyList<string> args, CancellationToken ct)
