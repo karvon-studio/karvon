@@ -1,14 +1,16 @@
 using Avalonia.Controls.Templates;
 using Karvon.DotNet.NuGet;
+using Karvon.DotNet.Templates;
 using Karvon.Modules;
+using Karvon.Templates;
 using Karvon.ViewModels;
 using Karvon.Workspace;
 
 namespace Karvon.DotNet;
 
 /// <summary>
-/// .NET: the NuGet Package Manager (a project's packages, or the solution's), Solution Explorer's NuGet commands and
-/// C#'s language server and debugger as its components. The rest of .NET (solutions, builds, the C# editor, F5, tests)
+/// .NET: the SDK's project templates in New Project, the NuGet Package Manager (a project's packages, or the
+/// solution's), Solution Explorer's NuGet commands and C#'s language server and debugger as its components. The rest of .NET (solutions, builds, the C# editor, F5, tests)
 /// is still Karvon's own, and comes here one part at a time.
 /// </summary>
 public sealed class DotNetModule : KarvonModule
@@ -18,9 +20,10 @@ public sealed class DotNetModule : KarvonModule
     public override string Name => ".NET";
 
     public override string Description =>
-        "C#, ASP.NET Core and Blazor. The NuGet Package Manager (Browse, Installed, Updates; a project's packages or the "
-        + "solution's) and Solution Explorer's NuGet commands are the module's; solutions, builds, the C# editor, F5 and "
-        + "tests are still part of Karvon Studio itself, and stay when the module is off.";
+        "C#, ASP.NET Core and Blazor. The SDK's project templates in New Project, the NuGet Package Manager (Browse, "
+        + "Installed, Updates; a project's packages or the solution's) and Solution Explorer's NuGet commands are the "
+        + "module's; solutions, builds, the C# editor, F5 and tests are still part of Karvon Studio itself, and stay when "
+        + "the module is off.";
 
     public override IReadOnlyList<ModuleComponent> Components =>
     [
@@ -35,6 +38,9 @@ public sealed class DotNetModule : KarvonModule
             Description = "Samsung's netcoredbg (MIT), from its GitHub release.",
         },
     ];
+
+    /// <summary>The SDK's project templates (dotnet new's), as Visual Studio lists them.</summary>
+    public override Task<IReadOnlyList<ProjectTemplate>> LoadProjectTemplatesAsync(CancellationToken ct) => TemplateCatalog.LoadAsync(ct);
 
     public override IReadOnlyList<IDataTemplate> DocumentTemplates => [Document<NuGetViewModel>(_ => new NuGetView())];
 

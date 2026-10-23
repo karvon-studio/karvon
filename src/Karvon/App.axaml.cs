@@ -28,7 +28,7 @@ public partial class App : Application
             }
             else
             {
-                var start = new StartWindow { DataContext = new StartViewModel(vm.Settings, moduleTemplates: vm.ModuleProjectTemplates) };
+                var start = new StartWindow { DataContext = new StartViewModel(vm.Settings, templates: vm.ProjectTemplateSources) };
                 start.Finished += path =>
                 {
                     var main = new MainWindow { DataContext = vm };

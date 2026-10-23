@@ -1,3 +1,4 @@
+using Karvon.DotNet.Templates;
 using Karvon.Services;
 using Karvon.Templates;
 using Karvon.ViewModels;
@@ -144,14 +145,14 @@ public class ProjectCreatorTests
     public void Validates_names_and_location()
     {
         var dir = TempDir();
-        Assert.Null(ProjectCreator.Validate("App", dir, "App", false));
-        Assert.Equal("Enter a project name.", ProjectCreator.Validate("", dir, "App", false));
-        Assert.NotNull(ProjectCreator.Validate("A/B", dir, "App", false));
-        Assert.NotNull(ProjectCreator.Validate("App", "relative/path", "App", false));
-        Assert.Null(ProjectCreator.Validate("App", dir, "", true));
+        Assert.Null(NewProjectRequest.Validate("App", dir, "App", false));
+        Assert.Equal("Enter a project name.", NewProjectRequest.Validate("", dir, "App", false));
+        Assert.NotNull(NewProjectRequest.Validate("A/B", dir, "App", false));
+        Assert.NotNull(NewProjectRequest.Validate("App", "relative/path", "App", false));
+        Assert.Null(NewProjectRequest.Validate("App", dir, "", true));
         Directory.CreateDirectory(Path.Combine(dir, "Taken"));
         File.WriteAllText(Path.Combine(dir, "Taken", "x.txt"), "");
-        Assert.Contains("already exists", ProjectCreator.Validate("Taken", dir, "Taken", true));
+        Assert.Contains("already exists", NewProjectRequest.Validate("Taken", dir, "Taken", true));
     }
 
     [Fact]
@@ -179,7 +180,7 @@ public class ProjectCreatorTests
         var sln = SolutionExplorerTests.CopySample();
         var dir = Path.GetDirectoryName(sln)!;
         var before = File.ReadAllText(sln);
-        var vm = new StartViewModel(new Settings(), loadTemplates: _ => Task.FromResult(templates), addToSolution: sln);
+        var vm = new StartViewModel(new Settings(), templates: [new(".NET", _ => Task.FromResult(templates))], addToSolution: sln);
         var cancelled = false;
         vm.ContinueRequested += () => cancelled = true;
 
@@ -204,7 +205,7 @@ public class ProjectCreatorTests
         Assert.Equal(before, File.ReadAllText(sln));
 
         // Back from the templates is cancel.
-        var again = new StartViewModel(new Settings(), loadTemplates: _ => Task.FromResult(templates), addToSolution: sln);
+        var again = new StartViewModel(new Settings(), templates: [new(".NET", _ => Task.FromResult(templates))], addToSolution: sln);
         again.ContinueRequested += () => cancelled = true;
         again.ShowNewProjectCommand.Execute(null);
         again.BackCommand.Execute(null);
@@ -249,7 +250,7 @@ public class StartViewModelTests
         settings.RecentSolutions.Add("/src/NoDate.csproj");
         settings.PinnedSolutions.Add("/src/Pinned.sln");
 
-        var vm = new StartViewModel(settings, () => Now, _ => Task.FromResult<IReadOnlyList<ProjectTemplate>>([]));
+        var vm = new StartViewModel(settings, () => Now);
         Assert.Equal(["Pinned", "Today", "Yesterday", "This week", "This month", "Older"], vm.RecentGroups.Select(g => g.Header));
         Assert.Equal(["Old.sln", "NoDate.csproj"], vm.RecentGroups[^1].Items.Select(i => i.Name));
         Assert.Equal("Project", vm.RecentGroups[^1].Items[1].IconKind);

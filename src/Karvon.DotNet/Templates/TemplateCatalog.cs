@@ -1,8 +1,9 @@
 using System.IO.Compression;
 using System.Text.Json;
 using Karvon.Build;
+using Karvon.Templates;
 
-namespace Karvon.Templates;
+namespace Karvon.DotNet.Templates;
 
 /// <summary>
 /// The SDK's project templates: the template engine's cache (what <c>dotnet new list</c> shows, including each
@@ -103,6 +104,10 @@ public static class TemplateCatalog
             var template = new ProjectTemplate(identity, Str(t, "GroupIdentity") ?? identity, name, shortName, Str(t, "Description") ?? "",
                 Str(t, "Author"), Str(tags, "language"), classifications, platforms, preferred >= 0 ? preferred : 100 + ideOrder, defaultName, options)
             {
+                // dotnet new, and a solution around the project (or the open solution's folder, for Add > New Project).
+                MakesSolution = true,
+                Create = (request, log, ct) => ProjectCreator.CreateAsync(request, log, ct),
+                AddToSolution = (request, log, ct) => ProjectCreator.CreateProjectAsync(request, log, ct),
                 IconPath = iconDirectory is null ? null
                     : ide?.RootElement.TryGetProperty("icon", out var icon) == true && icon.GetString() is { Length: > 0 } iconPath
                         ? packages.Extract(mountPoint, configDir + "/" + iconPath, Path.Combine(iconDirectory, Sanitize(identity) + Path.GetExtension(iconPath)))

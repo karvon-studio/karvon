@@ -158,7 +158,16 @@ public abstract partial class KarvonModule : ObservableObject, IDisposable, IAsy
     /// <summary>Its submenus of the main menu (Tools > NuGet Package Manager).</summary>
     public virtual IReadOnlyList<ModuleSubmenu> MainMenus => [];
 
-    /// <summary>Its new project templates (a Go module, a Cargo package...), in File > New > Project beside .NET's.</summary>
+    /// <summary>
+    /// Its project templates listed later, the first time New Project shows its templates (.NET's come from the SDK,
+    /// which takes a while): <see cref="ProjectTemplates"/> unless it overrides it.
+    /// </summary>
+    public virtual Task<IReadOnlyList<Templates.ProjectTemplate>> LoadProjectTemplatesAsync(CancellationToken ct) => Task.FromResult(ProjectTemplates);
+
+    /// <summary>
+    /// Its project templates (a Go module, a Cargo package...), in New Project; those that add to a solution
+    /// (<see cref="Templates.ProjectTemplate.AddToSolution"/>) in Add > New Project too.
+    /// </summary>
     public virtual IReadOnlyList<Templates.ProjectTemplate> ProjectTemplates => [];
 
     /// <summary>The debuggers it brings: F5 starts the one of a launch configuration's type.</summary>

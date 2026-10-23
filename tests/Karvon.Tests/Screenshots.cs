@@ -298,7 +298,7 @@ public class Screenshots
         settings.RecentOpened[recent[2]] = now.AddDays(-2);
         settings.PinnedSolutions.Add(recent[3]);
 
-        var vm = new StartViewModel(settings);
+        var vm = new StartViewModel(settings, templates: [new(".NET", Karvon.DotNet.Templates.TemplateCatalog.LoadAsync)]);
         var window = new StartWindow { DataContext = vm, Width = 1060, Height = 680 };
         window.Show();
         await Settle();

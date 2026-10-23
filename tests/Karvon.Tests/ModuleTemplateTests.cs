@@ -114,14 +114,17 @@ public class ModuleTemplateTests
         Directory.Delete(Path.GetDirectoryName(dir)!, recursive: true);
     }
 
+    /// <summary>The language modules' templates, without .NET's (the SDK's are StartWindowTests').</summary>
+    static IReadOnlyList<ProjectTemplateSource> Sources(IEnumerable<Karvon.Modules.KarvonModule> modules) =>
+        [.. modules.Where(m => m.Id != "dotnet").Select(m => new ProjectTemplateSource(m.Name, m.LoadProjectTemplatesAsync))];
+
     [AvaloniaFact]
     public async Task New_project_makes_a_modules_project_as_a_folder()
     {
         var location = Directory.CreateTempSubdirectory("karvon-new-").FullName;
         var settings = new Settings { NewProjectLocation = location };
         var modules = Karvon.BuiltInModules.Create();
-        var vm = new StartViewModel(settings, loadTemplates: _ => Task.FromResult<IReadOnlyList<ProjectTemplate>>([]),
-            moduleTemplates: [.. modules.SelectMany(m => m.ProjectTemplates)]);
+        var vm = new StartViewModel(settings, templates: Sources(modules));
         string? chosen = null;
         vm.SolutionChosen += path => chosen = path;
         await vm.EnsureTemplatesAsync();
@@ -142,9 +145,8 @@ public class ModuleTemplateTests
         vm.ProjectName = "shapes";
         Assert.Contains("is there already", vm.ConfigureError);
 
-        // Add > New Project to a solution has .NET's templates only.
-        var adding = new StartViewModel(new Settings(), loadTemplates: _ => Task.FromResult<IReadOnlyList<ProjectTemplate>>([]),
-            addToSolution: Path.Combine(location, "x.sln"), moduleTemplates: [.. modules.SelectMany(m => m.ProjectTemplates)]);
+        // Add > New Project to a solution has only the templates that add to one (.NET's).
+        var adding = new StartViewModel(new Settings(), templates: Sources(modules), addToSolution: Path.Combine(location, "x.sln"));
         await adding.EnsureTemplatesAsync();
         Assert.Empty(adding.Templates);
         Directory.Delete(location, recursive: true);

@@ -35,7 +35,13 @@ public sealed record TemplateOption(
     }
 }
 
-/// <summary>A project template installed in the .NET SDK (one entry per template group and language).</summary>
+/// <summary>Where New Project's templates come from: a module's (".NET", "Go"), listed the first time the wizard shows them.</summary>
+public sealed record ProjectTemplateSource(string Name, Func<CancellationToken, Task<IReadOnlyList<ProjectTemplate>>> LoadAsync);
+
+/// <summary>
+/// A project template of a module: one of the .NET SDK's (one entry per template group and language), a Go module, a
+/// Cargo package...
+/// </summary>
 public sealed record ProjectTemplate(
     string Identity,
     string GroupIdentity,
@@ -54,10 +60,21 @@ public sealed record ProjectTemplate(
     public string? IconPath { get; init; }
 
     /// <summary>
-    /// A module's template (a Go module, a Cargo package...): it makes the project itself, in the request's project
-    /// folder, in place of dotnet new, with no solution around it; what it returns (that folder) opens.
+    /// How it makes the project: what it returns opens. A folder template (a Go module, a Cargo package...) makes the
+    /// request's project folder, which is there already, and returns it; one that <see cref="MakesSolution"/> (.NET's
+    /// dotnet new) makes the solution around the project in the location, and returns the solution file.
     /// </summary>
     public Func<NewProjectRequest, Action<string>, CancellationToken, Task<string>>? Create { get; init; }
+
+    /// <summary>It makes a solution around the project: the wizard asks for its name and where it goes.</summary>
+    public bool MakesSolution { get; init; }
+
+    /// <summary>
+    /// Add > New Project, when the template can add to an open solution: it makes the project in the request's project
+    /// folder and returns its project files, which the solution adds. Null for a template whose project is no project of
+    /// a solution (a Go module): Add > New Project leaves it out.
+    /// </summary>
+    public Func<NewProjectRequest, Action<string>, CancellationToken, Task<IReadOnlyList<string>>>? AddToSolution { get; init; }
 
     /// <summary>A module's template: its project folder is all it makes.</summary>
     public static ProjectTemplate OfModule(string identity, string name, string language, string description, string defaultName,

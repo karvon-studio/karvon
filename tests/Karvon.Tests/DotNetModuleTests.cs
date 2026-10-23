@@ -2,6 +2,8 @@ using Avalonia.Controls;
 using Avalonia.Headless.XUnit;
 using Karvon.DotNet;
 using Karvon.Modules;
+using Karvon.Services;
+using Karvon.ViewModels;
 using Karvon.Views;
 using Karvon.Workspace;
 using static Karvon.Tests.UiTests;
@@ -61,6 +63,29 @@ public class DotNetModuleTests
         await WaitUntil(() => output.Document.Text.Contains("> dotnet remove"), TimeSpan.FromSeconds(5));
         Assert.Contains("> dotnet remove", output.Document.Text);
         Assert.True(await vm.CloseSolutionCoreAsync());
+    }
+
+    [AvaloniaFact]
+    public async Task New_project_has_the_sdks_templates_first_and_add_new_project_only_theirs()
+    {
+        var vm = NewViewModel();
+        var start = new StartViewModel(new Settings(), templates: vm.ProjectTemplateSources);
+        await start.EnsureTemplatesAsync();
+        Assert.Null(start.Message);
+        Assert.Equal("console", start.Templates[0].Template.ShortName);
+        Assert.True(start.Templates[0].Template.MakesSolution);
+        Assert.Contains(start.Templates, t => t.Template.Identity == "karvon.cpp.cmake");
+
+        var adding = new StartViewModel(new Settings(), templates: vm.ProjectTemplateSources, addToSolution: "/src/Shop/Shop.sln");
+        await adding.EnsureTemplatesAsync();
+        Assert.Contains(adding.Templates, t => t.Template.ShortName == "classlib");
+        Assert.All(adding.Templates, t => Assert.NotNull(t.Template.AddToSolution));
+
+        // No module with templates on: the wizard says where they went.
+        var none = new StartViewModel(new Settings(), templates: []);
+        await none.EnsureTemplatesAsync();
+        Assert.Empty(none.Templates);
+        Assert.Equal("No project templates: the modules that have them are off (Tools > Modules).", none.Message);
     }
 
     [AvaloniaFact]

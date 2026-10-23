@@ -445,7 +445,7 @@ public class UiTests
         settings.RecentOpened[missing] = now.AddDays(-3);
         settings.PinnedSolutions.Add("/home/user/source/repos/Api/Api.csproj");
 
-        var vm = new StartViewModel(settings);
+        var vm = new StartViewModel(settings, templates: [new(".NET", Karvon.DotNet.Templates.TemplateCatalog.LoadAsync)]);
         var window = new StartWindow { DataContext = vm, Width = 1060, Height = 700 };
         string? chosen = null;
         window.Finished += path => chosen = path;

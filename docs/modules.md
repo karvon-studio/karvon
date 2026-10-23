@@ -18,11 +18,11 @@ Each module is a project of its own, referencing `Karvon.Core`. The core referen
 - Rust (`src/Karvon.Rust`): rust-analyzer, CodeLLDB (which builds a launch configuration's "cargo" first), cargo's tasks;
 - C and C++ (`src/Karvon.Cpp`): clangd, CodeLLDB, CMake's and Make's builds; it and Rust share CodeLLDB (`src/Karvon.Lldb`);
 - Java (`src/Karvon.Java`): jdtls, with java-debug in it (one jdtls for the editor and F5), Maven's and Gradle's builds;
-- .NET (`src/Karvon.DotNet`): the NuGet Package Manager and Solution Explorer's NuGet commands so far, and Roslyn's and
-  netcoredbg's downloads as its components;
+- .NET (`src/Karvon.DotNet`): the SDK's project templates, the NuGet Package Manager and Solution Explorer's NuGet
+  commands so far, and Roslyn's and netcoredbg's downloads as its components;
 - Claude Code (`src/Karvon.Claude`).
 
-The rest of .NET (solutions, builds, the C# editor, F5, Test Explorer's vstest, templates) still lives in the core and
+The rest of .NET (solutions, builds, the C# editor, F5, Test Explorer's vstest, Add New Item's templates) still lives in the core and
 moves to the .NET module one part at a time.
 
 A module's resources are its assembly's (`avares://Karvon.Database/Assets/...`); the core's are
@@ -64,7 +64,7 @@ application's project references.
 | `ToolDirectories` | The folders of the tools its tasks use (Node.js's bin when Karvon's PATH has none): first on every task's PATH. |
 | `Components` | What it downloads the first time it is needed (`ModuleComponent`: a name, a version, its folder in Karvon's data folder, whether it is there, how it installs). Tools > Modules lists them under the module, with Install (at once) and Remove (when Karvon Studio starts again, since it may be running). |
 | `TestFrameworks(start)` | The test frameworks of a folder it knows (`TestFramework`: Vitest in a package that depends on it). Test Explorer finds their tests (`TestItem`: an id, the rows above it, where it is), runs them and shows the results beside .NET's; a framework runs nothing until Test Explorer asks it to. |
-| `ProjectTemplates` | Its new projects (`ProjectTemplate.OfModule`: a Go module, a Cargo package...), in New Project beside .NET's (not in Add > New Project, which adds to a solution). Its `Create` makes the project folder itself, with its tools or its files (`TemplateSteps`), and that folder opens. |
+| `ProjectTemplates`, `LoadProjectTemplatesAsync(ct)` | Its new projects, in New Project in the modules' order (`LoadProjectTemplatesAsync` when they take a while to list: .NET's are the SDK's). A folder template (`ProjectTemplate.OfModule`: a Go module, a Cargo package...) makes its project folder with its tools or its files (`TemplateSteps`) in `Create`, and that folder opens. One that `MakesSolution` (dotnet new's) makes the solution around its project, which opens; one with `AddToSolution` is in Add > New Project too, and returns the project files the solution adds. |
 | `ExplorerMenu(node)` | What it adds to Solution Explorer's context menu of a node (`ModuleMenuItem`: a header, what it runs, whether it is enabled; one with nothing to run is a separator). An item whose `After` names one of Karvon's items ("Run Tests") goes after it, with the others of the same `After` in the order given; the rest go after Karvon's own items, before Open in Terminal and Copy Full Path. `Workbench.ProjectOf(node)` is the project a node is under. |
 | `MainMenus` | Its submenus of the main menu (`ModuleSubmenu`: Tools > NuGet Package Manager), first in their top menu, a separator after them. |
 | `Debuggers` | The debuggers it brings (`DebuggerInfo`: the launch configuration types it debugs, and how its `DebugAdapter` starts: a program on stdin and stdout, or a DAP server whose child sessions are connections of their own). F5 starts the one of the chosen launch configuration's type, with the configuration (its variables put in), which it may complete. A task it debugs carries its `DebugLaunch` in `WorkspaceTask.Debug`. netcoredbg is the core's, for `coreclr`. |
