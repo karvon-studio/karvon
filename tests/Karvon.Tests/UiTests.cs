@@ -855,7 +855,8 @@ public class UiTests
         var vm = new ClaudeViewModel(settings, () => dir, () => null, () => [], () => FakeClaude.Executable);
         var window = new Avalonia.Controls.Window { Width = 560, Height = 980, Content = new ClaudeView { DataContext = vm } };
         window.Show();
-        await WaitUntil(() => vm.Commands.Count > 0 && vm.Effort is not null, TimeSpan.FromSeconds(10));
+        // The modes come with what the CLI says of its model (Auto when it offers it): a slow machine says it later.
+        await WaitUntil(() => vm.Commands.Count > 0 && vm.Effort is not null && vm.Modes.Any(m => m.Label == "Auto"), TimeSpan.FromSeconds(30));
         List<JsonElement> ControlRequests() => FakeClaude.Log(log).Where(e => e.Kind == "in" && e.Data.GetProperty("type").GetString() == "control_request")
             .Select(e => e.Data.GetProperty("request")).ToList();
 

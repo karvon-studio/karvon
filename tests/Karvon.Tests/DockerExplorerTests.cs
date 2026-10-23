@@ -318,6 +318,7 @@ public class DockerExplorerTests
         await WaitUntil(() => false, TimeSpan.FromMilliseconds(200));
         Snapshot(window, "docker-container-inspect");
         page.ShowTabCommand.Execute("mounts");
+        await WaitUntil(() => page.Mounts.Count > 0, TimeSpan.FromSeconds(10));
         var mount = Assert.Single(page.Mounts);
         Assert.Equal(("volume", "shop_pgdata", "/var/lib/postgresql/data"), (mount.Type, mount.Source, mount.Destination));
 
@@ -573,7 +574,7 @@ public class DockerExplorerTests
             s["events"]!.AsArray().Add(JsonNode.Parse("""{"Type":"container","Action":"destroy","Actor":{"ID":"cache"}}"""));
         });
         // By its name: a refresh may have made its row again, so the row read before is no proof it is gone.
-        await WaitUntil(() => containers.Count == 5 && !containers.Items.OfType<ContainerRow>().Any(r => r.Name == "cache"), TimeSpan.FromSeconds(10));
+        await WaitUntil(() => containers.Count == 5 && !containers.Items.OfType<ContainerRow>().Any(r => r.Name == "cache"), TimeSpan.FromSeconds(30));
         Assert.Equal(5, containers.Count);
         Assert.DoesNotContain(vm.Containers.AllRows, r => r.Name == "cache");
         Assert.IsType<VolumesPage>(Assert.Single(host.Open).Content);

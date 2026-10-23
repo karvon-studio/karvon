@@ -43,6 +43,8 @@ public sealed class KotlinModule : KarvonModule
                 // Gradle one's is Gradle's (its toolchain), so it is not said.
                 if (start.Configuration["type"]?.GetValue<string>() != "intellij_gradle")
                     start.Configuration["javaExec"] ??= JavaOf(start.Path) ?? KotlinLspLocator.BundledJava();
+                else
+                    await BuildAsync(start);
                 await server.ResolveLaunchAsync(start.Configuration, start.Log, start.Cancellation);
             }
             return await server.DebugAdapterAsync(start.Configuration["type"]?.GetValue<string>() ?? "intellij_jvm", start.Cancellation);
@@ -67,6 +69,21 @@ public sealed class KotlinModule : KarvonModule
                 + "IntelliJ's open source parts (Apache-2.0) and proprietary ones of JetBrains Air and Fleet.",
         },
     ];
+
+    /// <summary>
+    /// A Gradle launch's build, first: Gradle's (its daemon, Kotlin's compiler) first start can take longer than
+    /// kotlin-lsp's debugger waits for the program it launches to listen, so the launch's own build is up to date by then.
+    /// </summary>
+    static async Task BuildAsync(DebuggerStart start)
+    {
+        var folder = start.Configuration["cwd"]?.GetValue<string>() is { Length: > 0 } cwd && Directory.Exists(cwd) ? cwd : start.Workspace;
+        var gradle = KotlinTasks.GradleOf(folder);
+        start.Log($"> {Path.GetFileName(gradle)} classes");
+        using var runner = Build.ProcessRunner.Start(gradle, ["classes", "--console=plain"], folder, start.Log,
+            new Dictionary<string, string> { ["PATH"] = start.Path });
+        if (await runner.WaitAsync(start.Cancellation) is var code and not 0)
+            throw new InvalidOperationException($"it did not build (Gradle's exit code {code}): see Output (Debug).");
+    }
 
     /// <summary>The user's java: JAVA_HOME's, else the tasks' PATH's; null with neither.</summary>
     static string? JavaOf(string path)

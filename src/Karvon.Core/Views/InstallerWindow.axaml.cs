@@ -10,4 +10,10 @@ public partial class InstallerWindow : Window
     public static readonly IValueConverter CloseText = new FuncValueConverter<bool, string>(restart => restart ? "Back" : "Close");
 
     public InstallerWindow() => InitializeComponent();
+
+    protected override void OnClosed(EventArgs e)
+    {
+        (DataContext as ViewModels.InstallerViewModel)?.Detach();
+        base.OnClosed(e);
+    }
 }

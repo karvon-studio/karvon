@@ -119,12 +119,15 @@ public sealed partial class Updater(AppInstall install, UpdateFeed feed, string 
                 Progress = p.Total > 0 ? (double)p.Done / p.Total : 0;
                 Message = $"Downloading Karvon Studio {release.Version}: {p.Done >> 20} MB of {p.Total >> 20} MB";
             }), ct);
+            string actual;
             await using (var stream = File.OpenRead(file))
-                if (!Convert.ToHexStringLower(await SHA256.HashDataAsync(stream, ct)).Equals(expected, StringComparison.OrdinalIgnoreCase))
-                {
-                    File.Delete(file);
-                    throw new InvalidOperationException($"{asset.Name}'s checksum is not the release's: it was not kept.");
-                }
+                actual = Convert.ToHexStringLower(await SHA256.HashDataAsync(stream, ct));
+            // (Closed first: Windows deletes no open file.)
+            if (!actual.Equals(expected, StringComparison.OrdinalIgnoreCase))
+            {
+                File.Delete(file);
+                throw new InvalidOperationException($"{asset.Name}'s checksum is not the release's: it was not kept.");
+            }
             Message = $"Unpacking Karvon Studio {release.Version}...";
             _staged = await Task.Run(() => StageAsync(file, release.Version, ct), ct);
             (State, Message, Progress) = (UpdateState.Ready, $"Karvon Studio {release.Version} is ready: it installs when Karvon Studio restarts.", 1);

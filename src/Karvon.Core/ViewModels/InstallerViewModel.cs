@@ -113,6 +113,9 @@ public sealed partial class InstallerViewModel : ObservableObject
 
     public Updater Updater { get; }
 
+    /// <summary>Its window closed: the application's updater (which outlives it) lets it go.</summary>
+    public void Detach() => Updater.PropertyChanged -= OnUpdaterChanged;
+
     public AppInstall Install => Updater.Install;
 
     /// <summary>Started on its own (karvon --installer): Launch starts Karvon Studio.</summary>

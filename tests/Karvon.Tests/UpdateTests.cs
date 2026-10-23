@@ -237,7 +237,8 @@ public class UpdateTests
         await updater.CheckAsync();
         Assert.True(await updater.DownloadAsync(), updater.Message);
         Assert.True(await updater.ApplyAsync(restart: false, exited.Id), updater.Message);
-        await UiTests.WaitUntil(() => File.ReadAllText(Path.Combine(app, "Karvon.exe")) == "0.2.0", TimeSpan.FromSeconds(60));
+        for (var i = 0; i < 120 && File.ReadAllText(Path.Combine(app, "Karvon.exe")) != "0.2.0"; i++)
+            await Task.Delay(500, TestContext.Current.CancellationToken);
         Assert.Equal("0.2.0", File.ReadAllText(Path.Combine(app, "Karvon.exe")));
         await TestTools.DeleteFolderAsync(dir);
     }
