@@ -98,7 +98,7 @@ public class Screenshots
     {
         AvaloniaHeadlessPlatform.ForceRenderTimerTick();
         Dispatcher.UIThread.RunJobs();
-        window.CaptureRenderedFrame()!.Save(Path.Combine(OutputDirectory!, name + ".png"), new Avalonia.Media.Imaging.PngBitmapEncoderOptions());
+        UiTests.SaveFrame(window, Path.Combine(OutputDirectory!, name + ".png"));
     }
 
     static Task Settle() => WaitUntil(() => false, TimeSpan.FromMilliseconds(400));

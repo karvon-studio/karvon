@@ -80,13 +80,24 @@ public class UiTests
         return vm;
     }
 
+    /// <summary>
+    /// The window as it is drawn, into the artifacts folder. The frame lives to the end of its encoding and goes then: Skia
+    /// encodes it outside the runtime, and a frame the collector took while that ran (nothing refers to it after the call)
+    /// crashed the test host (exit code 139, in sk_pngencoder_encode, as a crash dump showed).
+    /// </summary>
     internal static string Snapshot(Avalonia.Controls.Window window, string name)
     {
         AvaloniaHeadlessPlatform.ForceRenderTimerTick();
         Dispatcher.UIThread.RunJobs();
-        var frame = window.CaptureRenderedFrame();
-        var path = Path.Combine(SampleSolution.ArtifactsDir, name + ".png");
+        return SaveFrame(window, Path.Combine(SampleSolution.ArtifactsDir, name + ".png"));
+    }
+
+    /// <summary>The window's last drawn frame as a PNG, the frame alive until it is written (see <see cref="Snapshot"/>).</summary>
+    internal static string SaveFrame(Avalonia.Controls.Window window, string path)
+    {
+        using var frame = window.CaptureRenderedFrame();
         frame?.Save(path, new Avalonia.Media.Imaging.PngBitmapEncoderOptions());
+        GC.KeepAlive(frame);
         return path;
     }
 
@@ -1274,7 +1285,7 @@ public class UiTests
         window.Show();
         AvaloniaHeadlessPlatform.ForceRenderTimerTick();
         Dispatcher.UIThread.RunJobs();
-        window.CaptureRenderedFrame()?.Save(Path.Combine(SampleSolution.ArtifactsDir, "icons.png"), new Avalonia.Media.Imaging.PngBitmapEncoderOptions());
+        SaveFrame(window, Path.Combine(SampleSolution.ArtifactsDir, "icons.png"));
         Assert.True(File.Exists(Path.Combine(SampleSolution.ArtifactsDir, "icons.png")));
         window.Close();
     }

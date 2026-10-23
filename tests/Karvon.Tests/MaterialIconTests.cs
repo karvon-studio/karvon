@@ -89,7 +89,7 @@ public class MaterialIconTests
         window.Show();
         AvaloniaHeadlessPlatform.ForceRenderTimerTick();
         Dispatcher.UIThread.RunJobs();
-        window.CaptureRenderedFrame()?.Save(Path.Combine(SampleSolution.ArtifactsDir, "material-icons.png"), new Avalonia.Media.Imaging.PngBitmapEncoderOptions());
+        UiTests.SaveFrame(window, Path.Combine(SampleSolution.ArtifactsDir, "material-icons.png"));
         window.Close();
     }
 }
