@@ -56,4 +56,20 @@ jobs:
           KARVON_RUST_LIVE: "1"
           # clangd from its GitHub release, with the runner's CMake and gcc.
           KARVON_CPP_LIVE: "1"
-        run: dotnet test Karvon.slnx -c Release --no-build --blame-hang-timeout 5m --blame-hang-dump-type none --logger "console;verbosity=normal"
+          # The test process crashes now and then (SIGSEGV, exit code 139): the runtime writes a mini dump (the threads'
+          # stacks, no heap) of the process that crashes, kept below when the run fails.
+          DOTNET_DbgEnableMiniDump: "1"
+          DOTNET_DbgMiniDumpType: "1"
+          DOTNET_DbgMiniDumpName: ${{ runner.temp }}/dumps/karvon-%p-%t.dmp
+        run: |
+          mkdir -p "$RUNNER_TEMP/dumps"
+          dotnet test Karvon.slnx -c Release --no-build --blame-hang-timeout 5m --blame-hang-dump-type none --logger "console;verbosity=normal"
+
+      - name: Keep the crash dumps
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: crash-dumps
+          path: ${{ runner.temp }}/dumps
+          if-no-files-found: ignore
+          retention-days: 3
