@@ -20,6 +20,31 @@ public class DebugLaunchTests
     }
 
     [Fact]
+    public void Server_ready_action_opens_where_the_program_listens_once()
+    {
+        var log = new List<string>();
+        static System.Text.Json.Nodes.JsonObject Config(string action) => System.Text.Json.Nodes.JsonNode.Parse($$"""{ "serverReadyAction": {{action}} }""")!.AsObject();
+
+        // VS Code's defaults: a URL after "listening on", or a port on localhost; once only, the terminal's colors aside.
+        var url = Karvon.Debugging.ServerReadyAction.Of(Config("""{ "action": "openExternally" }"""), log.Add)!;
+        Assert.Null(url.Match("Starting...\n"));
+        Assert.Equal("http://127.0.0.1:5173/", url.Match("  \u001b[32mlistening on\u001b[0m: http://127.0.0.1:5173/\n"));
+        Assert.Null(url.Match("listening on: http://127.0.0.1:5173/\n"));
+        Assert.Equal("http://localhost:3000", Karvon.Debugging.ServerReadyAction.Of(Config("{}"), log.Add)!.Match("Server listening on port 3000"));
+
+        // ASP.NET Core's line, with a uriFormat.
+        var aspnet = Karvon.Debugging.ServerReadyAction.Of(Config("""{ "pattern": "\\bNow listening on:\\s+(https?://\\S+)", "uriFormat": "%s/swagger" }"""), log.Add)!;
+        Assert.Equal("https://localhost:7001/swagger", aspnet.Match("info: Microsoft.Hosting.Lifetime[14]\n      Now listening on: https://localhost:7001\n"));
+
+        // None, one of VS Code's browser debuggers, or a pattern that is no regular expression: nothing opens, and the log says why.
+        Assert.Null(Karvon.Debugging.ServerReadyAction.Of(new System.Text.Json.Nodes.JsonObject(), log.Add));
+        Assert.Null(Karvon.Debugging.ServerReadyAction.Of(Config("""{ "action": "debugWithChrome" }"""), log.Add));
+        Assert.Null(Karvon.Debugging.ServerReadyAction.Of(Config("""{ "pattern": "(" }"""), log.Add));
+        Assert.Equal(2, log.Count);
+        Assert.Contains("debugWithChrome", log[0]);
+    }
+
+    [Fact]
     public void Launch_json_is_read_as_VS_Code_reads_it()
     {
         var dir = NewFolder();

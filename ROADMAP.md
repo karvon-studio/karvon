@@ -29,7 +29,8 @@ it does today all along.
   language server, debugger, build, run and test commands, package manager and templates.
 - `.vscode/launch.json` and `tasks.json` are read, so existing projects run as they are (in now: `tasks.json` and the
   modules' tasks build, run and test a folder; `launch.json`'s configurations start under the debugger of their type,
-  with `preLaunchTask` and `postDebugTask`; not yet: compounds, `${input:}`, problem matchers, `dependsOn`).
+  with `preLaunchTask` and `postDebugTask`, and `serverReadyAction` opens the browser; not yet: compounds,
+  `${input:}`, problem matchers, `dependsOn`).
 - Claude's IDE tools (`run_build`, `run_tests`, `app_control`, `debug_*`) work for any workload (in now, for a folder's
   tasks and launch configurations).
 - Test Explorer for any workload: a module's test frameworks find and run their tests (in now: .NET's through vstest,

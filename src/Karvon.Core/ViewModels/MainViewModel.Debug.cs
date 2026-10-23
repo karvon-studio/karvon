@@ -162,6 +162,7 @@ public partial class MainViewModel
             args.AddRange(extra.Split(' ', StringSplitOptions.RemoveEmptyEntries));
 
         DebugOutput.Append($"Debugging {project.Name} ({Path.GetFileName(program)}) with netcoredbg {NetcoredbgLocator.Version}");
+        _serverReady = null;
         StartWithSolution();
         _debuggedProject = project.Name;
         Mode = DebugMode.Running;
@@ -224,6 +225,7 @@ public partial class MainViewModel
         var configuration = TaskVariables.ForFile(launch.Configuration, solution.Directory, ActiveEditor?.FilePath);
         if (noDebug)
             configuration["noDebug"] = true;
+        _serverReady = ServerReadyAction.Of(configuration, DebugOutput.Append);
         _debuggedProject = launch.Name;
         _postDebugTask = launch.PostDebugTask;
         Mode = DebugMode.Running;
@@ -314,8 +316,14 @@ public partial class MainViewModel
                     text += "\n";
             }
             DebugOutput.AppendRaw(text);
+            // The program listens: its launch configuration's serverReadyAction opens the browser.
+            if (_serverReady?.Match(text) is { } url)
+                Dispatcher.UIThread.Post(() => OpenBrowser(url));
         };
     }
+
+    /// <summary>The running launch configuration's serverReadyAction, until the program says it listens.</summary>
+    ServerReadyAction? _serverReady;
 
     /// <summary>
     /// A launch configuration under its debugger, as F5 starts it (a test framework's attach to its test host): done once
