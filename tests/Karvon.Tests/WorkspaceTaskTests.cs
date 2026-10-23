@@ -514,7 +514,7 @@ public class WorkspaceTaskTests
         Assert.Equal(("frontend (pnpm)", NodeKind.Folder, Path.Combine(dir, "frontend")), (frontend.DisplayName, frontend.Kind, frontend.Path));
         Assert.Equal("material:nodejs", frontend.ThemeIcon);
         frontend.IsExpanded = true;
-        Assert.Equal(["packages", "src", "package.json", "pnpm-lock.yaml"], frontend.Children.Select(n => n.Name));
+        Assert.Equal(["Dependencies", "packages", "src", "package.json", "pnpm-lock.yaml"], frontend.Children.Select(n => n.Name));
         // Its scripts are tasks of the solution too.
         Assert.Contains("pnpm: dev - frontend", vm.WorkspaceTasks.Select(t => t.Name));
 

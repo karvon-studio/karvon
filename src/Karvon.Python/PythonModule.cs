@@ -44,6 +44,10 @@ public sealed class PythonModule : KarvonModule
     /// <summary>A uv project's scripts are pyproject.toml's.</summary>
     public override IReadOnlyList<string> WorkspaceTaskFiles => ["pyproject.toml"];
 
+    /// <summary>A Python project's Dependencies in Solution Explorer.</summary>
+    public override Packages.PackageSource? PackagesIn(string folder) =>
+        File.Exists(Path.Combine(folder, "pyproject.toml")) || File.Exists(Path.Combine(folder, "requirements.txt")) ? new PypiPackages(folder) : null;
+
     /// <summary>
     /// A Python project's Manage Python Packages...: PyPI's, by uv in a uv project (pyproject.toml's [project]), else by
     /// pip into its virtual environment (requirements.txt).

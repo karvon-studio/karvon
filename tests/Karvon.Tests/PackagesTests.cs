@@ -184,6 +184,62 @@ public class PackagesTests
     }
 
     [AvaloniaFact]
+    public async Task A_projects_dependencies_are_in_solution_explorer()
+    {
+        var dir = Path.Combine(Path.GetTempPath(), "karvon-deps-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(Path.Combine(dir, "web", "node_modules", "vite"));
+        File.WriteAllText(Path.Combine(dir, "web", "package.json"), """{ "dependencies": { "react": "^19.0.0" }, "devDependencies": { "vite": "^8.0.0" } }""");
+        File.WriteAllText(Path.Combine(dir, "web", "node_modules", "vite", "package.json"), """{ "version": "8.1.2" }""");
+        File.WriteAllText(Path.Combine(dir, "pom.xml"), """
+            <project xmlns="http://maven.apache.org/POM/4.0.0">
+              <artifactId>shop</artifactId>
+              <dependencies>
+                <dependency>
+                  <groupId>com.google.guava</groupId>
+                  <artifactId>guava</artifactId>
+                  <version>33.4.0-jre</version>
+                </dependency>
+              </dependencies>
+            </project>
+            """);
+        var vm = NewViewModel();
+        var window = new MainWindow { DataContext = vm, Width = 1280, Height = 800 };
+        window.Show();
+        await vm.OpenSolutionAsync(dir);
+
+        // The folder's own Dependencies first (a Maven project), and a package.json folder's in it, by their groups.
+        var root = vm.ExplorerRoots.Single();
+        var deps = root.Children[0];
+        Assert.Equal((NodeKind.Dependencies, "Dependencies"), (deps.Kind, deps.Name));
+        deps.IsExpanded = true;
+        Assert.Equal(["com.google.guava:guava (33.4.0-jre)"], deps.Children.Select(c => c.DisplayName));
+        var web = root.Children.Single(c => c.Name == "web");
+        web.IsExpanded = true;
+        var webDeps = web.Children[0];
+        webDeps.IsExpanded = true;
+        Assert.Equal(["dependencies", "devDependencies"], webDeps.Children.Select(c => c.Name));
+        webDeps.Children[1].IsExpanded = true;
+        Assert.Equal("vite (8.1.2)", Assert.Single(webDeps.Children[1].Children).DisplayName);
+        webDeps.Children[0].IsExpanded = true;
+        Assert.Equal("react (^19.0.0)", Assert.Single(webDeps.Children[0].Children).DisplayName);
+
+        // A package's menu: the Package Manager, and Remove, which edits the manifest and reads the Dependencies again.
+        var guava = deps.Children[0];
+        var menu = window.ExplorerMenuItems(guava).OfType<MenuItem>().Select(i => i.Header as string).ToList();
+        Assert.Contains("Manage Packages...", menu);
+        Assert.Contains("Remove", menu);
+        Assert.DoesNotContain("Manage NuGet Packages...", menu);
+        Assert.Contains("Manage Packages...", window.ExplorerMenuItems(webDeps).OfType<MenuItem>().Select(i => i.Header as string));
+        await vm.RemoveDependencyAsync(guava);
+        Assert.DoesNotContain("guava", File.ReadAllText(Path.Combine(dir, "pom.xml")));
+        Assert.Empty(vm.ExplorerRoots.Single().Children[0].Children);
+        Assert.Contains("guava removed from pom.xml", ((IWorkbench)vm).Output("Package Manager").Document.Text);
+        Assert.True(await vm.CloseSolutionCoreAsync());
+        window.Close();
+        Directory.Delete(dir, recursive: true);
+    }
+
+    [AvaloniaFact]
     public async Task Npm_packages_are_searched_installed_and_uninstalled()
     {
         var path = string.Join(Path.PathSeparator, Karvon.Build.NodeLocator.DirectoryOffPath() ?? "", Environment.GetEnvironmentVariable("PATH") ?? "");

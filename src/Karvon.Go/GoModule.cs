@@ -22,6 +22,9 @@ public sealed class GoModule : KarvonModule
 
     public override IReadOnlyList<WorkspaceTask> WorkspaceTasks(string workspace) => GoTasks.Read(workspace);
 
+    /// <summary>A Go module's Dependencies in Solution Explorer.</summary>
+    public override Packages.PackageSource? PackagesIn(string folder) => File.Exists(Path.Combine(folder, "go.mod")) ? new GoPackages(folder) : null;
+
     /// <summary>A Go module's Manage Go Modules...: pkg.go.dev's packages, by go get.</summary>
     public override IReadOnlyList<ModuleMenuItem> ExplorerMenu(Workspace.ExplorerNode node) =>
         FolderWith(node, "go.mod") is { } dir

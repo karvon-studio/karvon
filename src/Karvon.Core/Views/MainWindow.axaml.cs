@@ -658,6 +658,15 @@ public partial class MainWindow : Window, IDialogService
                 items.Add(Item("Rename", () => vm.BeginRename(node), "F2", enabled: inSolution));
                 items.Add(Item("Remove", () => _ = vm.RemoveFromSolutionAsync(node), "Delete", enabled: inSolution));
                 break;
+            // A language's Dependencies (a package.json folder's): its Package Manager, and Remove on a package.
+            case NodeKind.Dependencies or NodeKind.DependencyGroup when node.Packages is { } packages:
+                items.Add(Item("Manage Packages...", () => _ = vm.ManagePackagesAsync(packages)));
+                break;
+            case NodeKind.Package when node.Packages is { } packages:
+                items.Add(Item("Manage Packages...", () => _ = vm.ManagePackagesAsync(packages)));
+                items.Add(new Separator());
+                items.Add(Item("Remove", () => _ = vm.RemoveDependencyAsync(node), "Delete"));
+                break;
             case NodeKind.Dependencies or NodeKind.DependencyGroup:
                 if (node.Kind == NodeKind.Dependencies || node.Name == "Projects")
                     items.Add(Item("Add Project Reference...", () => _ = vm.EditProjectReferencesAsync(owner), enabled: owner is not null));

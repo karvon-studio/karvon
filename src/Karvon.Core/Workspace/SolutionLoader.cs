@@ -38,21 +38,24 @@ public static class SolutionLoader
         path.EndsWith(".sln", StringComparison.OrdinalIgnoreCase) || path.EndsWith(".slnx", StringComparison.OrdinalIgnoreCase);
 
     /// <summary>A folder opened as it is: its files and folders under it, as VS's Folder View shows them.</summary>
-    public static SolutionInfo LoadFolder(string folder)
+    /// <param name="first">What a folder shows before its files (a language's Dependencies), in it and in its folders.</param>
+    public static SolutionInfo LoadFolder(string folder, Func<string, IEnumerable<ExplorerNode>>? first = null)
     {
         folder = Path.GetFullPath(folder).TrimEnd(Path.DirectorySeparatorChar);
-        var root = new ExplorerNode(NodeKind.Solution, Path.GetFileName(folder), folder, () => DirectoryChildren(folder)) { IsFolderRoot = true };
+        var root = new ExplorerNode(NodeKind.Solution, Path.GetFileName(folder), folder, () => DirectoryChildren(folder, first: first)) { IsFolderRoot = true };
         root.IsExpanded = true;
         return new SolutionInfo { FilePath = folder, IsFolder = true, Projects = [], Root = root };
     }
 
-    public static IEnumerable<ExplorerNode> DirectoryChildren(string directory, bool isProjectRoot = false)
+    public static IEnumerable<ExplorerNode> DirectoryChildren(string directory, bool isProjectRoot = false, Func<string, IEnumerable<ExplorerNode>>? first = null)
     {
+        foreach (var node in first?.Invoke(directory) ?? [])
+            yield return node;
         var dirs = new DirectoryInfo(directory).EnumerateDirectories()
             .Where(d => !d.Name.StartsWith('.') && !(isProjectRoot && HiddenDirectories.Contains(d.Name)) && d.Name != "node_modules")
             .OrderBy(d => SpecialFolderRank(d.Name, isProjectRoot))
             .ThenBy(d => d.Name, StringComparer.OrdinalIgnoreCase)
-            .Select(d => new ExplorerNode(NodeKind.Folder, d.Name, d.FullName, () => DirectoryChildren(d.FullName)));
+            .Select(d => new ExplorerNode(NodeKind.Folder, d.Name, d.FullName, () => DirectoryChildren(d.FullName, first: first)));
 
         var fileNames = new DirectoryInfo(directory).EnumerateFiles()
             .Where(f => !f.Name.StartsWith('.') && !(isProjectRoot && f.Extension.Equals(".csproj", StringComparison.OrdinalIgnoreCase)))
@@ -66,7 +69,8 @@ public static class SolutionLoader
                 node.Children.Add(new ExplorerNode(NodeKind.File, child, Path.Combine(directory, child)));
             return node;
         });
-        return dirs.Concat(files);
+        foreach (var node in dirs.Concat(files))
+            yield return node;
     }
 
     static int SpecialFolderRank(string name, bool isProjectRoot) => !isProjectRoot ? 0 : name switch

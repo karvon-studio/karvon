@@ -44,6 +44,12 @@ public partial class ExplorerNode : ObservableObject
     /// <summary>A module's project beside the solution's (a package.json folder): a folder, its icon that of its file.</summary>
     public Modules.WorkspaceProject? WorkspaceProject { get; init; }
 
+    /// <summary>A language's Dependencies (not .NET's), a group of them or one: the project's packages, as its module reads them.</summary>
+    public Packages.PackageSource? Packages { get; init; }
+
+    /// <summary>A package of a language's Dependencies.</summary>
+    public Packages.DependencyPackage? Dependency { get; init; }
+
     /// <summary>
     /// The solution folder this node is or is in, by its path in the solution ("/Solution Items/", "/src/libs/"): a
     /// solution folder's own, a project's or a solution item's parent. Null for everything else.

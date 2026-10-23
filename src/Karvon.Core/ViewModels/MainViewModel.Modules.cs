@@ -126,6 +126,8 @@ public partial class MainViewModel : IWorkbench
         return await runner.WaitAsync(ct);
     }
 
+    internal Task ManagePackagesAsync(Packages.PackageSource source) => ((IWorkbench)this).ManagePackagesAsync(source);
+
     async Task IWorkbench.ManagePackagesAsync(Packages.PackageSource source)
     {
         if (Documents.FirstOrDefault(d => d.Key == Packages.PackagesViewModel.KeyOf(source)) is { } open)
@@ -134,12 +136,12 @@ public partial class MainViewModel : IWorkbench
             return;
         }
         var output = ((IWorkbench)this).Output("Package Manager");
-        // After a change, what reads the dependencies reads them again: Solution Explorer, the tasks.
-        var manager = new Packages.PackagesViewModel(source, ((IWorkbench)this).RunAsync, output.Append, async () =>
+        // After a change, what reads the dependencies reads them again: Solution Explorer's Dependencies, the tasks.
+        var manager = new Packages.PackagesViewModel(source, ((IWorkbench)this).RunAsync, output.Append, () =>
         {
-            if (Solution is { IsFolder: false })
-                await ReloadSolutionAsync();
+            RefreshDependencies(source.Directory);
             RefreshWorkspaceTasks();
+            return Task.CompletedTask;
         });
         ((IWorkbench)this).ShowDocument(manager);
         await manager.InitializeAsync();

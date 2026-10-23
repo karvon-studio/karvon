@@ -27,6 +27,9 @@ public sealed class RustModule : KarvonModule
 
     public override IReadOnlyList<string> WorkspaceTaskFiles => ["Cargo.toml"];
 
+    /// <summary>A Cargo package's Dependencies in Solution Explorer.</summary>
+    public override Packages.PackageSource? PackagesIn(string folder) => File.Exists(Path.Combine(folder, "Cargo.toml")) ? new CratesPackages(folder) : null;
+
     /// <summary>A Cargo package's Manage Cargo Packages...: crates.io's crates, by cargo add and cargo remove.</summary>
     public override IReadOnlyList<ModuleMenuItem> ExplorerMenu(Workspace.ExplorerNode node) =>
         FolderWith(node, "Cargo.toml") is { } dir

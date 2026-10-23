@@ -36,6 +36,9 @@ public sealed class TypeScriptModule : KarvonModule
     /// A package.json folder's Manage npm Packages... (or pnpm's, yarn's, bun's), as a .NET project's Manage NuGet
     /// Packages...: on the folder (a frontend beside a solution, the folder opened), and on its package.json.
     /// </summary>
+    /// <summary>A package.json folder's Dependencies in Solution Explorer.</summary>
+    public override Packages.PackageSource? PackagesIn(string folder) => File.Exists(Path.Combine(folder, "package.json")) ? new NpmPackages(folder) : null;
+
     public override IReadOnlyList<ModuleMenuItem> ExplorerMenu(Workspace.ExplorerNode node) =>
         FolderWith(node, "package.json") is { } dir
             ? [new($"Manage {PackageScripts.ManagerOf(dir)} Packages...", () => Workbench.ManagePackagesAsync(new NpmPackages(dir))) { After = "Add" }]

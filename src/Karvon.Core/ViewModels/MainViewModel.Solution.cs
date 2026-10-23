@@ -31,10 +31,93 @@ public partial class MainViewModel
     async Task<SolutionInfo> LoadWorkspaceAsync(string path)
     {
         if (Directory.Exists(path))
-            return SolutionLoader.LoadFolder(path);
+            return SolutionLoader.LoadFolder(path, DependenciesOf);
         if (Modules.FirstOrDefault(m => m.OpensWorkspace(path)) is not { } module)
             throw new NotSupportedException($"no module opens {Path.GetFileName(path)}: its module is off (Tools > Modules)");
         return await module.OpenWorkspaceAsync(path, CancellationToken.None);
+    }
+
+    /// <summary>
+    /// A folder's Dependencies, first in it, when it is a project of a module's language (a package.json folder): its
+    /// packages by their groups (dependencies, devDependencies), each with the version it has.
+    /// </summary>
+    IEnumerable<ExplorerNode> DependenciesOf(string folder)
+    {
+        if (Modules.Select(m => m.PackagesIn(folder)).OfType<Packages.PackageSource>().FirstOrDefault() is not { } source)
+            yield break;
+        yield return new ExplorerNode(NodeKind.Dependencies, "Dependencies", null, () => PackageNodes(source)) { Packages = source };
+    }
+
+    static IEnumerable<ExplorerNode> PackageNodes(Packages.PackageSource source)
+    {
+        IReadOnlyList<Packages.DependencyPackage> dependencies;
+        try
+        {
+            dependencies = source.Dependencies();
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Text.Json.JsonException or System.Xml.XmlException)
+        {
+            yield break;
+        }
+        ExplorerNode Package(Packages.DependencyPackage d) => new(NodeKind.Package, d.Id)
+        {
+            Detail = (d.Version ?? d.Requested) is { Length: > 0 } v ? $"({v})" : null,
+            Packages = source,
+            Dependency = d,
+        };
+        var order = source.Groups.ToList();
+        var groups = dependencies.GroupBy(d => d.Group).OrderBy(g => order.IndexOf(g.Key) is var i and >= 0 ? i : int.MaxValue).ToList();
+        // One group: its packages right there.
+        if (groups.Count == 1)
+        {
+            foreach (var d in groups[0])
+                yield return Package(d);
+            yield break;
+        }
+        foreach (var group in groups)
+        {
+            var packages = group.ToList();
+            yield return new ExplorerNode(NodeKind.DependencyGroup, group.Key, null, () => packages.Select(Package)) { Packages = source };
+        }
+    }
+
+    /// <summary>A language's Dependencies read again, after its packages changed (the Package Manager, Remove).</summary>
+    void RefreshDependencies(string folder)
+    {
+        static IEnumerable<ExplorerNode> Loaded(ExplorerNode node) =>
+            node.Children.Where(c => c.Kind != NodeKind.Placeholder).SelectMany(c => Loaded(c).Prepend(c));
+        foreach (var node in ExplorerRoots.SelectMany(r => Loaded(r)).Where(n => n.Kind == NodeKind.Dependencies && n.Packages?.Directory == folder).ToList())
+            node.Reload();
+    }
+
+    /// <summary>Remove on a package of a language's Dependencies: its package manager's command (or the manifest's edit), in Output (Package Manager).</summary>
+    internal async Task RemoveDependencyAsync(ExplorerNode node)
+    {
+        if (node is not { Packages: { } source, Dependency: { } dependency })
+            return;
+        var output = ((Modules.IWorkbench)this).Output("Package Manager");
+        var change = source.Remove(dependency);
+        SetStatus($"Removing {dependency.Id}...", StatusKind.Busy);
+        try
+        {
+            if (change.Command is { } command)
+            {
+                output.Append("> " + command.CommandLine);
+                var code = await ((Modules.IWorkbench)this).RunAsync(command, output.Append, CancellationToken.None);
+                SetStatus(code == 0 ? $"{dependency.Id} removed." : $"{command.CommandLine} failed: see Output (Package Manager).");
+            }
+            else
+            {
+                output.Append(change.Title + ": " + await change.Edit!(CancellationToken.None));
+                SetStatus($"{dependency.Id} removed.");
+            }
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException or System.Xml.XmlException or System.ComponentModel.Win32Exception)
+        {
+            SetStatus($"{dependency.Id} was not removed: {ex.Message}");
+        }
+        RefreshDependencies(source.Directory);
+        RefreshWorkspaceTasks();
     }
 
     /// <summary>What Karvon opens: a folder, or a workspace file a module opens.</summary>
@@ -147,7 +230,7 @@ public partial class MainViewModel
                     || solution.Root.Children.Any(n => n.WorkspaceProject?.Directory == project.Directory))
                     continue;
                 solution.Root.Children.Add(new ExplorerNode(NodeKind.Folder, project.Name, project.Directory,
-                    () => SolutionLoader.DirectoryChildren(project.Directory, isProjectRoot: true))
+                    () => SolutionLoader.DirectoryChildren(project.Directory, isProjectRoot: true, DependenciesOf))
                 {
                     Detail = project.Kind is { Length: > 0 } kind ? $"({kind})" : null,
                     WorkspaceProject = project,

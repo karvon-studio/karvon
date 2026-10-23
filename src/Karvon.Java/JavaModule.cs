@@ -35,6 +35,10 @@ public sealed class JavaModule : KarvonModule
 
     public override IReadOnlyList<string> WorkspaceTaskFiles => ["pom.xml", "build.gradle", "build.gradle.kts"];
 
+    /// <summary>A Maven or Gradle project's Dependencies in Solution Explorer.</summary>
+    public override Packages.PackageSource? PackagesIn(string folder) =>
+        new[] { "pom.xml", "build.gradle.kts", "build.gradle" }.Any(f => File.Exists(Path.Combine(folder, f))) ? new MavenPackages(folder) : null;
+
     /// <summary>A Maven or Gradle project's Manage Maven Packages...: Maven Central's, into its pom.xml or build.gradle.</summary>
     public override IReadOnlyList<ModuleMenuItem> ExplorerMenu(Workspace.ExplorerNode node) =>
         (FolderWith(node, "pom.xml") ?? FolderWith(node, "build.gradle.kts") ?? FolderWith(node, "build.gradle")) is { } dir

@@ -215,6 +215,9 @@ public sealed partial class DotNetModule : KarvonModule
             // A folder of a project.
             case NodeKind.Folder when Workbench.ProjectOf(node) is not null:
                 return AddItems(node);
+            // A language's Dependencies (a package.json folder's) are not .NET's.
+            case NodeKind.Dependencies or NodeKind.DependencyGroup or NodeKind.Package when node.Packages is not null:
+                return [];
             case NodeKind.Dependencies or NodeKind.DependencyGroup:
             {
                 var owner = Workbench.ProjectOf(node);
