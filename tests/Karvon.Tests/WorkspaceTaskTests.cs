@@ -228,7 +228,7 @@ public class WorkspaceTaskTests
     public async Task Npm_builds_by_the_package_json_build_script()
     {
         // Node.js where the user has it (nvm's when Karvon's PATH has none), as the tasks get it.
-        var path = string.Join(Path.PathSeparator, NodeLocator.DirectoryOffPath() ?? "", Environment.GetEnvironmentVariable("PATH") ?? "");
+        var path = string.Join(Path.PathSeparator, Karvon.Build.NodeLocator.DirectoryOffPath() ?? "", Environment.GetEnvironmentVariable("PATH") ?? "");
         Assert.SkipUnless(TaskVariables.Find("npm", path, "/") is not null, "Node.js is not installed.");
         var dir = NewFolder();
         File.WriteAllText(Path.Combine(dir, "package.json"), """

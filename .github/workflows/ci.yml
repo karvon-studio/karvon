@@ -40,6 +40,8 @@ jobs:
       - name: Test
         timeout-minutes: 15
         env:
-          # TypeScript 7 from the npm registry, its language server in the editor (a few seconds).
+          # TypeScript 7, js-debug, Vitest and Jest from the npm registry and GitHub (a few seconds each).
           KARVON_TYPESCRIPT_LIVE: "1"
+          # Pyright from the npm registry, its language server in the editor.
+          KARVON_PYTHON_LIVE: "1"
         run: dotnet test Karvon.slnx -c Release --no-build --blame-hang-timeout 5m --blame-hang-dump-type none --logger "console;verbosity=normal"

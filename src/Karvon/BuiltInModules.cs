@@ -8,6 +8,6 @@ public static class BuiltInModules
     public static IReadOnlyList<KarvonModule> Create() =>
     [
         new Database.DatabaseModule(), new Docker.DockerModule(), new Servers.ServersModule(), new Mcp.McpModule(), new Skills.SkillsModule(),
-        new TypeScript.TypeScriptModule(), new Claude.ClaudeModule(),
+        new TypeScript.TypeScriptModule(), new Python.PythonModule(), new Claude.ClaudeModule(),
     ];
 }

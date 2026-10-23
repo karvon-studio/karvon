@@ -1,4 +1,4 @@
-namespace Karvon.TypeScript;
+namespace Karvon.Build;
 
 /// <summary>
 /// Where Node.js is when it is not on Karvon's PATH (Karvon started from the desktop, whose PATH has no nvm): the newest

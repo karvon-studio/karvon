@@ -1,7 +1,7 @@
 # Karvon Studio
 
 A native IDE with Visual Studio's look and workflow, made to grow by modules: today C#, ASP.NET Core and Blazor on
-Linux, and TypeScript and JavaScript in the editor; more languages, macOS and Windows next (see the
+Linux, TypeScript and JavaScript, and Python in the editor; more languages, macOS and Windows next (see the
 [roadmap](ROADMAP.md)). Built with Avalonia; IntelliSense comes from Microsoft's Roslyn language server (the engine
 Visual Studio uses), Razor included. Karvon Studio grew out of VSL, whose history this repository carries.
 
@@ -20,8 +20,9 @@ From source, `./scripts/install.sh` publishes to `~/.local/share/karvon/app` and
 (a `.slnx` or `.csproj` works too), or just `karvon` for the start window.
 
 Working on solutions needs the .NET 10 SDK. Karvon downloads `roslyn-language-server` and `netcoredbg` (both MIT) on first use,
-TypeScript 7 (Apache-2.0, its own language server; no Node.js needed) when the first `.ts` or `.js` file opens, and js-debug
-(MIT, the JavaScript debugger of VS Code; it runs on Node.js) the first time F5 debugs JavaScript.
+TypeScript 7 (Apache-2.0, its own language server; no Node.js needed) when the first `.ts` or `.js` file opens, js-debug
+(MIT, the JavaScript debugger of VS Code; it runs on Node.js) the first time F5 debugs JavaScript, and Pyright (MIT, Python's
+language server; it runs on Node.js) when the first `.py` file opens.
 
 ## Features
 
@@ -185,7 +186,8 @@ src/Karvon.Docker/      module: the Docker Explorer
 src/Karvon.Servers/     module: SSH servers
 src/Karvon.Mcp/         module: MCP Servers
 src/Karvon.Skills/      module: Skills (uses Karvon.Mcp)
-src/Karvon.TypeScript/  module: TypeScript and JavaScript (TypeScript 7's language server, package.json scripts, js-debug)
+src/Karvon.TypeScript/  module: TypeScript and JavaScript (TypeScript 7's language server, package.json scripts, js-debug, Vitest, Jest)
+src/Karvon.Python/      module: Python (Pyright's language server, the workspace's .venv)
 src/Karvon.Claude/      module: Claude Code (its session, protocol and view model are shared with the Visual Studio extension)
 external/bengine/       Bengine (submodule): the schema AST and the live-database layer the Database Explorer uses
 src/Karvon.VisualStudio/   the Claude Code panel as a Visual Studio extension (Windows), sharing src/Karvon.Claude's session and view model
@@ -194,7 +196,7 @@ src/Karvon.VisualStudio/   the Claude Code panel as a Visual Studio extension (W
 ## License
 
 MIT, see [LICENSE](LICENSE). Third-party: Cascadia Mono font (SIL OFL 1.1); Avalonia, AvaloniaEdit, TextMateSharp,
-Exclr8.Terminal and Porta.Pty (MIT); Markdig (BSD 2-Clause); roslyn-language-server, netcoredbg and js-debug (MIT, downloaded at runtime);
+Exclr8.Terminal and Porta.Pty (MIT); Markdig (BSD 2-Clause); roslyn-language-server, netcoredbg, js-debug and Pyright (MIT, downloaded at runtime);
 Material Icon Theme icons (MIT, Copyright (c) 2025 Material Extensions; `src/Karvon.Core/Assets/MaterialIcons`, refreshed with
 `scripts/update-material-icons.sh`, and `src/Karvon.Database/Assets/Icons`). The Database Explorer uses Bengine (same
 author) and its drivers: Npgsql (PostgreSQL License), Microsoft.Data.SqlClient, MySqlConnector, SSH.NET and

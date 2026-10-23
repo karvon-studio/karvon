@@ -54,7 +54,7 @@ public sealed class TypeScriptModule : KarvonModule
         [new("js-debug", $"the JavaScript debugger (js-debug {JsDebugLocator.Version})", JsDebugger.Types, StartDebuggerAsync)];
 
     /// <summary>Node.js's folder when Karvon's PATH has none (started from the desktop, with Node from nvm).</summary>
-    public override IEnumerable<string> ToolDirectories => NodeLocator.DirectoryOffPath() is { } node ? [node] : [];
+    public override IEnumerable<string> ToolDirectories => Build.NodeLocator.DirectoryOffPath() is { } node ? [node] : [];
 
     async Task<Debugging.DebugAdapter> StartDebuggerAsync(DebuggerStart start)
     {

@@ -98,6 +98,9 @@ public class LspClient : IAsyncDisposable
     /// <summary>Whether the server answers as soon as it has started (one that loads projects first says when itself).</summary>
     protected virtual bool ReadyOnceInitialized => true;
 
+    /// <summary>What the server asks of its settings (workspace/configuration), by section: null, its defaults.</summary>
+    protected virtual object? ConfigurationFor(string? section) => null;
+
     /// <summary>The server's own requests and notifications (Razor's, Roslyn's project loading).</summary>
     protected virtual void WireServer()
     {
@@ -182,7 +185,8 @@ public class LspClient : IAsyncDisposable
     void Wire()
     {
         Rpc.OnRequest("workspace/configuration", p =>
-            Task.FromResult<object?>(Enumerable.Repeat<object?>(null, p.GetProperty("items").GetArrayLength()).ToArray()));
+            Task.FromResult<object?>(p.GetProperty("items").EnumerateArray()
+                .Select(item => ConfigurationFor(item.TryGetProperty("section", out var section) ? section.GetString() : null)).ToArray()));
         Rpc.OnRequest("client/registerCapability", p =>
         {
             foreach (var reg in p.GetProperty("registrations").EnumerateArray())
