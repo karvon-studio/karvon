@@ -112,7 +112,7 @@ public class ClaudeToolActivityTests
         await CallAsync(vm, "run_build", new { });
         await WaitUntil(() => window.IsToolWindowShowing(ToolWindows.Output), TimeSpan.FromSeconds(10));
         Assert.True(window.IsToolWindowShowing(ToolWindows.Output));
-        File.WriteAllText(tasks, """{ "version": "2.0.0", "tasks": [ { "label": "compile", "type": "shell", "command": "echo 'a.ts(1,1): error TS1005: x'; exit 1", "group": "build" } ] }""");
+        File.WriteAllText(tasks, """{ "version": "2.0.0", "tasks": [ { "label": "compile", "type": "shell", "command": "echo 'a.ts(1,1): error TS1005: x'; exit 1", "group": "build", "windows": { "command": "echo a.ts(1,1): error TS1005: x& exit /b 1" } } ] }""");
         await vm.CloseSolutionCoreAsync();
         await vm.OpenSolutionAsync(dir);
         await CallAsync(vm, "run_build", new { });

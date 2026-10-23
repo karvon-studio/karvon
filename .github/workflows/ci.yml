@@ -69,6 +69,8 @@ jobs:
           KARVON_CPP_LIVE: "1"
           # jdtls from Eclipse and java-debug from Open VSX, on the runner's JDK.
           KARVON_JAVA_LIVE: "1"
+          # kotlin-lsp from JetBrains (about 350 MB, with its own Java runtime), Gradle by the template's wrapper.
+          KARVON_KOTLIN_LIVE: "1"
           # The test process crashes now and then (SIGSEGV, exit code 139): the runtime writes a mini dump (the threads'
           # stacks, no heap) of the process that crashes, kept below when the run fails.
           DOTNET_DbgEnableMiniDump: "1"

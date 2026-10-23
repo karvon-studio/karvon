@@ -102,7 +102,7 @@ public class DotNetModuleTests
         await WaitUntil(() => vm.Mode == DebugMode.Design, TimeSpan.FromSeconds(60));
         Assert.True(await vm.CloseSolutionCoreAsync());
         window.Close();
-        Directory.Delete(dir, recursive: true);
+        await TestTools.DeleteFolderAsync(dir);
     }
 
     [AvaloniaFact]

@@ -40,6 +40,28 @@ static class TestTools
     /// <summary>VS Code's key of this platform's section in tasks.json and launch.json: linux, osx or windows.</summary>
     public static string PlatformKey => OperatingSystem.IsWindows() ? "windows" : OperatingSystem.IsMacOS() ? "osx" : "linux";
 
+    /// <summary>
+    /// A test's folder deleted once what it ran lets go of it: Windows keeps a folder a process has open (a stopped
+    /// debuggee, a build's node, as it ends), so it is tried again a while; one still held there is left in the temp folder.
+    /// </summary>
+    public static async Task DeleteFolderAsync(string dir)
+    {
+        for (var attempt = 0; ; attempt++)
+        {
+            try
+            {
+                Directory.Delete(dir, recursive: true);
+                return;
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException && OperatingSystem.IsWindows())
+            {
+                if (attempt == 20)
+                    return;
+                await Task.Delay(500);
+            }
+        }
+    }
+
     /// <summary>A test that runs Unix's shell (sh -c, its commands): not on Windows.</summary>
     public static void SkipOnWindows(string why = "It runs Unix's shell.") => Assert.SkipWhen(OperatingSystem.IsWindows(), why);
 }

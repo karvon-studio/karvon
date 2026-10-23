@@ -63,7 +63,7 @@ public sealed partial class CTestFramework(TestFrameworkStart start) : TestFrame
         if (await ShellAsync(CppTasks.ConfigureAndBuild, _ => { }, ct) is not 0)
             return TestDiscovery.Failed("The build failed: fix its errors to find the tests (see Output, Tests).");
         var json = new List<string>();
-        if (await RunAsync("ctest", ["--test-dir", "build", "--show-only=json-v1"], json.Add, ct, log: false) is not 0)
+        if (await RunAsync("ctest", [.. CppTasks.CTestArguments, "--show-only=json-v1"], json.Add, ct, log: false) is not 0)
             return TestDiscovery.Failed("ctest could not list the tests (see Output, Tests).");
         JsonNode? doc;
         try
@@ -132,7 +132,7 @@ public sealed partial class CTestFramework(TestFrameworkStart start) : TestFrame
             return;
         }
         var report = Path.Combine(Path.GetTempPath(), $"karvon-ctest-{Guid.NewGuid():N}.xml");
-        List<string> args = ["--test-dir", "build", "--output-junit", report];
+        List<string> args = [.. CppTasks.CTestArguments, "--output-junit", report];
         if (tests is not null)
             args.AddRange(["-R", "^(" + string.Join('|', tests.Select(t => Regex.Escape(t.Id))) + ")$"]);
         try

@@ -275,7 +275,9 @@ public sealed partial class MavenPackages(string directory) : PackageSource
         // lines' ends too (XML reads them as \n).
         var text = (doc.Declaration?.ToString() ?? "") + string.Concat(doc.Nodes().Select(n => n.ToString(SaveOptions.DisableFormatting)));
         text = text.EndsWith('\n') ? text : text + "\n";
-        File.WriteAllText(Pom, File.ReadAllText(Pom).Contains("\r\n") ? text.Replace("\r\n", "\n").Replace("\n", "\r\n") : text);
+        // (XNode.ToString writes the platform's line ends: \r\n on Windows.)
+        text = text.Replace("\r\n", "\n");
+        File.WriteAllText(Pom, File.ReadAllText(Pom).Contains("\r\n") ? text.Replace("\n", "\r\n") : text);
         return done;
     }
 

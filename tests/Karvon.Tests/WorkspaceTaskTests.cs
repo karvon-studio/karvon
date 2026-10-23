@@ -419,7 +419,7 @@ public class WorkspaceTaskTests
         var (build, failed) = await Call(server, "run_build", new { });
         Assert.True(failed);
         Assert.Contains("Build of compile failed: 1 error(s)", build);
-        Assert.Contains("src/app.ts(3,7): error TS2322", build);
+        Assert.Contains($"{Path.Combine("src", "app.ts")}(3,7): error TS2322", build);
         Assert.Contains("builds by its build task (compile) only", (await Call(server, "run_build", new { verb = "clean" })).Text);
 
         // Run All Tests: the test task, in Output (Tests).

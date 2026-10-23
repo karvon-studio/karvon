@@ -29,6 +29,9 @@ public static partial class CppTasks
 
     static string Test => "ctest --test-dir build --output-on-failure" + (OperatingSystem.IsWindows() ? " -C Debug" : "");
 
+    /// <summary>ctest's own arguments for Karvon's build folder: its debug configuration's tests (a multi-configuration generator's too).</summary>
+    public static IReadOnlyList<string> CTestArguments => OperatingSystem.IsWindows() ? ["--test-dir", "build", "-C", "Debug"] : ["--test-dir", "build"];
+
     /// <summary>The build: configured first (quick once it is), as CMake Tools builds.</summary>
     public static string ConfigureAndBuild => $"{Configure} && {Build}";
 

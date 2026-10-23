@@ -1426,7 +1426,7 @@ public class UiTests
         Assert.Equal("Install", nuget.InstallButtonText);
         await nuget.InstallCommand.ExecuteAsync(null);
         await WaitUntil(() => !nuget.IsBusy, TimeSpan.FromSeconds(60));
-        Assert.Contains("Humanizer.Core", File.ReadAllText(components.FilePath));
+        Assert.True(File.ReadAllText(components.FilePath).Contains("Humanizer.Core"), nuget.Status);
         Assert.Equal("2.14.1", nuget.Packages.First(p => p.Id == "Humanizer.Core").InstalledVersion);
         Assert.True(nuget.UpdateCount >= 1);
         // Solution Explorer's Dependencies now list the package.

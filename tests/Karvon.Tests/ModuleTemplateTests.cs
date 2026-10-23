@@ -56,7 +56,7 @@ public class ModuleTemplateTests
             var output = new List<string>();
             Assert.True(await RunAsync("cmake", ["-S", ".", "-B", "build"], dir, output) == 0, string.Join("\n", output));
             Assert.True(await RunAsync("cmake", ["--build", "build"], dir, output) == 0, string.Join("\n", output));
-            Assert.True(await RunAsync("ctest", ["--test-dir", "build"], dir, output) == 0, string.Join("\n", output));
+            Assert.True(await RunAsync("ctest", [.. Cpp.CppTasks.CTestArguments], dir, output) == 0, string.Join("\n", output));
         }
         Directory.Delete(Path.GetDirectoryName(dir)!, recursive: true);
     }
