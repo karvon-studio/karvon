@@ -176,12 +176,11 @@ src/Karvon.Core/        the workbench; it knows no module
   Workspace/   solution and project loading, Solution Explorer tree
   Build/       dotnet runner, MSBuild output parser, dev certificates
   Debugging/   DAP client and sessions (child sessions too), netcoredbg
-  Testing/     vstest host
+  Testing/     what a test framework is (Test Explorer shows the modules')
   Git/         git CLI wrapper and line diff
-  Packages/    NuGet through the dotnet CLI
   Terminal/    integrated terminal
   Claude/      the tool contract and Karvon's IDE tools for Claude Code, the panel's language
-  Templates/   SDK project templates and project creation
+  Templates/   what a project template is (the modules' are in New Project)
   Editor/      AvaloniaEdit host, completion, outlining, diff view
   ViewModels/  Views/   main window, tool windows, dialogs
 src/Karvon.Database/    module: the Database Explorer (Bengine Data Studio's views and view models, on Avalonia 12)
@@ -189,6 +188,7 @@ src/Karvon.Docker/      module: the Docker Explorer
 src/Karvon.Servers/     module: SSH servers
 src/Karvon.Mcp/         module: MCP Servers
 src/Karvon.Skills/      module: Skills (uses Karvon.Mcp)
+src/Karvon.DotNet/      module: .NET (the SDK's project templates, C#'s item templates, NuGet, vstest in Test Explorer)
 src/Karvon.TypeScript/  module: TypeScript and JavaScript (TypeScript 7's language server, package.json scripts, js-debug, Vitest, Jest)
 src/Karvon.Python/      module: Python (Pyright's language server, debugpy, pytest, the workspace's .venv)
 src/Karvon.Go/          module: Go (gopls, Delve, go build/test/vet/run, go test in Test Explorer)

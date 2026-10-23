@@ -29,6 +29,12 @@ public interface IWorkbench
     /// <summary>The project a Solution Explorer node is in (its Dependencies, a package of it), or null.</summary>
     ProjectInfo? ProjectOf(ExplorerNode node);
 
+    /// <summary>The build configuration chosen on the toolbar ("Debug", "Release").</summary>
+    string Configuration { get; }
+
+    /// <summary>Build Solution, as the menu builds it, its output in Output (Build): whether it built.</summary>
+    Task<bool> BuildAsync();
+
     /// <summary>Add New Item in a node's folder, the template chosen first; the new file's path, or null.</summary>
     Task<string?> AddNewItemAsync(ExplorerNode node, ItemTemplate template);
 

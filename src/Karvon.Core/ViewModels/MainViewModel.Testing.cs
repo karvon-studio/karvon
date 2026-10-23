@@ -3,14 +3,13 @@ using System.Diagnostics;
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-using Microsoft.VisualStudio.TestPlatform.ObjectModel;
 using Karvon.Lsp;
 using Karvon.Testing;
 
 namespace Karvon.ViewModels;
 
 /// <summary>
-/// Test Explorer: the tests of the workspace's test frameworks (.NET's through vstest, the modules' such as Vitest),
+/// Test Explorer: the tests of the workspace's test frameworks (the modules': .NET's through vstest, Vitest...),
 /// found and run by each, their results in a Project/Namespace/Class/Method tree.
 /// </summary>
 public partial class MainViewModel
@@ -20,7 +19,6 @@ public partial class MainViewModel
     readonly Dictionary<string, (TestFramework Framework, TestItem Item)> _discovered = [];
     int _testRuns;
     List<string> _lastRun = [];
-    DotNetTests? _dotNetTests;
 
     /// <summary>The modules' test frameworks of the workspace, read with its tasks.</summary>
     List<TestFramework> _moduleTestFrameworks = [];
@@ -51,17 +49,8 @@ public partial class MainViewModel
 
     static string KeyOf(TestFramework framework, string id) => framework.Id + ":" + id;
 
-    /// <summary>The workspace's test frameworks: .NET's when the solution has test projects, then the modules'.</summary>
-    IEnumerable<TestFramework> TestFrameworks
-    {
-        get
-        {
-            if (Solution is { } solution && solution.Projects.Any(p => p.IsTestProject))
-                yield return _dotNetTests ??= new DotNetTests(this);
-            foreach (var framework in _moduleTestFrameworks)
-                yield return framework;
-        }
-    }
+    /// <summary>The workspace's test frameworks that have its tests now (.NET's when the solution has a test project).</summary>
+    IEnumerable<TestFramework> TestFrameworks => _moduleTestFrameworks.Where(f => f.IsAvailable);
 
     /// <summary>The modules' test frameworks read again (the folder opened, a package.json saved).</summary>
     void RefreshTestFrameworks()
@@ -71,7 +60,11 @@ public partial class MainViewModel
         _moduleTestFrameworks = [];
         if (Solution is not { } solution)
             return;
-        var start = new Modules.TestFrameworkStart(solution.Directory, TaskPath(), TestsOutput.Append) { DebugAsync = DebugToEndAsync };
+        var start = new Modules.TestFrameworkStart(solution.Directory, TaskPath(), TestsOutput.Append)
+        {
+            DebugAsync = DebugToEndAsync,
+            StartDebuggingAsync = launch => Dispatcher.UIThread.InvokeAsync(() => StartDebuggingAsync(launch)),
+        };
         foreach (var module in Modules)
         {
             try
@@ -83,7 +76,7 @@ public partial class MainViewModel
                 TestsOutput.Append($"{module.Name} could not read the tests: {ex.Message}");
             }
         }
-        if (_moduleTestFrameworks.Count > 0 && TestRoots.Count == 0)
+        if (_moduleTestFrameworks.Any(f => f.IsAvailable) && TestRoots.Count == 0)
             TestSummary = "Run All Tests to discover the tests.";
     }
 
@@ -318,8 +311,6 @@ public partial class MainViewModel
     void ResetTesting()
     {
         _testCts?.Cancel();
-        _dotNetTests?.Dispose();
-        _dotNetTests = null;
         foreach (var framework in _moduleTestFrameworks)
             framework.Dispose();
         _moduleTestFrameworks = [];
@@ -330,113 +321,6 @@ public partial class MainViewModel
         SelectedTest = null;
         PassedCount = FailedCount = SkippedCount = 0;
         TestSummary = "Build the solution to discover tests.";
-    }
-
-    /// <summary>
-    /// .NET's tests: the solution built, its test projects' assemblies discovered and run through the SDK's
-    /// vstest.console (xUnit, NUnit, MSTest), debugged by attaching to the test host vstest starts.
-    /// </summary>
-    sealed class DotNetTests(MainViewModel vm) : TestFramework
-    {
-        VsTestHost? _host;
-        readonly Dictionary<Guid, TestCase> _cases = [];
-
-        public override string Id => "dotnet";
-
-        public override string Name => ".NET";
-
-        public override bool CanDebug => true;
-
-        public override async Task<TestDiscovery> DiscoverAsync(CancellationToken ct)
-        {
-            if (vm.Solution is not { } solution)
-                return TestDiscovery.Failed("No solution is open.");
-            if (!await vm.RunBuildAsync("build", "Build"))
-                return TestDiscovery.Failed("Build failed; fix the errors to discover tests.");
-            vm.TestSummary = "Discovering tests...";
-            var assemblies = new List<string>();
-            foreach (var project in solution.Projects.Where(p => p.IsTestProject))
-                if (await vm.GetTargetPathAsync(project) is { } dll && File.Exists(dll))
-                    assemblies.Add(dll);
-            if (assemblies.Count == 0)
-                return TestDiscovery.Failed("No test assemblies were built.");
-            if (_host is null)
-            {
-                var console = await VsTestHost.FindConsoleAsync(solution.Directory);
-                if (console is null)
-                    return TestDiscovery.Failed("vstest.console was not found in the .NET SDK.");
-                _host = VsTestHost.Start(console, Path.Combine(Path.GetTempPath(), "Karvon", "vstest-logs"));
-                _host.Log += vm.BuildOutput.Append;
-            }
-            var cases = await _host.DiscoverAsync(assemblies, ct);
-            _cases.Clear();
-            foreach (var c in cases)
-                _cases[c.Id] = c;
-            return new TestDiscovery(ItemsOf(cases));
-        }
-
-        /// <summary>The cases as Test Explorer shows them: by project, namespace, class; a theory's rows under its method, named as VS names them.</summary>
-        static List<TestItem> ItemsOf(IReadOnlyList<TestCase> cases)
-        {
-            var items = new List<TestItem>();
-            foreach (var byProject in cases.GroupBy(c => Path.GetFileNameWithoutExtension(c.Source)).OrderBy(g => g.Key))
-                foreach (var byClass in byProject.GroupBy(c => Before(c.FullyQualifiedName)).OrderBy(g => g.Key))
-                {
-                    var ns = Before(byClass.Key);
-                    TestGroup[] groups = [new(TestNodeKind.Project, byProject.Key), new(TestNodeKind.Namespace, ns.Length == 0 ? "<global>" : ns), new(TestNodeKind.Class, After(byClass.Key))];
-                    foreach (var byMethod in byClass.GroupBy(c => c.FullyQualifiedName).OrderBy(g => g.Key))
-                    {
-                        var list = byMethod.ToList();
-                        var methodName = After(byMethod.Key);
-                        if (list.Count == 1)
-                        {
-                            items.Add(ItemOf(list[0], groups, methodName));
-                            continue;
-                        }
-                        // Theory / parameterized test: one row per data row, under its method.
-                        TestGroup[] method = [.. groups, new(TestNodeKind.Method, methodName)];
-                        foreach (var c in list.OrderBy(c => c.DisplayName, StringComparer.Ordinal))
-                            items.Add(ItemOf(c, method, c.DisplayName.StartsWith(byMethod.Key, StringComparison.Ordinal) ? methodName + c.DisplayName[byMethod.Key.Length..] : c.DisplayName));
-                    }
-                }
-            return items;
-
-            static TestItem ItemOf(TestCase c, IReadOnlyList<TestGroup> groups, string name) => new(c.Id.ToString(), groups, name, c.CodeFilePath, c.LineNumber)
-            {
-                // With the data row of a theory.
-                FullName = c.DisplayName.StartsWith(c.FullyQualifiedName, StringComparison.Ordinal) ? c.DisplayName : c.FullyQualifiedName,
-                Container = c.Source,
-            };
-        }
-
-        static string Before(string name) => name.LastIndexOf('.') is var i and >= 0 ? name[..i] : "";
-
-        static string After(string name) => name.LastIndexOf('.') is var i and >= 0 ? name[(i + 1)..] : name;
-
-        public override async Task RunAsync(IReadOnlyList<TestItem>? tests, bool debug, Action<TestItemResult> onResult, CancellationToken ct)
-        {
-            if (_host is not { } host)
-                return;
-            var cases = tests is null ? [.. _cases.Values] : tests.Select(t => _cases.GetValueOrDefault(Guid.Parse(t.Id))).OfType<TestCase>().ToList();
-            void OnResult(TestResultInfo r) => onResult(new TestItemResult(r.Id.ToString(), r.State, r.Duration, r.ErrorMessage, r.StackTrace, r.Output));
-            if (debug)
-            {
-                // vstest starts the test host and asks us to attach before any test runs, so breakpoints hit.
-                vm.DebugOutput.Clear();
-                var launcher = new DebuggingTestHostLauncher(
-                    pid => Dispatcher.UIThread.InvokeAsync(() => vm.AttachTestDebuggerAsync(pid)),
-                    vm.DebugOutput.Append);
-                await host.DebugAsync(cases, launcher, OnResult, ct);
-            }
-            else
-                await host.RunAsync(cases, OnResult, ct);
-        }
-
-        public override void Dispose()
-        {
-            _host?.Dispose();
-            _host = null;
-        }
     }
 }
 

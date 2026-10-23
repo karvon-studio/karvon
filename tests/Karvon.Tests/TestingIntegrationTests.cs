@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using Karvon.Build;
 using Karvon.Debugging;
+using Karvon.DotNet.Testing;
 using Karvon.Testing;
 
 namespace Karvon.Tests;

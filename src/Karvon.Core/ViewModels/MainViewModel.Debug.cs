@@ -317,28 +317,16 @@ public partial class MainViewModel
         };
     }
 
-    /// <summary>Debug Tests: attach to the test host vstest started; returns once breakpoints are set.</summary>
-    async Task AttachTestDebuggerAsync(int processId)
+    /// <summary>
+    /// A launch configuration under its debugger, as F5 starts it (a test framework's attach to its test host): done once
+    /// its session runs; it throws when there is none (why is in Output (Debug)).
+    /// </summary>
+    async Task StartDebuggingAsync(Modules.DebugLaunch launch)
     {
-        var adapter = await NetcoredbgLocator.EnsureInstalledAsync(DebugOutput.Append, CancellationToken.None);
-        DebugOutput.Append($"Debugging tests (test host process {processId}) with netcoredbg {NetcoredbgLocator.Version}");
-        _debuggedProject = "testhost";
-        Mode = DebugMode.Running;
-        SetStatus("Debugging tests", StatusKind.Running);
-        var breakpoints = Breakpoints.All;
-        try
-        {
-            _session = await DebugSession.AttachAsync(adapter, processId, breakpoints,
-                (file, results) => Dispatcher.UIThread.Post(() => Breakpoints.SetVerification(file, breakpoints[file], results)),
-                WireSession, CancellationToken.None);
-        }
-        catch (Exception ex)
-        {
-            DebugOutput.Append("Failed to attach the debugger: " + ex.Message);
-            _session = null;
-            Mode = DebugMode.Design;
-            throw;
-        }
+        var before = _session;
+        await LaunchConfigurationAsync(launch, noDebug: false);
+        if (_session is null || _session == before)
+            throw new InvalidOperationException($"{launch.Name} did not start under the debugger: see Output (Debug).");
     }
 
     /// <summary>The project's output assembly, as MSBuild computes it (honors AssemblyName, OutputPath, TFM).</summary>

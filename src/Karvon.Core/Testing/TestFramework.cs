@@ -1,5 +1,14 @@
 namespace Karvon.Testing;
 
+public enum TestState
+{
+    NotRun,
+    Running,
+    Passed,
+    Failed,
+    Skipped,
+}
+
 /// <summary>What a Test Explorer row is.</summary>
 public enum TestNodeKind
 {
@@ -39,7 +48,7 @@ public sealed record TestDiscovery(IReadOnlyList<TestItem> Tests, string? Proble
 }
 
 /// <summary>
-/// A test framework of the workspace: xUnit, NUnit and MSTest through vstest (the core's, for .NET), Vitest (the
+/// A test framework of the workspace: xUnit, NUnit and MSTest through vstest (the .NET module's), Vitest (the
 /// TypeScript module's). Test Explorer shows the tests of each, runs them and, when the framework can, debugs them.
 /// </summary>
 public abstract class TestFramework : IDisposable
@@ -50,6 +59,9 @@ public abstract class TestFramework : IDisposable
     public abstract string Name { get; }
 
     public virtual bool CanDebug => false;
+
+    /// <summary>Whether the workspace has its tests now (.NET's: the solution has a test project); Test Explorer leaves it out until then.</summary>
+    public virtual bool IsAvailable => true;
 
     /// <summary>Its tests, built first when it needs that.</summary>
     public abstract Task<TestDiscovery> DiscoverAsync(CancellationToken ct);

@@ -9,9 +9,10 @@ using Karvon.Workspace;
 namespace Karvon.DotNet;
 
 /// <summary>
-/// .NET: the SDK's project templates in New Project, the NuGet Package Manager (a project's packages, or the
-/// solution's), Solution Explorer's NuGet commands and C#'s language server and debugger as its components. The rest of .NET (solutions, builds, the C# editor, F5, tests)
-/// is still Karvon's own, and comes here one part at a time.
+/// .NET: the SDK's project templates in New Project, C#'s in Add New Item, Test Explorer's xUnit, NUnit and MSTest
+/// tests (vstest), the NuGet Package Manager (a project's packages, or the solution's), Solution Explorer's NuGet
+/// commands and C#'s language server and debugger as its components. The rest of .NET (solutions, builds, the C# editor,
+/// F5) is still Karvon's own, and comes here one part at a time.
 /// </summary>
 public sealed class DotNetModule : KarvonModule
 {
@@ -20,10 +21,10 @@ public sealed class DotNetModule : KarvonModule
     public override string Name => ".NET";
 
     public override string Description =>
-        "C#, ASP.NET Core and Blazor. The SDK's project templates in New Project, the NuGet Package Manager (Browse, "
-        + "Installed, Updates; a project's packages or the solution's) and Solution Explorer's NuGet commands are the "
-        + "module's; solutions, builds, the C# editor, F5 and tests are still part of Karvon Studio itself, and stay when "
-        + "the module is off.";
+        "C#, ASP.NET Core and Blazor. The SDK's project templates in New Project, C#'s and Razor's in Add New Item, Test "
+        + "Explorer's xUnit, NUnit and MSTest tests, the NuGet Package Manager (Browse, Installed, Updates; a project's "
+        + "packages or the solution's) and Solution Explorer's NuGet commands are the module's; solutions, builds, the C# "
+        + "editor and F5 are still part of Karvon Studio itself, and stay when the module is off.";
 
     public override IReadOnlyList<ModuleComponent> Components =>
     [
@@ -43,6 +44,9 @@ public sealed class DotNetModule : KarvonModule
     public override Task<IReadOnlyList<ProjectTemplate>> LoadProjectTemplatesAsync(CancellationToken ct) => TemplateCatalog.LoadAsync(ct);
 
     public override IReadOnlyList<ItemTemplate> ItemTemplates => CSharpItemTemplates.All;
+
+    /// <summary>The solution's xUnit, NUnit and MSTest tests, through the SDK's vstest; in Test Explorer once it has a test project.</summary>
+    public override IReadOnlyList<Karvon.Testing.TestFramework> TestFrameworks(TestFrameworkStart start) => [new Testing.DotNetTests(Workbench, start)];
 
     public override IReadOnlyList<IDataTemplate> DocumentTemplates => [Document<NuGetViewModel>(_ => new NuGetView())];
 

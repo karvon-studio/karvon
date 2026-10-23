@@ -4,17 +4,9 @@ using Microsoft.VisualStudio.TestPlatform.ObjectModel;
 using Microsoft.VisualStudio.TestPlatform.ObjectModel.Client;
 using Microsoft.VisualStudio.TestPlatform.ObjectModel.Logging;
 using Karvon.Build;
+using Karvon.Testing;
 
-namespace Karvon.Testing;
-
-public enum TestState
-{
-    NotRun,
-    Running,
-    Passed,
-    Failed,
-    Skipped,
-}
+namespace Karvon.DotNet.Testing;
 
 public sealed record TestResultInfo(Guid Id, TestState State, TimeSpan Duration, string? ErrorMessage, string? StackTrace, string? Output);
 

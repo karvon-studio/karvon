@@ -1412,7 +1412,7 @@ public class UiTests
         // F5 continues; the test finishes green and debugging ends.
         await vm.StartDebuggingCommand.ExecuteAsync(null);
         await run.WaitAsync(TimeSpan.FromSeconds(90), TestContext.Current.CancellationToken);
-        Assert.True(test.State == TestState.Passed, $"state {test.State}; summary: {vm.TestSummary}\nbuild/vstest:\n{vm.BuildOutput.Document.Text[^Math.Min(1500, vm.BuildOutput.Document.TextLength)..]}\ndebug:\n{vm.DebugOutput.Document.Text}");
+        Assert.True(test.State == TestState.Passed, $"state {test.State}; summary: {vm.TestSummary}\nvstest:\n{vm.TestsOutput.Document.Text[^Math.Min(1500, vm.TestsOutput.Document.TextLength)..]}\ndebug:\n{vm.DebugOutput.Document.Text}");
         await WaitUntil(() => vm.Mode == DebugMode.Design, TimeSpan.FromSeconds(30));
         Assert.Equal(DebugMode.Design, vm.Mode);
 

@@ -4,7 +4,7 @@ using Microsoft.VisualStudio.TestPlatform.ObjectModel.Client;
 using Microsoft.VisualStudio.TestPlatform.ObjectModel.Client.Interfaces;
 using Karvon.Build;
 
-namespace Karvon.Testing;
+namespace Karvon.DotNet.Testing;
 
 /// <summary>
 /// Debugger hook for "Debug Tests". In design mode vstest starts testhost itself and asks the IDE to attach

@@ -58,6 +58,8 @@ public class DotNetModuleTests
         Assert.Equal(["_NuGet Package Manager", "-", "_Restart Language Server"], Lines(tools.Items.OfType<object>()).Take(3));
         Assert.Equal(["Manage NuGet Packages for _Solution..."], Lines(((MenuItem)tools.Items[0]!).Items.OfType<object>()));
         Assert.Contains(vm.OutputChannels, c => c.Name == "Package Manager");
+        // Test Explorer has the solution's xUnit tests through the module.
+        Assert.True(vm.RunAllTestsCommand.CanExecute(null));
 
         // Remove on a package: out of the project file, and out of Dependencies; what dotnet said in Output (Package Manager).
         var dotnet = vm.Module<DotNetModule>()!;
@@ -110,6 +112,7 @@ public class DotNetModuleTests
         var add = window.ExplorerMenuItems(web).OfType<MenuItem>().Single(m => (string?)m.Header == "Add");
         Assert.Equal(["New Item...", "Existing Item...", "New Folder", "New EditorConfig", "-", "Project Reference..."], Lines(add.Items.OfType<object>()));
         Assert.Equal(ItemTemplates.General, vm.NewItemTemplates);
+        Assert.False(vm.RunAllTestsCommand.CanExecute(null));
         Assert.Contains(vm.AllModules, m => m.Id == "dotnet" && m.Components.Count == 2);
         var tools = window.MainMenu.Items.OfType<MenuItem>().Single(m => (string?)m.Header == "_Tools");
         Assert.Equal("_Restart Language Server", ((MenuItem)tools.Items[0]!).Header);

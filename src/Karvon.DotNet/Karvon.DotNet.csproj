@@ -1,11 +1,16 @@
 <Project Sdk="Microsoft.NET.Sdk">
-  <!-- The .NET module: the NuGet Package Manager and Solution Explorer's NuGet commands; the rest of .NET comes here in steps. -->
+  <!-- The .NET module: templates, NuGet, Test Explorer's vstest; the rest of .NET comes here in steps. -->
   <PropertyGroup>
     <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
     <RootNamespace>Karvon.DotNet</RootNamespace>
   </PropertyGroup>
   <ItemGroup>
     <InternalsVisibleTo Include="Karvon.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- vstest.console's client, for Test Explorer's .NET tests. -->
+    <PackageReference Include="Microsoft.TestPlatform.TranslationLayer" Version="18.7.0" />
   </ItemGroup>
 
   <ItemGroup>

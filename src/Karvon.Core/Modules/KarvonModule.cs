@@ -86,6 +86,12 @@ public sealed record TestFrameworkStart(string Workspace, string Path, Action<st
 {
     /// <summary>Runs a launch configuration under the debugger of its type, as F5 does, until its session ends: what it printed.</summary>
     public Func<DebugLaunch, Task<string>>? DebugAsync { get; init; }
+
+    /// <summary>
+    /// Starts a launch configuration under the debugger of its type (an attach to the test host vstest started), from any
+    /// thread: done once the session runs, its breakpoints set; it throws when the session did not start.
+    /// </summary>
+    public Func<DebugLaunch, Task>? StartDebuggingAsync { get; init; }
 }
 
 /// <summary>
