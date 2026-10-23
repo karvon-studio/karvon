@@ -31,6 +31,66 @@ public partial class MainViewModel : IWorkbench
         RegisterModuleLanguageServers();
     }
 
+    /// <summary>
+    /// .NET's components, which the core still has (it is to become a workload module): C#'s language server and its
+    /// debugger.
+    /// </summary>
+    public static IReadOnlyList<ModuleComponent> DotNetComponents { get; } =
+    [
+        new("roslyn", "C# and Razor language server", Lsp.RoslynServerLocator.Version, Lsp.RoslynServerLocator.InstallRoot,
+            () => Lsp.RoslynServerLocator.Find() is not null, Lsp.RoslynServerLocator.EnsureInstalledAsync)
+        {
+            Description = "roslyn-language-server (MIT), Visual Studio's C# engine, from nuget.org.",
+        },
+        new("netcoredbg", ".NET debugger", Debugging.NetcoredbgLocator.Version, Debugging.NetcoredbgLocator.InstallRoot,
+            () => Debugging.NetcoredbgLocator.Find() is not null, Debugging.NetcoredbgLocator.EnsureInstalledAsync)
+        {
+            Description = "Samsung's netcoredbg (MIT), from its GitHub release.",
+        },
+    ];
+
+    /// <summary>Every component Tools > Modules shows, by what it belongs to: .NET's, then each module's (on or off).</summary>
+    public IReadOnlyList<(string Owner, ModuleComponent Component)> Components =>
+        [.. DotNetComponents.Select(c => (".NET", c)), .. AllModules.SelectMany(m => m.Components.Select(c => (m.Name, c)))];
+
+    /// <summary>Whether a component goes when Karvon Studio starts again.</summary>
+    public bool IsRemovalPending(ModuleComponent component) => Settings.RemovedComponents.Contains(component.InstallRoot);
+
+    /// <summary>Tools > Modules > Remove: the component goes when Karvon Studio starts again (it may be running now).</summary>
+    public void RemoveComponent(ModuleComponent component)
+    {
+        if (IsRemovalPending(component))
+            return;
+        Settings.RemovedComponents.Add(component.InstallRoot);
+        Settings.Save();
+    }
+
+    /// <summary>A removal taken back: the component stays.</summary>
+    public void KeepComponent(ModuleComponent component)
+    {
+        if (Settings.RemovedComponents.Remove(component.InstallRoot))
+            Settings.Save();
+    }
+
+    /// <summary>Tools > Modules > Install: the component now, rather than the first time it is needed; its log in Output (Modules).</summary>
+    public async Task<bool> InstallComponentAsync(ModuleComponent component, CancellationToken ct = default)
+    {
+        KeepComponent(component);
+        var output = ((IWorkbench)this).Output("Modules");
+        output.Append($"Installing {component.Name} {component.Version}...");
+        try
+        {
+            await component.InstallAsync(output.Append, ct);
+            output.Append($"{component.Name} {component.Version} is installed.");
+            return true;
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            output.Append($"{component.Name} could not be installed: {ex.Message}");
+            return false;
+        }
+    }
+
     /// <summary>Karvon closes: what the modules started stops.</summary>
     public async Task ShutdownModulesAsync()
     {

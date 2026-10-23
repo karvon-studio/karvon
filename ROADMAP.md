@@ -50,7 +50,9 @@ it does today all along.
 
 ## 1. Modify Karvon Studio
 
-- An installer window as Visual Studio's: workloads and individual components.
+- An installer window as Visual Studio's: workloads and individual components (in now: Tools > Modules lists each
+  module's components, the language servers and debuggers it downloads, with their state and size; Install gets one at
+  once, Remove takes it away when Karvon Studio starts again).
 - Heavy parts (language servers, debuggers, database drivers) download when their module is installed.
 - Later, modules ship from their own repositories and a registry lists them.
 

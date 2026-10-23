@@ -3,9 +3,9 @@ using System.Runtime.CompilerServices;
 namespace Karvon.Tests;
 
 /// <summary>
-/// Before any test runs: Karvon's Docker Explorer and Claude's Docker tools find the fake engine, the Servers and the MCP
-/// Servers read homes of the tests' own (never the user's ~/.ssh or ~/.claude.json), no secret goes to the user's
-/// keyring, and packages come from nuget.org only.
+/// Before any test runs: Karvon's settings are the tests' own (never the user's ~/.config/karvon), Karvon's Docker
+/// Explorer and Claude's Docker tools find the fake engine, the Servers and the MCP Servers read homes of the tests' own
+/// (never the user's ~/.ssh or ~/.claude.json), no secret goes to the user's keyring, and packages come from nuget.org only.
 /// </summary>
 static class TestEnvironment
 {
@@ -14,6 +14,9 @@ static class TestEnvironment
     {
         // The modules the application comes with, as the application gives them.
         Karvon.Modules.ModuleCatalog.Create = Karvon.BuiltInModules.Create;
+        // Never the user's real ~/.config/karvon, whichever test runs first (opening a folder saves the recent list).
+        if (Environment.GetEnvironmentVariable("KARVON_CONFIG_DIR") is null)
+            Environment.SetEnvironmentVariable("KARVON_CONFIG_DIR", Path.Combine(Path.GetTempPath(), "karvon-test-config"));
         if (Environment.GetEnvironmentVariable("KARVON_DOCKER_PATH") is null)
             Environment.SetEnvironmentVariable("KARVON_DOCKER_PATH", FakeDocker.Create().Docker);
         if (Environment.GetEnvironmentVariable("KARVON_SSH_HOME") is null)

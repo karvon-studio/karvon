@@ -71,6 +71,9 @@ public sealed class Settings
     /// <summary>The ids of the modules turned off in Tools > Modules.</summary>
     public List<string> DisabledModules { get; set; } = [];
 
+    /// <summary>The folders of the components removed in Tools > Modules: they go when Karvon Studio starts again.</summary>
+    public List<string> RemovedComponents { get; set; } = [];
+
     /// <summary>Karvon's Docker tools see every container, not only the open solution's compose project.</summary>
     public bool ClaudeAllContainers { get; set; }
 

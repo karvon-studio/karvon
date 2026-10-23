@@ -96,7 +96,10 @@ public partial class MainWindow
         FillModuleToolWindow(id);
     }
 
-    /// <summary>Tools > Modules: which modules are on. It takes effect when Karvon Studio starts again.</summary>
+    /// <summary>
+    /// Tools > Modules: which modules are on (it takes effect when Karvon Studio starts again), and what each has
+    /// downloaded or is to download (installed at once, or removed when Karvon Studio starts again).
+    /// </summary>
     async void OnModules(object? sender, RoutedEventArgs e)
     {
         if (Vm is not { } vm)
@@ -116,12 +119,32 @@ public partial class MainWindow
             },
         })).ToList();
         var list = new StackPanel { Spacing = 12 };
-        foreach (var (_, box) in boxes)
+        // .NET is the core's still: always there, its components listed as a module's.
+        list.Children.Add(new StackPanel
+        {
+            Spacing = 2,
+            Children =
+            {
+                new TextBlock { Text = ".NET", FontWeight = FontWeight.SemiBold },
+                new TextBlock { Text = "C#, ASP.NET Core and Blazor: part of Karvon Studio itself for now.", Foreground = gray },
+            },
+        });
+        foreach (var component in MainViewModel.DotNetComponents)
+            list.Children.Add(ComponentRow(vm, component, gray));
+        foreach (var (module, box) in boxes)
+        {
             list.Children.Add(box);
+            foreach (var component in module.Components)
+                list.Children.Add(ComponentRow(vm, component, gray));
+        }
         var body = new StackPanel
         {
             Spacing = 16,
-            Children = { list, new TextBlock { Text = "Changes take effect when Karvon Studio starts again.", Foreground = gray } },
+            Children =
+            {
+                new ScrollViewer { Content = list, MaxHeight = 520 },
+                new TextBlock { Text = "Modules turned on or off, and components removed, change when Karvon Studio starts again.", Foreground = gray },
+            },
         };
         if (await CreateDialog("Modules", body, ("OK", true), ("Cancel", false)).ShowDialog<bool?>(this) != true)
             return;
@@ -132,4 +155,49 @@ public partial class MainWindow
         vm.Settings.Save();
         ((IWorkbench)vm).Status("The modules change when Karvon Studio starts again.");
     }
+
+    /// <summary>A component of a module in Tools > Modules: what it is, whether it is there, and Install, Remove or Keep.</summary>
+    internal static Control ComponentRow(MainViewModel vm, ModuleComponent component, IBrush? gray)
+    {
+        var state = new TextBlock { Foreground = gray, VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center, TextWrapping = TextWrapping.Wrap };
+        var button = new Button { Padding = new Thickness(10, 1), MinWidth = 70, HorizontalContentAlignment = Avalonia.Layout.HorizontalAlignment.Center };
+        void Show()
+        {
+            (state.Text, button.Content) = vm.IsRemovalPending(component) ? ("removed when Karvon Studio starts again", "Keep")
+                : component.IsInstalled() ? ($"installed, {SizeText(component.Size())}", "Remove")
+                : ("downloads the first time it is needed", "Install");
+            button.IsEnabled = true;
+        }
+        button.Click += async (_, _) =>
+        {
+            if (vm.IsRemovalPending(component))
+                vm.KeepComponent(component);
+            else if (component.IsInstalled())
+                vm.RemoveComponent(component);
+            else
+            {
+                (state.Text, button.IsEnabled) = ("installing...", false);
+                if (!await vm.InstallComponentAsync(component))
+                {
+                    state.Text = "could not be installed: see Output (Modules)";
+                    button.IsEnabled = true;
+                    return;
+                }
+            }
+            Show();
+        };
+        Show();
+        var grid = new Grid { ColumnDefinitions = new ColumnDefinitions("*,Auto"), Margin = new Thickness(28, 0, 0, 0), [ToolTip.TipProperty] = component.Description };
+        var text = new StackPanel
+        {
+            Spacing = 1,
+            Children = { new TextBlock { Text = $"{component.Name} {component.Version}" }, state },
+        };
+        grid.Children.Add(text);
+        Grid.SetColumn(button, 1);
+        grid.Children.Add(button);
+        return grid;
+    }
+
+    static string SizeText(long bytes) => bytes >= 1 << 20 ? $"{bytes / (double)(1 << 20):0.#} MB" : $"{bytes / 1024.0:0} KB";
 }

@@ -30,6 +30,20 @@ public sealed class TypeScriptModule : KarvonModule
     /// <summary>A solution's frontends: the package.json folders beside its projects.</summary>
     public override IReadOnlyList<WorkspaceProject> WorkspaceProjects(string workspace) => PackageScripts.Projects(workspace);
 
+    public override IReadOnlyList<ModuleComponent> Components =>
+    [
+        new("typescript", "TypeScript language server", TypeScriptServerLocator.Version, TypeScriptServerLocator.InstallRoot,
+            () => TypeScriptServerLocator.Find() is not null, TypeScriptServerLocator.EnsureInstalledAsync)
+        {
+            Description = "TypeScript 7's native compiler, its own language server (Apache-2.0), from the npm registry.",
+        },
+        new("js-debug", "JavaScript debugger", JsDebugLocator.Version, JsDebugLocator.InstallRoot,
+            () => JsDebugLocator.Find() is not null, JsDebugLocator.EnsureInstalledAsync)
+        {
+            Description = "js-debug, the JavaScript debugger of VS Code (MIT), from its GitHub release; it runs on Node.js.",
+        },
+    ];
+
     /// <summary>F5: js-debug, for launch.json's node, chrome and msedge configurations and the package.json scripts.</summary>
     public override IReadOnlyList<DebuggerInfo> Debuggers =>
         [new("js-debug", $"the JavaScript debugger (js-debug {JsDebugLocator.Version})", JsDebugger.Types, StartDebuggerAsync)];

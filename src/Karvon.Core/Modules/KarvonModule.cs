@@ -109,6 +109,9 @@ public abstract partial class KarvonModule : ObservableObject, IDisposable, IAsy
     /// <summary>The folders of the tools its tasks use (Node.js's bin...): first on the PATH of every task.</summary>
     public virtual IEnumerable<string> ToolDirectories => [];
 
+    /// <summary>What it downloads when it is first needed (its language server, its debugger): Tools > Modules installs and removes them.</summary>
+    public virtual IReadOnlyList<ModuleComponent> Components => [];
+
     /// <summary>The debuggers it brings: F5 starts the one of a launch configuration's type.</summary>
     public virtual IReadOnlyList<DebuggerInfo> Debuggers => [];
 
