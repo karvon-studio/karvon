@@ -1,3 +1,4 @@
+using System.Text.Json.Nodes;
 using System.Text.RegularExpressions;
 using Karvon.Modules;
 
@@ -44,6 +45,18 @@ public static partial class TaskVariables
         Program = Expand(task.Program, workspace, file),
         Arguments = task.Arguments.Select(a => Expand(a, workspace, file)).ToList(),
         WorkingDirectory = Expand(task.WorkingDirectory, workspace, file),
+    };
+
+    /// <summary>A launch configuration as it starts: a copy with the variables put in its every text, in arrays and objects too.</summary>
+    public static JsonObject ForFile(JsonObject configuration, string workspace, string? file) =>
+        (JsonObject)Expand(configuration, workspace, file)!;
+
+    static JsonNode? Expand(JsonNode? node, string workspace, string? file) => node switch
+    {
+        JsonObject o => new JsonObject(o.Select(p => KeyValuePair.Create(p.Key, Expand(p.Value, workspace, file)))),
+        JsonArray a => new JsonArray([.. a.Select(e => Expand(e, workspace, file))]),
+        JsonValue v when v.TryGetValue<string>(out var text) => JsonValue.Create(Expand(text, workspace, file)),
+        _ => node?.DeepClone(),
     };
 
     /// <summary>A command line as the shell runs it: the user's shell (or sh) with -c, cmd /d /s /c on Windows.</summary>

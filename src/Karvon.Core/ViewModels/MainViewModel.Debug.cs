@@ -18,6 +18,13 @@ public partial class MainViewModel
     string _stopReason = "";
     string? _stopText;
     string? _debuggedProject;
+    string? _postDebugTask;
+
+    /// <summary>The debuggers F5 starts for a launch configuration's type: the modules', and netcoredbg for coreclr.</summary>
+    IEnumerable<Modules.DebuggerInfo> Debuggers => Modules.SelectMany(m => m.Debuggers).Append(Netcoredbg);
+
+    static readonly Modules.DebuggerInfo Netcoredbg = new("netcoredbg", $"netcoredbg {NetcoredbgLocator.Version}", ["coreclr"],
+        async start => DebugSession.Netcoredbg(await NetcoredbgLocator.EnsureInstalledAsync(start.Log, start.Cancellation)));
 
     public BreakpointStore Breakpoints { get; } = new();
     public ObservableCollection<StackFrameItem> CallStack { get; } = [];
@@ -87,7 +94,7 @@ public partial class MainViewModel
     // ---- Start / continue / stop -----------------------------------------------------------------------------
 
     bool CanStartDebugging => Mode == DebugMode.Break
-        || (Mode == DebugMode.Design && Solution is not null && StartupProject is not null && !IsBuilding && !IsRunning);
+        || (Mode == DebugMode.Design && Solution is not null && (IsFolderWorkspace ? StartupItem is not null : StartupProject is not null) && !IsBuilding && !IsRunning);
 
     [RelayCommand(CanExecute = nameof(CanStartDebugging))]
     async Task StartDebugging()
@@ -103,6 +110,20 @@ public partial class MainViewModel
 
     async Task LaunchDebuggerAsync()
     {
+        // A folder debugs what is chosen on the toolbar: a launch configuration, or a task its module debugs.
+        if (IsFolderWorkspace)
+        {
+            switch (StartupItem)
+            {
+                case { Debug: { } launch }:
+                    await LaunchConfigurationAsync(launch, noDebug: false);
+                    break;
+                case { Task: { } task }:
+                    await RunProgramTaskAsync(task, $"{task.Name} has no debugger, so it runs without one: a launch configuration (.vscode/launch.json) debugs it.");
+                    break;
+            }
+            return;
+        }
         if (Solution is null || StartupProject is not { } project)
             return;
         if (!await RunBuildAsync("build", "Build", project.FilePath))
@@ -169,6 +190,62 @@ public partial class MainViewModel
                     };
                 },
                 CancellationToken.None);
+        }
+        catch (Exception ex)
+        {
+            DebugOutput.Append("Failed to start debugging: " + ex.Message);
+            _session = null;
+            Mode = DebugMode.Design;
+            SetStatus("Ready", StatusKind.Ready);
+        }
+    }
+
+    /// <summary>
+    /// A launch configuration started: its preLaunchTask first, then the debugger of its type with it (its variables put
+    /// in), the breakpoints set; without them when it runs without debugging (Ctrl+F5, noDebug as VS Code has it).
+    /// </summary>
+    async Task LaunchConfigurationAsync(Modules.DebugLaunch launch, bool noDebug)
+    {
+        if (Solution is not { } solution || Mode != DebugMode.Design || IsRunning)
+            return;
+        SaveAll();
+        DebugOutput.Clear();
+        if (launch.PreLaunchTask is { } pre && !await RunPreLaunchTaskAsync(pre))
+            return;
+        SelectedOutput = DebugOutput;
+        ShowToolWindow(ToolWindows.Output);
+        if (Debuggers.FirstOrDefault(d => d.Types.Contains(launch.Type)) is not { } debugger)
+        {
+            DebugOutput.Append($"No debugger debugs '{launch.Type}' ({launch.Name}): its module brings one (Tools > Modules).");
+            SetStatus($"No debugger for '{launch.Type}'");
+            return;
+        }
+        var configuration = TaskVariables.ForFile(launch.Configuration, solution.Directory, ActiveEditor?.FilePath);
+        if (noDebug)
+            configuration["noDebug"] = true;
+        _debuggedProject = launch.Name;
+        _postDebugTask = launch.PostDebugTask;
+        Mode = DebugMode.Running;
+        SetStatus("Running", StatusKind.Running);
+        DebugAdapter adapter;
+        try
+        {
+            adapter = await debugger.StartAsync(new Modules.DebuggerStart(solution.Directory, configuration, TaskPath(), DebugOutput.Append, CancellationToken.None));
+        }
+        catch (Exception ex)
+        {
+            DebugOutput.Append($"{debugger.Name} could not start: {ex.Message}");
+            Mode = DebugMode.Design;
+            SetStatus("Ready", StatusKind.Ready);
+            return;
+        }
+        DebugOutput.Append(noDebug ? $"Running {launch.Name} (without debugging) with {debugger.Name}" : $"Debugging {launch.Name} with {debugger.Name}");
+        var breakpoints = noDebug ? new Dictionary<string, IReadOnlyList<int>>() : Breakpoints.All;
+        try
+        {
+            _session = await DebugSession.StartAsync(adapter, launch.Request, configuration, breakpoints,
+                (file, results) => Dispatcher.UIThread.Post(() => Breakpoints.SetVerification(file, breakpoints[file], results)),
+                WireSession, CancellationToken.None);
         }
         catch (Exception ex)
         {
@@ -485,5 +562,10 @@ public partial class MainViewModel
         Mode = DebugMode.Design;
         SetStatus("Ready", Solution is null ? StatusKind.NoSolution : StatusKind.Ready);
         _ = session.DisposeAsync().AsTask();
+        if (_postDebugTask is { } post)
+        {
+            _postDebugTask = null;
+            _ = RunTask(WorkspaceTasks.FirstOrDefault(t => t.Name == post));
+        }
     }
 }

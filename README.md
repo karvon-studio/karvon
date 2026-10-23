@@ -20,7 +20,8 @@ From source, `./scripts/install.sh` publishes to `~/.local/share/karvon/app` and
 (a `.slnx` or `.csproj` works too), or just `karvon` for the start window.
 
 Working on solutions needs the .NET 10 SDK. Karvon downloads `roslyn-language-server` and `netcoredbg` (both MIT) on first use,
-and TypeScript 7 (Apache-2.0, its own language server; no Node.js needed) when the first `.ts` or `.js` file opens.
+TypeScript 7 (Apache-2.0, its own language server; no Node.js needed) when the first `.ts` or `.js` file opens, and js-debug
+(MIT, the JavaScript debugger of VS Code; it runs on Node.js) the first time F5 debugs JavaScript.
 
 ## Features
 
@@ -50,13 +51,14 @@ and TypeScript 7 (Apache-2.0, its own language server; no Node.js needed) when t
   (an editor, git, `dotnet sln`) is read again, keeping what is expanded.
 - **Folders** (File > Open Folder): any folder as it is, built, run and tested by its tasks: `.vscode/tasks.json`'s (shell,
   process and npm tasks, their build and test groups) and its `package.json` scripts (npm, pnpm, yarn or bun). Build
-  (Ctrl+Shift+B) runs the build task with its errors in the Error List, Start Without Debugging (Ctrl+F5) the run task
-  chosen on the toolbar (dev, start...), Run All Tests the test task; Build > Run Task runs any of them, a watch beside
-  the rest.
+  (Ctrl+Shift+B) runs the build task with its errors in the Error List, Run All Tests the test task; Build > Run Task
+  runs any of them, a watch beside the rest. The toolbar chooses what starts: a `.vscode/launch.json` configuration (F5
+  debugs it with the debugger of its type, after its `preLaunchTask`; Ctrl+F5 runs it without) or a run task (dev,
+  start...: Ctrl+F5 runs it, and F5 debugs a `package.json` script with every node process it starts).
 - **Build and run**: Build / Rebuild / Clean, Error List, launch profiles, Ctrl+F5; offers to trust the ASP.NET Core
   HTTPS development certificate.
-- **Debug** (F5, netcoredbg): breakpoints that follow edits, Step Over / Into / Out, Locals, Watch, Call Stack, data tips,
-  debugging tests.
+- **Debug** (F5; netcoredbg for .NET, js-debug for Node.js and TypeScript through its source maps): breakpoints that
+  follow edits, Step Over / Into / Out, Locals, Watch, Call Stack, data tips, debugging tests.
 - **Test Explorer**: discover, Run All / Failed / Selected, theory rows, durations, failures with stack traces.
 - **Git**: every repository of the solution in one Changes window (trees of staged and unstaged changes), stage,
   commit (a message Claude writes from the diff, if you like), fetch, pull, push, sync, local and remote branches, diff
@@ -166,7 +168,7 @@ src/Karvon.Core/        the workbench; it knows no module
   Lsp/         JSON-RPC, Roslyn client, file watching, HTML service for Razor cohosting
   Workspace/   solution and project loading, Solution Explorer tree
   Build/       dotnet runner, MSBuild output parser, dev certificates
-  Debugging/   DAP client and netcoredbg
+  Debugging/   DAP client and sessions (child sessions too), netcoredbg
   Testing/     vstest host
   Git/         git CLI wrapper and line diff
   Packages/    NuGet through the dotnet CLI
@@ -180,7 +182,7 @@ src/Karvon.Docker/      module: the Docker Explorer
 src/Karvon.Servers/     module: SSH servers
 src/Karvon.Mcp/         module: MCP Servers
 src/Karvon.Skills/      module: Skills (uses Karvon.Mcp)
-src/Karvon.TypeScript/  module: TypeScript and JavaScript (TypeScript 7's language server)
+src/Karvon.TypeScript/  module: TypeScript and JavaScript (TypeScript 7's language server, package.json scripts, js-debug)
 src/Karvon.Claude/      module: Claude Code (its session, protocol and view model are shared with the Visual Studio extension)
 external/bengine/       Bengine (submodule): the schema AST and the live-database layer the Database Explorer uses
 src/Karvon.VisualStudio/   the Claude Code panel as a Visual Studio extension (Windows), sharing src/Karvon.Claude's session and view model
@@ -189,7 +191,7 @@ src/Karvon.VisualStudio/   the Claude Code panel as a Visual Studio extension (W
 ## License
 
 MIT, see [LICENSE](LICENSE). Third-party: Cascadia Mono font (SIL OFL 1.1); Avalonia, AvaloniaEdit, TextMateSharp,
-Exclr8.Terminal and Porta.Pty (MIT); Markdig (BSD 2-Clause); roslyn-language-server and netcoredbg (MIT, downloaded at runtime);
+Exclr8.Terminal and Porta.Pty (MIT); Markdig (BSD 2-Clause); roslyn-language-server, netcoredbg and js-debug (MIT, downloaded at runtime);
 Material Icon Theme icons (MIT, Copyright (c) 2025 Material Extensions; `src/Karvon.Core/Assets/MaterialIcons`, refreshed with
 `scripts/update-material-icons.sh`, and `src/Karvon.Database/Assets/Icons`). The Database Explorer uses Bengine (same
 author) and its drivers: Npgsql (PostgreSQL License), Microsoft.Data.SqlClient, MySqlConnector, SSH.NET and

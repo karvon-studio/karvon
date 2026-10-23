@@ -1,6 +1,9 @@
 using System.Diagnostics;
+using System.Net.Sockets;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using Karvon.Build;
+using Karvon.Lsp;
 
 namespace Karvon.Debugging;
 
@@ -20,19 +23,29 @@ public sealed record LaunchRequest(
     string WorkingDirectory,
     IReadOnlyDictionary<string, string> Environment);
 
-/// <summary>One debugging session against netcoredbg (launch, breakpoints, stepping, inspection).</summary>
+/// <summary>
+/// One debugging session (launch, breakpoints, stepping, inspection) with a debug adapter: netcoredbg for .NET, a module's
+/// for its runtime. An adapter that debugs several processes (js-debug: npm, then the node it starts) asks for a child
+/// session for each (startDebugging); the breakpoints go to all of them, and stepping and inspection to the one that
+/// stopped last.
+/// </summary>
 public sealed class DebugSession : IAsyncDisposable
 {
-    readonly Process _adapter;
-    readonly DapConnection _dap;
+    readonly DebugAdapter _adapter;
+    readonly DapConnection _root;
+    readonly List<DapConnection> _children = [];
+    readonly Dictionary<string, IReadOnlyList<int>> _breakpoints = [];
+    readonly Dictionary<(DapConnection, int), (string File, int Line)> _breakpointIds = [];
+    DapConnection? _stopped;
     int _ended;
+    int? _exitCode;
 
-    DebugSession(Process adapter, DapConnection dap)
+    DebugSession(DebugAdapter adapter, DapConnection root)
     {
         _adapter = adapter;
-        _dap = dap;
-        dap.EventReceived += OnEvent;
-        dap.Disconnected += _ => End(null);
+        _root = root;
+        Watch(root);
+        root.Disconnected += _ => End(null);
     }
 
     /// <summary>The debuggee stopped (breakpoint, step, exception, pause): thread id, reason, description.</summary>
@@ -49,10 +62,7 @@ public sealed class DebugSession : IAsyncDisposable
     /// <summary>A breakpoint became bound (or unbound) later, e.g. when its module loaded: file, requested line, verified.</summary>
     public event Action<string, int, bool>? BreakpointChanged;
 
-    readonly Dictionary<int, (string File, int Line)> _breakpointIds = [];
-
-    int? _exitCode;
-
+    /// <summary>Launches a .NET program under netcoredbg.</summary>
     public static Task<DebugSession> LaunchAsync(
         string adapterPath,
         LaunchRequest launch,
@@ -60,7 +70,7 @@ public sealed class DebugSession : IAsyncDisposable
         Action<string, IReadOnlyList<BreakpointResult>> onBreakpointsVerified,
         Action<DebugSession>? beforeConfigurationDone,
         CancellationToken ct) =>
-        StartAsync(adapterPath, "launch", new
+        StartAsync(Netcoredbg(adapterPath), "launch", Json(new
         {
             name = "Karvon Launch",
             type = "coreclr",
@@ -73,7 +83,7 @@ public sealed class DebugSession : IAsyncDisposable
             justMyCode = true,
             enableStepFiltering = true,
             console = "internalConsole",
-        }, breakpoints, onBreakpointsVerified, beforeConfigurationDone, ct);
+        }), breakpoints, onBreakpointsVerified, beforeConfigurationDone, ct);
 
     /// <summary>Attaches to a running .NET process (used to debug tests: vstest's testhost waits for us).</summary>
     public static Task<DebugSession> AttachAsync(
@@ -83,7 +93,7 @@ public sealed class DebugSession : IAsyncDisposable
         Action<string, IReadOnlyList<BreakpointResult>> onBreakpointsVerified,
         Action<DebugSession>? beforeConfigurationDone,
         CancellationToken ct) =>
-        StartAsync(adapterPath, "attach", new
+        StartAsync(Netcoredbg(adapterPath), "attach", Json(new
         {
             name = "Karvon Attach",
             type = "coreclr",
@@ -91,70 +101,54 @@ public sealed class DebugSession : IAsyncDisposable
             processId,
             justMyCode = true,
             enableStepFiltering = true,
-        }, breakpoints, onBreakpointsVerified, beforeConfigurationDone, ct);
+        }), breakpoints, onBreakpointsVerified, beforeConfigurationDone, ct);
 
-    static async Task<DebugSession> StartAsync(
-        string adapterPath,
+    /// <summary>netcoredbg, on its stdin and stdout.</summary>
+    public static DebugAdapter Netcoredbg(string adapterPath)
+    {
+        var psi = new ProcessStartInfo(adapterPath);
+        psi.ArgumentList.Add("--interpreter=vscode");
+        DotnetCli.ApplyEnvironment(psi);
+        return DebugAdapter.Start("coreclr", psi);
+    }
+
+    static JsonObject Json(object value) => JsonSerializer.SerializeToNode(value, value.GetType(), JsonRpcConnection.JsonOptions)!.AsObject();
+
+    /// <summary>
+    /// A session with an adapter (which it owns from now on): its launch or attach request with the configuration
+    /// (launch.json's), the breakpoints set before the program runs. Returns once the adapter has started it.
+    /// </summary>
+    public static async Task<DebugSession> StartAsync(
+        DebugAdapter adapter,
         string request,
-        object requestArguments,
+        JsonObject configuration,
         IReadOnlyDictionary<string, IReadOnlyList<int>> breakpoints,
         Action<string, IReadOnlyList<BreakpointResult>> onBreakpointsVerified,
         Action<DebugSession>? beforeConfigurationDone,
         CancellationToken ct)
     {
-        var psi = new ProcessStartInfo(adapterPath)
-        {
-            RedirectStandardInput = true,
-            RedirectStandardOutput = true,
-            RedirectStandardError = true,
-            UseShellExecute = false,
-        };
-        psi.ArgumentList.Add("--interpreter=vscode");
-        DotnetCli.ApplyEnvironment(psi);
-        var process = Process.Start(psi) ?? throw new InvalidOperationException("Failed to start netcoredbg.");
-        var dap = new DapConnection(process.StandardOutput.BaseStream, process.StandardInput.BaseStream);
-        var session = new DebugSession(process, dap);
-        beforeConfigurationDone?.Invoke(session);
-        _ = Task.Run(async () =>
-        {
-            while (await process.StandardError.ReadLineAsync() is { } line)
-                session.Output?.Invoke("console", line + "\n");
-        });
-
-        var initialized = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        dap.EventReceived += (name, _) =>
-        {
-            if (name == "initialized")
-                initialized.TrySetResult();
-        };
-        dap.Start();
-
+        DapConnection root;
         try
         {
-            await dap.RequestAsync("initialize", new
+            root = await adapter.ConnectAsync(ct);
+        }
+        catch
+        {
+            await adapter.DisposeAsync();
+            throw;
+        }
+        var session = new DebugSession(adapter, root);
+        foreach (var (file, lines) in breakpoints)
+            session._breakpoints[file] = lines;
+        beforeConfigurationDone?.Invoke(session);
+        adapter.StartLogging(line => session.Output?.Invoke("console", line + "\n"));
+        try
+        {
+            await InitializeAsync(root, adapter.Type, request, configuration, async () =>
             {
-                clientID = "karvon",
-                clientName = "Karvon",
-                adapterID = "coreclr",
-                pathFormat = "path",
-                linesStartAt1 = true,
-                columnsStartAt1 = true,
-                supportsVariableType = true,
-                supportsRunInTerminalRequest = false,
-                locale = "en-us",
+                foreach (var (file, lines) in breakpoints)
+                    onBreakpointsVerified(file, await session.SetBreakpointsAsync(root, file, lines, ct));
             }, ct);
-
-            // Some adapters answer launch/attach only after configurationDone, so do not await it yet.
-            var startTask = dap.RequestAsync(request, requestArguments, ct);
-            await Task.WhenAny(initialized.Task, startTask).WaitAsync(TimeSpan.FromSeconds(30), ct);
-            if (startTask.IsFaulted)
-                await startTask;
-            await initialized.Task.WaitAsync(TimeSpan.FromSeconds(30), ct);
-
-            foreach (var (file, lines) in breakpoints)
-                onBreakpointsVerified(file, await session.SetBreakpointsAsync(file, lines, ct));
-            await dap.RequestAsync("configurationDone", null, ct);
-            await startTask.WaitAsync(TimeSpan.FromSeconds(30), ct);
             return session;
         }
         catch
@@ -164,15 +158,134 @@ public sealed class DebugSession : IAsyncDisposable
         }
     }
 
-    void OnEvent(string name, JsonElement body)
+    /// <summary>
+    /// DAP's start of a session: initialize, the launch or attach request, the breakpoints once the adapter is
+    /// initialized, configurationDone; and the answer to launch, which some adapters give only after configurationDone.
+    /// </summary>
+    static async Task InitializeAsync(DapConnection dap, string adapterId, string request, object configuration, Func<Task> setBreakpoints, CancellationToken ct)
+    {
+        var initialized = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        dap.EventReceived += (name, _) =>
+        {
+            if (name == "initialized")
+                initialized.TrySetResult();
+        };
+        dap.Start();
+        await dap.RequestAsync("initialize", new
+        {
+            clientID = "karvon",
+            clientName = "Karvon",
+            adapterID = adapterId,
+            pathFormat = "path",
+            linesStartAt1 = true,
+            columnsStartAt1 = true,
+            supportsVariableType = true,
+            supportsRunInTerminalRequest = false,
+            supportsStartDebuggingRequest = true,
+            locale = "en-us",
+        }, ct);
+
+        var startTask = dap.RequestAsync(request, configuration, ct);
+        await Task.WhenAny(initialized.Task, startTask).WaitAsync(TimeSpan.FromSeconds(30), ct);
+        if (startTask.IsFaulted)
+            await startTask;
+        await initialized.Task.WaitAsync(TimeSpan.FromSeconds(30), ct);
+        await setBreakpoints();
+        await dap.RequestAsync("configurationDone", null, ct);
+        await startTask.WaitAsync(TimeSpan.FromSeconds(30), ct);
+    }
+
+    /// <summary>A connection's events and requests, as the session's.</summary>
+    void Watch(DapConnection dap)
+    {
+        dap.EventReceived += (name, body) => OnEvent(dap, name, body);
+        dap.ReverseRequest = (command, arguments) => command switch
+        {
+            "startDebugging" => StartChild(arguments),
+            _ => throw new NotSupportedException("not supported by Karvon"),
+        };
+    }
+
+    /// <summary>
+    /// The adapter asks for a child session (a process it attached to): it is answered at once, and the child starts on a
+    /// connection of its own with the configuration it gave, the breakpoints set.
+    /// </summary>
+    Task<object?> StartChild(JsonElement arguments)
+    {
+        var request = arguments.TryGetProperty("request", out var r) ? r.GetString() ?? "launch" : "launch";
+        var configuration = arguments.GetProperty("configuration").Clone();
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                var child = await _adapter.ConnectAsync(CancellationToken.None);
+                Watch(child);
+                lock (_children)
+                    _children.Add(child);
+                child.Disconnected += _ => RemoveChild(child);
+                await InitializeAsync(child, _adapter.Type, request, configuration, async () =>
+                {
+                    foreach (var (file, lines) in Breakpoints())
+                    {
+                        var results = await SetBreakpointsAsync(child, file, lines, CancellationToken.None);
+                        foreach (var (line, result) in lines.Zip(results))
+                            BreakpointChanged?.Invoke(file, line, result.Verified);
+                    }
+                }, CancellationToken.None);
+            }
+            catch (Exception ex) when (ex is IOException or SocketException or DapException or TimeoutException or OperationCanceledException or NotSupportedException)
+            {
+                Output?.Invoke("console", $"A child session did not start: {ex.Message}\n");
+            }
+        });
+        return Task.FromResult<object?>(null);
+    }
+
+    void RemoveChild(DapConnection child)
+    {
+        lock (_children)
+            _children.Remove(child);
+        if (_stopped == child)
+            _stopped = null;
+    }
+
+    List<KeyValuePair<string, IReadOnlyList<int>>> Breakpoints()
+    {
+        lock (_breakpoints)
+            return _breakpoints.ToList();
+    }
+
+    /// <summary>Where the program runs: its child sessions when it has any (the root of js-debug's runs none), else the session.</summary>
+    List<DapConnection> Debuggees()
+    {
+        lock (_children)
+            return _children.Count > 0 ? [.. _children] : [_root];
+    }
+
+    /// <summary>Where stepping and inspection go: the session that stopped last, else the newest child, else the root.</summary>
+    DapConnection Focus
+    {
+        get
+        {
+            if (_stopped is { } stopped)
+                return stopped;
+            lock (_children)
+                return _children.Count > 0 ? _children[^1] : _root;
+        }
+    }
+
+    void OnEvent(DapConnection dap, string name, JsonElement body)
     {
         switch (name)
         {
             case "stopped":
+                _stopped = dap;
                 var thread = body.TryGetProperty("threadId", out var t) ? t.GetInt32() : 0;
                 var reason = body.TryGetProperty("reason", out var r) ? r.GetString() ?? "" : "";
+                // text is what more there is to say (the exception); description says the reason again in words
+                // ("Paused on breakpoint"), which is worth it for an exception only.
                 var text = body.TryGetProperty("text", out var tx) ? tx.GetString()
-                    : body.TryGetProperty("description", out var d) ? d.GetString() : null;
+                    : reason == "exception" && body.TryGetProperty("description", out var d) ? d.GetString() : null;
                 Stopped?.Invoke(thread, reason, text);
                 break;
             case "continued":
@@ -180,7 +293,8 @@ public sealed class DebugSession : IAsyncDisposable
                 break;
             case "output":
                 var category = body.TryGetProperty("category", out var c) ? c.GetString() ?? "console" : "console";
-                if (body.TryGetProperty("output", out var o))
+                // js-debug's telemetry is no output of the program.
+                if (category != "telemetry" && body.TryGetProperty("output", out var o))
                     Output?.Invoke(category, o.GetString() ?? "");
                 break;
             case "exited":
@@ -188,14 +302,17 @@ public sealed class DebugSession : IAsyncDisposable
                     _exitCode = code.GetInt32();
                 break;
             case "terminated":
-                End(_exitCode);
+                if (dap == _root)
+                    End(_exitCode);
+                else
+                    RemoveChild(dap);
                 break;
             case "breakpoint":
                 if (body.TryGetProperty("breakpoint", out var bp) && bp.TryGetProperty("id", out var id))
                 {
                     (string File, int Line) location;
                     lock (_breakpointIds)
-                        if (!_breakpointIds.TryGetValue(id.GetInt32(), out location))
+                        if (!_breakpointIds.TryGetValue((dap, id.GetInt32()), out location))
                             break;
                     BreakpointChanged?.Invoke(location.File, location.Line, bp.TryGetProperty("verified", out var ok) && ok.GetBoolean());
                 }
@@ -211,9 +328,23 @@ public sealed class DebugSession : IAsyncDisposable
 
     public bool HasEnded => _ended == 1;
 
+    /// <summary>A file's breakpoints now (all of them: the lines replace those it had), in each process debugged.</summary>
     public async Task<IReadOnlyList<BreakpointResult>> SetBreakpointsAsync(string file, IReadOnlyList<int> lines, CancellationToken ct = default)
     {
-        var body = await _dap.RequestAsync("setBreakpoints", new
+        lock (_breakpoints)
+            _breakpoints[file] = lines;
+        IReadOnlyList<BreakpointResult>? first = null;
+        foreach (var dap in Debuggees())
+        {
+            var results = await SetBreakpointsAsync(dap, file, lines, ct);
+            first ??= results;
+        }
+        return first ?? [];
+    }
+
+    async Task<IReadOnlyList<BreakpointResult>> SetBreakpointsAsync(DapConnection dap, string file, IReadOnlyList<int> lines, CancellationToken ct)
+    {
+        var body = await dap.RequestAsync("setBreakpoints", new
         {
             source = new { path = file, name = Path.GetFileName(file) },
             breakpoints = lines.Select(l => new { line = l }).ToArray(),
@@ -224,13 +355,13 @@ public sealed class DebugSession : IAsyncDisposable
             return lines.Select(_ => new BreakpointResult(false, null, null)).ToList();
         lock (_breakpointIds)
         {
-            foreach (var key in _breakpointIds.Where(kv => kv.Value.File == file).Select(kv => kv.Key).ToList())
+            foreach (var key in _breakpointIds.Where(kv => kv.Key.Item1 == dap && kv.Value.File == file).Select(kv => kv.Key).ToList())
                 _breakpointIds.Remove(key);
             var i = 0;
             foreach (var b in list.EnumerateArray())
             {
                 if (b.TryGetProperty("id", out var id) && i < lines.Count)
-                    _breakpointIds[id.GetInt32()] = (file, lines[i]);
+                    _breakpointIds[(dap, id.GetInt32())] = (file, lines[i]);
                 i++;
             }
         }
@@ -240,24 +371,25 @@ public sealed class DebugSession : IAsyncDisposable
             b.TryGetProperty("message", out var m) ? m.GetString() : null)).ToList();
     }
 
-    public Task ContinueAsync(int threadId) => _dap.RequestAsync("continue", new { threadId });
+    public Task ContinueAsync(int threadId) => Focus.RequestAsync("continue", new { threadId });
 
-    public Task StepOverAsync(int threadId) => _dap.RequestAsync("next", new { threadId });
+    public Task StepOverAsync(int threadId) => Focus.RequestAsync("next", new { threadId });
 
-    public Task StepInAsync(int threadId) => _dap.RequestAsync("stepIn", new { threadId });
+    public Task StepInAsync(int threadId) => Focus.RequestAsync("stepIn", new { threadId });
 
-    public Task StepOutAsync(int threadId) => _dap.RequestAsync("stepOut", new { threadId });
+    public Task StepOutAsync(int threadId) => Focus.RequestAsync("stepOut", new { threadId });
 
     public async Task PauseAsync()
     {
-        var threads = await _dap.RequestAsync("threads", null);
+        var dap = Focus;
+        var threads = await dap.RequestAsync("threads", null);
         var id = threads.TryGetProperty("threads", out var list) && list.GetArrayLength() > 0 ? list[0].GetProperty("id").GetInt32() : 0;
-        await _dap.RequestAsync("pause", new { threadId = id });
+        await dap.RequestAsync("pause", new { threadId = id });
     }
 
     public async Task<IReadOnlyList<StackFrameInfo>> StackTraceAsync(int threadId, CancellationToken ct = default)
     {
-        var body = await _dap.RequestAsync("stackTrace", new { threadId, startFrame = 0, levels = 100 }, ct);
+        var body = await Focus.RequestAsync("stackTrace", new { threadId, startFrame = 0, levels = 100 }, ct);
         if (!body.TryGetProperty("stackFrames", out var frames))
             return [];
         return frames.EnumerateArray().Select(f =>
@@ -272,7 +404,7 @@ public sealed class DebugSession : IAsyncDisposable
 
     public async Task<IReadOnlyList<ScopeInfo>> ScopesAsync(int frameId, CancellationToken ct = default)
     {
-        var body = await _dap.RequestAsync("scopes", new { frameId }, ct);
+        var body = await Focus.RequestAsync("scopes", new { frameId }, ct);
         if (!body.TryGetProperty("scopes", out var scopes))
             return [];
         return scopes.EnumerateArray().Select(s => new ScopeInfo(
@@ -283,7 +415,7 @@ public sealed class DebugSession : IAsyncDisposable
 
     public async Task<IReadOnlyList<VariableInfo>> VariablesAsync(int variablesReference, CancellationToken ct = default)
     {
-        var body = await _dap.RequestAsync("variables", new { variablesReference }, ct);
+        var body = await Focus.RequestAsync("variables", new { variablesReference }, ct);
         if (!body.TryGetProperty("variables", out var vars))
             return [];
         return vars.EnumerateArray().Select(v => new VariableInfo(
@@ -296,7 +428,7 @@ public sealed class DebugSession : IAsyncDisposable
     /// <summary>Evaluates an expression in a frame; context is "watch", "hover" or "repl".</summary>
     public async Task<EvaluateResult> EvaluateAsync(string expression, int? frameId, string context, CancellationToken ct = default)
     {
-        var body = await _dap.RequestAsync("evaluate", new { expression, frameId, context }, ct);
+        var body = await Focus.RequestAsync("evaluate", new { expression, frameId, context }, ct);
         return new EvaluateResult(
             body.TryGetProperty("result", out var r) ? r.GetString() ?? "" : "",
             body.TryGetProperty("type", out var t) ? t.GetString() : null,
@@ -308,7 +440,7 @@ public sealed class DebugSession : IAsyncDisposable
         try
         {
             using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
-            await _dap.RequestAsync("disconnect", new { terminateDebuggee = true }, cts.Token);
+            await _root.RequestAsync("disconnect", new { terminateDebuggee = true }, cts.Token);
         }
         catch (Exception ex) when (ex is OperationCanceledException or IOException or DapException)
         {
@@ -320,15 +452,12 @@ public sealed class DebugSession : IAsyncDisposable
     {
         if (!HasEnded && !_adapter.HasExited)
             await TerminateAsync();
-        await _dap.DisposeAsync();
-        try
-        {
-            if (!_adapter.HasExited)
-                _adapter.Kill(entireProcessTree: true);
-        }
-        catch (InvalidOperationException)
-        {
-        }
-        _adapter.Dispose();
+        List<DapConnection> children;
+        lock (_children)
+            children = [.. _children];
+        foreach (var child in children)
+            await child.DisposeAsync();
+        await _root.DisposeAsync();
+        await _adapter.DisposeAsync();
     }
 }

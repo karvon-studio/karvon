@@ -77,9 +77,12 @@ public static class PackageScripts
         foreach (var script in scripts.EnumerateObject())
         {
             var (kind, background) = KindOf(script.Name);
-            tasks.Add(new WorkspaceTask(isRoot ? $"{manager}: {script.Name}" : $"{manager}: {script.Name} - {relative}", kind, manager, ["run", script.Name], dir)
+            var name = isRoot ? $"{manager}: {script.Name}" : $"{manager}: {script.Name} - {relative}";
+            tasks.Add(new WorkspaceTask(name, kind, manager, ["run", script.Name], dir)
             {
                 Source = Source,
+                // The app and the tests are debugged as they run (F5 on the toolbar's choice).
+                Debug = kind is WorkspaceTaskKind.Run or WorkspaceTaskKind.Test && !background ? JsDebugger.ForScript(name, manager, script.Name, dir) : null,
                 // The folder's own build, test and app are the ones Build, Run All Tests and Start run.
                 IsDefault = isRoot && (script.Name is "build" or "test" || script.Name == run),
                 IsBackground = background,

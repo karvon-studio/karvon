@@ -17,13 +17,16 @@ it does today all along.
 ## 0b. Languages
 
 - Open Folder: any folder, not only a solution or a project.
-- A generic LSP client and DAP session, out of today's Roslyn and netcoredbg ones.
+- A generic LSP client and DAP session, out of today's Roslyn and netcoredbg ones (in now: the modules bring language
+  servers and debuggers; a debugger may be a DAP server with child sessions, as js-debug is).
 - A workload describes a language: how its projects are found (`package.json`, `pyproject.toml`, `go.mod`…), its
   language server, debugger, build, run and test commands, package manager and templates.
-- `.vscode/launch.json` and `tasks.json` are read, so existing projects run as they are. In now: `tasks.json` and the
-  modules' tasks (`package.json` scripts) build, run and test a folder; next, `launch.json` and its debuggers.
-- Claude's IDE tools (`run_build`, `run_tests`, `app_control`, `debug_*`) work for any workload (in now: `run_build`,
-  `run_tests` and `app_control` run a folder's tasks).
+- `.vscode/launch.json` and `tasks.json` are read, so existing projects run as they are (in now: `tasks.json` and the
+  modules' tasks build, run and test a folder; `launch.json`'s configurations start under the debugger of their type,
+  with `preLaunchTask` and `postDebugTask`; not yet: compounds, `${input:}`, problem matchers, `dependsOn`).
+- Claude's IDE tools (`run_build`, `run_tests`, `app_control`, `debug_*`) work for any workload (in now, for a folder's
+  tasks and launch configurations).
+- Debug Tests for a folder's test task (Vitest, Jest under js-debug).
 - Mixed repositories: a frontend's `package.json` folder shows as a project beside the solution's.
 
 ## 0c. Every platform
@@ -40,8 +43,9 @@ it does today all along.
 
 ## 2. TypeScript and JavaScript
 
-TypeScript 7's own language server (`tsc --lsp`, in now: the TypeScript and JavaScript module); then ESLint,
-vscode-js-debug, Vitest and Jest, npm, HTML and CSS.
+TypeScript 7's own language server (`tsc --lsp`), the `package.json` scripts as tasks and js-debug for F5 (in now: the
+TypeScript and JavaScript module); then ESLint, Vitest and Jest in Test Explorer, browser debugging (Chrome, Edge),
+HTML and CSS.
 
 ## 3. macOS release
 

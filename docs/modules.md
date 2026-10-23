@@ -11,8 +11,8 @@ Each module is a project of its own, referencing `Karvon.Core`. The core referen
 - Servers (`src/Karvon.Servers`);
 - MCP Servers (`src/Karvon.Mcp`);
 - Skills (`src/Karvon.Skills`, which uses MCP Servers);
-- TypeScript and JavaScript (`src/Karvon.TypeScript`): a language server and nothing else, so the smallest
-  example of one;
+- TypeScript and JavaScript (`src/Karvon.TypeScript`): a workload, so the example of one: a language server, its
+  tasks (`package.json` scripts) and a debugger (js-debug);
 - Claude Code (`src/Karvon.Claude`).
 
 .NET still lives in the core and is to become a workload module.
@@ -53,6 +53,7 @@ application's project references.
 | `WorkspaceTasks(workspace)` | The tasks it finds in a folder (`WorkspaceTask`: a program, its arguments, where it runs, and its kind). In a folder opened as it is, Build runs the build task, Start Without Debugging the run task chosen on the toolbar, Run All Tests the test task; Build > Run Task runs any of them, in a solution too. `.vscode/tasks.json`'s come first; a module's of the same name is left out. |
 | `WorkspaceTaskFiles` | The file names its tasks come from (`package.json`): saving one reads the tasks again. |
 | `ToolDirectories` | The folders of the tools its tasks use (Node.js's bin when Karvon's PATH has none): first on every task's PATH. |
+| `Debuggers` | The debuggers it brings (`DebuggerInfo`: the launch configuration types it debugs, and how its `DebugAdapter` starts: a program on stdin and stdout, or a DAP server whose child sessions are connections of their own). F5 starts the one of the chosen launch configuration's type, with the configuration (its variables put in), which it may complete. A task it debugs carries its `DebugLaunch` in `WorkspaceTask.Debug`. netcoredbg is the core's, for `coreclr`. |
 | `ClaudeTools()` | The tools it gives the Claude Code sessions Karvon starts (`mcp__karvon__*`). A module that is off gives none. |
 | `ShowClaudeToolAsync` | One of its tools ran: show what it did where the user would have done it (a container's logs on its page). |
 | `Started()` | Runs once Karvon has started with the module on: subscribe to the workbench here. |

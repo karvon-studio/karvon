@@ -26,6 +26,9 @@ public sealed class DapConnection : IAsyncDisposable
 
     public event Action<Exception?>? Disconnected;
 
+    /// <summary>Answers the adapter's requests (command, arguments): the body of the reply; throws to refuse one.</summary>
+    public Func<string, JsonElement, Task<object?>>? ReverseRequest { get; set; }
+
     public void Start() => _readLoop = Task.Run(ReadLoopAsync);
 
     public async Task<JsonElement> RequestAsync(string command, object? arguments, CancellationToken ct = default)
@@ -103,18 +106,45 @@ public sealed class DapConnection : IAsyncDisposable
                 }
                 break;
             case "request":
-                // Reverse requests (runInTerminal, startDebugging) are not supported; tell the adapter so.
-                var reply = new JsonObject
-                {
-                    ["seq"] = Interlocked.Increment(ref _seq),
-                    ["type"] = "response",
-                    ["request_seq"] = message.GetProperty("seq").GetInt32(),
-                    ["command"] = message.GetProperty("command").GetString(),
-                    ["success"] = false,
-                    ["message"] = "not supported by Karvon",
-                };
-                _ = _framing.WriteAsync(reply.ToJsonString());
+                _ = AnswerAsync(message.GetProperty("seq").GetInt32(), message.GetProperty("command").GetString() ?? "",
+                    message.TryGetProperty("arguments", out var args) ? args : default);
                 break;
+        }
+    }
+
+    /// <summary>
+    /// A request of the adapter (startDebugging, runInTerminal): <see cref="ReverseRequest"/> answers it, or it is not
+    /// supported; the adapter is told either way.
+    /// </summary>
+    async Task AnswerAsync(int requestSeq, string command, JsonElement arguments)
+    {
+        var reply = new JsonObject
+        {
+            ["type"] = "response",
+            ["request_seq"] = requestSeq,
+            ["command"] = command,
+        };
+        try
+        {
+            if (ReverseRequest is not { } handler)
+                throw new NotSupportedException("not supported by Karvon");
+            var body = await handler(command, arguments).ConfigureAwait(false);
+            reply["success"] = true;
+            if (body is not null)
+                reply["body"] = JsonSerializer.SerializeToNode(body, body.GetType(), JsonRpcConnection.JsonOptions);
+        }
+        catch (Exception ex)
+        {
+            reply["success"] = false;
+            reply["message"] = ex.Message;
+        }
+        reply["seq"] = Interlocked.Increment(ref _seq);
+        try
+        {
+            await _framing.WriteAsync(reply.ToJsonString(JsonRpcConnection.JsonOptions)).ConfigureAwait(false);
+        }
+        catch (Exception ex) when (ex is IOException or ObjectDisposedException)
+        {
         }
     }
 

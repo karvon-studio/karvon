@@ -12,9 +12,10 @@ using Karvon.Workspace;
 namespace Karvon.ViewModels;
 
 /// <summary>
-/// The open folder's tasks: the modules' (its package.json scripts...) and its .vscode/tasks.json's. In a folder opened as
-/// it is, Build runs its build task, Start Without Debugging the run task chosen on the toolbar, Run All Tests its test
-/// task; Build > Run Task runs any of them, in a solution too (whose own build, run and tests are .NET's).
+/// The open folder's tasks: the modules' (its package.json scripts...) and its .vscode/tasks.json's; and its launch.json's
+/// configurations. In a folder opened as it is, Build runs its build task, Run All Tests its test task, and F5 and Ctrl+F5
+/// what is chosen on the toolbar (a launch configuration or a run task); Build > Run Task runs any task, in a solution too
+/// (whose own build, run and tests are .NET's).
 /// </summary>
 public partial class MainViewModel
 {
@@ -29,12 +30,12 @@ public partial class MainViewModel
 
     public ObservableCollection<WorkspaceTask> WorkspaceTasks { get; } = [];
 
-    /// <summary>A folder's run tasks: the toolbar's choice in place of a startup project.</summary>
-    public ObservableCollection<WorkspaceTask> StartupTasks { get; } = [];
+    /// <summary>A folder's launch configurations, then its run tasks: the toolbar's choice in place of a startup project.</summary>
+    public ObservableCollection<StartupItem> StartupItems { get; } = [];
 
     [ObservableProperty]
-    [NotifyCanExecuteChangedFor(nameof(StartWithoutDebuggingCommand))]
-    public partial WorkspaceTask? StartupTask { get; set; }
+    [NotifyCanExecuteChangedFor(nameof(StartWithoutDebuggingCommand), nameof(StartDebuggingCommand))]
+    public partial StartupItem? StartupItem { get; set; }
 
     /// <summary>A folder opened as it is: its tasks build, run and test it (a solution or a project has .NET's).</summary>
     public bool IsFolderWorkspace => Solution is { IsFolder: true };
@@ -58,7 +59,7 @@ public partial class MainViewModel
 
     partial void OnSolutionChanged(SolutionInfo? value) => OnPropertyChanged(nameof(IsFolderWorkspace));
 
-    partial void OnStartupTaskChanged(WorkspaceTask? value)
+    partial void OnStartupItemChanged(StartupItem? value)
     {
         if (Solution is not null && value is not null && !_restoringState)
         {
@@ -67,13 +68,25 @@ public partial class MainViewModel
         }
     }
 
-    /// <summary>The tasks read again (the folder opened, a file they come from saved); the startup task kept by its name.</summary>
+    /// <summary>The tasks and launch configurations read again (the folder opened, a file they come from saved); the startup item kept by its name.</summary>
     void RefreshWorkspaceTasks(string? startup = null)
     {
-        startup ??= StartupTask?.Name;
+        startup ??= StartupItem?.Name;
         var tasks = new List<WorkspaceTask>();
+        var launches = new List<DebugLaunch>();
         if (Solution is { } solution)
         {
+            if (IsFolderWorkspace)
+            {
+                try
+                {
+                    launches.AddRange(VsCodeLaunch.Read(solution.Directory));
+                }
+                catch (Exception ex) when (ex is JsonException or IOException or UnauthorizedAccessException)
+                {
+                    TasksOutput.Append($"{VsCodeLaunch.FileOf(solution.Directory)} could not be read: {ex.Message}");
+                }
+            }
             // tasks.json's first: one the user wrote wins over a module's of the same name.
             try
             {
@@ -96,27 +109,32 @@ public partial class MainViewModel
             }
         }
         WorkspaceTasks.Clear();
-        StartupTasks.Clear();
+        StartupItems.Clear();
+        foreach (var launch in launches)
+            StartupItems.Add(StartupItem.Of(launch));
         foreach (var task in tasks)
         {
             WorkspaceTasks.Add(task);
-            if (IsFolderWorkspace && task.Kind == WorkspaceTaskKind.Run)
-                StartupTasks.Add(task);
+            if (IsFolderWorkspace && task.Kind == WorkspaceTaskKind.Run && StartupItems.All(i => i.Name != task.Name))
+                StartupItems.Add(StartupItem.Of(task));
         }
-        StartupTask = StartupTasks.FirstOrDefault(t => t.Name == startup) ?? StartupTasks.FirstOrDefault(t => t.IsDefault) ?? StartupTasks.FirstOrDefault();
+        StartupItem = StartupItems.FirstOrDefault(i => i.Name == startup) ?? StartupItems.FirstOrDefault(i => i.Debug?.Source == VsCodeLaunch.Source)
+            ?? StartupItems.FirstOrDefault(i => i.Task?.IsDefault == true) ?? StartupItems.FirstOrDefault();
         OnPropertyChanged(nameof(BuildTask));
         OnPropertyChanged(nameof(TestTask));
         BuildSolutionCommand.NotifyCanExecuteChanged();
         RebuildSolutionCommand.NotifyCanExecuteChanged();
         RunAllTestsCommand.NotifyCanExecuteChanged();
         StartWithoutDebuggingCommand.NotifyCanExecuteChanged();
+        StartDebuggingCommand.NotifyCanExecuteChanged();
     }
 
-    /// <summary>A file was saved: one the tasks come from (tasks.json, a module's package.json) reads them again.</summary>
+    /// <summary>A file was saved: one the tasks come from (tasks.json, launch.json, a module's package.json) reads them again.</summary>
     void OnWorkspaceFileSaved(string path)
     {
         var name = Path.GetFileName(path);
-        if (Solution is not null && (path == VsCodeTasks.FileOf(Solution.Directory) || Modules.Any(m => m.WorkspaceTaskFiles.Contains(name))))
+        if (Solution is not null && (path == VsCodeTasks.FileOf(Solution.Directory) || path == VsCodeLaunch.FileOf(Solution.Directory)
+            || Modules.Any(m => m.WorkspaceTaskFiles.Contains(name))))
             RefreshWorkspaceTasks();
     }
 
@@ -127,8 +145,8 @@ public partial class MainViewModel
             runner.Kill();
         _otherTasks.Clear();
         WorkspaceTasks.Clear();
-        StartupTasks.Clear();
-        StartupTask = null;
+        StartupItems.Clear();
+        StartupItem = null;
     }
 
     /// <summary>
@@ -146,8 +164,8 @@ public partial class MainViewModel
                 await RunBuildTaskAsync(task);
                 return;
             case { Kind: WorkspaceTaskKind.Run, IsBackground: false } when !IsRunning:
-                if (StartupTasks.Contains(task))
-                    StartupTask = task;
+                if (StartupItems.FirstOrDefault(i => i.Task == task) is { } item)
+                    StartupItem = item;
                 await RunProgramTaskAsync(task);
                 return;
             case { Kind: WorkspaceTaskKind.Test, IsBackground: false }:
@@ -224,8 +242,11 @@ public partial class MainViewModel
         return ReportBuild("Build", task.Name, exitCode == 0, sw.Elapsed, null);
     }
 
-    /// <summary>A folder's Start Without Debugging: the run task as the program, its output in Output (Debug) until it ends or Stop.</summary>
-    async Task RunProgramTaskAsync(WorkspaceTask task)
+    /// <summary>
+    /// A folder's Start Without Debugging: the run task as the program, its output in Output (Debug) until it ends or Stop
+    /// (a note first, when there is one to say).
+    /// </summary>
+    async Task RunProgramTaskAsync(WorkspaceTask task, string? note = null)
     {
         if (IsRunning || IsBuilding || Mode != DebugMode.Design)
             return;
@@ -233,6 +254,8 @@ public partial class MainViewModel
         DebugOutput.Clear();
         SelectedOutput = DebugOutput;
         ShowToolWindow(ToolWindows.Output);
+        if (note is not null)
+            DebugOutput.Append(note);
         DebugOutput.Append("> " + task.CommandLine);
         _lastExitCode = null;
         ProcessRunner runner;
@@ -297,13 +320,16 @@ public partial class MainViewModel
         SetStatus(exit == 0 ? "Tests passed" : "Tests failed", Solution is null ? StatusKind.NoSolution : StatusKind.Ready);
     }
 
-    /// <summary>A task of no kind or a background one, in Output (Tasks) beside the rest; run again while it runs, it stops.</summary>
-    async Task RunOtherTaskAsync(WorkspaceTask task)
+    /// <summary>
+    /// A task of no kind or a background one, in Output (Tasks) beside the rest; run again while it runs, it stops. Its exit
+    /// code once it ends; null when it did not start, or was stopped.
+    /// </summary>
+    async Task<int?> RunOtherTaskAsync(WorkspaceTask task)
     {
         if (_otherTasks.Remove(task.Name, out var running))
         {
             running.Kill();
-            return;
+            return null;
         }
         SaveAll();
         SelectedOutput = TasksOutput;
@@ -318,7 +344,7 @@ public partial class MainViewModel
         {
             TasksOutput.Append($"{task.Name} could not start: {ex.Message}");
             SetStatus($"{task.Name} could not start: {ex.Message}");
-            return;
+            return null;
         }
         _otherTasks[task.Name] = runner;
         SetStatus($"{task.Name} started");
@@ -327,5 +353,38 @@ public partial class MainViewModel
         if (_otherTasks.GetValueOrDefault(task.Name) == runner)
             _otherTasks.Remove(task.Name);
         runner.Dispose();
+        return exit;
+    }
+
+    /// <summary>
+    /// A launch configuration's preLaunchTask, by its name: a build task builds (the Error List fed), a background one
+    /// starts (a watch: the session does not wait for it), another runs to its end in Output (Tasks). Whether to go on.
+    /// </summary>
+    async Task<bool> RunPreLaunchTaskAsync(string name)
+    {
+        if (WorkspaceTasks.FirstOrDefault(t => t.Name == name) is not { } task)
+            return PreLaunchFailed($"The preLaunchTask '{name}' is not a task of the folder (.vscode/tasks.json, package.json scripts).");
+        if (task.IsBackground)
+        {
+            if (!IsTaskRunning(task))
+                _ = RunOtherTaskAsync(task);
+            return true;
+        }
+        if (IsTaskRunning(task))
+            return PreLaunchFailed($"The preLaunchTask '{name}' is running already: start the session once it ends.");
+        if (task.Kind == WorkspaceTaskKind.Build)
+            return await RunBuildTaskAsync(task);
+        if (await RunOtherTaskAsync(task) is 0)
+            return true;
+        return PreLaunchFailed($"The preLaunchTask '{name}' did not succeed, so the session does not start.");
+    }
+
+    bool PreLaunchFailed(string message)
+    {
+        DebugOutput.Append(message);
+        SelectedOutput = DebugOutput;
+        ShowToolWindow(ToolWindows.Output);
+        SetStatus(message);
+        return false;
     }
 }

@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Templates;
@@ -42,6 +43,17 @@ public sealed record LanguageServerInfo(string Id, string Name, Func<string, boo
 /// <param name="Workspace">The folder it serves: the solution's, or the folder opened.</param>
 /// <param name="Log">Its Output pane (Language Server): what installing or starting it says.</param>
 public sealed record LanguageServerStart(string Workspace, Action<string> Log, CancellationToken Cancellation);
+
+/// <summary>A workload's debugger: the launch.json types it debugs ("node", "coreclr"...), and how it starts for one.</summary>
+/// <param name="Types">The configurations' types it debugs.</param>
+/// <param name="StartAsync">Its adapter (installed the first time); it may complete the configuration (its own name for the type...).</param>
+public sealed record DebuggerInfo(string Id, string Name, IReadOnlyList<string> Types, Func<DebuggerStart, Task<Debugging.DebugAdapter>> StartAsync);
+
+/// <summary>What a debugger starts with.</summary>
+/// <param name="Configuration">The launch configuration, its variables put in: launch.json's, or a module's for its task.</param>
+/// <param name="Path">The tasks' PATH (the modules' tool folders first): the adapter's, and so the program's.</param>
+/// <param name="Log">Output (Debug): what installing or starting it says.</param>
+public sealed record DebuggerStart(string Workspace, JsonObject Configuration, string Path, Action<string> Log, CancellationToken Cancellation);
 
 /// <summary>
 /// A control whose keys come before Karvon's (Bengine Data Studio's keymap in the Database Explorer): while the focus is
@@ -90,6 +102,9 @@ public abstract partial class KarvonModule : ObservableObject, IDisposable, IAsy
 
     /// <summary>The folders of the tools its tasks use (Node.js's bin...): first on the PATH of every task.</summary>
     public virtual IEnumerable<string> ToolDirectories => [];
+
+    /// <summary>The debuggers it brings: F5 starts the one of a launch configuration's type.</summary>
+    public virtual IReadOnlyList<DebuggerInfo> Debuggers => [];
 
     /// <summary>The tools it gives the Claude Code sessions Karvon starts (mcp__karvon__*): new ones for each session.</summary>
     public virtual IEnumerable<IClaudeTool> ClaudeTools() => [];

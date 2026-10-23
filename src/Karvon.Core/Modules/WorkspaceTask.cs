@@ -1,3 +1,5 @@
+using System.Text.Json.Nodes;
+
 namespace Karvon.Modules;
 
 /// <summary>What a task is for: in a folder, Build runs its build task, Start Without Debugging a run task, Run All Tests its test task.</summary>
@@ -25,12 +27,40 @@ public sealed record WorkspaceTask(string Name, WorkspaceTaskKind Kind, string P
     /// <summary>It keeps running (a watch, a dev server): it runs beside the rest until it is stopped.</summary>
     public bool IsBackground { get; init; }
 
+    /// <summary>How F5 debugs it, when its module knows how (a package.json script under the JavaScript debugger); else F5 runs it.</summary>
+    public DebugLaunch? Debug { get; init; }
+
     /// <summary>Variables set for it over Karvon's own (a PATH with its runtime's folder first...).</summary>
     public IReadOnlyDictionary<string, string>? Environment { get; init; }
 
     /// <summary>The command as the Output window shows it: the program by its name, an argument with a space quoted.</summary>
     public string CommandLine =>
         string.Join(' ', [Path.IsPathRooted(Program) ? Path.GetFileName(Program) : Program, .. Arguments.Select(a => a.Length == 0 || a.Any(char.IsWhiteSpace) ? $"\"{a}\"" : a)]);
+
+    public override string ToString() => Name;
+}
+
+/// <summary>
+/// How F5 debugs something: a debugger's launch (or attach) configuration, as .vscode/launch.json writes it ("type",
+/// "request", "program"..., its variables put in when it starts). Its type picks the debugger (a module's).
+/// </summary>
+public sealed record DebugLaunch(string Name, JsonObject Configuration)
+{
+    /// <summary>Where it comes from ("launch.json", "npm"), shown beside its name.</summary>
+    public string Source { get; init; } = "";
+
+    public string Type => Text("type") ?? "";
+
+    /// <summary>"launch", or "attach" to a program running already.</summary>
+    public string Request => Text("request") ?? "launch";
+
+    /// <summary>The task run before it starts (a build): it starts only when that succeeds.</summary>
+    public string? PreLaunchTask => Text("preLaunchTask");
+
+    /// <summary>The task run once the session ends.</summary>
+    public string? PostDebugTask => Text("postDebugTask");
+
+    string? Text(string name) => Configuration[name] is JsonValue value && value.TryGetValue<string>(out var text) ? text : null;
 
     public override string ToString() => Name;
 }

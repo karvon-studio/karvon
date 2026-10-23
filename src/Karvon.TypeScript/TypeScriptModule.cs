@@ -4,8 +4,8 @@ namespace Karvon.TypeScript;
 
 /// <summary>
 /// TypeScript and JavaScript: TypeScript 7's own language server in the editor of their files (errors as you type,
-/// completion, hover, go to definition, references, rename, formatting), installed the first time one of them opens; and a
-/// folder's package.json scripts as its tasks (build, test, the app).
+/// completion, hover, go to definition, references, rename, formatting), installed the first time one of them opens; a
+/// folder's package.json scripts as its tasks (build, test, the app); and js-debug for F5.
 /// </summary>
 public sealed class TypeScriptModule : KarvonModule
 {
@@ -16,7 +16,8 @@ public sealed class TypeScriptModule : KarvonModule
     public override string Description =>
         "TypeScript 7's language server for .ts, .tsx, .js and .jsx files: errors as you type, completion, hover, go to definition, "
         + "references, rename and formatting, installed the first time one of them opens (no Node.js needed). In a folder, the "
-        + "package.json scripts build, run and test it (with npm, pnpm, yarn or bun).";
+        + "package.json scripts build, run and test it (with npm, pnpm, yarn or bun), and F5 debugs the app or a launch.json "
+        + "configuration with js-debug, the JavaScript debugger of VS Code (installed the first time; it runs on Node.js).";
 
     public override IReadOnlyList<LanguageServerInfo> LanguageServers =>
         [new("typescript", "TypeScript language server", TypeScriptServer.Serves, StartAsync)];
@@ -26,8 +27,23 @@ public sealed class TypeScriptModule : KarvonModule
 
     public override IReadOnlyList<string> WorkspaceTaskFiles => ["package.json"];
 
+    /// <summary>F5: js-debug, for launch.json's node, chrome and msedge configurations and the package.json scripts.</summary>
+    public override IReadOnlyList<DebuggerInfo> Debuggers =>
+        [new("js-debug", $"the JavaScript debugger (js-debug {JsDebugLocator.Version})", JsDebugger.Types, StartDebuggerAsync)];
+
     /// <summary>Node.js's folder when Karvon's PATH has none (started from the desktop, with Node from nvm).</summary>
     public override IEnumerable<string> ToolDirectories => NodeLocator.DirectoryOffPath() is { } node ? [node] : [];
+
+    async Task<Debugging.DebugAdapter> StartDebuggerAsync(DebuggerStart start)
+    {
+        var installing = JsDebugLocator.Find() is null;
+        if (installing)
+            Workbench.Status($"Installing the JavaScript debugger (js-debug {JsDebugLocator.Version})...");
+        var adapter = await JsDebugger.StartAsync(start);
+        if (installing)
+            Workbench.Status($"js-debug {JsDebugLocator.Version} installed.");
+        return adapter;
+    }
 
     async Task<Lsp.LspClient> StartAsync(LanguageServerStart start)
     {

@@ -1050,7 +1050,7 @@ public partial class MainViewModel : ObservableObject
 
     // ---- Run ---------------------------------------------------------------------------------------------------
 
-    bool CanStart => Solution is not null && (IsFolderWorkspace ? StartupTask is not null : StartupProject is not null) && !IsBuilding && !IsRunning
+    bool CanStart => Solution is not null && (IsFolderWorkspace ? StartupItem is not null : StartupProject is not null) && !IsBuilding && !IsRunning
         && Mode == DebugMode.Design;
 
     /// <summary>
@@ -1067,11 +1067,18 @@ public partial class MainViewModel : ObservableObject
     [RelayCommand(CanExecute = nameof(CanStart))]
     async Task StartWithoutDebugging()
     {
-        // A folder runs the run task chosen on the toolbar.
+        // A folder runs what is chosen on the toolbar: a run task, or a launch configuration without the debugger.
         if (IsFolderWorkspace)
         {
-            if (StartupTask is { } task)
-                await RunProgramTaskAsync(task);
+            switch (StartupItem)
+            {
+                case { Task: { } task }:
+                    await RunProgramTaskAsync(task);
+                    break;
+                case { Debug: { } launch }:
+                    await LaunchConfigurationAsync(launch, noDebug: true);
+                    break;
+            }
             return;
         }
         if (Solution is not { } solution || StartupProject is not { } project)

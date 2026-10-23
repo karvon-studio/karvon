@@ -106,6 +106,16 @@ public class WorkspaceTaskTests
         Assert.Equal(("yarn", Path.Combine(dir, "apps", "admin")), (admin.Program, admin.WorkingDirectory));
         Assert.Equal(["run", "build"], admin.Arguments);
         Assert.All(tasks, t => Assert.Equal(PackageScripts.Source, t.Source));
+
+        // The app and the tests are debugged as they run: js-debug launches their package manager, and the node it starts.
+        Assert.Equal(["pnpm: test", "pnpm: start", "pnpm: dev"], tasks.Where(t => t.Debug is not null).Select(t => t.Name));
+        var dev = tasks.Single(t => t.Name == "pnpm: dev").Debug!;
+        Assert.Equal(("pwa-node", "launch", PackageScripts.Source), (dev.Type, dev.Request, dev.Source));
+        Assert.Equal("""{"type":"pwa-node","request":"launch","name":"pnpm: dev","runtimeExecutable":"pnpm","runtimeArgs":["run","dev"],"cwd":"DIR","outputCapture":"std","skipFiles":["<node_internals>/**","**/node_modules/**"],"resolveSourceMapLocations":["${workspaceFolder}/**","!**/node_modules/**"]}""",
+            dev.Configuration.ToJsonString(new System.Text.Json.JsonSerializerOptions { Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping }).Replace(System.Text.Json.JsonEncodedText.Encode(dir).ToString(), "DIR"));
+        File.WriteAllText(Path.Combine(dir, "bun.lock"), "");
+        File.Delete(Path.Combine(dir, "pnpm-lock.yaml"));
+        Assert.All(PackageScripts.Read(dir).Where(t => t.Program == "bun"), t => Assert.Null(t.Debug));
         Directory.Delete(dir, recursive: true);
     }
 
@@ -121,7 +131,7 @@ public class WorkspaceTaskTests
             """);
         File.WriteAllText(Path.Combine(dir, "package.json"), """{ "scripts": { "dev": "vite" } }""");
         var vm = NewViewModel(modules: [.. Karvon.BuiltInModules.Create(), new FakeTaskModule()]);
-        // The startup task comes back with the folder (kept in its .vs folder).
+        // The startup item comes back with the folder (kept in its .vs folder).
         vm.RestoresSolutionState = true;
         var window = new MainWindow { DataContext = vm, Width = 1280, Height = 800 };
         window.Show();
@@ -130,8 +140,8 @@ public class WorkspaceTaskTests
         // tasks.json's, then the modules': the TypeScript module's package.json scripts and the test module's.
         Assert.True(vm.IsFolderWorkspace);
         Assert.Equal(["compile", "unit", "npm: dev", "serve", "watch"], vm.WorkspaceTasks.Select(t => t.Name));
-        Assert.Equal(["npm: dev", "serve"], vm.StartupTasks.Select(t => t.Name));
-        Assert.Equal("npm: dev", vm.StartupTask?.Name);
+        Assert.Equal(["npm: dev", "serve"], vm.StartupItems.Select(i => i.Name));
+        Assert.Equal("npm: dev", vm.StartupItem?.Name);
         Assert.Equal(["compile   (tasks.json)", "unit   (tasks.json)", "npm: dev   (package.json)", "serve   (fake)", "watch   (fake)"],
             MainWindow.RunTaskMenuItems(vm).OfType<MenuItem>().Select(i => i.Header as string));
         Assert.True(vm.BuildSolutionCommand.CanExecute(null));
@@ -157,11 +167,11 @@ public class WorkspaceTaskTests
         Assert.StartsWith("unit passed.", await Text(server, "run_tests", new { }));
 
         // Start: the run task chosen, as the program, until Stop; Claude starts another by its name.
-        Assert.Contains("nope is not a run task of the folder. Run tasks: npm: dev, serve.", (await Call(server, "app_control", new { action = "start", project = "nope" })).Text);
+        Assert.Contains("nope is not a startup item of the folder. Startup items: npm: dev, serve.", (await Call(server, "app_control", new { action = "start", project = "nope" })).Text);
         var started = await Text(server, "app_control", new { action = "start", project = "serve" });
         Assert.StartsWith("serve is running. Listening on http://localhost:5173.", started);
         Assert.True(vm.IsRunning);
-        Assert.Equal("serve", vm.StartupTask?.Name);
+        Assert.Equal("serve", vm.StartupItem?.Name);
         await vm.StopCommand.ExecuteAsync(null);
         await WaitUntil(() => !vm.IsRunning, TimeSpan.FromSeconds(10));
         Assert.Contains("The program 'serve' has exited", vm.DebugOutput.Document.Text);
@@ -176,21 +186,21 @@ public class WorkspaceTaskTests
         await WaitUntil(() => vm.TasksOutput.Document.Text.Contains("watch exited"), TimeSpan.FromSeconds(10));
         Assert.False(vm.IsTaskRunning(watch));
 
-        // tasks.json saved in the editor: its tasks are read again; the startup task stays.
+        // tasks.json saved in the editor: its tasks are read again; the startup item stays.
         var tasksFile = vm.OpenDocument(VsCodeTasks.FileOf(dir))!;
         tasksFile.Host.Document.Text = """{ "version": "2.0.0", "tasks": [ { "label": "bundle", "type": "shell", "command": "true", "group": { "kind": "build", "isDefault": true } } ] }""";
         tasksFile.Host.Save();
         Assert.Equal(["bundle", "npm: dev", "serve", "watch"], vm.WorkspaceTasks.Select(t => t.Name));
         Assert.Equal("bundle", vm.BuildTask?.Name);
-        Assert.Equal("serve", vm.StartupTask?.Name);
+        Assert.Equal("serve", vm.StartupItem?.Name);
         Assert.False(vm.RunAllTestsCommand.CanExecute(null));
 
-        // The folder opens again with the startup task it had; closed, its tasks go.
+        // The folder opens again with the startup item it had; closed, its tasks go.
         Assert.True(await vm.CloseSolutionCoreAsync());
         Assert.Empty(vm.WorkspaceTasks);
         Assert.False(vm.IsFolderWorkspace);
         await vm.OpenSolutionAsync(dir);
-        Assert.Equal("serve", vm.StartupTask?.Name);
+        Assert.Equal("serve", vm.StartupItem?.Name);
         Assert.True(await vm.CloseSolutionCoreAsync());
         window.Close();
         Directory.Delete(dir, recursive: true);
@@ -233,7 +243,7 @@ public class WorkspaceTaskTests
         await vm.OpenSolutionAsync(sln);
         Assert.False(vm.IsFolderWorkspace);
         Assert.Equal(["hello"], vm.WorkspaceTasks.Select(t => t.Name));
-        Assert.Empty(vm.StartupTasks);
+        Assert.Empty(vm.StartupItems);
         Assert.NotNull(vm.StartupProject);
         Assert.True(vm.CleanSolutionCommand.CanExecute(null));
         await vm.RunTaskCommand.ExecuteAsync(vm.WorkspaceTasks[0]);

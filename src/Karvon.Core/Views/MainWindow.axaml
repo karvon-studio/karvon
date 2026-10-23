@@ -272,8 +272,8 @@
         <ComboBox Classes="tb" Width="170" Margin="4,0,0,0" ItemsSource="{Binding StartupProjects}" SelectedItem="{Binding StartupProject}" ToolTip.Tip="Startup Project"
                   IsVisible="{Binding !IsFolderWorkspace}" />
         <!-- A folder runs one of its run tasks (package.json's start, dev...) -->
-        <ComboBox Name="StartupTaskBox" Classes="tb" Width="170" Margin="4,0,0,0" ItemsSource="{Binding StartupTasks}" SelectedItem="{Binding StartupTask}"
-                  ToolTip.Tip="Startup Task" IsVisible="{Binding IsFolderWorkspace}" />
+        <ComboBox Name="StartupItemBox" Classes="tb" Width="170" Margin="4,0,0,0" ItemsSource="{Binding StartupItems}" SelectedItem="{Binding StartupItem}"
+                  ToolTip.Tip="Startup Item" IsVisible="{Binding IsFolderWorkspace}" />
         <Border Classes="tbsep" />
         <!-- VS's split Start button: run the startup project, ▾ picks the launch profile -->
         <Button Classes="tb" Padding="6,0,5,0" Command="{Binding StartDebuggingCommand}" ToolTip.Tip="Start Debugging (F5)">

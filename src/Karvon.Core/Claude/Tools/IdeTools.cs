@@ -396,7 +396,8 @@ sealed class DebugControlTool(MainViewModel vm) : IdeTool(vm)
     public override string Name => "debug_control";
 
     public override string Description =>
-        "Controls the debugger in Karvon: start (debug the startup project, F5), continue, pause, stepOver, stepInto, stepOut or stop; "
+        "Controls the debugger in Karvon: start (F5: debug the startup project, or a folder's startup item: its launch.json "
+        + "configuration, a package.json script under the JavaScript debugger), continue, pause, stepOver, stepInto, stepOut or stop; "
         + "returns where the program is afterwards. Starting and stopping ask the user first. To run it without the debugger, use app_control.";
 
     public override JsonObject InputSchema => Schema("""
@@ -430,7 +431,7 @@ sealed class DebugControlTool(MainViewModel vm) : IdeTool(vm)
                 return ClaudeToolOutput.Error("A debug session is running already.");
             case "start" or "continue":
                 if (!Vm.StartDebuggingCommand.CanExecute(null))
-                    return ClaudeToolOutput.Error("Karvon cannot start debugging now: open a solution with a startup project, and wait for any build.");
+                    return ClaudeToolOutput.Error("Karvon cannot start debugging now: open a solution with a startup project (or a folder with a startup item), and wait for any build.");
                 await Vm.StartDebuggingCommand.ExecuteAsync(null);
                 break;
             case "stepOver":
@@ -474,13 +475,13 @@ sealed partial class AppControlTool(MainViewModel vm) : IdeTool(vm)
         + "project given, which becomes the startup project) with its launch profile, stop ends it (Shift+F5), restart does both, "
         + "status tells whether it runs. Each returns the URLs it listens on and its latest output, which the Output window shows "
         + "too. Use it rather than dotnet run or npm start in the shell: the app runs in Karvon, where the user sees it and stops it. "
-        + "A folder opened as it is runs its startup task instead (package.json's start or dev script...; project names one). For "
-        + "breakpoints and stepping use debug_control.";
+        + "A folder opened as it is runs its startup item instead (a .vscode/launch.json configuration, or a run task: package.json's "
+        + "start or dev script...; project names one). For breakpoints and stepping use debug_control.";
 
     public override JsonObject InputSchema => Schema("""
         {"type":"object","properties":{
           "action":{"type":"string","enum":["start","stop","restart","status"]},
-          "project":{"type":"string","description":"start, restart: a runnable project's name (in a folder, a run task's); default the startup project."},
+          "project":{"type":"string","description":"start, restart: a runnable project's name (in a folder, a startup item's); default the startup project."},
           "profile":{"type":"string","description":"start, restart: a launch profile of the project (Properties/launchSettings.json); default the one chosen in Karvon."},
           "lines":{"type":"integer","description":"How many of the latest output lines to return; default 40."}},"required":["action"]}
         """);
@@ -532,16 +533,16 @@ sealed partial class AppControlTool(MainViewModel vm) : IdeTool(vm)
         }
     }
 
-    /// <summary>What Start runs: the startup project, or a folder's startup task.</summary>
-    string? RunTarget => Vm.IsFolderWorkspace ? Vm.StartupTask?.Name : Vm.StartupProject?.Name;
+    /// <summary>What Start runs: the startup project, or a folder's startup item.</summary>
+    string? RunTarget => Vm.IsFolderWorkspace ? Vm.StartupItem?.Name : Vm.StartupProject?.Name;
 
     async Task<ClaudeToolOutput> StartAsync(JsonElement input, int lines, CancellationToken cancellationToken)
     {
-        if (Vm.IsFolderWorkspace && Str(input, "project") is { } taskName)
+        if (Vm.IsFolderWorkspace && Str(input, "project") is { } itemName)
         {
-            if (Vm.StartupTasks.FirstOrDefault(t => t.Name.Equals(taskName, StringComparison.OrdinalIgnoreCase)) is not { } task)
-                return ClaudeToolOutput.Error($"{taskName} is not a run task of the folder. Run tasks: {(Vm.StartupTasks.Count == 0 ? "none" : string.Join(", ", Vm.StartupTasks.Select(t => t.Name)))}.");
-            Vm.StartupTask = task;
+            if (Vm.StartupItems.FirstOrDefault(i => i.Name.Equals(itemName, StringComparison.OrdinalIgnoreCase)) is not { } item)
+                return ClaudeToolOutput.Error($"{itemName} is not a startup item of the folder. Startup items: {(Vm.StartupItems.Count == 0 ? "none" : string.Join(", ", Vm.StartupItems.Select(i => i.Name)))}.");
+            Vm.StartupItem = item;
         }
         else if (Str(input, "project") is { } name)
         {
@@ -557,20 +558,23 @@ sealed partial class AppControlTool(MainViewModel vm) : IdeTool(vm)
         }
         if (!Vm.StartWithoutDebuggingCommand.CanExecute(null))
             return ClaudeToolOutput.Error(Vm.IsFolderWorkspace
-                ? "Karvon cannot run it now: the folder has no run task (package.json's start or dev script...), or a build runs."
+                ? "Karvon cannot run it now: the folder has no startup item (a launch.json configuration, package.json's start or dev script...), or a build runs."
                 : "Karvon cannot run it now: open a solution with a startup project, and wait for any build.");
         var run = Vm.StartWithoutDebuggingCommand.ExecuteAsync(null);
         // Built and started: until it listens (a web host), ends, or has run a while; the build may take minutes.
         var clock = System.Diagnostics.Stopwatch.StartNew();
         TimeSpan? started = null;
-        while (!run.IsCompleted && clock.Elapsed < TimeSpan.FromMinutes(5))
+        // A launch configuration runs as a debug session without the debugger, which goes on after the command is done.
+        while (clock.Elapsed < TimeSpan.FromMinutes(5))
         {
-            if (Vm.IsRunning)
+            if (Vm.IsRunning || Vm.Mode != DebugMode.Design)
             {
                 started ??= clock.Elapsed;
                 if (Listening().Count > 0 || clock.Elapsed - started > TimeSpan.FromSeconds(20))
                     break;
             }
+            else if (run.IsCompleted)
+                break;
             await Task.Delay(200, cancellationToken);
         }
         // The last lines the program printed land on the UI thread after its exit is known.
