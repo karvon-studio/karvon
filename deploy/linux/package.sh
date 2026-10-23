@@ -21,10 +21,12 @@ if [[ ! -x "$SRC/Karvon" ]]; then
   exit 1
 fi
 
-# Copies the published app, keeping it executable and everything else readable.
+# Copies the published app, keeping it executable and everything else readable; its karvon-distribution file says
+# which package it is in (deb, tar, appimage), which says how it updates itself.
 copy_app() {
   mkdir -p "$1"
   cp -a "$SRC/." "$1/"
+  echo "$2" > "$1/karvon-distribution"
   chmod -R u=rwX,go=rX "$1"
   chmod 755 "$1/Karvon"
 }
@@ -35,7 +37,7 @@ copy_app() {
 DEB=$WORK/deb
 mkdir -p "$DEB/DEBIAN" "$DEB/usr/bin" "$DEB/usr/share/applications" \
   "$DEB/usr/share/icons/hicolor/256x256/apps" "$DEB/usr/share/icons/hicolor/scalable/apps"
-copy_app "$DEB/opt/karvon"
+copy_app "$DEB/opt/karvon" deb
 ln -s /opt/karvon/Karvon "$DEB/usr/bin/karvon"
 install -m 644 "$HERE/karvon.desktop" "$DEB/usr/share/applications/karvon.desktop"
 install -m 644 "$ASSETS/karvon.png" "$DEB/usr/share/icons/hicolor/256x256/apps/karvon.png"
@@ -66,7 +68,7 @@ echo "$DIST/karvon-studio_${VERSION}_amd64.deb"
 
 # ---- .tar.gz ----
 TAR=$WORK/tar/karvon-$VERSION
-copy_app "$TAR"
+copy_app "$TAR" tar
 install -m 644 "$HERE/karvon.desktop" "$ASSETS/karvon.png" "$ASSETS/karvon.svg" "$TAR/"
 tar -C "$WORK/tar" -czf "$DIST/karvon-studio-${VERSION}-linux-x64.tar.gz" "karvon-$VERSION"
 echo "$DIST/karvon-studio-${VERSION}-linux-x64.tar.gz"
@@ -78,7 +80,7 @@ if [[ -z "$TOOL" ]]; then
   exit 0
 fi
 APP=$WORK/Karvon.AppDir
-copy_app "$APP/usr/lib/karvon"
+copy_app "$APP/usr/lib/karvon" appimage
 install -m 644 "$ASSETS/karvon.png" "$APP/karvon.png"
 install -m 644 "$HERE/karvon.desktop" "$APP/karvon.desktop"
 cat > "$APP/AppRun" <<'RUN'

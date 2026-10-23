@@ -37,6 +37,11 @@ Terminal=false
 Categories=Development;IDE;
 Keywords=karvon;ide;csharp;dotnet;blazor;razor;
 StartupWMClass=Karvon
+Actions=installer;
+
+[Desktop Action installer]
+Name=Karvon Studio Installer
+Exec=$bin_dir/karvon --installer
 DESKTOP
 
 command -v update-desktop-database >/dev/null && update-desktop-database "$apps_dir" || true

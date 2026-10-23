@@ -26,6 +26,8 @@ APP="$WORK/Karvon Studio.app"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 cp -a "$SRC/." "$APP/Contents/MacOS/"
 chmod 755 "$APP/Contents/MacOS/Karvon"
+# How it updates itself: its bundle replaced by the next .dmg's.
+echo dmg > "$APP/Contents/MacOS/karvon-distribution"
 
 # Its icon, from the PNG, at every size macOS asks for.
 ICONSET="$WORK/karvon.iconset"

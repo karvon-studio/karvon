@@ -6,6 +6,7 @@
 #   karvon-studio-arm64.rb, -x64.rb       their Homebrew casks, for a tap
 #   Karvon-Studio-X-Setup.exe             Windows installer (per user); not signed
 #   karvon-studio-X-win-x64.zip           Windows: unpack anywhere and run Karvon.exe
+#   SHA256SUMS                            their checksums, which Karvon Studio's updates are checked with
 # workflow_dispatch builds the packages as artifacts only (version 0.0.<run number>) without releasing.
 # None of the packages needs a .NET runtime; working on solutions needs the .NET SDK, as in any .NET IDE.
 # Packaging is deploy/linux/package.sh, deploy/macos/package.sh and deploy/windows/package.ps1 (also run locally).
@@ -129,6 +130,10 @@ jobs:
         with:
           path: dist
           merge-multiple: true
+
+      # The checksums Karvon Studio checks an update's file with before it installs it.
+      - name: Checksums
+        run: cd dist && sha256sum * > SHA256SUMS
 
       - uses: softprops/action-gh-release@v2
         with:

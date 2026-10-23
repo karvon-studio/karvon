@@ -8,6 +8,8 @@ cask "karvon-studio" do
   desc "IDE with Visual Studio's look and workflow, made to grow by modules"
   homepage "https://github.com/karvon-studio/karvon"
 
+  # Karvon Studio updates itself (Help > Check for Updates); Homebrew leaves it to.
+  auto_updates true
   depends_on arch: :@BREW_ARCH@
   depends_on macos: ">= :monterey"
 

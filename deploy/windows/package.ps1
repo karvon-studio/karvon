@@ -21,9 +21,13 @@ if (-not (Test-Path (Join-Path $Source 'Karvon.exe'))) {
     throw "$Source\Karvon.exe not found: publish Karvon first (see the header of this script)"
 }
 
+# Each package's karvon-distribution file says which it is (zip, setup), which says how it updates itself.
+$Marker = Join-Path $Source 'karvon-distribution'
+
 # ---- .zip ----
 $Zip = Join-Path $Dist "karvon-studio-$Version-win-x64.zip"
 if (Test-Path $Zip) { Remove-Item $Zip }
+Set-Content -Path $Marker -Value 'zip' -NoNewline
 Compress-Archive -Path (Join-Path $Source '*') -DestinationPath $Zip
 Write-Output $Zip
 
@@ -35,8 +39,11 @@ if (-not $Iscc) {
 }
 if (-not $Iscc) {
     Write-Warning 'Inno Setup (iscc) not found: the installer is skipped'
+    Remove-Item $Marker
     exit 0
 }
+Set-Content -Path $Marker -Value 'setup' -NoNewline
 & $Iscc "/DAppVersion=$Version" "/DSourceDir=$Source" "/DOutputDir=$Dist" "/DIconFile=$Here\karvon.ico" (Join-Path $Here 'karvon.iss') | Out-Host
 if ($LASTEXITCODE -ne 0) { throw "iscc failed ($LASTEXITCODE)" }
+Remove-Item $Marker
 Write-Output (Join-Path $Dist "Karvon-Studio-$Version-Setup.exe")

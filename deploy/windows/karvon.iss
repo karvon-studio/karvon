@@ -29,6 +29,7 @@ Source: "{#SourceDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs 
 
 [Icons]
 Name: "{group}\{#AppName}"; Filename: "{app}\Karvon.exe"
+Name: "{group}\{#AppName} Installer"; Filename: "{app}\Karvon.exe"; Parameters: "--installer"
 Name: "{autodesktop}\{#AppName}"; Filename: "{app}\Karvon.exe"; Tasks: desktopicon
 
 [Tasks]

@@ -9,3 +9,8 @@ Terminal=false
 Categories=Development;IDE;
 Keywords=karvon;ide;csharp;dotnet;blazor;razor;ide;
 StartupWMClass=Karvon
+Actions=installer;
+
+[Desktop Action installer]
+Name=Karvon Studio Installer
+Exec=karvon --installer
