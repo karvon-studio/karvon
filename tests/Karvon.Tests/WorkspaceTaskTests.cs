@@ -586,7 +586,7 @@ public class WorkspaceTaskTests
         Assert.DoesNotContain(vm.WorkspaceTasks, t => t.Name.Contains("Shop.Frontend"));
         Assert.True(await vm.CloseSolutionCoreAsync());
         window.Close();
-        Directory.Delete(repo, recursive: true);
+        await TestTools.DeleteFolderAsync(repo);
     }
 
     [AvaloniaFact]

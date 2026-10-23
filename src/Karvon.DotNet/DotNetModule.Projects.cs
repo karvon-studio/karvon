@@ -63,8 +63,9 @@ public sealed partial class DotNetModule
     }
 
     /// <summary>
-    /// Manage User Secrets: the project's secrets.json (in ~/.microsoft/usersecrets, outside the solution), opened; a
-    /// project without a UserSecretsId gets one first (dotnet user-secrets init), as VS does.
+    /// Manage User Secrets: the project's secrets.json (in ~/.microsoft/usersecrets, %APPDATA%\Microsoft\UserSecrets on
+    /// Windows: outside the solution), opened; a project without a UserSecretsId gets one first (dotnet user-secrets
+    /// init), as VS does.
     /// </summary>
     internal async Task<string?> ManageUserSecretsAsync(ProjectInfo project)
     {
@@ -87,7 +88,10 @@ public sealed partial class DotNetModule
         }
         if (id is null)
             return null;
-        var file = Path.Combine(UserHome.Path, ".microsoft", "usersecrets", id, "secrets.json");
+        // Where dotnet user-secrets keeps them: ~/.microsoft/usersecrets, %APPDATA%\Microsoft\UserSecrets on Windows.
+        var file = OperatingSystem.IsWindows()
+            ? Path.Combine(UserHome.WindowsAppData, "Microsoft", "UserSecrets", id, "secrets.json")
+            : Path.Combine(UserHome.Path, ".microsoft", "usersecrets", id, "secrets.json");
         try
         {
             Directory.CreateDirectory(Path.GetDirectoryName(file)!);
