@@ -26,6 +26,16 @@ public class PythonTests
         Assert.Equal(bin, PythonEnvironment.VirtualEnvironmentBin(dir));
         Assert.Equal(Path.Combine(bin, OperatingSystem.IsWindows() ? "python.exe" : "python"), PythonEnvironment.Interpreter(dir, ""));
         Assert.StartsWith(bin + Path.PathSeparator, PythonEnvironment.PathFor(dir, "/usr/bin"));
+
+        // Its entry point and the file in the editor run with that interpreter, and debug with debugpy.
+        Assert.Empty(PythonTasks.Read(dir));
+        File.WriteAllText(Path.Combine(dir, "manage.py"), "");
+        var tasks = PythonTasks.Read(dir);
+        Assert.Equal(["python: manage.py", "python: current file"], tasks.Select(t => t.Name));
+        Assert.Equal([true, false], tasks.Select(t => t.IsDefault));
+        Assert.Equal(Path.Combine(bin, OperatingSystem.IsWindows() ? "python.exe" : "python"), tasks[0].Program);
+        Assert.Equal(["-u", Path.Combine(dir, "manage.py"), "runserver", "--noreload"], tasks[0].Arguments);
+        Assert.Equal(("debugpy", "${file}"), (tasks[1].Debug!.Type, tasks[1].Debug!.Configuration["program"]!.GetValue<string>()));
         Directory.Delete(dir, recursive: true);
     }
 
@@ -112,6 +122,25 @@ public class PythonTests
             await WaitUntil(() => vm.Mode == ViewModels.DebugMode.Design, TimeSpan.FromSeconds(30));
             Assert.True(vm.Mode == ViewModels.DebugMode.Design, vm.DebugOutput.Document.Text);
             Assert.Contains("area 12", vm.DebugOutput.Document.Text);
+            Assert.True(await vm.CloseSolutionCoreAsync());
+
+            // With no launch.json: its main.py, and the file in the editor, run and debug as the Python extension's do.
+            File.Delete(Workspace.VsCodeLaunch.FileOf(dir));
+            await vm.OpenSolutionAsync(dir);
+            Assert.Equal(["python: main.py", "python: current file"], vm.StartupItems.Select(i => i.Name));
+            Assert.Equal("python: main.py", vm.StartupItem?.Name);
+            // The tests' folders come back without their state: the breakpoint again.
+            if (!vm.Breakpoints.Has(main, 3))
+                vm.Breakpoints.Toggle(main, 3);
+            started = await ClaudeIdeToolsTests.Text(server = ClaudeOf(vm).ToolServer(), "debug_control", new { action = "start" });
+            Assert.True(System.Text.RegularExpressions.Regex.IsMatch(started, @"in area at main\.py:3\.$"), started + "\n" + vm.DebugOutput.Document.Text);
+            await vm.StartDebuggingCommand.ExecuteAsync(null);
+            await WaitUntil(() => vm.Mode == ViewModels.DebugMode.Design, TimeSpan.FromSeconds(30));
+            Assert.True(vm.Mode == ViewModels.DebugMode.Design, vm.DebugOutput.Document.Text);
+            await vm.StartWithoutDebuggingCommand.ExecuteAsync(null);
+            // Its lines come through the UI thread's queue.
+            await WaitUntil(() => vm.DebugOutput.Document.Text.Contains("area 12"), TimeSpan.FromSeconds(10));
+            Assert.True(vm.DebugOutput.Document.Text.Contains("area 12") && vm.DebugOutput.Document.Text.Contains("main.py' has exited with code 0"), vm.DebugOutput.Document.Text);
             Assert.True(await vm.CloseSolutionCoreAsync());
             window.Close();
         }

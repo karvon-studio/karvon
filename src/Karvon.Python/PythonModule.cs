@@ -35,6 +35,9 @@ public sealed class PythonModule : KarvonModule
         },
     ];
 
+    /// <summary>A folder's entry point (main.py, app.py, manage.py) and the file in the editor, to run and debug.</summary>
+    public override IReadOnlyList<WorkspaceTask> WorkspaceTasks(string workspace) => PythonTasks.Read(workspace);
+
     /// <summary>Test Explorer: pytest's tests, when the workspace tests with pytest.</summary>
     public override IReadOnlyList<Testing.TestFramework> TestFrameworks(TestFrameworkStart start) =>
         PytestFramework.IsUsedIn(start.Workspace) ? [new PytestFramework(start)] : [];
