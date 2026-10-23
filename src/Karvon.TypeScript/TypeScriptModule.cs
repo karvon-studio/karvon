@@ -32,6 +32,24 @@ public sealed class TypeScriptModule : KarvonModule
         new("eslint", "ESLint", EslintServer.Serves, StartEslintAsync) { Lints = true, MayStartAsync = MayRunEslintAsync },
     ];
 
+    /// <summary>
+    /// A package.json folder's Manage npm Packages... (or pnpm's, yarn's, bun's), as a .NET project's Manage NuGet
+    /// Packages...: on the folder (a frontend beside a solution, the folder opened), and on its package.json.
+    /// </summary>
+    public override IReadOnlyList<ModuleMenuItem> ExplorerMenu(Workspace.ExplorerNode node)
+    {
+        var dir = node.Kind switch
+        {
+            Workspace.NodeKind.Folder => node.Path,
+            Workspace.NodeKind.Solution when node.IsFolderRoot => node.Path,
+            Workspace.NodeKind.File when node.Name == "package.json" => Path.GetDirectoryName(node.Path),
+            _ => null,
+        };
+        if (dir is null || !File.Exists(Path.Combine(dir, "package.json")))
+            return [];
+        return [new($"Manage {PackageScripts.ManagerOf(dir)} Packages...", () => Workbench.ManagePackagesAsync(new NpmPackages(dir))) { After = "Add" }];
+    }
+
     /// <summary>Tools > ESLint in This Folder: whether ESLint checks the open folder's files, asked again.</summary>
     public override IReadOnlyList<ModuleMainMenuItem> MainMenus =>
         [new("Tools", new("_ESLint in This Folder...", ChooseEslintAsync) { After = "Restart Language Server" })];

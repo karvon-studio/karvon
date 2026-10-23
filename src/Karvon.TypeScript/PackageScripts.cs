@@ -136,6 +136,20 @@ public static class PackageScripts
     }
 
     /// <summary>The package manager of a package: its packageManager field, else the lock file beside it or at the folder's root.</summary>
+    /// <summary>The package manager of a package's folder (its packageManager, else its lock file): npm, pnpm, yarn or bun.</summary>
+    internal static string ManagerOf(string dir)
+    {
+        try
+        {
+            using var doc = JsonDocument.Parse(File.ReadAllText(Path.Combine(dir, "package.json")), Options);
+            return PackageManager(dir, dir, doc.RootElement);
+        }
+        catch (Exception ex) when (ex is IOException or JsonException or UnauthorizedAccessException)
+        {
+            return "npm";
+        }
+    }
+
     static string PackageManager(string workspace, string dir, JsonElement package)
     {
         if (package.TryGetProperty("packageManager", out var declared) && declared.ValueKind == JsonValueKind.String

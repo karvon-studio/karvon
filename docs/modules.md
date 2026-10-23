@@ -106,7 +106,10 @@ also matches null, so one added to the application would take over every empty p
 - the tool windows (and one beside Claude Code, so the conversation stays in view);
 - a pane of its own in the Output window;
 - the browser, the status bar, and a question with Yes and No;
-- Restart Language Server (a linter let into the folder, or no longer).
+- Restart Language Server (a linter let into the folder, or no longer);
+- a command of its own run as the tasks run (`RunAsync`), and the Package Manager of one of its projects
+  (`ManagePackagesAsync` with its `PackageSource`: the registry's search, a package's versions and details, the
+  project's dependencies, and the package manager's commands that add and remove one), as the NuGet one looks.
 
 `Workbench.Service<T>()` gives a module what other parts of Karvon offer:
 - `IClaudeService` (the Claude Code module):

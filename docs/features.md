@@ -138,9 +138,11 @@ licensed to run through Agensi, so "Use in Claude Code" gives Claude Code its MC
 
 Your `$SHELL` in a real pty, in the solution folder.
 
-## NuGet
+## Packages
 
-Browse, install, update and uninstall across your configured feeds.
+NuGet: browse, install, update and uninstall across your configured feeds. A `package.json` folder's npm packages the
+same way (Manage npm Packages... on the folder or its package.json): npmjs.com's, into its dependencies or
+devDependencies, by the folder's package manager (npm, pnpm, yarn or bun).
 
 ## Claude Code (Ctrl+Esc)
 

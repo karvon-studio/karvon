@@ -120,6 +120,31 @@ public partial class MainViewModel : IWorkbench
 
     Task IWorkbench.RestartLanguageServersAsync() => RestartLanguageServer();
 
+    async Task<int> IWorkbench.RunAsync(WorkspaceTask task, Action<string> output, CancellationToken ct)
+    {
+        using var runner = StartTask(task, output);
+        return await runner.WaitAsync(ct);
+    }
+
+    async Task IWorkbench.ManagePackagesAsync(Packages.PackageSource source)
+    {
+        if (Documents.FirstOrDefault(d => d.Key == Packages.PackagesViewModel.KeyOf(source)) is { } open)
+        {
+            ((IWorkbench)this).ShowDocument(open);
+            return;
+        }
+        var output = ((IWorkbench)this).Output("Package Manager");
+        // After a change, what reads the dependencies reads them again: Solution Explorer, the tasks.
+        var manager = new Packages.PackagesViewModel(source, ((IWorkbench)this).RunAsync, output.Append, async () =>
+        {
+            if (Solution is { IsFolder: false })
+                await ReloadSolutionAsync();
+            RefreshWorkspaceTasks();
+        });
+        ((IWorkbench)this).ShowDocument(manager);
+        await manager.InitializeAsync();
+    }
+
     Task<string?> IWorkbench.AddNewItemAsync(Workspace.ExplorerNode node, Workspace.ItemTemplate template) => AddNewItemAsync(node, template);
 
     /// <summary>Add New Item's templates: the modules' (C#'s), then those that are no language's.</summary>

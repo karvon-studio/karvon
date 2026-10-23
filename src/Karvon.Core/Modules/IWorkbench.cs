@@ -38,6 +38,15 @@ public interface IWorkbench
     /// <summary>Tools > Restart Language Server: the workspace's language servers stop, and start again for their files.</summary>
     Task RestartLanguageServersAsync();
 
+    /// <summary>A command of the module's run as the tasks run (in the tasks' PATH: Node.js's...), its lines to output: its exit code.</summary>
+    Task<int> RunAsync(WorkspaceTask task, Action<string> output, CancellationToken ct);
+
+    /// <summary>
+    /// The Package Manager of one of the module's projects (npm's of a package.json folder), as Visual Studio's NuGet
+    /// Package Manager is: the one open, else a new one.
+    /// </summary>
+    Task ManagePackagesAsync(Packages.PackageSource source);
+
     /// <summary>The build configuration chosen on the toolbar ("Debug", "Release").</summary>
     string Configuration { get; }
 
