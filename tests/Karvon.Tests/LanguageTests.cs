@@ -9,7 +9,7 @@ using static Karvon.Tests.UiTests;
 
 namespace Karvon.Tests;
 
-/// <summary>The Claude Code panel in English or Uzbek, with the VS extension's translations.</summary>
+/// <summary>The Claude Code panel in English or Uzbek.</summary>
 public class LanguageTests
 {
     [AvaloniaFact]

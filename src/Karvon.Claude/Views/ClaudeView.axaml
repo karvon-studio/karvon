@@ -124,7 +124,7 @@
       <Setter Property="Background" Value="#3E3E42" />
       <Setter Property="BorderBrush" Value="#80808080" />
     </Style>
-    <!-- Prompt toolbar chips, as in the VS extension: rounded, outlined, the mode tinted in its color. -->
+    <!-- Prompt toolbar chips: rounded, outlined, the mode tinted in its color. -->
     <Style Selector="Button.chip">
       <Setter Property="Height" Value="26" />
       <Setter Property="MinWidth" Value="26" />
@@ -436,7 +436,7 @@
           <TextBlock Text="{v:L 'Claude Code'}" FontWeight="SemiBold" VerticalAlignment="Center" />
         </StackPanel>
         <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="2">
-          <!-- English / O'zbekcha, as in the VS extension -->
+          <!-- English / O'zbekcha -->
           <Button Name="LanguageButton" Classes="tbi" Width="NaN" Padding="5,0" Click="OnLanguageClick" ToolTip.Tip="{v:L 'Language: English / O‘zbekcha'}">
             <StackPanel Orientation="Horizontal" Spacing="3">
               <v:VsIcon Kind="Globe" Width="13" Height="13" />
@@ -536,7 +536,7 @@
               <v:VsIcon Kind="EyeOff" Width="13" Height="13" Opacity="0.75" IsVisible="{Binding !IncludeContext}" />
             </StackPanel>
           </Button>
-          <!-- The mode in its own color, as in the VS extension (Shift+Tab switches it). -->
+          <!-- The mode in its own color (Shift+Tab switches it). -->
           <Button Name="ModeButton" Grid.Column="2" Classes="chip mode" Command="{Binding ToggleModesCommand}"
                   Classes.acceptEdits="{Binding PermissionMode, Converter={x:Static ObjectConverters.Equal}, ConverterParameter=acceptEdits}"
                   Classes.plan="{Binding PermissionMode, Converter={x:Static ObjectConverters.Equal}, ConverterParameter=plan}"

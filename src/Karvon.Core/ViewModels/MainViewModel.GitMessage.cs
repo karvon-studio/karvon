@@ -8,7 +8,7 @@ using Karvon.Git;
 namespace Karvon.ViewModels;
 
 /// <summary>
-/// Git Changes' message written by Claude, as in the VS extension: a fast model without tools reads the diff of the
+/// Git Changes' message written by Claude: a fast model without tools reads the diff of the
 /// repositories in scope and their latest commit subjects and writes one message in their style. Only the text comes
 /// back into the message box; nothing is committed until the user presses Commit, and the commit is made as the user,
 /// with no Claude attribution or trailers.

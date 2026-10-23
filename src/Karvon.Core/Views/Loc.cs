@@ -6,7 +6,7 @@ using Karvon.Claude;
 
 namespace Karvon.Views;
 
-/// <summary><c>{v:L 'English text'}</c>: a text of the Claude Code panel in its language (English or Uzbek), as in the VS extension.</summary>
+/// <summary><c>{v:L 'English text'}</c>: a text of the Claude Code panel in its language (English or Uzbek).</summary>
 public sealed class LExtension(string key) : MarkupExtension
 {
     public string Key { get; set; } = key;

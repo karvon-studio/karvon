@@ -5,7 +5,7 @@ namespace Karvon.Views;
 
 /// <summary>
 /// Images for Claude: a screenshot of a large or high-DPI screen can pass the API's 5 MB per image as PNG, so it goes as
-/// a JPEG then, made smaller until it fits (as the VS extension does).
+/// a JPEG then, made smaller until it fits.
 /// </summary>
 public static class ImageFit
 {

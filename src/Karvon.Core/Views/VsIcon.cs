@@ -91,7 +91,7 @@ public sealed class VsIcon : Control
         dc.DrawGeometry(null, new Pen(new SolidColorBrush(color), width, lineCap: cap, lineJoin: PenLineJoin.Round), G(data));
 
     /// <summary>A colored rounded label with 1-3 letters, as on VS file and project icons.</summary>
-    /// <summary>A Lucide-style outline drawn on its 24-unit grid, scaled to the icon's 16 (as the VS extension draws them).</summary>
+    /// <summary>A Lucide-style outline drawn on its 24-unit grid, scaled to the icon's 16.</summary>
     static void Line(DrawingContext dc, string data, Color color, double width)
     {
         using var scale = dc.PushTransform(Matrix.CreateScale(16 / 24.0, 16 / 24.0));

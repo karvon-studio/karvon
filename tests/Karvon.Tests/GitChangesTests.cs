@@ -7,7 +7,7 @@ using static Karvon.Tests.UiTests;
 
 namespace Karvon.Tests;
 
-/// <summary>Git Changes as in the VS extension: every repository of the solution, trees, and a message written by Claude.</summary>
+/// <summary>Git Changes: every repository of the solution, trees, and a message written by Claude.</summary>
 public class GitChangesTests
 {
     static string Output(string dir, params string[] args)

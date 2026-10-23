@@ -734,7 +734,7 @@ public partial class MainWindow : Window, IDialogService
         }
         if (path is not null)
             items.Add(Item("Copy Full Path", () => _ = Clipboard?.SetTextAsync(path)));
-        // Ask Claude: the file, folder, project or solution (its folder) as an @mention in the prompt, as in the VS extension.
+        // Ask Claude: the file, folder, project or solution (its folder) as an @mention in the prompt.
         var mention = node.Kind switch
         {
             NodeKind.File or NodeKind.Folder => path,

@@ -4,8 +4,8 @@ using System.Text.RegularExpressions;
 namespace Karvon.Claude;
 
 /// <summary>
-/// The Claude Code panel's language (Karvon's and the Visual Studio extension's): English (the texts as written) or Uzbek. Keys are the English texts themselves, so anything
-/// without a translation shows in English. Texts the shared view model builds ("Working... (3s)", "Read 12 lines")
+/// The Claude Code panel's language: English (the texts as written) or Uzbek. Keys are the English texts themselves, so anything
+/// without a translation shows in English. Texts the view model builds ("Working... (3s)", "Read 12 lines")
 /// go through <see cref="Translate"/>, which also knows their patterns.
 /// </summary>
 public sealed class ClaudeLanguage : INotifyPropertyChanged
@@ -341,7 +341,7 @@ public sealed class ClaudeLanguage : INotifyPropertyChanged
         ["Claude stopped: the maximum number of turns was reached."] = "Claude to‘xtadi: navbatlar soni chegarasiga yetildi.",
         ["Claude Code reported an error."] = "Claude Code xato haqida xabar berdi.",
 
-        // Karvon's Claude Code panel (the texts that differ from the Visual Studio extension's).
+        // The panel's own texts: its prompt, welcome, menus.
         ["Ask Claude to edit, fix or explain... (/ for commands, @ for files)"] = "Claude’dan tahrirlash, tuzatish yoki tushuntirishni so‘rang... (/ — buyruqlar, @ — fayllar)",
         ["Claude Code works in your solution folder: it can read and edit files, run commands and explain code. You approve each edit unless you choose to edit automatically."] =
             "Claude Code solution papkangizda ishlaydi: fayllarni o‘qiydi va tahrirlaydi, buyruqlarni bajaradi va kodni tushuntiradi. Avtomatik tahrirlashni tanlamaguningizcha har bir tahrirni o‘zingiz tasdiqlaysiz.",

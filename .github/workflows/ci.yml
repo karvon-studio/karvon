@@ -1,13 +1,13 @@
 name: CI
 
-# Documentation, screenshots and the Visual Studio extension (built by vsix.yml) do not touch the Linux build.
+# Documentation and screenshots do not touch the Linux build.
 on:
   push:
     branches: [main]
-    paths-ignore: ['**.md', 'docs/**', 'src/Karvon.VisualStudio/**', '.github/workflows/vsix.yml', '.github/workflows/release.yml', '.github/workflows/platforms.yml']
+    paths-ignore: ['**.md', 'docs/**', '.github/workflows/release.yml', '.github/workflows/platforms.yml']
   pull_request:
     branches: [main]
-    paths-ignore: ['**.md', 'docs/**', 'src/Karvon.VisualStudio/**', '.github/workflows/vsix.yml', '.github/workflows/release.yml', '.github/workflows/platforms.yml']
+    paths-ignore: ['**.md', 'docs/**', '.github/workflows/release.yml', '.github/workflows/platforms.yml']
 
 # A newer push to the same branch makes an older run pointless.
 concurrency:
