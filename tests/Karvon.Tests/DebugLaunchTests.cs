@@ -251,8 +251,8 @@ public class DebugLaunchTests
     public async Task F5_debugs_a_page_in_chrome_with_js_debug()
     {
         var path = string.Join(Path.PathSeparator, Karvon.Build.NodeLocator.DirectoryOffPath() ?? "", Environment.GetEnvironmentVariable("PATH") ?? "");
-        Assert.SkipUnless(Environment.GetEnvironmentVariable("KARVON_TYPESCRIPT_LIVE") == "1" && TaskVariables.Find("node", path, "/") is not null
-            && (TaskVariables.Find("google-chrome", path, "/") ?? TaskVariables.Find("chromium", path, "/")) is not null,
+        var chrome = TaskVariables.Find("google-chrome", path, "/") ?? TaskVariables.Find("chromium", path, "/");
+        Assert.SkipUnless(Environment.GetEnvironmentVariable("KARVON_TYPESCRIPT_LIVE") == "1" && TaskVariables.Find("node", path, "/") is not null && chrome is not null,
             "Set KARVON_TYPESCRIPT_LIVE=1, with Node.js and Chrome installed, to debug a page in Chrome with js-debug.");
         var dir = NewFolder();
         var script = Path.Combine(dir, "app.js");
@@ -264,11 +264,13 @@ public class DebugLaunchTests
             document.title = "total " + total([3, 4, 5]);
             """);
         File.WriteAllText(Path.Combine(dir, "index.html"), "<!DOCTYPE html>\n<html><head><title>shop</title></head><body><script src=\"app.js\"></script></body></html>\n");
-        // A browser of its own (js-debug's profile, not the user's), and no window: headless.
-        File.WriteAllText(VsCodeLaunch.FileOf(dir), """
+        // A browser of its own (js-debug's profile, not the user's), and no window: headless; the Chrome found, as a CI
+        // machine (no sandbox there) has it.
+        File.WriteAllText(VsCodeLaunch.FileOf(dir), $$"""
             { "configurations": [
               { "name": "Page in Chrome", "type": "chrome", "request": "launch", "url": "file://${workspaceFolder}/index.html", "webRoot": "${workspaceFolder}",
-                "runtimeArgs": ["--headless=new", "--no-first-run", "--no-default-browser-check"] }
+                "runtimeExecutable": {{System.Text.Json.JsonSerializer.Serialize(chrome)}},
+                "runtimeArgs": ["--headless=new", "--no-first-run", "--no-default-browser-check", "--no-sandbox"] }
             ] }
             """);
         var vm = NewViewModel();
