@@ -307,6 +307,7 @@ public partial class MainViewModel : ObservableObject
             }
 
             Solution = solution;
+            AddWorkspaceProjects(solution);
             NoteStructureRead(solution);
             ExplorerRoots.Add(solution.Root);
             Settings.AddRecent(path);

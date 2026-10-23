@@ -251,4 +251,40 @@ public class WorkspaceTaskTests
         Assert.True(await vm.CloseSolutionCoreAsync());
         window.Close();
     }
+
+    [AvaloniaFact]
+    public async Task A_solution_shows_its_frontend_beside_its_projects()
+    {
+        var sln = SolutionExplorerTests.CopySample();
+        var dir = Path.GetDirectoryName(sln)!;
+        // A frontend beside the projects (a package of its own in it), and one in a project's folder, which shows there.
+        Directory.CreateDirectory(Path.Combine(dir, "frontend", "src"));
+        File.WriteAllText(Path.Combine(dir, "frontend", "package.json"), """{ "name": "@shop/web", "scripts": { "dev": "vite" } }""");
+        File.WriteAllText(Path.Combine(dir, "frontend", "pnpm-lock.yaml"), "");
+        File.WriteAllText(Path.Combine(dir, "frontend", "src", "main.ts"), "export {};");
+        Directory.CreateDirectory(Path.Combine(dir, "frontend", "node_modules", "vite"));
+        Directory.CreateDirectory(Path.Combine(dir, "frontend", "packages", "ui"));
+        File.WriteAllText(Path.Combine(dir, "frontend", "packages", "ui", "package.json"), "{}");
+        Directory.CreateDirectory(Path.Combine(dir, "Web", "ClientApp"));
+        File.WriteAllText(Path.Combine(dir, "Web", "ClientApp", "package.json"), "{}");
+        var vm = NewViewModel();
+        var window = new MainWindow { DataContext = vm, Width = 1280, Height = 800 };
+        window.Show();
+        await vm.OpenSolutionAsync(sln);
+
+        var root = vm.ExplorerRoots.Single();
+        var frontend = root.Children.Single(n => n.WorkspaceProject is not null);
+        Assert.Equal(("frontend (pnpm)", NodeKind.Folder, Path.Combine(dir, "frontend")), (frontend.DisplayName, frontend.Kind, frontend.Path));
+        Assert.Equal("material:nodejs", frontend.ThemeIcon);
+        frontend.IsExpanded = true;
+        Assert.Equal(["packages", "src", "package.json", "pnpm-lock.yaml"], frontend.Children.Select(n => n.Name));
+        // Its scripts are tasks of the solution too.
+        Assert.Contains("pnpm: dev - frontend", vm.WorkspaceTasks.Select(t => t.Name));
+
+        // The solution read again keeps it, once.
+        await vm.ReloadSolutionAsync();
+        Assert.Single(vm.ExplorerRoots.Single().Children, n => n.WorkspaceProject is not null);
+        Assert.True(await vm.CloseSolutionCoreAsync());
+        window.Close();
+    }
 }

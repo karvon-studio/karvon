@@ -97,6 +97,12 @@ public abstract partial class KarvonModule : ObservableObject, IDisposable, IAsy
     /// </summary>
     public virtual IReadOnlyList<WorkspaceTask> WorkspaceTasks(string workspace) => [];
 
+    /// <summary>
+    /// The projects of its workload it finds in a folder (its package.json folders): in a solution, Solution Explorer shows
+    /// those that no .NET project holds beside the solution's. Quick and without side effects, as the tasks are.
+    /// </summary>
+    public virtual IReadOnlyList<WorkspaceProject> WorkspaceProjects(string workspace) => [];
+
     /// <summary>The file names its tasks come from ("package.json"): saving one reads the tasks again.</summary>
     public virtual IReadOnlyList<string> WorkspaceTaskFiles => [];
 

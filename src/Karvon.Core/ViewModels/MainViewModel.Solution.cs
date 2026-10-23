@@ -66,6 +66,7 @@ public partial class MainViewModel
         if (profile is not null && LaunchProfiles.Contains(profile))
             LaunchProfile = profile;
         _targetPaths.Clear();
+        AddWorkspaceProjects(reloaded);
         NoteStructureRead(reloaded);
         reloaded.Root.RefreshGitBadges();
         ExplorerRoots.Clear();
@@ -83,6 +84,40 @@ public partial class MainViewModel
         var added = reloaded.Projects.Where(p => solution.Projects.All(known => known.FilePath != p.FilePath)).Select(p => p.FilePath).ToList();
         if (_lsp is { } lsp && added.Count > 0)
             await lsp.OpenProjectsAsync(added);
+    }
+
+    /// <summary>
+    /// The modules' projects beside the solution's (a frontend's package.json folder) under the solution, after its own:
+    /// those that no project of the solution holds in its folder, where they show already.
+    /// </summary>
+    void AddWorkspaceProjects(SolutionInfo solution)
+    {
+        if (solution.IsFolder)
+            return;
+        foreach (var module in Modules)
+        {
+            IReadOnlyList<Modules.WorkspaceProject> projects;
+            try
+            {
+                projects = module.WorkspaceProjects(solution.Directory);
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Text.Json.JsonException)
+            {
+                continue;
+            }
+            foreach (var project in projects)
+            {
+                if (solution.Projects.Any(p => project.Directory == p.Directory || project.Directory.StartsWith(p.Directory + Path.DirectorySeparatorChar, StringComparison.Ordinal))
+                    || solution.Root.Children.Any(n => n.WorkspaceProject?.Directory == project.Directory))
+                    continue;
+                solution.Root.Children.Add(new ExplorerNode(NodeKind.Folder, project.Name, project.Directory,
+                    () => SolutionLoader.DirectoryChildren(project.Directory, isProjectRoot: true))
+                {
+                    Detail = project.Kind is { Length: > 0 } kind ? $"({kind})" : null,
+                    WorkspaceProject = project,
+                });
+            }
+        }
     }
 
     void NoteStructureRead(SolutionInfo solution)

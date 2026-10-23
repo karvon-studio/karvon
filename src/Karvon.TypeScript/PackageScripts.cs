@@ -24,6 +24,36 @@ public static class PackageScripts
         return tasks;
     }
 
+    /// <summary>
+    /// The folder's packages (frontend/, apps/web/...) as projects: its own package.json is the folder itself, and a
+    /// package in another one's folder is in that one's files.
+    /// </summary>
+    public static IReadOnlyList<WorkspaceProject> Projects(string workspace)
+    {
+        var projects = new List<WorkspaceProject>();
+        foreach (var file in PackageFiles(workspace))
+        {
+            var dir = Path.GetDirectoryName(file)!;
+            if (dir == workspace.TrimEnd(Path.DirectorySeparatorChar) || projects.Any(p => dir.StartsWith(p.Directory + Path.DirectorySeparatorChar, StringComparison.Ordinal)))
+                continue;
+            JsonElement package;
+            try
+            {
+                using var doc = JsonDocument.Parse(File.ReadAllText(file), Options);
+                package = doc.RootElement.Clone();
+            }
+            catch (JsonException)
+            {
+                package = default;
+            }
+            projects.Add(new WorkspaceProject(Path.GetFileName(dir), dir, file)
+            {
+                Kind = package.ValueKind == JsonValueKind.Object ? PackageManager(workspace, dir, package) : "npm",
+            });
+        }
+        return projects;
+    }
+
     /// <summary>The folder's package.json, then its packages' (frontend/, apps/web/...), in order.</summary>
     static IEnumerable<string> PackageFiles(string workspace)
     {

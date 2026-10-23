@@ -41,6 +41,9 @@ public partial class ExplorerNode : ObservableObject
     public string? Detail { get; init; }
     public ProjectInfo? Project { get; init; }
 
+    /// <summary>A module's project beside the solution's (a package.json folder): a folder, its icon that of its file.</summary>
+    public Modules.WorkspaceProject? WorkspaceProject { get; init; }
+
     /// <summary>
     /// The solution folder this node is or is in, by its path in the solution ("/Solution Items/", "/src/libs/"): a
     /// solution folder's own, a project's or a solution item's parent. Null for everything else.
@@ -121,6 +124,7 @@ public partial class ExplorerNode : ObservableObject
     public string ThemeIcon => Kind switch
     {
         NodeKind.File => "material:" + Views.MaterialIcons.ForFile(Name),
+        NodeKind.Folder when WorkspaceProject is { } project => "material:" + Views.MaterialIcons.ForFile(project.File),
         NodeKind.Folder or NodeKind.SolutionFolder => "material:" + Views.MaterialIcons.ForFolder(Name, IsExpanded),
         NodeKind.Solution when IsFolderRoot => "material:" + Views.MaterialIcons.ForFolder(Name, IsExpanded),
         NodeKind.Solution when Path is not null => "material:" + Views.MaterialIcons.ForFile(Path),

@@ -27,6 +27,9 @@ public sealed class TypeScriptModule : KarvonModule
 
     public override IReadOnlyList<string> WorkspaceTaskFiles => ["package.json"];
 
+    /// <summary>A solution's frontends: the package.json folders beside its projects.</summary>
+    public override IReadOnlyList<WorkspaceProject> WorkspaceProjects(string workspace) => PackageScripts.Projects(workspace);
+
     /// <summary>F5: js-debug, for launch.json's node, chrome and msedge configurations and the package.json scripts.</summary>
     public override IReadOnlyList<DebuggerInfo> Debuggers =>
         [new("js-debug", $"the JavaScript debugger (js-debug {JsDebugLocator.Version})", JsDebugger.Types, StartDebuggerAsync)];

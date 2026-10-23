@@ -54,7 +54,8 @@ TypeScript 7 (Apache-2.0, its own language server; no Node.js needed) when the f
   (Ctrl+Shift+B) runs the build task with its errors in the Error List, Run All Tests the test task; Build > Run Task
   runs any of them, a watch beside the rest. The toolbar chooses what starts: a `.vscode/launch.json` configuration (F5
   debugs it with the debugger of its type, after its `preLaunchTask`; Ctrl+F5 runs it without) or a run task (dev,
-  start...: Ctrl+F5 runs it, and F5 debugs a `package.json` script with every node process it starts).
+  start...: Ctrl+F5 runs it, and F5 debugs a `package.json` script with every node process it starts). A solution shows
+  the `package.json` folders beside its projects (a frontend) in Solution Explorer, and their scripts in Run Task.
 - **Build and run**: Build / Rebuild / Clean, Error List, launch profiles, Ctrl+F5; offers to trust the ASP.NET Core
   HTTPS development certificate.
 - **Debug** (F5; netcoredbg for .NET, js-debug for Node.js and TypeScript through its source maps): breakpoints that
