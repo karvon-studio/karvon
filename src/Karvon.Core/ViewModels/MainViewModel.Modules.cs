@@ -73,6 +73,26 @@ public partial class MainViewModel : IWorkbench
         }
     }
 
+    /// <summary>
+    /// Tools > Modules > OK: the modules that are off from now on (it takes effect when Karvon Studio starts again), and
+    /// what a module turned on downloads, downloaded now, as Visual Studio installs a workload's components (their log in
+    /// Output (Modules)). False when one of them could not be installed (it downloads the first time it is needed).
+    /// </summary>
+    public async Task<bool> ChangeModulesAsync(IReadOnlyList<string> disabled, CancellationToken ct = default)
+    {
+        var turnedOn = Settings.DisabledModules.Except(disabled).ToHashSet(StringComparer.Ordinal);
+        Settings.DisabledModules = [.. disabled];
+        Settings.Save();
+        var installed = true;
+        foreach (var module in AllModules.Where(m => turnedOn.Contains(m.Id)))
+            foreach (var component in module.Components.Where(c => !c.IsInstalled()))
+            {
+                ((IWorkbench)this).Status($"Installing {component.Name} {component.Version} ({module.Name})...");
+                installed &= await InstallComponentAsync(component, ct);
+            }
+        return installed;
+    }
+
     /// <summary>New Project's templates: each module's (.NET's, a Go module...), in the modules' order.</summary>
     public IReadOnlyList<Templates.ProjectTemplateSource> ProjectTemplateSources =>
         [.. Modules.Select(m => new Templates.ProjectTemplateSource(m.Name, m.LoadProjectTemplatesAsync))];

@@ -194,7 +194,7 @@ public partial class MainWindow
             Children =
             {
                 new ScrollViewer { Content = list, MaxHeight = 520 },
-                new TextBlock { Text = "Modules turned on or off, and components removed, change when Karvon Studio starts again.", Foreground = gray },
+                new TextBlock { Text = "Modules turned on or off, and components removed, change when Karvon Studio starts again; a module turned on downloads its components now.", Foreground = gray, TextWrapping = TextWrapping.Wrap, MaxWidth = 560 },
             },
         };
         if (await CreateDialog("Modules", body, ("OK", true), ("Cancel", false)).ShowDialog<bool?>(this) != true)
@@ -202,9 +202,11 @@ public partial class MainWindow
         var disabled = boxes.Where(b => b.Box.IsChecked != true).Select(b => b.Module.Id).ToList();
         if (disabled.Order().SequenceEqual(vm.Settings.DisabledModules.Order()))
             return;
-        vm.Settings.DisabledModules = disabled;
-        vm.Settings.Save();
-        ((IWorkbench)vm).Status("The modules change when Karvon Studio starts again.");
+        // A module turned on gets what it downloads now; the modules change when Karvon Studio starts again.
+        var installed = await vm.ChangeModulesAsync(disabled);
+        ((IWorkbench)vm).Status(installed
+            ? "The modules change when Karvon Studio starts again."
+            : "The modules change when Karvon Studio starts again; a component could not be installed (see Output, Modules).");
     }
 
     /// <summary>A component of a module in Tools > Modules: what it is, whether it is there, and Install, Remove or Keep.</summary>

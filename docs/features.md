@@ -17,8 +17,8 @@ What Karvon Studio does, in detail; the [README](../README.md) has the short ver
 | Kotlin | kotlin-lsp (JetBrains') | kotlin-lsp's | Gradle (its import, and `gradle run`) | Gradle's `test` |
 
 Working on solutions needs the .NET 10 SDK; each language needs its own toolchain (Node.js, Python, Go, Rust, a C and
-C++ compiler, a JDK). The language servers and debuggers download the first time they are needed, and Tools > Modules
-lists them: `roslyn-language-server` and `netcoredbg` (both MIT); TypeScript 7 (Apache-2.0, its own language server; no
+C++ compiler, a JDK). The language servers and debuggers download the first time they are needed (or when their module
+is turned on in Tools > Modules, which lists them): `roslyn-language-server` and `netcoredbg` (both MIT); TypeScript 7 (Apache-2.0, its own language server; no
 Node.js needed); js-debug, VS Code's HTML, CSS and JSON servers and its ESLint server (MIT; they run on Node.js, and
 ESLint runs a folder's own ESLint only where you let it); Pyright and debugpy (MIT); rust-analyzer, clangd and CodeLLDB;
 jdtls, java-debug and JUnit's console launcher; JetBrains' kotlin-lsp (about 350 MB, with its own Java runtime; partly

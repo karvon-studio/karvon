@@ -44,6 +44,27 @@ public class ModuleComponentTests
     }
 
     [AvaloniaFact]
+    public async Task A_module_turned_on_downloads_its_components_then()
+    {
+        // As Visual Studio installs a workload's components: Karvon's module turned on gets them now (once), one turned
+        // off gets none.
+        var root = Path.Combine(Path.GetTempPath(), "karvon-components-" + Guid.NewGuid().ToString("N"));
+        var module = new FakeComponentModule(Path.Combine(root, "fake", "1.0"));
+        var vm = NewViewModel(modules: [.. Karvon.BuiltInModules.Create(), module]);
+        vm.Settings.DisabledModules = ["fake-component"];
+        Assert.True(await vm.ChangeModulesAsync(["fake-component", "kotlin"]));
+        Assert.Equal(0, module.Installs);
+        Assert.True(await vm.ChangeModulesAsync(["kotlin"]));
+        Assert.Equal(1, module.Installs);
+        Assert.Equal(["kotlin"], vm.Settings.DisabledModules);
+        Assert.Contains("Downloading the fake server...", ((IWorkbench)vm).Output("Modules").Document.Text);
+        Assert.True(await vm.ChangeModulesAsync(["kotlin"]));
+        Assert.Equal(1, module.Installs);
+        vm.Settings.DisabledModules = [];
+        Directory.Delete(root, recursive: true);
+    }
+
+    [AvaloniaFact]
     public async Task A_component_installs_now_and_goes_when_Karvon_starts_again()
     {
         var root = Path.Combine(Path.GetTempPath(), "karvon-components-" + Guid.NewGuid().ToString("N"));
