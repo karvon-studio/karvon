@@ -69,7 +69,7 @@ A signed and notarized `.dmg`, Homebrew; .NET debugging on Apple Silicon (netcor
 
 ## 4. More languages and Windows
 
-Python (Pyright's language server and debugpy, with the workspace's .venv, in now; next pytest, uv), Go (gopls, Delve, `go test`), Rust and C/C++ (rust-analyzer, clangd,
+Python (Pyright's language server, debugpy and pytest in Test Explorer, with the workspace's .venv, in now; next uv), Go (gopls, Delve, `go test`), Rust and C/C++ (rust-analyzer, clangd,
 lldb-dap), Java and Kotlin (jdtls, java-debug, Maven, Gradle); a Windows release.
 
 ## What a language needs to be done

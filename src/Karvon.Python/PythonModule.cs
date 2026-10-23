@@ -16,7 +16,7 @@ public sealed class PythonModule : KarvonModule
     public override string Description =>
         "Pyright's language server for .py files: errors as you type, completion, hover, go to definition, references and "
         + "rename, installed the first time one of them opens (it runs on Node.js); F5 debugs a launch.json python configuration "
-        + "with debugpy. Both use the workspace's interpreter (its .venv first).";
+        + "with debugpy, and Test Explorer runs and debugs pytest's tests. They use the workspace's interpreter (its .venv first).";
 
     public override IReadOnlyList<LanguageServerInfo> LanguageServers =>
         [new("pyright", "Python language server (Pyright)", PyrightServer.Serves, StartAsync)];
@@ -34,6 +34,10 @@ public sealed class PythonModule : KarvonModule
             Description = "debugpy (MIT), Microsoft's Python debugger, from PyPI; the workspace's interpreter runs it.",
         },
     ];
+
+    /// <summary>Test Explorer: pytest's tests, when the workspace tests with pytest.</summary>
+    public override IReadOnlyList<Testing.TestFramework> TestFrameworks(TestFrameworkStart start) =>
+        PytestFramework.IsUsedIn(start.Workspace) ? [new PytestFramework(start)] : [];
 
     /// <summary>F5: debugpy, for launch.json's debugpy and python configurations.</summary>
     public override IReadOnlyList<DebuggerInfo> Debuggers =>

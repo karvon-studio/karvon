@@ -120,4 +120,85 @@ public class PythonTests
             Directory.Delete(dir, recursive: true);
         }
     }
+
+    [AvaloniaFact]
+    public async Task Pytest_finds_runs_and_debugs_the_tests()
+    {
+        Assert.SkipUnless(Environment.GetEnvironmentVariable("KARVON_PYTHON_LIVE") == "1", "Set KARVON_PYTHON_LIVE=1 to install pytest from PyPI and run it.");
+        var python = PythonEnvironment.Interpreter("/", Environment.GetEnvironmentVariable("PATH") ?? "");
+        Assert.SkipUnless(python is not null, "Python is not installed.");
+        var dir = Path.Combine(Path.GetTempPath(), "karvon-pytest-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(Path.Combine(dir, "tests"));
+        try
+        {
+            // The workspace's .venv, with pytest in it, as its user would have it.
+            var output = new List<string>();
+            using (var venv = Karvon.Build.ProcessRunner.Start(python!, ["-m", "venv", ".venv"], dir, output.Add))
+                Assert.SkipUnless(await venv.WaitAsync(TestContext.Current.CancellationToken) == 0, "No venv: " + string.Join("\n", output));
+            var pip = Path.Combine(PythonEnvironment.VirtualEnvironmentBin(dir)!, OperatingSystem.IsWindows() ? "python.exe" : "python");
+            using (var install = Karvon.Build.ProcessRunner.Start(pip, ["-m", "pip", "install", "--quiet", "--disable-pip-version-check", "pytest"], dir, output.Add))
+                Assert.True(await install.WaitAsync(TestContext.Current.CancellationToken) == 0, string.Join("\n", output));
+            var test = Path.Combine(dir, "tests", "test_shapes.py");
+            File.WriteAllText(test, """
+                import pytest
+
+                def area(w, h):
+                    return w * h
+
+                class TestArea:
+                    def test_multiplies(self):
+                        assert area(3, 4) == 12
+
+                    @pytest.mark.parametrize("w", [0, 1])
+                    def test_of_zero(self, w):
+                        assert area(w, 0) == 1
+
+                @pytest.mark.skip(reason="later")
+                def test_later():
+                    pass
+                """);
+            var vm = NewViewModel();
+            var window = new MainWindow { DataContext = vm, Width = 1280, Height = 800 };
+            window.Show();
+            await vm.OpenSolutionAsync(dir);
+
+            // Run All Tests: found (where they are) and run by the .venv's pytest.
+            await vm.RunAllTestsCommand.ExecuteAsync(null);
+            Assert.True(vm.TestSummary.StartsWith("Test run finished: 4 test(s) (1 Passed, 2 Failed, 1 Skipped)", StringComparison.Ordinal), vm.TestSummary + "\n" + vm.TestsOutput.Document.Text);
+            var file = Assert.Single(Assert.Single(vm.TestRoots).Children);
+            Assert.Equal((Testing.TestNodeKind.Namespace, "tests/test_shapes.py"), (file.Kind, file.Name));
+            var area = file.Children.Single(n => n.Name == "TestArea");
+            var multiplies = area.Children.Single(n => n.Name == "test_multiplies");
+            Assert.Equal((Testing.TestState.Passed, test, 7), (multiplies.State, multiplies.SourcePath, multiplies.Line));
+            var ofZero = area.Children.Single(n => n.Name == "test_of_zero");
+            Assert.Equal((Testing.TestNodeKind.Method, 2), (ofZero.Kind, ofZero.Children.Count));
+            var zero = ofZero.Children.Single(n => n.Name == "test_of_zero[0]");
+            Assert.Equal(Testing.TestState.Failed, zero.State);
+            Assert.Equal("assert 0 == 1\n +  where 0 = area(0, 0)", zero.ErrorMessage);
+            var later = file.Children.Single(n => n.Name == "test_later");
+            Assert.Equal((Testing.TestState.Skipped, "Skipped: later"), (later.State, later.ErrorMessage));
+
+            // Run Failed Tests: those two only, by their node ids.
+            await vm.RunFailedTestsCommand.ExecuteAsync(null);
+            Assert.Equal((Testing.TestState.Passed, Testing.TestState.Failed), (multiplies.State, zero.State));
+            Assert.Contains("tests/test_shapes.py::TestArea::test_of_zero[0]", vm.TestsOutput.Document.Text);
+
+            // Debug Selected Tests: pytest under debugpy, stopped in the test.
+            vm.SelectedTest = multiplies;
+            vm.Breakpoints.Toggle(test, 8);
+            var debugging = vm.DebugSelectedTestsCommand.ExecuteAsync(null);
+            await WaitUntil(() => vm.Mode == ViewModels.DebugMode.Break && vm.CallStack.Count > 0, TimeSpan.FromSeconds(60));
+            Assert.True(vm.Mode == ViewModels.DebugMode.Break, vm.DebugOutput.Document.Text + "\n" + vm.TestsOutput.Document.Text);
+            Assert.Equal((test, 8), (vm.CallStack[0].SourcePath, vm.CallStack[0].Line));
+            await vm.StartDebuggingCommand.ExecuteAsync(null);
+            await debugging.WaitAsync(TimeSpan.FromSeconds(60), TestContext.Current.CancellationToken);
+            Assert.Equal(Testing.TestState.Passed, multiplies.State);
+            Assert.True(await vm.CloseSolutionCoreAsync());
+            window.Close();
+        }
+        finally
+        {
+            Directory.Delete(dir, recursive: true);
+        }
+    }
 }

@@ -13,7 +13,7 @@ Each module is a project of its own, referencing `Karvon.Core`. The core referen
 - Skills (`src/Karvon.Skills`, which uses MCP Servers);
 - TypeScript and JavaScript (`src/Karvon.TypeScript`): a workload, so the example of one: a language server, its
   tasks (`package.json` scripts), a debugger (js-debug) and test frameworks (Vitest, Jest);
-- Python (`src/Karvon.Python`): Pyright's language server, with the workspace's interpreter;
+- Python (`src/Karvon.Python`): Pyright's language server, debugpy and pytest, with the workspace's interpreter;
 - Claude Code (`src/Karvon.Claude`).
 
 .NET still lives in the core and is to become a workload module.
