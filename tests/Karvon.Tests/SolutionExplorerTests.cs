@@ -395,7 +395,7 @@ public class SolutionExplorerTests
             offered = choices;
             return [.. choices.Where(c => c.IsReferenced).Select(c => c.Path), lib];
         };
-        Assert.True(await vm.EditProjectReferencesAsync(Node("Web").Project));
+        Assert.True(await vm.Module<Karvon.DotNet.DotNetModule>()!.EditProjectReferencesAsync(Node("Web").Project));
         Assert.Equal(["Components", "Lib", "Tests"], offered.Select(c => c.Name).Order());
         Assert.Contains(lib, vm.Solution!.Projects.Single(p => p.Name == "Web").ProjectReferences);
         Assert.True(Node("Web").IsExpanded);
@@ -408,7 +408,7 @@ public class SolutionExplorerTests
         Assert.Equal(library, Node("libs", "Library").Path);
         Assert.Contains(library, vm.Solution!.Projects.Single(p => p.Name == "Web").ProjectReferences);
         Assert.Contains(@"..\Lib\Library.csproj", File.ReadAllText(Path.Combine(dir, "Web", "Web.csproj")));
-        Assert.True(await vm.RemoveProjectReferenceAsync(vm.Solution!.Projects.Single(p => p.Name == "Web"), library));
+        Assert.True(await vm.Module<Karvon.DotNet.DotNetModule>()!.RemoveProjectReferenceAsync(vm.Solution!.Projects.Single(p => p.Name == "Web"), library));
         Assert.DoesNotContain(library, vm.Solution!.Projects.Single(p => p.Name == "Web").ProjectReferences);
 
         // Remove: out of the solution after asking; the files stay.

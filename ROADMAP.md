@@ -20,8 +20,8 @@ it does today all along.
   build), Roslyn (a solution's language server; in now: the module's), and last the solution itself (a module opens
   .sln, .slnx and .csproj files; the core opens folders; in now: they are the module's to open, read and change, a
   project file is the module's to read, F5 on the startup project starts the module's launch configuration of it, and
-  a project's Pack and Publish are the module's menu items; next, the startup project's and launch profile's toolbar,
-  and the Reference Manager).
+  a project's Pack, Publish, project references (the Reference Manager), New EditorConfig and .gitignore are the
+  module's; next, the startup project's and launch profile's toolbar).
 - Modules can be turned on and off; everything still ships in one package.
 
 ## 0b. Languages

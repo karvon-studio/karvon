@@ -349,18 +349,6 @@ public partial class MainViewModel
         return files;
     }
 
-    /// <summary>Add > New EditorConfig: the SDK's .editorconfig for .NET in the folder, opened.</summary>
-    public async Task<string?> AddEditorConfigAsync(ExplorerNode? node)
-    {
-        if (FolderOf(node ?? ExplorerTarget()) is not { } folder)
-            return null;
-        var path = Path.Combine(folder, ".editorconfig");
-        if (!File.Exists(path) && !await RunDotnetAsync(["new", "editorconfig", "--output", folder]))
-            return null;
-        OpenDocument(path);
-        return path;
-    }
-
     // ---- Remove and rename -------------------------------------------------------------------------------------
 
     /// <summary>Whether Remove (and not Delete) is what Del does: the node is the solution's (a project, a solution folder, a solution item).</summary>
@@ -516,39 +504,9 @@ public partial class MainViewModel
     [GeneratedRegex(@"(<ProjectReference\s+Include\s*=\s*"")([^""]+)("")")]
     private static partial Regex ProjectReferenceInclude();
 
-    // ---- Dependencies ------------------------------------------------------------------------------------------
-
-    /// <summary>Add > Project Reference...: the Reference Manager's projects, then dotnet add / remove reference for what changed.</summary>
-    public async Task<bool> EditProjectReferencesAsync(ProjectInfo? project)
-    {
-        if (Dialogs is null || Solution is not { } solution || project is null)
-            return false;
-        var candidates = solution.Projects.Where(p => p.FilePath != project.FilePath)
-            .Select(p => new ProjectReferenceChoice(p.Name, p.FilePath, project.ProjectReferences.Contains(p.FilePath)))
-            .ToList();
-        if (await Dialogs.ChooseProjectReferencesAsync(project.Name, candidates) is not { } chosen)
-            return false;
-        var added = chosen.Where(p => !project.ProjectReferences.Contains(p)).ToList();
-        var removed = candidates.Where(c => c.IsReferenced && !chosen.Contains(c.Path)).Select(c => c.Path).ToList();
-        if (added.Count == 0 && removed.Count == 0)
-            return false;
-        var ok = (added.Count == 0 || await RunDotnetAsync(["add", project.FilePath, "reference", .. added]))
-            && (removed.Count == 0 || await RunDotnetAsync(["remove", project.FilePath, "reference", .. removed]));
-        await ReloadSolutionAsync();
-        return ok;
-    }
-
-    /// <summary>Remove on a project reference in Dependencies.</summary>
-    public async Task<bool> RemoveProjectReferenceAsync(ProjectInfo project, string reference)
-    {
-        var ok = await RunDotnetAsync(["remove", project.FilePath, "reference", reference]);
-        await ReloadSolutionAsync();
-        return ok;
-    }
-
     // ---- The solution ------------------------------------------------------------------------------------------
 
-    /// <summary>Create Git Repository: git init in the solution's folder, the SDK's .gitignore for .NET when it has none, then Git Changes.</summary>
+    /// <summary>Create Git Repository: git init in the solution's folder, its languages' .gitignore when it has none, then Git Changes.</summary>
     public async Task<bool> CreateGitRepositoryAsync()
     {
         if (Solution is not { } solution || HasGit)
@@ -559,31 +517,15 @@ public partial class MainViewModel
             SetStatus("git init failed: " + init.Output.Trim());
             return false;
         }
+        // Its languages' .gitignore (.NET's: the SDK's), from the first module that has one for it.
         if (!File.Exists(Path.Combine(solution.Directory, ".gitignore")))
-            await RunDotnetAsync(["new", "gitignore", "--output", solution.Directory]);
+            foreach (var module in Modules)
+                if (await module.AddGitIgnoreAsync(solution))
+                    break;
         CloseGit();
         await OpenGitAsync(solution);
         ShowToolWindow(ToolWindows.GitChanges);
         SetStatus("A Git repository was created in " + solution.Directory);
         return HasGit;
-    }
-
-    /// <summary>The dotnet CLI in the solution's folder, its output in Output (Build); false, with its last line in the status bar, when it failed.</summary>
-    async Task<bool> RunDotnetAsync(IReadOnlyList<string> args)
-    {
-        if (Solution is not { } solution)
-            return false;
-        BuildOutput.Append("> dotnet " + string.Join(' ', args.Select(a => a.Contains(' ') ? $"\"{a}\"" : a)));
-        var last = "";
-        using var runner = ProcessRunner.Start(DotnetCli.Executable, args, solution.Directory, line =>
-        {
-            BuildOutput.Append(line);
-            if (line.Trim().Length > 0)
-                last = line.Trim();
-        });
-        if (await runner.WaitAsync() == 0)
-            return true;
-        SetStatus(last.Length > 0 ? last : $"dotnet {args[0]} failed.");
-        return false;
     }
 }

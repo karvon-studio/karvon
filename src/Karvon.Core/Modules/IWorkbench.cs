@@ -35,6 +35,12 @@ public interface IWorkbench
     /// <summary>A question with Yes and No (and the dialog closed: null), as Karvon asks its own.</summary>
     Task<bool?> ConfirmAsync(string title, string message);
 
+    /// <summary>
+    /// Visual Studio's Reference Manager for a project: the solution's other projects, those it references checked; the
+    /// ones checked when it closes with OK, or null when it was cancelled.
+    /// </summary>
+    Task<IReadOnlyList<string>?> ChooseProjectReferencesAsync(string project, IReadOnlyList<ProjectReferenceChoice> projects);
+
     /// <summary>Tools > Restart Language Server: the workspace's language servers stop, and start again for their files.</summary>
     Task RestartLanguageServersAsync();
 

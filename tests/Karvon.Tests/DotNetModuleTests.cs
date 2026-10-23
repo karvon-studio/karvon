@@ -303,7 +303,7 @@ public class DotNetModuleTests
         var web = vm.ExplorerRoots[0].Children.Single(c => c.Name == "Web");
         Assert.Equal(NodeKind.Folder, web.Kind);
         var add = window.ExplorerMenuItems(web).OfType<MenuItem>().Single(m => (string?)m.Header == "Add");
-        Assert.Equal(["New Item...", "Existing Item...", "New Folder", "New EditorConfig"], Lines(add.Items.OfType<object>()));
+        Assert.Equal(["New Item...", "Existing Item...", "New Folder"], Lines(add.Items.OfType<object>()));
         Assert.Equal(ItemTemplates.General, vm.NewItemTemplates);
         Assert.False(vm.RunAllTestsCommand.CanExecute(null));
         Assert.Empty(vm.ModuleLanguageServers);

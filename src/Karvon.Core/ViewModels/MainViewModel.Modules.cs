@@ -121,6 +121,9 @@ public partial class MainViewModel : IWorkbench
 
     Task<bool?> IWorkbench.ConfirmAsync(string title, string message) => Dialogs?.ConfirmAsync(title, message) ?? Task.FromResult<bool?>(null);
 
+    Task<IReadOnlyList<string>?> IWorkbench.ChooseProjectReferencesAsync(string project, IReadOnlyList<ProjectReferenceChoice> projects) =>
+        Dialogs?.ChooseProjectReferencesAsync(project, projects) ?? Task.FromResult<IReadOnlyList<string>?>(null);
+
     Task IWorkbench.RestartLanguageServersAsync() => RestartLanguageServer();
 
     async Task<int> IWorkbench.RunAsync(WorkspaceTask task, Action<string> output, CancellationToken ct)

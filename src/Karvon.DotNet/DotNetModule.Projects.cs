@@ -1,5 +1,6 @@
 using System.Xml.Linq;
 using Karvon.Build;
+using Karvon.Modules;
 using Karvon.Services;
 using Karvon.Workspace;
 
@@ -112,5 +113,70 @@ public sealed partial class DotNetModule
         {
             return null;
         }
+    }
+
+    /// <summary>Add > Project Reference...: the Reference Manager's projects, then dotnet add / remove reference for what changed.</summary>
+    internal async Task<bool> EditProjectReferencesAsync(ProjectInfo? project)
+    {
+        if (Workbench.Solution is not { } solution || project is null)
+            return false;
+        var candidates = solution.Projects.Where(p => p.FilePath != project.FilePath)
+            .Select(p => new Karvon.ViewModels.ProjectReferenceChoice(p.Name, p.FilePath, project.ProjectReferences.Contains(p.FilePath)))
+            .ToList();
+        if (await Workbench.ChooseProjectReferencesAsync(project.Name, candidates) is not { } chosen)
+            return false;
+        var added = chosen.Where(p => !project.ProjectReferences.Contains(p)).ToList();
+        var removed = candidates.Where(c => c.IsReferenced && !chosen.Contains(c.Path)).Select(c => c.Path).ToList();
+        if (added.Count == 0 && removed.Count == 0)
+            return false;
+        var ok = (added.Count == 0 || await RunDotnetAsync(["add", project.FilePath, "reference", .. added]))
+            && (removed.Count == 0 || await RunDotnetAsync(["remove", project.FilePath, "reference", .. removed]));
+        await Workbench.ReloadSolutionAsync();
+        return ok;
+    }
+
+    /// <summary>Remove on a project reference in Dependencies.</summary>
+    internal async Task<bool> RemoveProjectReferenceAsync(ProjectInfo project, string reference)
+    {
+        var ok = await RunDotnetAsync(["remove", project.FilePath, "reference", reference]);
+        await Workbench.ReloadSolutionAsync();
+        return ok;
+    }
+
+    /// <summary>Add > New EditorConfig: the SDK's .editorconfig for .NET in a folder, opened.</summary>
+    internal async Task<string?> AddEditorConfigAsync(string folder)
+    {
+        var path = Path.Combine(folder, ".editorconfig");
+        if (!File.Exists(path) && !await RunDotnetAsync(["new", "editorconfig", "--output", folder]))
+            return null;
+        Workbench.OpenFile(path);
+        return path;
+    }
+
+    ModuleMenuItem EditorConfigItem(string folder) => new("New EditorConfig", () => AddEditorConfigAsync(folder)) { In = "Add" };
+
+    /// <summary>Create Git Repository's .gitignore for .NET: the SDK's (dotnet new gitignore), in a solution or a folder with .NET in it.</summary>
+    public override async Task<bool> AddGitIgnoreAsync(SolutionInfo solution) =>
+        (!solution.IsFolder || DotNetFolder.Has(solution.Directory))
+        && await RunDotnetAsync(["new", "gitignore", "--output", solution.Directory]);
+
+    /// <summary>The dotnet CLI in the solution's folder, its output in Output (Build); false, with its last line in the status bar, when it failed.</summary>
+    async Task<bool> RunDotnetAsync(IReadOnlyList<string> args)
+    {
+        if (Workbench.Solution is not { } solution)
+            return false;
+        var output = Workbench.Output("Build");
+        output.Append("> dotnet " + string.Join(' ', args.Select(a => a.Contains(' ') ? $"\"{a}\"" : a)));
+        var last = "";
+        using var runner = ProcessRunner.Start(DotnetCli.Executable, args, solution.Directory, line =>
+        {
+            output.Append(line);
+            if (line.Trim().Length > 0)
+                last = line.Trim();
+        });
+        if (await runner.WaitAsync() == 0)
+            return true;
+        Workbench.Status(last.Length > 0 ? last : $"dotnet {args[0]} failed.");
+        return false;
     }
 }

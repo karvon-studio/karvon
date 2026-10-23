@@ -226,6 +226,10 @@ public sealed partial class DotNetModule : KarvonModule
             case NodeKind.Project when node.Project is { } project:
                 return
                 [
+                    // Add > New EditorConfig and Project Reference... (the Reference Manager), before Add's items of the project's kind.
+                    EditorConfigItem(project.Directory),
+                    ModuleMenuItem.Separator with { In = "Add" },
+                    new("Project Reference...", () => EditProjectReferencesAsync(project)) { In = "Add" },
                     // Pack (dotnet pack: its NuGet package in bin/<configuration>) and Publish to a folder (dotnet publish, as
                     // VS's folder profile), after Clean (and Run Tests), as Visual Studio has them.
                     new("Pack", () => Workbench.BuildAsync("pack", project)) { After = project.IsTestProject ? "Run Tests" : "Clean" },
@@ -236,14 +240,38 @@ public sealed partial class DotNetModule : KarvonModule
                 ];
             // A folder of a project.
             case NodeKind.Folder when Workbench.ProjectOf(node) is not null:
-                return AddItems(node);
+                return [EditorConfigItem(node.Path!), .. AddItems(node)];
+            // A folder opened as it is with .NET in it: its folders' New EditorConfig.
+            case NodeKind.Folder or NodeKind.Solution when node.Path is { } folder && (node.Kind == NodeKind.Folder || node.IsFolderRoot)
+                && Workbench.Solution is { IsFolder: true } opened && DotNetFolder.Has(opened.Directory):
+                return [EditorConfigItem(folder)];
             // A language's Dependencies (a package.json folder's) are not .NET's.
             case NodeKind.Dependencies or NodeKind.DependencyGroup or NodeKind.Package when node.Packages is not null:
                 return [];
             case NodeKind.Dependencies or NodeKind.DependencyGroup:
             {
                 var owner = Workbench.ProjectOf(node);
-                return [new("Manage NuGet Packages...", () => ManagePackagesAsync(owner)) { IsEnabled = owner is not null }];
+                return
+                [
+                    .. node.Kind == NodeKind.Dependencies || node.Name == "Projects"
+                        ? [new ModuleMenuItem("Add Project Reference...", () => EditProjectReferencesAsync(owner)) { IsEnabled = owner is not null }]
+                        : Array.Empty<ModuleMenuItem>(),
+                    new("Manage NuGet Packages...", () => ManagePackagesAsync(owner)) { IsEnabled = owner is not null },
+                ];
+            }
+            case NodeKind.ProjectReference when node.Path is { } reference:
+            {
+                var owner = Workbench.ProjectOf(node);
+                return
+                [
+                    new("Open Project File", () =>
+                    {
+                        Workbench.OpenFile(reference);
+                        return Task.CompletedTask;
+                    }),
+                    ModuleMenuItem.Separator,
+                    new("Remove", () => RemoveProjectReferenceAsync(owner!, reference)) { IsEnabled = owner is not null },
+                ];
             }
             case NodeKind.Package:
             {

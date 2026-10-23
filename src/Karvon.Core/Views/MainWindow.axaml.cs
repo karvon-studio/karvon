@@ -596,8 +596,6 @@ public partial class MainWindow : Window, IDialogService
             Item("New Item...", () => _ = vm.AddNewItemAsync(node), "Ctrl+Shift+A"),
             Item("Existing Item...", () => _ = vm.AddExistingItemsAsync(node), "Shift+Alt+A"),
             Item("New Folder", () => vm.AddNewFolder(node)),
-            Item("New EditorConfig", () => _ = vm.AddEditorConfigAsync(node)),
-            .. project is null ? Array.Empty<object>() : [new Separator(), Item("Project Reference...", () => _ = vm.EditProjectReferencesAsync(project))],
         ]);
         // Add on the solution or a solution folder: projects, solution items, solution folders.
         MenuItem SolutionAddMenu() => Menu("Add",
@@ -609,7 +607,6 @@ public partial class MainWindow : Window, IDialogService
             Item("Existing Item...", () => _ = vm.AddExistingItemsAsync(node), "Shift+Alt+A", enabled: inSolution),
             Item("New Solution Folder", () => _ = vm.AddSolutionFolderAsync(node), enabled: inSolution),
         ]);
-        var owner = node.Kind is NodeKind.Dependencies or NodeKind.DependencyGroup or NodeKind.ProjectReference or NodeKind.Framework ? vm.ProjectOf(node) : null;
         switch (node.Kind)
         {
             // A folder opened as it is: its files, as a folder's; none of a solution's commands.
@@ -664,15 +661,6 @@ public partial class MainWindow : Window, IDialogService
                 items.Add(Item("Manage Packages...", () => _ = vm.ManagePackagesAsync(packages)));
                 items.Add(new Separator());
                 items.Add(Item("Remove", () => _ = vm.RemoveDependencyAsync(node), "Delete"));
-                break;
-            case NodeKind.Dependencies or NodeKind.DependencyGroup:
-                if (node.Kind == NodeKind.Dependencies || node.Name == "Projects")
-                    items.Add(Item("Add Project Reference...", () => _ = vm.EditProjectReferencesAsync(owner), enabled: owner is not null));
-                break;
-            case NodeKind.ProjectReference when path is not null:
-                items.Add(Item("Open Project File", () => vm.OpenDocument(path)));
-                items.Add(new Separator());
-                items.Add(Item("Remove", () => _ = vm.RemoveProjectReferenceAsync(owner!, path), enabled: owner is not null));
                 break;
             case NodeKind.Folder when path is not null:
                 // A project beside the solution's (a frontend): it can start with the startup project, as VS's multiple startup projects do.

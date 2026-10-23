@@ -182,6 +182,12 @@ public abstract partial class KarvonModule : ObservableObject, IDisposable, IAsy
     public virtual IReadOnlyList<WorkspaceProject> WorkspaceProjects(string workspace) => [];
 
     /// <summary>
+    /// Create Git Repository's .gitignore, when the workspace has none, for what is its own in it (.NET's: the SDK's
+    /// dotnet new gitignore): whether it wrote one.
+    /// </summary>
+    public virtual Task<bool> AddGitIgnoreAsync(SolutionInfo solution) => Task.FromResult(false);
+
+    /// <summary>
     /// How F5 and Ctrl+F5 start a solution's startup project of its kind: a launch configuration of one of its debuggers
     /// (.NET's: netcoredbg's "dotnet", the project with the launch profile and build configuration chosen on the toolbar).
     /// Null for another's project.
