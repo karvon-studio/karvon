@@ -17,7 +17,8 @@ Each module is a project of its own, referencing `Karvon.Core`. The core referen
 - Go (`src/Karvon.Go`): gopls, Delve, a module's go tasks (with Go's own problem matcher) and go test;
 - Rust (`src/Karvon.Rust`): rust-analyzer, CodeLLDB (which builds a launch configuration's "cargo" first), cargo's tasks;
 - C and C++ (`src/Karvon.Cpp`): clangd, CodeLLDB, CMake's and Make's builds; it and Rust share CodeLLDB (`src/Karvon.Lldb`);
-- Java (`src/Karvon.Java`): jdtls, with java-debug in it (one jdtls for the editor and F5), Maven's and Gradle's builds;
+- Java (`src/Karvon.Java`): jdtls, with java-debug in it (one jdtls for the editor and F5), Maven's and Gradle's builds,
+  JUnit in Test Explorer (on jdtls's class path, by JUnit's console launcher);
 - .NET (`src/Karvon.DotNet`): Roslyn (C# and Razor), the SDK's project templates, C#'s and Razor's Add New Item
   templates, Test Explorer's xUnit, NUnit and MSTest tests (vstest), netcoredbg (F5), dotnet run (Ctrl+F5), dotnet
   build, the development certificate, user secrets, the NuGet Package Manager and Solution Explorer's NuGet commands

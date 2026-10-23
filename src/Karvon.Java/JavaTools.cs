@@ -21,12 +21,34 @@ public static class JavaTools
     public const string JavaDebugVersion = "0.60.0";
     const string JavaDebugSha256 = "f09ebe358a7b08b3c17b21b8d8207b0649acad120eb6f1604dc4f15379f59d66";
 
+    /// <summary>JUnit 5's console launcher, all of the platform in one jar: Test Explorer runs a workspace's tests with it.</summary>
+    public const string JUnitConsoleVersion = "1.14.4";
+    const string JUnitConsoleSha256 = "7c6968cbcaf4301c729f202b23b7d736c5d88be625fc7d27ad5d746146a8bc28";
+
     static string Root(string tool, string version) =>
         Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "karvon", tool, version);
 
     public static string JdtlsRoot => Root("jdtls", JdtlsVersion);
 
     public static string JavaDebugRoot => Root("java-debug", JavaDebugVersion);
+
+    public static string JUnitConsoleRoot => Root("junit", JUnitConsoleVersion);
+
+    /// <summary>The JUnit console launcher's jar, or null.</summary>
+    public static string? FindJUnitConsole() =>
+        Path.Combine(JUnitConsoleRoot, $"junit-platform-console-standalone-{JUnitConsoleVersion}.jar") is var jar && File.Exists(jar) ? jar : null;
+
+    public static async Task<string> EnsureJUnitConsoleAsync(Action<string> log, CancellationToken ct)
+    {
+        if (FindJUnitConsole() is { } existing)
+            return existing;
+        var name = $"junit-platform-console-standalone-{JUnitConsoleVersion}.jar";
+        var bytes = await DownloadAsync($"https://repo1.maven.org/maven2/org/junit/platform/junit-platform-console-standalone/{JUnitConsoleVersion}/{name}",
+            JUnitConsoleSha256, "the JUnit console launcher", log, ct);
+        await InstallAsync(JUnitConsoleRoot, FindJUnitConsole, staging => File.WriteAllBytesAsync(Path.Combine(staging, name), bytes, ct));
+        log($"The JUnit console launcher {JUnitConsoleVersion} installed into {JUnitConsoleRoot}");
+        return FindJUnitConsole() ?? throw new InvalidOperationException("The JUnit console launcher was installed but its jar was not found.");
+    }
 
     static string JavaName => OperatingSystem.IsWindows() ? "java.exe" : "java";
 

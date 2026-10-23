@@ -38,7 +38,7 @@ it does today all along.
 - Claude's IDE tools (`run_build`, `run_tests`, `app_control`, `debug_*`) work for any workload (in now, for a folder's
   tasks and launch configurations).
 - Test Explorer for any workload: a module's test frameworks find and run their tests (in now: .NET's through vstest,
-  Vitest's and Jest's under js-debug, pytest, go test, cargo test and CTest, run or debugged; Debug All Tests runs a
+  Vitest's and Jest's under js-debug, pytest, go test, cargo test, CTest and JUnit, run or debugged; Debug All Tests runs a
   folder's `package.json` test script under js-debug when no framework is known).
 - Mixed repositories: a frontend's `package.json` folder shows as a project beside the solution's (in now, with its
   scripts in Run Task, and Start with the Solution: its dev server runs beside the startup project, as VS's multiple
@@ -83,7 +83,8 @@ Each language is a module (in now unless it says next):
 - Go: gopls, Delve, a module's go build, test, vet and run, go test in Test Explorer.
 - Rust: rust-analyzer, CodeLLDB, a Cargo package's build, check, clippy, test and run, cargo test in Test Explorer.
 - C and C++: clangd, CodeLLDB, CMake's and Make's builds, CTest in Test Explorer.
-- Java: jdtls with java-debug in it, Maven's and Gradle's builds; next JUnit in Test Explorer, then Kotlin.
+- Java: jdtls with java-debug in it, Maven's and Gradle's builds, JUnit (5, and 4) in Test Explorer, run and debugged;
+  next Kotlin.
 
 Then a Windows release.
 

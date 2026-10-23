@@ -18,6 +18,9 @@ public static class JavaDebugger
     {
         var configuration = start.Configuration;
         var ct = start.Cancellation;
+        // An attach to a JVM that waits for it (Test Explorer's tests, a "java" attach configuration): only the server.
+        if (configuration["request"]?.GetValue<string>() == "attach")
+            return await DebugServerAsync(server, ct);
         if (configuration["mainClass"] is not JsonValue main || !main.TryGetValue<string>(out var mainClass) || mainClass.Length == 0)
         {
             var found = await server.ExecuteCommandAsync("vscode.java.resolveMainClass", [new Uri(start.Workspace).AbsoluteUri], ct);
@@ -52,6 +55,11 @@ public static class JavaDebugger
         configuration["console"] = "internalConsole";
         if (JavaTools.FindJava(start.Path) is { } java)
             configuration["javaExec"] ??= java;
+        return await DebugServerAsync(server, ct);
+    }
+
+    static async Task<DebugAdapter> DebugServerAsync(JdtlsServer server, CancellationToken ct)
+    {
         var port = await server.ExecuteCommandAsync("vscode.java.startDebugSession", [], ct);
         if (port.ValueKind != JsonValueKind.Number)
             throw new InvalidOperationException("jdtls did not start java-debug (its plugin may not be loaded).");

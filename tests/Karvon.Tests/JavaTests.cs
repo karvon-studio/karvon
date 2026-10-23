@@ -44,6 +44,134 @@ public class JavaTests
         Directory.Delete(dir, recursive: true);
     }
 
+    const string CalcTest = """
+        package shop;
+
+        import org.junit.jupiter.api.Nested;
+        import org.junit.jupiter.api.Test;
+        import org.junit.jupiter.params.ParameterizedTest;
+        import org.junit.jupiter.params.provider.ValueSource;
+        import static org.junit.jupiter.api.Assertions.assertEquals;
+
+        class CalcTest {
+            @Test
+            void adds() {
+                int sum = 2 + 2;
+                assertEquals(4, sum);
+            }
+
+            @Test
+            void fails() {
+                assertEquals(5, 2 + 2, "two and two");
+            }
+
+            @ParameterizedTest(name = "{0} is positive")
+            @ValueSource(ints = {1, 2, -3})
+            void positive(int n) {
+                assertEquals(true, n > 0);
+            }
+
+            // @Test void commented() {}
+            void helper() {
+            }
+
+            @Nested
+            class Inner {
+                @Test void works() { }
+            }
+        }
+        """;
+
+    [Fact]
+    public void JUnit_tests_are_found_in_the_sources_and_read_from_the_reports()
+    {
+        // The test methods as written: their class's binary name, their line; a helper and a comment are none.
+        Assert.Equal([("shop.CalcTest", "adds", 11), ("shop.CalcTest", "fails", 17), ("shop.CalcTest", "positive", 23), ("shop.CalcTest$Inner", "works", 33)],
+            JUnitFramework.TestsIn(CalcTest));
+        // JUnit 4's, in a class of no package.
+        Assert.Equal([("Legacy", "old", 3)], JUnitFramework.TestsIn("public class Legacy {\n    @org.junit.Test\n    public void old() throws Exception {\n    }\n}\n"));
+
+        // The XML report: a parameterized method failed when a row did; a test the sources did not show comes with it.
+        var reports = Directory.CreateTempSubdirectory("karvon-junit-reports-").FullName;
+        File.WriteAllText(Path.Combine(reports, "TEST-junit-jupiter.xml"), """
+            <testsuite name="JUnit Jupiter">
+              <testcase name="adds()" classname="shop.CalcTest" time="0.002"><system-out><![CDATA[
+            unique-id: [engine:junit-jupiter]/[class:shop.CalcTest]/[method:adds()]
+            display-name: JUnit Jupiter > CalcTest > adds()
+            ]]></system-out></testcase>
+              <testcase name="positive(int)[1]" classname="shop.CalcTest" time="0.001"/>
+              <testcase name="positive(int)[3]" classname="shop.CalcTest" time="0.004">
+                <failure message="expected: &lt;true&gt; but was: &lt;false&gt;" type="org.opentest4j.AssertionFailedError">org.opentest4j.AssertionFailedError: expected
+            	at shop.CalcTest.positive(CalcTest.java:25)</failure>
+              </testcase>
+              <testcase name="later()" classname="shop.CalcTest" time="0"><skipped/></testcase>
+            </testsuite>
+            """);
+        var framework = new JUnitFramework(new Karvon.Modules.TestFrameworkStart(reports, "", _ => { }), _ => throw new InvalidOperationException());
+        var results = framework.Results(reports).ToDictionary(r => r.Id);
+        Assert.Equal((Testing.TestState.Passed, (string?)null), (results["shop.CalcTest#adds"].State, results["shop.CalcTest#adds"].Output));
+        Assert.Equal((Testing.TestState.Failed, "expected: <true> but was: <false>"), (results["shop.CalcTest#positive"].State, results["shop.CalcTest#positive"].ErrorMessage));
+        Assert.Contains("CalcTest.java:25", results["shop.CalcTest#positive"].StackTrace);
+        Assert.Equal(TimeSpan.FromSeconds(0.005), results["shop.CalcTest#positive"].Duration);
+        Assert.Equal(Testing.TestState.Skipped, results["shop.CalcTest#later"].State);
+        Assert.Equal(("later", "CalcTest"), (results["shop.CalcTest#later"].Item!.Name, results["shop.CalcTest#later"].Item!.Groups[^1].Name));
+        Directory.Delete(reports, recursive: true);
+    }
+
+    [AvaloniaFact]
+    public async Task JUnit_runs_and_debugs_in_Test_Explorer()
+    {
+        Assert.SkipUnless(Environment.GetEnvironmentVariable("KARVON_JAVA_LIVE") == "1" && JavaTools.FindJava(Environment.GetEnvironmentVariable("PATH") ?? "", 21) is not null,
+            "Set KARVON_JAVA_LIVE=1, with a JDK 21 installed, to download jdtls and JUnit's launcher and test with them.");
+        var dir = Path.Combine(Path.GetTempPath(), "karvon-junit-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(Path.Combine(dir, "src", "shop"));
+        Directory.CreateDirectory(Path.Combine(dir, "lib"));
+        try
+        {
+            // Java files with no build of their own: jdtls's project of them takes lib's jars (JUnit's, in its launcher).
+            var source = Path.Combine(dir, "src", "shop", "CalcTest.java");
+            File.WriteAllText(source, CalcTest);
+            File.Copy(await JavaTools.EnsureJUnitConsoleAsync(_ => { }, TestContext.Current.CancellationToken), Path.Combine(dir, "lib", "junit.jar"));
+            var vm = NewViewModel();
+            var window = new MainWindow { DataContext = vm, Width = 1280, Height = 800 };
+            window.Show();
+            await vm.OpenSolutionAsync(dir);
+
+            // Run All Tests: found in the source, built by jdtls, run by JUnit's launcher on the project's class path.
+            await vm.RunAllTestsCommand.ExecuteAsync(null);
+            Assert.True(vm.TestSummary.StartsWith("Test run finished: 4 test(s) (2 Passed, 2 Failed, 0 Skipped)", StringComparison.Ordinal),
+                vm.TestSummary + "\n" + vm.TestsOutput.Document.Text + "\n" + vm.ServerOutput.Document.Text);
+            var calc = Assert.Single(vm.TestRoots).Children.Single(n => n.Name == "shop").Children.Single(n => n.Name == "CalcTest");
+            var adds = calc.Children.Single(n => n.Name == "adds");
+            Assert.Equal((Testing.TestState.Passed, source, 11), (adds.State, adds.SourcePath, adds.Line));
+            Assert.Equal((Testing.TestState.Failed, "two and two ==> expected: <5> but was: <4>"), (calc.Children.Single(n => n.Name == "fails").State, calc.Children.Single(n => n.Name == "fails").ErrorMessage));
+            Assert.Equal(Testing.TestState.Failed, calc.Children.Single(n => n.Name == "positive").State);
+            Assert.Equal(Testing.TestState.Passed, Assert.Single(vm.TestRoots).Children.Single(n => n.Name == "shop").Children.Single(n => n.Name == "CalcTest.Inner").Children.Single().State);
+
+            // Debug Selected Tests: the launcher's JVM waits for java-debug, which stops in the test.
+            vm.SelectedTest = adds;
+            vm.Breakpoints.Toggle(source, 13);
+            var debugging = vm.DebugSelectedTestsCommand.ExecuteAsync(null);
+            await WaitUntil(() => vm.Mode == ViewModels.DebugMode.Break && vm.CallStack.Count > 0, TimeSpan.FromMinutes(2));
+            Assert.True(vm.Mode == ViewModels.DebugMode.Break, vm.DebugOutput.Document.Text + "\n" + vm.TestsOutput.Document.Text);
+            Assert.Equal((source, 13), (vm.CallStack[0].SourcePath, vm.CallStack[0].Line));
+            for (var i = 0; i < 5 && !debugging.IsCompleted; i++)
+            {
+                if (vm.Mode == ViewModels.DebugMode.Break)
+                    await vm.StartDebuggingCommand.ExecuteAsync(null);
+                await WaitUntil(() => debugging.IsCompleted || vm.Mode == ViewModels.DebugMode.Break, TimeSpan.FromSeconds(20));
+            }
+            Assert.True(debugging.IsCompleted, vm.DebugOutput.Document.Text);
+            Assert.Equal(Testing.TestState.Passed, adds.State);
+            Assert.True(await vm.CloseSolutionCoreAsync());
+            window.Close();
+        }
+        finally
+        {
+            Directory.Delete(dir, recursive: true);
+        }
+    }
+
     [AvaloniaFact]
     public async Task Jdtls_checks_and_java_debug_debugs()
     {

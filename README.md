@@ -195,7 +195,7 @@ src/Karvon.Go/          module: Go (gopls, Delve, go build/test/vet/run, go test
 src/Karvon.Rust/        module: Rust (rust-analyzer, CodeLLDB, cargo build/check/clippy/test/run, cargo test in Test Explorer)
 src/Karvon.Cpp/         module: C and C++ (clangd, CodeLLDB, CMake's configure/build/ctest/run, Make, CTest in Test Explorer)
 src/Karvon.Lldb/        CodeLLDB, which the Rust and C and C++ modules debug with
-src/Karvon.Java/        module: Java (jdtls with java-debug in it, Maven's and Gradle's builds)
+src/Karvon.Java/        module: Java (jdtls with java-debug in it, Maven's and Gradle's builds, JUnit in Test Explorer)
 src/Karvon.Claude/      module: Claude Code (its session, protocol and view model are shared with the Visual Studio extension)
 external/bengine/       Bengine (submodule): the schema AST and the live-database layer the Database Explorer uses
 src/Karvon.VisualStudio/   the Claude Code panel as a Visual Studio extension (Windows), sharing src/Karvon.Claude's session and view model
