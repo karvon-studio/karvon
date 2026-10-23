@@ -1,7 +1,7 @@
 # Karvon Studio
 
 A native IDE with Visual Studio's look and workflow, made to grow by modules: today C#, ASP.NET Core and Blazor on
-Linux, TypeScript and JavaScript, and Python in the editor; more languages, macOS and Windows next (see the
+Linux, TypeScript and JavaScript, Python and Go; more languages, macOS and Windows next (see the
 [roadmap](ROADMAP.md)). Built with Avalonia; IntelliSense comes from Microsoft's Roslyn language server (the engine
 Visual Studio uses), Razor included. Karvon Studio grew out of VSL, whose history this repository carries.
 
@@ -22,7 +22,8 @@ From source, `./scripts/install.sh` publishes to `~/.local/share/karvon/app` and
 Working on solutions needs the .NET 10 SDK. Karvon downloads `roslyn-language-server` and `netcoredbg` (both MIT) on first use,
 TypeScript 7 (Apache-2.0, its own language server; no Node.js needed) when the first `.ts` or `.js` file opens, js-debug
 (MIT, the JavaScript debugger of VS Code; it runs on Node.js) the first time F5 debugs JavaScript, and Pyright (MIT, Python's
-language server; it runs on Node.js) when the first `.py` file opens.
+language server; it runs on Node.js) when the first `.py` file opens; gopls and Delve are built with the user's Go
+(`go install`) the first time they are needed.
 
 ## Features
 
@@ -189,6 +190,7 @@ src/Karvon.Mcp/         module: MCP Servers
 src/Karvon.Skills/      module: Skills (uses Karvon.Mcp)
 src/Karvon.TypeScript/  module: TypeScript and JavaScript (TypeScript 7's language server, package.json scripts, js-debug, Vitest, Jest)
 src/Karvon.Python/      module: Python (Pyright's language server, debugpy, pytest, the workspace's .venv)
+src/Karvon.Go/          module: Go (gopls, Delve, go build/test/vet/run, go test in Test Explorer)
 src/Karvon.Claude/      module: Claude Code (its session, protocol and view model are shared with the Visual Studio extension)
 external/bengine/       Bengine (submodule): the schema AST and the live-database layer the Database Explorer uses
 src/Karvon.VisualStudio/   the Claude Code panel as a Visual Studio extension (Windows), sharing src/Karvon.Claude's session and view model

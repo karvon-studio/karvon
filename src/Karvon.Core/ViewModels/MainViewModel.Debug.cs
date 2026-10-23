@@ -260,8 +260,8 @@ public partial class MainViewModel
     /// <summary>A debug session ended (the program exited, or Stop).</summary>
     event Action? DebugEnded;
 
-    /// <summary>A launch configuration under its debugger (a test framework's tests: Vitest's), until its session ends.</summary>
-    async Task DebugToEndAsync(Modules.DebugLaunch launch)
+    /// <summary>A launch configuration under its debugger (a test framework's tests: Vitest's), until its session ends: its Output (Debug).</summary>
+    async Task<string> DebugToEndAsync(Modules.DebugLaunch launch)
     {
         var ended = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         void OnEnded() => ended.TrySetResult();
@@ -271,6 +271,9 @@ public partial class MainViewModel
             await LaunchConfigurationAsync(launch, noDebug: false);
             if (_session is not null || Mode != DebugMode.Design)
                 await ended.Task;
+            // The program's last lines come through the UI thread's queue.
+            await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
+            return DebugOutput.Document.Text;
         }
         finally
         {

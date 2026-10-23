@@ -28,7 +28,7 @@ public class ModulesTests
         window.Show();
 
         // On by default, started with Karvon as their workbench; nothing of theirs is made before it shows.
-        Assert.Equal(["database", "docker", "servers", "mcp", "skills", "typescript", "python", "claude"], vm.Modules.Select(m => m.Id));
+        Assert.Equal(["database", "docker", "servers", "mcp", "skills", "typescript", "python", "go", "claude"], vm.Modules.Select(m => m.Id));
         var mcp = vm.Module<McpModule>()!;
         Assert.True(mcp.IsStarted);
         Assert.Null(mcp.Explorer);
@@ -69,8 +69,8 @@ public class ModulesTests
         });
         var window = new MainWindow { DataContext = vm, Width = 1400, Height = 900 };
         window.Show();
-        Assert.Equal(["database", "docker", "servers", "mcp", "skills", "typescript", "python", "claude"], vm.AllModules.Select(m => m.Id));
-        Assert.Equal(["database", "docker", "skills", "typescript", "python", "claude"], vm.Modules.Select(m => m.Id));
+        Assert.Equal(["database", "docker", "servers", "mcp", "skills", "typescript", "python", "go", "claude"], vm.AllModules.Select(m => m.Id));
+        Assert.Equal(["database", "docker", "skills", "typescript", "python", "go", "claude"], vm.Modules.Select(m => m.Id));
         Assert.Null(vm.Module<McpModule>());
         Assert.False(vm.AllModules.OfType<McpModule>().Single().IsStarted);
         Assert.Null(Tab(window, McpModule.ToolWindowId));

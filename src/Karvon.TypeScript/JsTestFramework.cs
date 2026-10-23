@@ -154,7 +154,7 @@ public abstract partial class JsTestFramework(string packageDirectory, TestFrame
     /// The package's copy under js-debug, as VS Code debugs it: the process that runs the test files is a child session
     /// (one file at a time), stepping goes into the test's code only. Why it could not start, or null.
     /// </summary>
-    async Task<string?> DebugAsync(Func<DebugLaunch, Task> debugAsync, IReadOnlyList<string> args)
+    async Task<string?> DebugAsync(Func<DebugLaunch, Task<string>> debugAsync, IReadOnlyList<string> args)
     {
         if (Entry() is not { } entry)
             return NotInstalled;

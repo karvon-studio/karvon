@@ -204,7 +204,7 @@ public sealed class PytestFramework(TestFrameworkStart start) : TestFramework
     }
 
     /// <summary>pytest as debugpy's module, as VS Code debugs a test; why it could not start, or null.</summary>
-    async Task<string?> DebugAsync(Func<DebugLaunch, Task> debugAsync, IReadOnlyList<string> args, Dictionary<string, string> environment)
+    async Task<string?> DebugAsync(Func<DebugLaunch, Task<string>> debugAsync, IReadOnlyList<string> args, Dictionary<string, string> environment)
     {
         if (Interpreter(environment) is not var (python, env))
             return "Python was not found: install it, or make the workspace a virtual environment (python3 -m venv .venv).";

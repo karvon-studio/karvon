@@ -44,4 +44,6 @@ jobs:
           KARVON_TYPESCRIPT_LIVE: "1"
           # Pyright from the npm registry and debugpy from PyPI, its language server and its debugger.
           KARVON_PYTHON_LIVE: "1"
+          # gopls and Delve built with the runner's Go (go install), go test in Test Explorer.
+          KARVON_GO_LIVE: "1"
         run: dotnet test Karvon.slnx -c Release --no-build --blame-hang-timeout 5m --blame-hang-dump-type none --logger "console;verbosity=normal"

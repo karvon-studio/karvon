@@ -278,12 +278,13 @@ public partial class MainViewModel
         int exitCode;
         try
         {
-            // tsc writes file(line,col): error CODE: message, as MSBuild does, relative to where it ran. npm first echoes the
-            // script's command ("> tsc -p ."), which is no error even when it reads like one.
+            // tsc writes file(line,col): error CODE: message, as MSBuild does, relative to where it ran (a module's task may
+            // read its own form). npm first echoes the script's command ("> tsc -p ."), which is no error even when it reads like one.
+            var problems = task.Problems ?? BuildOutputParser.Parse;
             using var runner = StartTask(task, line =>
             {
                 BuildOutput.Append(line);
-                if (!line.StartsWith("> ", StringComparison.Ordinal) && BuildOutputParser.Parse(line) is { } d)
+                if (!line.StartsWith("> ", StringComparison.Ordinal) && problems(line) is { } d)
                     Dispatcher.UIThread.Post(() => AddBuildError(d with { File = d.File is null ? null : Path.GetFullPath(d.File, task.WorkingDirectory) }));
             });
             exitCode = await runner.WaitAsync(cts.Token);

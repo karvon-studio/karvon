@@ -30,6 +30,12 @@ public sealed record WorkspaceTask(string Name, WorkspaceTaskKind Kind, string P
     /// <summary>How F5 debugs it, when its module knows how (a package.json script under the JavaScript debugger); else F5 runs it.</summary>
     public DebugLaunch? Debug { get; init; }
 
+    /// <summary>
+    /// How its output's lines are read as errors for the Error List (its problem matcher): null, as MSBuild and tsc
+    /// write them (file(line,col): error CODE: message).
+    /// </summary>
+    public Func<string, Build.BuildDiagnostic?>? Problems { get; init; }
+
     /// <summary>Variables set for it over Karvon's own (a PATH with its runtime's folder first...).</summary>
     public IReadOnlyDictionary<string, string>? Environment { get; init; }
 
