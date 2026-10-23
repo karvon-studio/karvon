@@ -162,6 +162,61 @@ public class UiTests
     }
 
     [AvaloniaFact]
+    public async Task F5_debugs_the_startup_project_and_the_frontend_that_starts_with_it()
+    {
+        var path = string.Join(Path.PathSeparator, Karvon.Build.NodeLocator.DirectoryOffPath() ?? "", Environment.GetEnvironmentVariable("PATH") ?? "");
+        Assert.SkipUnless(Environment.GetEnvironmentVariable("KARVON_TYPESCRIPT_LIVE") == "1" && Workspace.TaskVariables.Find("npm", path, "/") is not null,
+            "Set KARVON_TYPESCRIPT_LIVE=1, with Node.js installed, to debug a frontend under js-debug beside the startup project.");
+        var sln = SolutionExplorerTests.CopySample();
+        var dir = Path.GetDirectoryName(sln)!;
+        // A port of its own, so no other test's web app is in the way.
+        using (var probe = new System.Net.Sockets.TcpListener(System.Net.IPAddress.Loopback, 0))
+        {
+            probe.Start();
+            var port = ((System.Net.IPEndPoint)probe.LocalEndpoint).Port;
+            probe.Stop();
+            var settings = Path.Combine(dir, "Web", "Properties", "launchSettings.json");
+            File.WriteAllText(settings, File.ReadAllText(settings).Replace("5280", port.ToString()));
+        }
+        var frontend = Path.Combine(dir, "frontend");
+        Directory.CreateDirectory(frontend);
+        File.WriteAllText(Path.Combine(frontend, "package.json"), """{ "name": "frontend", "private": true, "scripts": { "dev": "node server.js" } }""");
+        var server = Path.Combine(frontend, "server.js");
+        File.WriteAllText(server, """
+            function serve(port) {
+              console.log("frontend on", port);
+            }
+            setTimeout(() => serve(5173), 1000);
+            setTimeout(() => {}, 120000);
+            """);
+        var vm = NewViewModel();
+        var window = new MainWindow { DataContext = vm, Width = 1280, Height = 800 };
+        window.Show();
+        await vm.OpenSolutionAsync(sln);
+        var project = vm.ExplorerRoots.Single().Children.Single(n => n.Name == "frontend").WorkspaceProject!;
+        vm.ToggleStartWithSolutionCommand.Execute(project);
+
+        // F5: the startup project under netcoredbg, and the frontend's dev script under js-debug beside it, stopped in its code.
+        vm.Breakpoints.Toggle(server, 2);
+        await vm.StartDebuggingCommand.ExecuteAsync(null);
+        await WaitUntil(() => vm.Mode == DebugMode.Break && vm.CallStack.Count > 0, TimeSpan.FromMinutes(3));
+        Assert.True(vm.Mode == DebugMode.Break, vm.DebugOutput.Document.Text + "\n" + vm.BuildOutput.Document.Text[^Math.Min(2000, vm.BuildOutput.Document.TextLength)..]);
+        Assert.Equal((server, 2), (vm.CallStack[0].SourcePath, vm.CallStack[0].Line));
+        Assert.Contains("frontend starts with the solution, under the debugger", vm.DebugOutput.Document.Text);
+        Assert.Contains("Debugging Web with netcoredbg", vm.DebugOutput.Document.Text);
+
+        // Continue, then Stop: both go.
+        await vm.StartDebuggingCommand.ExecuteAsync(null);
+        await WaitUntil(() => vm.DebugOutput.Document.Text.Contains("frontend on 5173"), TimeSpan.FromSeconds(30));
+        await vm.StopCommand.ExecuteAsync(null);
+        await WaitUntil(() => vm.Mode == DebugMode.Design, TimeSpan.FromSeconds(60));
+        Assert.True(vm.Mode == DebugMode.Design, vm.DebugOutput.Document.Text);
+        Assert.True(await vm.CloseSolutionCoreAsync());
+        window.Close();
+        Directory.Delete(dir, recursive: true);
+    }
+
+    [AvaloniaFact]
     public async Task Debugs_with_breakpoints_locals_watch_and_stepping()
     {
         var sln = await SampleSolution.GetAsync();

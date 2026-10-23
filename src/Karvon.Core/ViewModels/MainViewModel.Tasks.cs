@@ -220,7 +220,7 @@ public partial class MainViewModel
     /// F5 or Ctrl+F5 starts the startup project: the projects that start with it run beside it, in Output (Tasks), each
     /// by its run task, until it ends.
     /// </summary>
-    internal void StartWithSolution()
+    internal void StartWithSolution(bool debugging = false)
     {
         foreach (var project in WorkspaceProjects.Where(StartsWithSolution).ToList())
         {
@@ -229,7 +229,8 @@ public partial class MainViewModel
                 TasksOutput.Append($"{project.Name} starts with the solution, but it has no run task (a dev or start script).");
                 continue;
             }
-            if (IsTaskRunning(task))
+            // Under the debugger, one its module debugs starts under its own, beside the startup project's (DebugWithSolutionAsync).
+            if (IsTaskRunning(task) || debugging && task.Debug is not null)
                 continue;
             _startedWithSolution.Add(task.Name);
             DebugOutput.Append($"{project.Name} starts with the solution: {task.Name}, in Output (Tasks).");

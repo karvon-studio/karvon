@@ -25,6 +25,9 @@ public partial class MainViewModel
     /// <summary>A compound's sessions that stop together (its stopAll): one that ends ends the rest.</summary>
     readonly HashSet<DebugSession> _stopTogether = [];
 
+    /// <summary>The sessions that end with another (the projects that start with the startup project, under their debuggers).</summary>
+    readonly Dictionary<DebugSession, List<DebugSession>> _endWith = [];
+
     /// <summary>The sessions stopped now, where (their thread, why): the one shown, and those waiting to be.</summary>
     readonly Dictionary<DebugSession, (int Thread, string Reason, string? Text)> _stoppedSessions = [];
 
@@ -270,7 +273,7 @@ public partial class MainViewModel
         // After the debugger completed the configuration (a "dotnet" one gets its launch profile's browser).
         _serverReady = ServerReadyAction.Of(configuration, DebugOutput.Append);
         if (withSolution)
-            StartWithSolution();
+            StartWithSolution(debugging: !noDebug);
         var breakpoints = noDebug ? new Dictionary<string, IReadOnlyList<int>>() : Breakpoints.All;
         try
         {
@@ -287,6 +290,31 @@ public partial class MainViewModel
                 StopStartedWithSolution();
                 Mode = DebugMode.Design;
                 SetStatus("Ready", StatusKind.Ready);
+            }
+            return;
+        }
+        if (withSolution && !noDebug && _session is { } main)
+            await DebugWithSolutionAsync(main);
+    }
+
+    /// <summary>
+    /// F5 on the startup project: the projects that start with it (a frontend's dev server) that their modules debug start
+    /// under their own debuggers beside it, as Visual Studio debugs several startup projects, and end when it does.
+    /// </summary>
+    async Task DebugWithSolutionAsync(DebugSession main)
+    {
+        foreach (var project in WorkspaceProjects.Where(StartsWithSolution).ToList())
+        {
+            if (RunTaskOf(project) is not { Debug: { } launch })
+                continue;
+            DebugOutput.Append($"{project.Name} starts with the solution, under the debugger: {launch.Name}.");
+            var before = _session;
+            await LaunchConfigurationAsync(launch, noDebug: false, beside: true);
+            if (_session is { } companion && companion != before && companion != main)
+            {
+                if (!_endWith.TryGetValue(main, out var companions))
+                    _endWith[main] = companions = [];
+                companions.Add(companion);
             }
         }
     }
@@ -632,6 +660,10 @@ public partial class MainViewModel
             return;
         _stoppedSessions.Remove(session);
         var (name, post) = _sessionLaunches.Remove(session, out var launched) ? launched : (_debuggedProject ?? "", _postDebugTask);
+        // The projects that started with it under their debuggers end with it.
+        if (_endWith.Remove(session, out var companions))
+            foreach (var companion in companions.Where(_sessions.Contains))
+                _ = companion.TerminateAsync();
         // A compound's that stop together: the rest go with it.
         if (_stopTogether.Remove(session))
         {
