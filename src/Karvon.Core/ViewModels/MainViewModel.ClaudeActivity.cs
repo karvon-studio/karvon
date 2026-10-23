@@ -31,7 +31,8 @@ public partial class MainViewModel
         {
             case "run_build":
                 SelectedOutput = BuildOutput;
-                ShowToolWindow(output.Text.StartsWith("Build succeeded", StringComparison.Ordinal) ? ToolWindows.Output : ToolWindows.ErrorList);
+                // A build that failed (or could not run) shows its errors; one that succeeded, its output.
+                ShowToolWindow(output.IsError ? ToolWindows.ErrorList : ToolWindows.Output);
                 break;
             case "build_errors":
                 ShowToolWindow(ToolWindows.ErrorList);

@@ -95,4 +95,31 @@ public class ClaudeToolActivityTests
         vm.Settings.ClaudeAllContainers = false;
         window.Close();
     }
+
+    [AvaloniaFact]
+    public async Task Claudes_build_shows_its_output_or_its_errors()
+    {
+        var dir = Path.Combine(Path.GetTempPath(), "karvon-activity-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(Path.Combine(dir, ".vscode"));
+        var tasks = Karvon.Workspace.VsCodeTasks.FileOf(dir);
+        File.WriteAllText(tasks, """{ "version": "2.0.0", "tasks": [ { "label": "compile", "type": "shell", "command": "echo compiled", "group": "build" } ] }""");
+        var vm = NewViewModel();
+        var window = new MainWindow { DataContext = vm, Width = 1500, Height = 950 };
+        window.Show();
+        await vm.OpenSolutionAsync(dir);
+
+        // A build that succeeds shows its output; one that fails, the Error List.
+        await CallAsync(vm, "run_build", new { });
+        await WaitUntil(() => window.IsToolWindowShowing(ToolWindows.Output), TimeSpan.FromSeconds(10));
+        Assert.True(window.IsToolWindowShowing(ToolWindows.Output));
+        File.WriteAllText(tasks, """{ "version": "2.0.0", "tasks": [ { "label": "compile", "type": "shell", "command": "echo 'a.ts(1,1): error TS1005: x'; exit 1", "group": "build" } ] }""");
+        await vm.CloseSolutionCoreAsync();
+        await vm.OpenSolutionAsync(dir);
+        await CallAsync(vm, "run_build", new { });
+        await WaitUntil(() => window.IsToolWindowShowing(ToolWindows.ErrorList), TimeSpan.FromSeconds(10));
+        Assert.True(window.IsToolWindowShowing(ToolWindows.ErrorList));
+        Assert.True(await vm.CloseSolutionCoreAsync());
+        window.Close();
+        Directory.Delete(dir, recursive: true);
+    }
 }
