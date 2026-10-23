@@ -96,5 +96,5 @@ Then a Windows release.
 ## What a language needs to be done
 
 Projects and their dependencies in Solution Explorer; completion, diagnostics, navigation, rename and formatting;
-build errors in the Error List; run and debug with breakpoints; tests in Test Explorer; a package manager window;
-new project templates; Claude's IDE tools.
+build errors in the Error List; run and debug with breakpoints; tests in Test Explorer; a package manager window (in
+now: NuGet, npm, Cargo, PyPI and Go's; next Java's Maven Central); new project templates; Claude's IDE tools.

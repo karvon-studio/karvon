@@ -22,6 +22,12 @@ public sealed class GoModule : KarvonModule
 
     public override IReadOnlyList<WorkspaceTask> WorkspaceTasks(string workspace) => GoTasks.Read(workspace);
 
+    /// <summary>A Go module's Manage Go Modules...: pkg.go.dev's packages, by go get.</summary>
+    public override IReadOnlyList<ModuleMenuItem> ExplorerMenu(Workspace.ExplorerNode node) =>
+        FolderWith(node, "go.mod") is { } dir
+            ? [new("Manage Go Modules...", () => Workbench.ManagePackagesAsync(new GoPackages(dir))) { After = "Add" }]
+            : [];
+
     public override IReadOnlyList<Templates.ProjectTemplate> ProjectTemplates => GoTemplates.All;
 
     public override IReadOnlyList<string> WorkspaceTaskFiles => ["go.mod"];

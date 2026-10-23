@@ -44,6 +44,15 @@ public sealed class PythonModule : KarvonModule
     /// <summary>A uv project's scripts are pyproject.toml's.</summary>
     public override IReadOnlyList<string> WorkspaceTaskFiles => ["pyproject.toml"];
 
+    /// <summary>
+    /// A Python project's Manage Python Packages...: PyPI's, by uv in a uv project (pyproject.toml's [project]), else by
+    /// pip into its virtual environment (requirements.txt).
+    /// </summary>
+    public override IReadOnlyList<ModuleMenuItem> ExplorerMenu(Workspace.ExplorerNode node) =>
+        (FolderWith(node, "pyproject.toml") ?? FolderWith(node, "requirements.txt")) is { } dir
+            ? [new("Manage Python Packages...", () => Workbench.ManagePackagesAsync(new PypiPackages(dir))) { After = "Add" }]
+            : [];
+
     /// <summary>Test Explorer: pytest's tests, when the workspace tests with pytest.</summary>
     public override IReadOnlyList<Testing.TestFramework> TestFrameworks(TestFrameworkStart start) =>
         PytestFramework.IsUsedIn(start.Workspace) ? [new PytestFramework(start)] : [];

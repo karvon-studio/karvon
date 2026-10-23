@@ -27,6 +27,12 @@ public sealed class RustModule : KarvonModule
 
     public override IReadOnlyList<string> WorkspaceTaskFiles => ["Cargo.toml"];
 
+    /// <summary>A Cargo package's Manage Cargo Packages...: crates.io's crates, by cargo add and cargo remove.</summary>
+    public override IReadOnlyList<ModuleMenuItem> ExplorerMenu(Workspace.ExplorerNode node) =>
+        FolderWith(node, "Cargo.toml") is { } dir
+            ? [new("Manage Cargo Packages...", () => Workbench.ManagePackagesAsync(new CratesPackages(dir))) { After = "Add" }]
+            : [];
+
     /// <summary>cargo's folder when Karvon's PATH has none (Karvon started from the desktop).</summary>
     public override IEnumerable<string> ToolDirectories => RustTools.DirectoryOffPath() is { } cargo ? [cargo] : [];
 

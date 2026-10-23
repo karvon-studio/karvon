@@ -140,9 +140,16 @@ Your `$SHELL` in a real pty, in the solution folder.
 
 ## Packages
 
-NuGet: browse, install, update and uninstall across your configured feeds. A `package.json` folder's npm packages the
-same way (Manage npm Packages... on the folder or its package.json): npmjs.com's, into its dependencies or
-devDependencies, by the folder's package manager (npm, pnpm, yarn or bun).
+Each language's packages in one Package Manager, as Visual Studio's NuGet one: Browse its registry, the Installed
+packages and their Updates, a package's versions and details, Install, Update and Uninstall by the project's own
+package manager, from Solution Explorer's menu of its folder or its manifest:
+
+- NuGet: your configured feeds, `dotnet add package` (Manage NuGet Packages...).
+- npm: npmjs.com, a `package.json` folder's dependencies or devDependencies, by its npm, pnpm, yarn or bun.
+- Cargo: crates.io, a Cargo package's dependencies, dev- or build-dependencies (`cargo add`, `cargo remove`).
+- Python: PyPI (a package by its name: pypi.org's search is for browsers), a uv project's dependencies and dependency
+  groups (`uv add`, `uv remove`), else `pip` into the folder's virtual environment for its requirements.txt.
+- Go: pkg.go.dev's search and the module proxy's versions, go.mod's requirements (`go get module@version`, `@none`).
 
 ## Claude Code (Ctrl+Esc)
 

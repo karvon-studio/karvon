@@ -301,6 +301,22 @@ public abstract partial class KarvonModule : ObservableObject, IDisposable, IAsy
 
     protected void ResetToolWindow(string id) => ToolWindowReset?.Invoke(id);
 
+    /// <summary>
+    /// The folder a Solution Explorer node stands for that has a manifest in it (package.json, Cargo.toml): a folder's,
+    /// the folder opened's, or the manifest's own; null for another node.
+    /// </summary>
+    protected static string? FolderWith(Workspace.ExplorerNode node, string manifest)
+    {
+        var dir = node.Kind switch
+        {
+            Workspace.NodeKind.Folder => node.Path,
+            Workspace.NodeKind.Solution when node.IsFolderRoot => node.Path,
+            Workspace.NodeKind.File when node.Name == manifest => Path.GetDirectoryName(node.Path),
+            _ => null,
+        };
+        return dir is not null && File.Exists(Path.Combine(dir, manifest)) ? dir : null;
+    }
+
     /// <summary>A view of <typeparamref name="T"/>, and of nothing else (FuncDataTemplate&lt;T&gt; takes null for any T: a template of the application's would show in every empty presenter).</summary>
     protected static IDataTemplate Template<T>(Func<T, Control> view) where T : class =>
         new FuncDataTemplate(data => data is T, (data, _) => view((T)data!));
