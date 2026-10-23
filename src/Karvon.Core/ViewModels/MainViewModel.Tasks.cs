@@ -113,6 +113,23 @@ public partial class MainViewModel
                     TasksOutput.Append($"{module.Name} could not read the tasks: {ex.Message}");
                 }
             }
+            // The scripts of the projects beside it that are outside its folder (in the repository's root), where they run.
+            var beside = solution.Root.Children.Select(n => n.WorkspaceProject).OfType<WorkspaceProject>()
+                .Where(p => !Services.FilePaths.IsSameOrUnder(p.Directory, solution.Directory)).ToList();
+            if (beside.Count > 0)
+                foreach (var root in ProjectSearchRoots(solution).Skip(1))
+                    foreach (var module in Modules)
+                    {
+                        try
+                        {
+                            tasks.AddRange(module.WorkspaceTasks(root).Where(t => beside.Any(p => Services.FilePaths.IsSameOrUnder(t.WorkingDirectory, p.Directory))
+                                && tasks.All(known => known.Name != t.Name)));
+                        }
+                        catch (Exception ex) when (ex is JsonException or IOException or UnauthorizedAccessException)
+                        {
+                            TasksOutput.Append($"{module.Name} could not read the tasks: {ex.Message}");
+                        }
+                    }
         }
         WorkspaceTasks.Clear();
         StartupItems.Clear();

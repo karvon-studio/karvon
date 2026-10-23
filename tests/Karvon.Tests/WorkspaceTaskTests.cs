@@ -526,6 +526,44 @@ public class WorkspaceTaskTests
     }
 
     [AvaloniaFact]
+    public async Task A_project_in_a_repository_shows_the_frontend_beside_it()
+    {
+        // A repository with the backend's lone project and its frontend side by side, and a package.json of the root's
+        // own (no package of its own, only what was installed there).
+        var repo = NewFolder();
+        Directory.CreateDirectory(Path.Combine(repo, ".git"));
+        var backend = Path.Combine(repo, "Shop.Backend");
+        Directory.CreateDirectory(backend);
+        var project = Path.Combine(backend, "Shop.Backend.csproj");
+        File.WriteAllText(project, """<Project Sdk="Microsoft.NET.Sdk.Web"><PropertyGroup><TargetFramework>net10.0</TargetFramework></PropertyGroup></Project>""");
+        var frontend = Path.Combine(repo, "Shop.Frontend");
+        Directory.CreateDirectory(frontend);
+        File.WriteAllText(Path.Combine(frontend, "package.json"), """{ "name": "shop-frontend", "scripts": { "dev": "vite", "build": "vite build" } }""");
+        File.WriteAllText(Path.Combine(repo, "package.json"), """{ "dependencies": { "axios": "^1.0.0" } }""");
+        var vm = NewViewModel();
+        var window = new MainWindow { DataContext = vm, Width = 1280, Height = 800 };
+        window.Show();
+        await vm.OpenSolutionAsync(project);
+
+        // The frontend shows beside the project, its scripts tasks of the solution, its dev script what it runs.
+        var node = vm.ExplorerRoots.Single().Children.Single(n => n.WorkspaceProject is not null);
+        Assert.Equal(("Shop.Frontend (npm)", frontend), (node.DisplayName, node.Path));
+        Assert.Equal("npm: dev - Shop.Frontend", vm.RunTaskOf(node.WorkspaceProject!)?.Name);
+        Assert.Contains("npm: build - Shop.Frontend", vm.WorkspaceTasks.Select(t => t.Name));
+        Assert.Equal(frontend, vm.WorkspaceTasks.Single(t => t.Name == "npm: build - Shop.Frontend").WorkingDirectory);
+        Assert.True(await vm.CloseSolutionCoreAsync());
+
+        // Out of a repository, the project's own folder only.
+        Directory.Delete(Path.Combine(repo, ".git"));
+        await vm.OpenSolutionAsync(project);
+        Assert.DoesNotContain(vm.ExplorerRoots.Single().Children, n => n.WorkspaceProject is not null);
+        Assert.DoesNotContain(vm.WorkspaceTasks, t => t.Name.Contains("Shop.Frontend"));
+        Assert.True(await vm.CloseSolutionCoreAsync());
+        window.Close();
+        Directory.Delete(repo, recursive: true);
+    }
+
+    [AvaloniaFact]
     public async Task A_frontend_starts_with_the_solution()
     {
         var sln = SolutionExplorerTests.CopySample();

@@ -49,8 +49,9 @@ process and npm tasks, their build and test groups) and its `package.json` scrip
 runs any of them, a watch beside the rest. The toolbar chooses what starts: a `.vscode/launch.json` configuration (F5
 debugs it with the debugger of its type, after its `preLaunchTask`; Ctrl+F5 runs it without) or a run task (dev,
 start...: Ctrl+F5 runs it, and F5 debugs a `package.json` script with every node process it starts). A solution shows
-the `package.json` folders beside its projects (a frontend) in Solution Explorer, their scripts in Run Task; Start with
-the Solution on one runs its dev server beside the startup project, as VS's multiple startup projects do.
+the `package.json` folders beside its projects (a frontend) in Solution Explorer, their scripts in Run Task, those of
+its repository too (a backend's project opened with its frontend beside it); Start with the Solution on one runs its dev
+server beside the startup project, as VS's multiple startup projects do.
 
 ## Build and run
 

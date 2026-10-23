@@ -99,19 +99,42 @@ public partial class MainViewModel
     public event Action? SolutionReloaded;
 
     /// <summary>
+    /// Where the modules find the projects beside the solution's: its folder, and the root of the repository it is in when
+    /// that is above it (a backend's project opened in a repository with its frontend beside it). Never the home folder,
+    /// nor a folder above it.
+    /// </summary>
+    internal static IReadOnlyList<string> ProjectSearchRoots(SolutionInfo solution)
+    {
+        static bool IsRepository(string dir) => Directory.Exists(Path.Combine(dir, ".git")) || File.Exists(Path.Combine(dir, ".git"));
+        var start = Path.TrimEndingDirectorySeparator(solution.Directory);
+        if (IsRepository(start))
+            return [solution.Directory];
+        var home = Path.TrimEndingDirectorySeparator(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile));
+        for (var dir = Path.GetDirectoryName(start); dir is not null && Path.GetDirectoryName(dir) is not null; dir = Path.GetDirectoryName(dir))
+        {
+            if (home.Length > 0 && Services.FilePaths.IsSameOrUnder(home, dir))
+                break;
+            if (IsRepository(dir))
+                return [solution.Directory, dir];
+        }
+        return [solution.Directory];
+    }
+
+    /// <summary>
     /// The modules' projects beside the solution's (a frontend's package.json folder) under the solution, after its own:
-    /// those that no project of the solution holds in its folder, where they show already.
+    /// those that no project of the solution holds in its folder, where they show already, nor that hold the solution.
     /// </summary>
     void AddWorkspaceProjects(SolutionInfo solution)
     {
         if (solution.IsFolder)
             return;
+        foreach (var root in ProjectSearchRoots(solution))
         foreach (var module in Modules)
         {
             IReadOnlyList<Modules.WorkspaceProject> projects;
             try
             {
-                projects = module.WorkspaceProjects(solution.Directory);
+                projects = module.WorkspaceProjects(root);
             }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Text.Json.JsonException)
             {
@@ -120,6 +143,7 @@ public partial class MainViewModel
             foreach (var project in projects)
             {
                 if (solution.Projects.Any(p => Services.FilePaths.IsSameOrUnder(project.Directory, p.Directory))
+                    || Services.FilePaths.IsSameOrUnder(solution.Directory, project.Directory)
                     || solution.Root.Children.Any(n => n.WorkspaceProject?.Directory == project.Directory))
                     continue;
                 solution.Root.Children.Add(new ExplorerNode(NodeKind.Folder, project.Name, project.Directory,

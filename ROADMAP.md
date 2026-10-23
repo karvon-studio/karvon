@@ -41,7 +41,8 @@ it does today all along.
 - Test Explorer for any workload: a module's test frameworks find and run their tests (in now: .NET's through vstest,
   Vitest's and Jest's under js-debug, pytest, go test, cargo test, CTest and JUnit, run or debugged; Debug All Tests runs a
   folder's `package.json` test script under js-debug when no framework is known).
-- Mixed repositories: a frontend's `package.json` folder shows as a project beside the solution's (in now, with its
+- Mixed repositories: a frontend's `package.json` folder, in the solution's folder or its repository's, shows as a
+  project beside the solution's (in now, with its
   scripts in Run Task, and Start with the Solution: its dev server runs beside the startup project, as VS's multiple
   startup projects do, and under F5 under its own debugger beside the startup project's).
 
