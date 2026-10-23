@@ -15,19 +15,14 @@ namespace Karvon.Rust;
 /// </summary>
 public static class RustDebugger
 {
-    public static readonly IReadOnlyList<string> Types = ["lldb"];
-
     public static async Task<DebugAdapter> StartAsync(DebuggerStart start)
     {
-        var adapter = await RustTools.EnsureCodeLldbAsync(start.Log, start.Cancellation);
         var path = RustTools.PathWithCargo(start.Path);
         if (start.Configuration["cargo"] is JsonObject cargo)
             start.Configuration["program"] = await BuildAsync(cargo, start.Workspace, path, start.Log, start.Cancellation);
         start.Configuration.Remove("cargo");
         start.Configuration["cwd"] ??= start.Workspace;
-        var program = new ProcessStartInfo(adapter, ["--liblldb", RustTools.LibLldb(adapter)]) { WorkingDirectory = start.Workspace };
-        program.Environment["PATH"] = path;
-        return DebugAdapter.Start("lldb", program);
+        return await Lldb.CodeLldb.StartAsync(start.Workspace, path, start.Log, start.Cancellation);
     }
 
     /// <summary>

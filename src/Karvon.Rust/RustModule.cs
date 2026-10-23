@@ -33,7 +33,7 @@ public sealed class RustModule : KarvonModule
         CargoTestFramework.IsUsedIn(start.Workspace) ? [new CargoTestFramework(start)] : [];
 
     public override IReadOnlyList<DebuggerInfo> Debuggers =>
-        [new("codelldb", $"CodeLLDB {RustTools.CodeLldbVersion}", RustDebugger.Types, RustDebugger.StartAsync)];
+        [new("codelldb", $"CodeLLDB {Lldb.CodeLldb.Version}", Lldb.CodeLldb.Types, RustDebugger.StartAsync)];
 
     public override IReadOnlyList<ModuleComponent> Components =>
     [
@@ -42,11 +42,7 @@ public sealed class RustModule : KarvonModule
         {
             Description = "rust-analyzer (MIT or Apache-2.0), from its GitHub release.",
         },
-        new("codelldb", "Rust, C and C++ debugger (CodeLLDB)", RustTools.CodeLldbVersion, RustTools.CodeLldbRoot,
-            () => RustTools.FindCodeLldb() is not null, RustTools.EnsureCodeLldbAsync)
-        {
-            Description = "CodeLLDB (MIT), LLDB as a debug adapter, from its GitHub release.",
-        },
+        Lldb.CodeLldb.Component,
     ];
 
     async Task<Lsp.LspClient> StartAsync(LanguageServerStart start)

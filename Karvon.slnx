@@ -12,7 +12,9 @@
     <Project Path="src/Karvon.TypeScript/Karvon.TypeScript.csproj" />
     <Project Path="src/Karvon.Python/Karvon.Python.csproj" />
     <Project Path="src/Karvon.Go/Karvon.Go.csproj" />
+    <Project Path="src/Karvon.Lldb/Karvon.Lldb.csproj" />
     <Project Path="src/Karvon.Rust/Karvon.Rust.csproj" />
+    <Project Path="src/Karvon.Cpp/Karvon.Cpp.csproj" />
     <Project Path="src/Karvon.Claude/Karvon.Claude.csproj" />
   </Folder>
   <Folder Name="/external/">

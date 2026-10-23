@@ -10,5 +10,6 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Karvon.Core\Karvon.Core.csproj" />
+    <ProjectReference Include="..\Karvon.Lldb\Karvon.Lldb.csproj" />
   </ItemGroup>
 </Project>
