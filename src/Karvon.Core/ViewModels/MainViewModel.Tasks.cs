@@ -300,18 +300,69 @@ public partial class MainViewModel
             {
                 "promptString" => Dialogs is null ? null : await Dialogs.PromptAsync(input.Id, label, input.Default ?? "", input.Password),
                 "pickString" when input.Options.Count > 0 => Dialogs is null ? null : await Dialogs.PickAsync(input.Id, label, input.Options, input.Default),
+                "command" when input.Command == "shellCommand.execute" => await ShellCommandInputAsync(input, label, output),
                 _ => null,
             };
             if (answer is null)
             {
-                output(input.Type is "promptString" or "pickString"
+                output(input.Type is "promptString" or "pickString" || input.Command == "shellCommand.execute"
                     ? $"${{input:{id}}} was not answered, so it does not start."
-                    : $"${{input:{id}}} is a \"{input.Type}\" input, which Karvon does not ask (only promptString and pickString).");
+                    : $"${{input:{id}}} is the command {input.Command ?? "(none)"} of a VS Code extension, which Karvon does not run (it runs shellCommand.execute's).");
                 return null;
             }
             answers[id] = answer;
         }
         return answers;
+    }
+
+    /// <summary>
+    /// A "command" input of the Tasks Shell Input extension's (shellCommand.execute): its shell command run (in its cwd,
+    /// with its env), and one of the lines it writes, picked (the first, or the only one, when the input says so); a
+    /// line's value is its first field when it has a fieldSeparator.
+    /// </summary>
+    async Task<string?> ShellCommandInputAsync(TaskInput input, string label, Action<string> output)
+    {
+        if (input.Args is not { } args || args["command"]?.GetValue<string>() is not { Length: > 0 } command)
+        {
+            output($"${{input:{input.Id}}} has no command to run (its args' \"command\").");
+            return null;
+        }
+        var workspace = Solution?.Directory ?? Environment.CurrentDirectory;
+        string Expand(string text) => TaskVariables.Expand(text, workspace, ActiveEditor?.FilePath);
+        var cwd = args["cwd"]?.GetValue<string>() is { Length: > 0 } dir ? Expand(dir) : workspace;
+        var environment = new Dictionary<string, string>(StringComparer.Ordinal) { ["PATH"] = TaskPath() };
+        if (args["env"] is System.Text.Json.Nodes.JsonObject env)
+            foreach (var (name, value) in env)
+                if (value?.GetValue<string>() is { } text)
+                    environment[name] = Expand(text);
+        var lines = new List<string>();
+        try
+        {
+            using var runner = OperatingSystem.IsWindows()
+                ? ProcessRunner.Start("cmd.exe", ["/c", Expand(command)], cwd, lines.Add, environment)
+                : ProcessRunner.Start("/bin/sh", ["-c", Expand(command)], cwd, lines.Add, environment);
+            if (await runner.WaitAsync(CancellationToken.None) != 0)
+            {
+                output($"${{input:{input.Id}}}: {Expand(command)} failed: {lines.LastOrDefault()}");
+                return null;
+            }
+        }
+        catch (Exception ex) when (IsStartFailure(ex))
+        {
+            output($"${{input:{input.Id}}}: {Expand(command)} could not start: {ex.Message}");
+            return null;
+        }
+        var separator = args["fieldSeparator"]?.GetValue<string>();
+        var values = lines.Where(l => l.Trim().Length > 0).Select(l => separator is { Length: > 0 } ? l.Split(separator)[0] : l).Distinct().ToList();
+        bool Flag(string name) => args[name] is System.Text.Json.Nodes.JsonValue v && v.TryGetValue<bool>(out var on) && on;
+        if (values.Count == 0)
+        {
+            output($"${{input:{input.Id}}}: {Expand(command)} wrote nothing to choose from.");
+            return null;
+        }
+        if (Flag("useFirstResult") || Flag("useSingleResult") && values.Count == 1)
+            return values[0];
+        return Dialogs is null ? null : await Dialogs.PickAsync(input.Id, args["description"]?.GetValue<string>() ?? label, values, values[0]);
     }
 
     /// <summary>A task as it runs: its inputs asked (null when one was not answered).</summary>

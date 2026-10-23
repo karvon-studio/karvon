@@ -271,12 +271,18 @@ public class WorkspaceTaskTests
                 { "id": "name", "type": "promptString", "description": "Who to greet", "default": "World" },
                 { "id": "color", "type": "pickString", "description": "A color", "options": ["red", { "label": "Blue", "value": "blue" }], "default": "blue" },
                 { "id": "token", "type": "promptString", "description": "Token", "password": true },
-                { "id": "picked", "type": "command", "command": "extension.pick" }
+                { "id": "picked", "type": "command", "command": "extension.pick" },
+                { "id": "branch", "type": "command", "command": "shellCommand.execute",
+                  "args": { "command": "printf 'main|the main one\\nfeature/login|a feature\\n'", "fieldSeparator": "|", "description": "A branch" } },
+                { "id": "first", "type": "command", "command": "shellCommand.execute",
+                  "args": { "command": "echo $GREETING; echo later", "env": { "GREETING": "hello" }, "useFirstResult": true } }
               ],
               "tasks": [
                 { "label": "greet", "type": "shell", "command": "echo ${input:name} ${input:color} ${input:name} > out.txt" },
                 { "label": "login", "type": "shell", "command": "echo ${input:token} > token.txt" },
                 { "label": "by command", "type": "shell", "command": "echo ${input:picked}" },
+                { "label": "checkout", "type": "shell", "command": "echo ${input:branch} > branch.txt" },
+                { "label": "greet first", "type": "shell", "command": "echo ${input:first} > first.txt" },
                 { "label": "undefined", "type": "shell", "command": "echo ${input:nope}" }
               ] }
             """);
@@ -309,9 +315,21 @@ public class WorkspaceTaskTests
         Assert.False(File.Exists(Path.Combine(dir, "token.txt")));
         Assert.Contains("${input:token} was not answered, so it does not start.", vm.TasksOutput.Document.Text);
 
-        // A command input, and one that is not there: said, nothing runs.
+        // The Tasks Shell Input extension's: a shell command's lines to pick from (their first fields), or its first line.
+        dialogs.Answers.Enqueue("feature/login");
+        await vm.RunTaskCommand.ExecuteAsync(Named("checkout"));
+        await WaitUntil(() => File.Exists(Path.Combine(dir, "branch.txt")) && !vm.IsTaskRunning(Named("checkout")), TimeSpan.FromSeconds(10));
+        Assert.Equal("feature/login\n", File.ReadAllText(Path.Combine(dir, "branch.txt")));
+        Assert.Equal("pick branch: A branch main|feature/login [main]", dialogs.Asked[^1]);
+        var asked = dialogs.Asked.Count;
+        await vm.RunTaskCommand.ExecuteAsync(Named("greet first"));
+        await WaitUntil(() => File.Exists(Path.Combine(dir, "first.txt")) && !vm.IsTaskRunning(Named("greet first")), TimeSpan.FromSeconds(10));
+        Assert.Equal("hello\n", File.ReadAllText(Path.Combine(dir, "first.txt")));
+        Assert.Equal(asked, dialogs.Asked.Count);
+
+        // Another extension's command input, and one that is not there: said, nothing runs.
         await vm.RunTaskCommand.ExecuteAsync(Named("by command"));
-        Assert.Contains("${input:picked} is a \"command\" input, which Karvon does not ask (only promptString and pickString).", vm.TasksOutput.Document.Text);
+        Assert.Contains("${input:picked} is the command extension.pick of a VS Code extension, which Karvon does not run (it runs shellCommand.execute's).", vm.TasksOutput.Document.Text);
         await vm.RunTaskCommand.ExecuteAsync(Named("undefined"));
         Assert.Contains("${input:nope} is not an input of the folder's tasks.json or launch.json.", vm.TasksOutput.Document.Text);
         Assert.True(await vm.CloseSolutionCoreAsync());

@@ -5,8 +5,15 @@ using Karvon.Modules;
 namespace Karvon.Workspace;
 
 /// <summary>An input of tasks.json or launch.json, which ${input:id} asks for when a task or a configuration starts.</summary>
-/// <param name="Type">"promptString" (a text), "pickString" (one of <paramref name="Options"/>), or one Karvon does not ask ("command").</param>
-public sealed record TaskInput(string Id, string Type, string? Description, string? Default, IReadOnlyList<string> Options, bool Password);
+/// <param name="Type">"promptString" (a text), "pickString" (one of <paramref name="Options"/>), or "command" (an extension's command's answer).</param>
+public sealed record TaskInput(string Id, string Type, string? Description, string? Default, IReadOnlyList<string> Options, bool Password)
+{
+    /// <summary>A "command" input's command ("shellCommand.execute").</summary>
+    public string? Command { get; init; }
+
+    /// <summary>A "command" input's arguments.</summary>
+    public JsonObject? Args { get; init; }
+}
 
 /// <summary>The inputs of a tasks.json or a launch.json, and the ${input:id} of a task or a configuration, as VS Code has them.</summary>
 public static partial class TaskInputs
@@ -28,7 +35,11 @@ public static partial class TaskInputs
                 ? choices.Select(c => c is JsonObject o ? Text(o["value"]) : Text(c)).OfType<string>().ToList()
                 : [];
             inputs.TryAdd(id, new TaskInput(id, Text(input["type"]) ?? "promptString", Text(input["description"]), Text(input["default"]), options,
-                input["password"] is JsonValue p && p.TryGetValue<bool>(out var password) && password));
+                input["password"] is JsonValue p && p.TryGetValue<bool>(out var password) && password)
+            {
+                Command = Text(input["command"]),
+                Args = input["args"] is JsonObject args ? (JsonObject)args.DeepClone() : null,
+            });
         }
         return inputs;
     }

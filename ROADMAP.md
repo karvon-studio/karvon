@@ -36,7 +36,8 @@ it does today all along.
   `$eslint-compact`, or its own patterns, of one line or of several, the last looping); `launch.json`'s
   configurations start under the debugger of their type, with `preLaunchTask` and `postDebugTask`, and
   `serverReadyAction` opens the browser; its compounds debug their programs together (stopAll too); both ask their
-  `${input:}` (promptString, pickString); not yet: command inputs).
+  `${input:}` (promptString, pickString, and the Tasks Shell Input extension's shellCommand.execute; other extensions'
+  commands are VS Code's own).
 - Claude's IDE tools (`run_build`, `run_tests`, `app_control`, `debug_*`) work for any workload (in now, for a folder's
   tasks and launch configurations).
 - Test Explorer for any workload: a module's test frameworks find and run their tests (in now: .NET's through vstest,
