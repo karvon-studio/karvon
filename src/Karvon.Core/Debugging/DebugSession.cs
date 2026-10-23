@@ -45,7 +45,7 @@ public sealed class DebugSession : IAsyncDisposable
         _adapter = adapter;
         _root = root;
         Watch(root);
-        root.Disconnected += _ => End(null);
+        root.Disconnected += _ => EndAfterChildren();
     }
 
     /// <summary>The debuggee stopped (breakpoint, step, exception, pause): thread id, reason, description.</summary>
@@ -303,7 +303,7 @@ public sealed class DebugSession : IAsyncDisposable
                 break;
             case "terminated":
                 if (dap == _root)
-                    End(_exitCode);
+                    EndAfterChildren();
                 else
                     RemoveChild(dap);
                 break;
@@ -318,6 +318,23 @@ public sealed class DebugSession : IAsyncDisposable
                 }
                 break;
         }
+    }
+
+    /// <summary>
+    /// The session is over once its children are (each says so on its own connection, after its last output, which
+    /// may come after the session's own end on another): it waits for them a little, then ends.
+    /// </summary>
+    void EndAfterChildren() => _ = Task.Run(async () =>
+    {
+        for (var i = 0; i < 40 && ChildCount() > 0; i++)
+            await Task.Delay(50);
+        End(_exitCode);
+    });
+
+    int ChildCount()
+    {
+        lock (_children)
+            return _children.Count;
     }
 
     void End(int? exitCode)
@@ -371,13 +388,30 @@ public sealed class DebugSession : IAsyncDisposable
             b.TryGetProperty("message", out var m) ? m.GetString() : null)).ToList();
     }
 
-    public Task ContinueAsync(int threadId) => Focus.RequestAsync("continue", new { threadId });
+    public Task ContinueAsync(int threadId) => RunAsync("continue", threadId);
 
-    public Task StepOverAsync(int threadId) => Focus.RequestAsync("next", new { threadId });
+    public Task StepOverAsync(int threadId) => RunAsync("next", threadId);
 
-    public Task StepInAsync(int threadId) => Focus.RequestAsync("stepIn", new { threadId });
+    public Task StepInAsync(int threadId) => RunAsync("stepIn", threadId);
 
-    public Task StepOutAsync(int threadId) => Focus.RequestAsync("stepOut", new { threadId });
+    public Task StepOutAsync(int threadId) => RunAsync("stepOut", threadId);
+
+    /// <summary>
+    /// The program goes on. A child's process that runs to its end at once may close its connection before the adapter
+    /// answers (js-debug's node): that child is done, which is no error.
+    /// </summary>
+    async Task RunAsync(string command, int threadId)
+    {
+        var dap = Focus;
+        try
+        {
+            await dap.RequestAsync(command, new { threadId });
+        }
+        catch (IOException) when (dap != _root)
+        {
+            RemoveChild(dap);
+        }
+    }
 
     public async Task PauseAsync()
     {

@@ -101,8 +101,7 @@ public partial class MainViewModel
     {
         if (Mode == DebugMode.Break && _session is { } running)
         {
-            BeginRunning();
-            await running.ContinueAsync(_stoppedThread);
+            await StepAsync(s => s.ContinueAsync(_stoppedThread));
             return;
         }
         await LaunchDebuggerAsync();
@@ -332,6 +331,10 @@ public partial class MainViewModel
     [RelayCommand(CanExecute = nameof(CanStepping))]
     Task StepOut() => StepAsync(s => s.StepOutAsync(_stoppedThread));
 
+    /// <summary>
+    /// Continue or a step. A program that runs to its end at once may take its connection with it before the debugger
+    /// answers (js-debug's node): that is no error, the session ends.
+    /// </summary>
     async Task StepAsync(Func<DebugSession, Task> step)
     {
         if (_session is not { } session)
@@ -340,6 +343,9 @@ public partial class MainViewModel
         try
         {
             await step(session);
+        }
+        catch (IOException) when (session.HasEnded || _session != session)
+        {
         }
         catch (Exception ex) when (ex is DapException or IOException)
         {
