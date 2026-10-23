@@ -1,7 +1,7 @@
 # Karvon Studio
 
 A native IDE with Visual Studio's look and workflow, made to grow by modules: today C#, ASP.NET Core and Blazor on
-Linux, TypeScript and JavaScript, Python, Go, Rust, and C and C++; more languages, macOS and Windows next (see the
+Linux, TypeScript and JavaScript, Python, Go, Rust, C and C++, and Java; more languages, macOS and Windows next (see the
 [roadmap](ROADMAP.md)). Built with Avalonia; IntelliSense comes from Microsoft's Roslyn language server (the engine
 Visual Studio uses), Razor included. Karvon Studio grew out of VSL, whose history this repository carries.
 
@@ -195,6 +195,7 @@ src/Karvon.Go/          module: Go (gopls, Delve, go build/test/vet/run, go test
 src/Karvon.Rust/        module: Rust (rust-analyzer, CodeLLDB, cargo build/check/clippy/test/run, cargo test in Test Explorer)
 src/Karvon.Cpp/         module: C and C++ (clangd, CodeLLDB, CMake's configure/build/ctest/run, Make, CTest in Test Explorer)
 src/Karvon.Lldb/        CodeLLDB, which the Rust and C and C++ modules debug with
+src/Karvon.Java/        module: Java (jdtls with java-debug in it, Maven's and Gradle's builds)
 src/Karvon.Claude/      module: Claude Code (its session, protocol and view model are shared with the Visual Studio extension)
 external/bengine/       Bengine (submodule): the schema AST and the live-database layer the Database Explorer uses
 src/Karvon.VisualStudio/   the Claude Code panel as a Visual Studio extension (Windows), sharing src/Karvon.Claude's session and view model
@@ -204,7 +205,8 @@ src/Karvon.VisualStudio/   the Claude Code panel as a Visual Studio extension (W
 
 MIT, see [LICENSE](LICENSE). Third-party: Cascadia Mono font (SIL OFL 1.1); Avalonia, AvaloniaEdit, TextMateSharp,
 Exclr8.Terminal and Porta.Pty (MIT); Markdig (BSD 2-Clause); roslyn-language-server, netcoredbg, js-debug, Pyright, debugpy, Delve and CodeLLDB (MIT), gopls (BSD-3-Clause) and
-rust-analyzer (MIT or Apache-2.0), clangd (Apache-2.0 with LLVM exceptions), downloaded or built at runtime;
+rust-analyzer (MIT or Apache-2.0), clangd (Apache-2.0 with LLVM exceptions), jdtls (EPL-2.0) and java-debug (EPL-1.0),
+downloaded or built at runtime;
 Material Icon Theme icons (MIT, Copyright (c) 2025 Material Extensions; `src/Karvon.Core/Assets/MaterialIcons`, refreshed with
 `scripts/update-material-icons.sh`, and `src/Karvon.Database/Assets/Icons`). The Database Explorer uses Bengine (same
 author) and its drivers: Npgsql (PostgreSQL License), Microsoft.Data.SqlClient, MySqlConnector, SSH.NET and

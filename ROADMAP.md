@@ -72,7 +72,8 @@ A signed and notarized `.dmg`, Homebrew; .NET debugging on Apple Silicon (netcor
 Python (Pyright's language server, debugpy for F5 (launch.json's, or the folder's main.py, app.py, manage.py or the
 file in the editor), and pytest in Test Explorer, with the workspace's .venv, in now; next uv), Go (gopls, Delve, a module's go build, test, vet and run, `go test` in Test Explorer: in now), Rust (rust-analyzer, CodeLLDB, a Cargo package's build, check, clippy, test and run, cargo test in Test Explorer: in
 now) and C/C++ (clangd, CodeLLDB, CMake's and Make's builds, CTest in Test Explorer: in now;
-lldb-dap), Java and Kotlin (jdtls, java-debug, Maven, Gradle); a Windows release.
+lldb-dap), Java (jdtls, java-debug, Maven's and Gradle's builds: in now; next JUnit in Test Explorer) and Kotlin; a
+Windows release.
 
 ## What a language needs to be done
 

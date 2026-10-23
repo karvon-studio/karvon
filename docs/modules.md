@@ -17,6 +17,7 @@ Each module is a project of its own, referencing `Karvon.Core`. The core referen
 - Go (`src/Karvon.Go`): gopls, Delve, a module's go tasks (with Go's own problem matcher) and go test;
 - Rust (`src/Karvon.Rust`): rust-analyzer, CodeLLDB (which builds a launch configuration's "cargo" first), cargo's tasks;
 - C and C++ (`src/Karvon.Cpp`): clangd, CodeLLDB, CMake's and Make's builds; it and Rust share CodeLLDB (`src/Karvon.Lldb`);
+- Java (`src/Karvon.Java`): jdtls, with java-debug in it (one jdtls for the editor and F5), Maven's and Gradle's builds;
 - Claude Code (`src/Karvon.Claude`).
 
 .NET still lives in the core and is to become a workload module.

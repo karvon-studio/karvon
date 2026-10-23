@@ -38,7 +38,7 @@ public class ModuleComponentTests
     public void Every_download_is_a_component_of_its_module()
     {
         var vm = NewViewModel();
-        Assert.Equal([(".NET", "roslyn"), (".NET", "netcoredbg"), ("TypeScript and JavaScript", "typescript"), ("TypeScript and JavaScript", "js-debug"), ("Python", "pyright"), ("Python", "debugpy"), ("Go", "gopls"), ("Go", "dlv"), ("Rust", "rust-analyzer"), ("Rust", "codelldb"), ("C and C++", "clangd"), ("C and C++", "codelldb")],
+        Assert.Equal([(".NET", "roslyn"), (".NET", "netcoredbg"), ("TypeScript and JavaScript", "typescript"), ("TypeScript and JavaScript", "js-debug"), ("Python", "pyright"), ("Python", "debugpy"), ("Go", "gopls"), ("Go", "dlv"), ("Rust", "rust-analyzer"), ("Rust", "codelldb"), ("C and C++", "clangd"), ("C and C++", "codelldb"), ("Java", "jdtls"), ("Java", "java-debug")],
             vm.Components.Select(c => (c.Owner, c.Component.Id)));
         Assert.All(vm.Components, c => Assert.True(FilePaths.IsUnder(c.Component.InstallRoot, ModuleComponent.DataRoot), c.Component.InstallRoot));
     }
