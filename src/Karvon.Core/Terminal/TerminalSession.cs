@@ -60,7 +60,19 @@ public sealed class TerminalSession : IAsyncDisposable
     /// <summary>Folder a new shell starts in; the view model points it at the open solution.</summary>
     public string WorkingDirectory { get; set; } = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
 
-    public static string Shell => Environment.GetEnvironmentVariable("SHELL") is { Length: > 0 } sh && File.Exists(sh) ? sh : "/bin/bash";
+    /// <summary>The user's shell: $SHELL (else zsh on macOS, bash elsewhere); on Windows PowerShell 7, else Windows PowerShell, else cmd.</summary>
+    public static string Shell => OperatingSystem.IsWindows() ? WindowsShell()
+        : Environment.GetEnvironmentVariable("SHELL") is { Length: > 0 } sh && File.Exists(sh) ? sh
+        : OperatingSystem.IsMacOS() ? "/bin/zsh" : "/bin/bash";
+
+    static string WindowsShell()
+    {
+        var path = Environment.GetEnvironmentVariable("PATH") ?? "";
+        if (Workspace.TaskVariables.Find("pwsh.exe", path, Environment.CurrentDirectory) is { } pwsh)
+            return pwsh;
+        var powershell = Path.Combine(Environment.SystemDirectory, "WindowsPowerShell", "v1.0", "powershell.exe");
+        return File.Exists(powershell) ? powershell : Environment.GetEnvironmentVariable("COMSPEC") ?? "cmd.exe";
+    }
 
     string DefaultTitle => Path.GetFileName(_program ?? Shell);
 
@@ -107,13 +119,16 @@ public sealed class TerminalSession : IAsyncDisposable
                 Name = "xterm-256color",
                 // Porta.Pty creates the pty with zeroed termios (no ONLCR, ICRNL, ECHO...), which makes output
                 // "staircase" because LF is not turned into CR LF. Reset the line discipline, then become the shell.
-                App = "/bin/sh",
+                // Windows's console (ConPTY) has none of that: the program starts as it is.
+                App = OperatingSystem.IsWindows() ? _program ?? Shell : "/bin/sh",
                 Cwd = Directory.Exists(WorkingDirectory) ? WorkingDirectory : Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
                 Cols = cols,
                 Rows = rows,
-                CommandLine = _program is null
-                    ? ["-c", "stty sane 2>/dev/null; exec \"$0\"", Shell]
-                    : ["-c", "stty sane 2>/dev/null; exec \"$0\" \"$@\"", _program, .. _arguments],
+                CommandLine = OperatingSystem.IsWindows()
+                    ? _program is null ? [] : [.. _arguments]
+                    : _program is null
+                        ? ["-c", "stty sane 2>/dev/null; exec \"$0\"", Shell]
+                        : ["-c", "stty sane 2>/dev/null; exec \"$0\" \"$@\"", _program, .. _arguments],
                 Environment = env,
             }, CancellationToken.None);
             _exited = false;

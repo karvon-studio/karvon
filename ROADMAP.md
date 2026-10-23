@@ -40,7 +40,8 @@ it does today all along.
 
 - No Linux-only code in Core: paths, process trees, the trash, opening files and URLs, the default shell (in now:
   opening files, folders and URLs, and the trash, on Linux, macOS and Windows; process trees on Linux and macOS;
-  netcoredbg's build for Linux x64 and Arm64, Apple Silicon and Windows x64).
+  netcoredbg's build for Linux x64 and Arm64, Apple Silicon and Windows x64; the terminal's shell: zsh on macOS,
+  PowerShell on Windows).
 - Cmd on macOS where Ctrl is on Linux and Windows.
 - CI builds and tests on Linux, macOS and Windows.
 

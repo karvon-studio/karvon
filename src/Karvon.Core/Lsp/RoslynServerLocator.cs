@@ -33,7 +33,7 @@ public static class RoslynServerLocator
 
     static RoslynServerInstall? FromDirectory(string dir)
     {
-        var exe = Path.Combine(dir, "roslyn-language-server");
+        var exe = Path.Combine(dir, OperatingSystem.IsWindows() ? "roslyn-language-server.exe" : "roslyn-language-server");
         return File.Exists(exe) ? new RoslynServerInstall(exe, dir) : null;
     }
 
