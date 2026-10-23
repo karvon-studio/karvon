@@ -30,8 +30,9 @@ it does today all along.
   with `preLaunchTask` and `postDebugTask`; not yet: compounds, `${input:}`, problem matchers, `dependsOn`).
 - Claude's IDE tools (`run_build`, `run_tests`, `app_control`, `debug_*`) work for any workload (in now, for a folder's
   tasks and launch configurations).
-- Debug Tests for a folder's test task (in now: Debug All Tests runs a `package.json` test script under js-debug;
-  next, its tests in Test Explorer).
+- Test Explorer for any workload: a module's test frameworks find and run their tests (in now: .NET's through vstest,
+  Vitest's; Debug All Tests runs a folder's `package.json` test script under js-debug; next, Vitest under the debugger,
+  Jest).
 - Mixed repositories: a frontend's `package.json` folder shows as a project beside the solution's (in now, with its
   scripts in Run Task, and Start with the Solution: its dev server runs beside the startup project, as VS's multiple
   startup projects do; next, debugging both at once).
@@ -58,9 +59,9 @@ it does today all along.
 
 ## 2. TypeScript and JavaScript
 
-TypeScript 7's own language server (`tsc --lsp`), the `package.json` scripts as tasks and js-debug for F5 (in now: the
-TypeScript and JavaScript module); then ESLint, Vitest and Jest in Test Explorer, browser debugging (Chrome, Edge),
-HTML and CSS.
+TypeScript 7's own language server (`tsc --lsp`), the `package.json` scripts as tasks, js-debug for F5 and Vitest in
+Test Explorer (in now: the TypeScript and JavaScript module); then ESLint, Jest, browser debugging (Chrome, Edge), HTML
+and CSS.
 
 ## 3. macOS release
 

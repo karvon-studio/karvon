@@ -55,7 +55,7 @@ public static class PackageScripts
     }
 
     /// <summary>The folder's package.json, then its packages' (frontend/, apps/web/...), in order.</summary>
-    static IEnumerable<string> PackageFiles(string workspace)
+    internal static IEnumerable<string> PackageFiles(string workspace)
     {
         var root = Path.Combine(workspace, "package.json");
         if (File.Exists(root))

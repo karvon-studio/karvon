@@ -27,6 +27,9 @@ public sealed class TypeScriptModule : KarvonModule
 
     public override IReadOnlyList<string> WorkspaceTaskFiles => ["package.json"];
 
+    /// <summary>Test Explorer: the Vitest tests of the packages that depend on vitest.</summary>
+    public override IReadOnlyList<Testing.TestFramework> TestFrameworks(TestFrameworkStart start) => VitestFramework.In(start);
+
     /// <summary>A solution's frontends: the package.json folders beside its projects.</summary>
     public override IReadOnlyList<WorkspaceProject> WorkspaceProjects(string workspace) => PackageScripts.Projects(workspace);
 

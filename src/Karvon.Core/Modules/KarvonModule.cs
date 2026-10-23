@@ -55,6 +55,12 @@ public sealed record DebuggerInfo(string Id, string Name, IReadOnlyList<string> 
 /// <param name="Log">Output (Debug): what installing or starting it says.</param>
 public sealed record DebuggerStart(string Workspace, JsonObject Configuration, string Path, Action<string> Log, CancellationToken Cancellation);
 
+/// <summary>What a module's test frameworks start with.</summary>
+/// <param name="Workspace">The open folder, or the solution's.</param>
+/// <param name="Path">The tasks' PATH (the modules' tool folders first), for the programs the tests run with.</param>
+/// <param name="Log">Output (Tests).</param>
+public sealed record TestFrameworkStart(string Workspace, string Path, Action<string> Log);
+
 /// <summary>
 /// A control whose keys come before Karvon's (Bengine Data Studio's keymap in the Database Explorer): while the focus is
 /// in it, the window leaves its keys to it.
@@ -111,6 +117,13 @@ public abstract partial class KarvonModule : ObservableObject, IDisposable, IAsy
 
     /// <summary>What it downloads when it is first needed (its language server, its debugger): Tools > Modules installs and removes them.</summary>
     public virtual IReadOnlyList<ModuleComponent> Components => [];
+
+    /// <summary>
+    /// The test frameworks of a folder it knows (Vitest in a package.json's dependencies): Test Explorer finds and runs
+    /// their tests. Read when the folder's tasks are; quick and without side effects, as they are: a framework runs
+    /// nothing until Test Explorer asks it to (Run All Tests, Refresh).
+    /// </summary>
+    public virtual IReadOnlyList<Testing.TestFramework> TestFrameworks(TestFrameworkStart start) => [];
 
     /// <summary>The debuggers it brings: F5 starts the one of a launch configuration's type.</summary>
     public virtual IReadOnlyList<DebuggerInfo> Debuggers => [];

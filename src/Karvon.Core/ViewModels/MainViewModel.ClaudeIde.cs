@@ -19,6 +19,9 @@ public partial class MainViewModel
 
     internal bool IsBuildingForClaude => IsBuilding || IsTesting;
 
+    /// <summary>Whether Test Explorer has a framework for the workspace (.NET's, Vitest...), rather than only a test task.</summary>
+    internal bool HasTestFrameworksForClaude => TestFrameworks.Any();
+
     /// <summary>The last build: what, whether it succeeded, how long it took; null before the first.</summary>
     internal (string Verb, string Target, bool Succeeded, TimeSpan Took)? LastBuildForClaude => _lastBuild;
 
@@ -53,9 +56,9 @@ public partial class MainViewModel
     internal async Task<bool> RunTestsForClaudeAsync(string? filter, bool failedOnly)
     {
         var runs = _testRuns;
-        await RunTestsAsync(null, match: c =>
-            (filter is not { Length: > 0 } f || c.FullyQualifiedName.Contains(f, StringComparison.OrdinalIgnoreCase) || c.DisplayName.Contains(f, StringComparison.OrdinalIgnoreCase))
-            && (!failedOnly || _testCases.TryGetValue(c.Id, out var node) && node.State == TestState.Failed));
+        await RunTestsAsync(null, match: (key, test) =>
+            (filter is not { Length: > 0 } f || test.FullName.Contains(f, StringComparison.OrdinalIgnoreCase) || test.Name.Contains(f, StringComparison.OrdinalIgnoreCase))
+            && (!failedOnly || _testCases.TryGetValue(key, out var node) && node.State == TestState.Failed));
         return _testRuns != runs;
     }
 
@@ -65,9 +68,9 @@ public partial class MainViewModel
 
     /// <summary>The tests of the last run, by fully qualified name (with the data row of a theory), with their results.</summary>
     internal IReadOnlyList<(string Name, TestNode Node)> LastTestRunForClaude() =>
-        _lastRun.Where(_testCases.ContainsKey).Select(id => (_discovered.TryGetValue(id, out var c)
-                ? c.DisplayName.StartsWith(c.FullyQualifiedName, StringComparison.Ordinal) ? c.DisplayName : c.FullyQualifiedName
-                : _testCases[id].Name, _testCases[id]))
+        _lastRun.Where(_testCases.ContainsKey).Select(key => (_discovered.TryGetValue(key, out var d) && d.Item.FullName.Length > 0
+                ? d.Item.FullName
+                : _testCases[key].Name, _testCases[key]))
             .ToList();
 
     /// <summary>The exit code of the program Start Without Debugging ran last; null while it runs or before it ran.</summary>

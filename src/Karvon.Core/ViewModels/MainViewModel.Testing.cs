@@ -9,14 +9,21 @@ using Karvon.Testing;
 
 namespace Karvon.ViewModels;
 
-/// <summary>Test Explorer: discovery and runs through vstest, results in a Project/Namespace/Class/Method tree.</summary>
+/// <summary>
+/// Test Explorer: the tests of the workspace's test frameworks (.NET's through vstest, the modules' such as Vitest),
+/// found and run by each, their results in a Project/Namespace/Class/Method tree.
+/// </summary>
 public partial class MainViewModel
 {
-    readonly Dictionary<Guid, TestNode> _testCases = [];
-    readonly Dictionary<Guid, TestCase> _discovered = [];
+    /// <summary>The tree's tests and what they are, by key: their framework's id, a colon, their own id.</summary>
+    readonly Dictionary<string, TestNode> _testCases = [];
+    readonly Dictionary<string, (TestFramework Framework, TestItem Item)> _discovered = [];
     int _testRuns;
-    List<Guid> _lastRun = [];
-    VsTestHost? _testHost;
+    List<string> _lastRun = [];
+    DotNetTests? _dotNetTests;
+
+    /// <summary>The modules' test frameworks of the workspace, read with its tasks.</summary>
+    List<TestFramework> _moduleTestFrameworks = [];
     CancellationTokenSource? _testCts;
 
     public ObservableCollection<TestNode> TestRoots { get; } = [];
@@ -42,19 +49,56 @@ public partial class MainViewModel
     [ObservableProperty]
     public partial int SkippedCount { get; set; }
 
+    static string KeyOf(TestFramework framework, string id) => framework.Id + ":" + id;
 
-    bool CanRunTests => Solution is { } s && s.Projects.Any(p => p.IsTestProject) && !IsTesting && !IsBuilding && Mode == DebugMode.Design;
+    /// <summary>The workspace's test frameworks: .NET's when the solution has test projects, then the modules'.</summary>
+    IEnumerable<TestFramework> TestFrameworks
+    {
+        get
+        {
+            if (Solution is { } solution && solution.Projects.Any(p => p.IsTestProject))
+                yield return _dotNetTests ??= new DotNetTests(this);
+            foreach (var framework in _moduleTestFrameworks)
+                yield return framework;
+        }
+    }
 
-    /// <summary>A solution's tests, or a folder's test task.</summary>
+    /// <summary>The modules' test frameworks read again (the folder opened, a package.json saved).</summary>
+    void RefreshTestFrameworks()
+    {
+        foreach (var framework in _moduleTestFrameworks)
+            framework.Dispose();
+        _moduleTestFrameworks = [];
+        if (Solution is not { } solution)
+            return;
+        var start = new Modules.TestFrameworkStart(solution.Directory, TaskPath(), TestsOutput.Append);
+        foreach (var module in Modules)
+        {
+            try
+            {
+                _moduleTestFrameworks.AddRange(module.TestFrameworks(start));
+            }
+            catch (Exception ex) when (ex is System.Text.Json.JsonException or IOException or UnauthorizedAccessException)
+            {
+                TestsOutput.Append($"{module.Name} could not read the tests: {ex.Message}");
+            }
+        }
+        if (_moduleTestFrameworks.Count > 0 && TestRoots.Count == 0)
+            TestSummary = "Run All Tests to discover the tests.";
+    }
+
+    bool CanRunTests => TestFrameworks.Any() && !IsTesting && !IsBuilding && Mode == DebugMode.Design;
+
+    /// <summary>The workspace's tests, or a folder's test task when no framework of its is known.</summary>
     bool CanRunAllTests => CanRunTests || IsFolderWorkspace && TestTask is not null && !IsTesting && !IsBuilding && Mode == DebugMode.Design;
 
     [RelayCommand(CanExecute = nameof(CanRunAllTests))]
-    Task RunAllTests() => IsFolderWorkspace && TestTask is { } task ? RunTestTaskAsync(task) : RunTestsAsync(null);
+    Task RunAllTests() => !TestFrameworks.Any() && IsFolderWorkspace && TestTask is { } task ? RunTestTaskAsync(task) : RunTestsAsync(null);
 
     /// <summary>Run Tests on a test project in Solution Explorer: its tests only.</summary>
     [RelayCommand(CanExecute = nameof(CanRunTests))]
     Task RunProjectTests(Workspace.ProjectInfo? project) => project is null ? Task.CompletedTask
-        : RunTestsAsync(null, match: c => Services.FilePaths.IsUnder(c.Source, project.Directory));
+        : RunTestsAsync(null, match: (_, item) => item.Container is { } container && Services.FilePaths.IsUnder(container, project.Directory));
 
     [RelayCommand(CanExecute = nameof(CanRunTests))]
     Task RunFailedTests() => RunTestsAsync(_testCases.Where(kv => kv.Value.State == TestState.Failed).Select(kv => kv.Key).ToList());
@@ -65,11 +109,14 @@ public partial class MainViewModel
     [RelayCommand(CanExecute = nameof(CanRunTests))]
     Task RepeatLastTestRun() => RunTestsAsync(_lastRun.Count > 0 ? _lastRun : null);
 
-    /// <summary>A solution's tests under the debugger, or a folder's test task when its module debugs it (a package.json test script).</summary>
-    bool CanDebugAllTests => CanRunTests || IsFolderWorkspace && TestTask?.Debug is not null && !IsTesting && !IsBuilding && Mode == DebugMode.Design;
+    /// <summary>The workspace's tests under the debugger, or a folder's test task when its module debugs it (a package.json test script).</summary>
+    bool CanDebugAllTests => TestFrameworks.Any(f => f.CanDebug) && CanRunTests
+        || IsFolderWorkspace && TestTask?.Debug is not null && !IsTesting && !IsBuilding && Mode == DebugMode.Design;
 
     [RelayCommand(CanExecute = nameof(CanDebugAllTests))]
-    Task DebugAllTests() => IsFolderWorkspace && TestTask is { Debug: { } launch } ? LaunchConfigurationAsync(launch, noDebug: false) : RunTestsAsync(null, debug: true);
+    Task DebugAllTests() => !TestFrameworks.Any(f => f.CanDebug) && IsFolderWorkspace && TestTask is { Debug: { } launch }
+        ? LaunchConfigurationAsync(launch, noDebug: false)
+        : RunTestsAsync(null, debug: true);
 
     [RelayCommand(CanExecute = nameof(CanRunTests))]
     Task DebugSelectedTests() => RunTestsAsync(SelectedTest?.CaseIds().ToList() ?? [], debug: true);
@@ -92,51 +139,49 @@ public partial class MainViewModel
     [RelayCommand(CanExecute = nameof(IsTesting))]
     void CancelTestRun() => _testCts?.Cancel();
 
-    /// <summary>Builds, (re)discovers and runs the given tests (null = all), streaming results into the tree.</summary>
-    async Task RunTestsAsync(IReadOnlyList<Guid>? ids, bool debug = false, Func<TestCase, bool>? match = null)
+    /// <summary>
+    /// Discovers and runs the given tests (by key; null = all, as far as <paramref name="match"/> takes them), each
+    /// framework its own, streaming results into the tree.
+    /// </summary>
+    async Task RunTestsAsync(IReadOnlyList<string>? keys, bool debug = false, Func<string, TestItem, bool>? match = null)
     {
         ShowToolWindow(ToolWindows.TestExplorer);
         IsTesting = true;
         try
         {
-            if (!await DiscoverTestsAsync() || _testHost is not { } host)
+            if (!await DiscoverTestsAsync())
                 return;
-            var cases = (ids is null ? _discovered.Values : ids.Where(_discovered.ContainsKey).Select(id => _discovered[id])).Where(c => match?.Invoke(c) != false).ToList();
-            if (cases.Count == 0)
+            var selected = (keys ?? [.. _discovered.Keys]).Where(k => _discovered.TryGetValue(k, out var d) && match?.Invoke(k, d.Item) != false).ToList();
+            if (selected.Count == 0)
             {
                 TestSummary = "No tests to run.";
                 return;
             }
-            _lastRun = cases.Select(c => c.Id).ToList();
+            _lastRun = selected;
             _testRuns++;
-            foreach (var c in cases)
-                _testCases[c.Id].SetResult(TestState.NotRun, TimeSpan.Zero, null, null, null);
-            SetStatus($"Running {cases.Count} test(s)...", StatusKind.Busy);
+            foreach (var key in selected)
+                _testCases[key].SetResult(TestState.NotRun, TimeSpan.Zero, null, null, null);
+            SetStatus($"Running {selected.Count} test(s)...", StatusKind.Busy);
             var cts = _testCts = new CancellationTokenSource();
             var sw = Stopwatch.StartNew();
-            void OnResult(TestResultInfo r) => Dispatcher.UIThread.Post(() =>
+            var everything = keys is null && match is null;
+            foreach (var group in selected.GroupBy(k => _discovered[k].Framework))
             {
-                if (_testCases.TryGetValue(r.Id, out var node))
-                    node.SetResult(r.State, r.Duration, r.ErrorMessage, r.StackTrace, r.Output);
-            });
-            if (debug)
-            {
-                // vstest starts the test host and asks us to attach before any test runs, so breakpoints hit.
-                DebugOutput.Clear();
-                var launcher = new DebuggingTestHostLauncher(
-                    pid => Dispatcher.UIThread.InvokeAsync(() => AttachTestDebuggerAsync(pid)),
-                    DebugOutput.Append);
-                await host.DebugAsync(cases, launcher, OnResult, cts.Token);
-            }
-            else
-            {
-                await host.RunAsync(cases, OnResult, cts.Token);
+                var framework = group.Key;
+                if (debug && !framework.CanDebug)
+                {
+                    TestsOutput.Append($"{framework.Name} tests cannot be debugged yet: they run without the debugger.");
+                }
+                void OnResult(TestItemResult r) => Dispatcher.UIThread.Post(() => ApplyResult(framework, r));
+                await framework.RunAsync(everything ? null : [.. group.Select(k => _discovered[k].Item)], debug && framework.CanDebug, OnResult, cts.Token);
+                if (cts.IsCancellationRequested)
+                    break;
             }
             await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
             UpdateTestCounts();
-            var ran = cases.Count(c => _testCases[c.Id].State is TestState.Passed or TestState.Failed or TestState.Skipped);
+            var ran = selected.Count(k => _testCases.TryGetValue(k, out var n) && n.State is TestState.Passed or TestState.Failed or TestState.Skipped);
             TestSummary = cts.IsCancellationRequested
-                ? $"Test run canceled: {ran} of {cases.Count} test(s) ran."
+                ? $"Test run canceled: {ran} of {selected.Count} test(s) ran."
                 : $"Test run finished: {ran} test(s) ({PassedCount} Passed, {FailedCount} Failed, {SkippedCount} Skipped) run in {sw.Elapsed.TotalSeconds:0.0} sec";
             SetStatus(FailedCount > 0 ? $"{FailedCount} test(s) failed" : "Tests passed", StatusKind.Ready);
         }
@@ -151,107 +196,106 @@ public partial class MainViewModel
         }
     }
 
-    /// <summary>Builds the solution and discovers tests in every test project, keeping earlier results by test id.</summary>
+    /// <summary>A result into the tree; a test its framework found only as it ran (Vitest's skipped ones) joins the tree.</summary>
+    void ApplyResult(TestFramework framework, TestItemResult result)
+    {
+        var key = KeyOf(framework, result.Id);
+        if (!_testCases.TryGetValue(key, out var node))
+        {
+            if (result.Item is not { } item)
+                return;
+            _discovered[key] = (framework, item);
+            node = AddToTree(key, item);
+            if (!_lastRun.Contains(key))
+                _lastRun.Add(key);
+        }
+        node.SetResult(result.State, result.Duration, result.ErrorMessage, result.StackTrace, result.Output);
+    }
+
+    /// <summary>Each framework's tests (built first when it needs that), keeping earlier results by key.</summary>
     async Task<bool> DiscoverTestsAsync()
     {
-        if (Solution is not { } solution)
+        if (Solution is null)
             return false;
-        if (!await RunBuildAsync("build", "Build"))
-        {
-            TestSummary = "Build failed; fix the errors to discover tests.";
+        var frameworks = TestFrameworks.ToList();
+        if (frameworks.Count == 0)
             return false;
-        }
         TestSummary = "Discovering tests...";
-        var assemblies = new List<string>();
-        foreach (var project in solution.Projects.Where(p => p.IsTestProject))
-            if (await GetTargetPathAsync(project) is { } dll && File.Exists(dll))
-                assemblies.Add(dll);
-        if (assemblies.Count == 0)
+        var found = new List<(string Key, TestFramework Framework, TestItem Item)>();
+        var problems = new List<string>();
+        foreach (var framework in frameworks)
         {
-            TestSummary = "No test assemblies were built.";
+            var discovery = await framework.DiscoverAsync(CancellationToken.None);
+            found.AddRange(discovery.Tests.Select(t => (KeyOf(framework, t.Id), framework, t)));
+            if (discovery.Problem is { } problem)
+                problems.Add(problem);
+        }
+        if (found.Count == 0 && problems.Count > 0)
+        {
+            TestSummary = string.Join(" ", problems);
             return false;
         }
-
-        if (_testHost is null)
-        {
-            var console = await VsTestHost.FindConsoleAsync(solution.Directory);
-            if (console is null)
-            {
-                TestSummary = "vstest.console was not found in the .NET SDK.";
-                return false;
-            }
-            _testHost = VsTestHost.Start(console, Path.Combine(Path.GetTempPath(), "Karvon", "vstest-logs"));
-            _testHost.Log += BuildOutput.Append;
-        }
-
-        var cases = await _testHost.DiscoverAsync(assemblies, CancellationToken.None);
         _discovered.Clear();
-        foreach (var c in cases)
-            _discovered[c.Id] = c;
-        BuildTestTree(cases);
+        foreach (var (key, framework, item) in found)
+            _discovered[key] = (framework, item);
+        BuildTestTree(found.Select(f => (f.Key, f.Item)).ToList());
         UpdateTestCounts();
-        TestSummary = $"{cases.Count} test(s) discovered.";
+        TestSummary = $"{found.Count} test(s) discovered.";
         return true;
     }
 
-    void BuildTestTree(IReadOnlyList<TestCase> cases)
+    void BuildTestTree(IReadOnlyList<(string Key, TestItem Item)> tests)
     {
         // Same tests as before: keep the tree, so expansion, selection and results survive a run.
-        if (_testCases.Count == cases.Count && cases.All(c => _testCases.ContainsKey(c.Id)))
+        if (_testCases.Count == tests.Count && tests.All(t => _testCases.ContainsKey(t.Key)))
         {
-            foreach (var c in cases)
+            foreach (var (key, item) in tests)
             {
-                _testCases[c.Id].SourcePath = c.CodeFilePath;
-                _testCases[c.Id].Line = c.LineNumber;
+                _testCases[key].SourcePath = item.File;
+                _testCases[key].Line = item.Line;
             }
             return;
         }
         var previous = _testCases.ToDictionary(kv => kv.Key, kv => kv.Value);
         _testCases.Clear();
         TestRoots.Clear();
-        foreach (var byProject in cases.GroupBy(c => Path.GetFileNameWithoutExtension(c.Source)).OrderBy(g => g.Key))
+        foreach (var (key, item) in tests)
         {
-            var projectNode = new TestNode(TestNodeKind.Project, byProject.Key, null) { IsExpanded = true };
-            foreach (var byClass in byProject.GroupBy(c => Before(c.FullyQualifiedName)).OrderBy(g => g.Key))
-            {
-                var ns = Before(byClass.Key);
-                var nsNode = projectNode.Child(TestNodeKind.Namespace, ns.Length == 0 ? "<global>" : ns);
-                var classNode = nsNode.Child(TestNodeKind.Class, After(byClass.Key));
-                foreach (var byMethod in byClass.GroupBy(c => c.FullyQualifiedName).OrderBy(g => g.Key))
-                {
-                    var list = byMethod.ToList();
-                    var methodName = After(byMethod.Key);
-                    if (list.Count == 1)
-                    {
-                        Register(classNode.Child(TestNodeKind.Test, methodName), list[0]);
-                        continue;
-                    }
-                    // Theory / parameterized test: one child per data row, named like VS does.
-                    var methodNode = classNode.Child(TestNodeKind.Method, methodName);
-                    methodNode.SourcePath = list[0].CodeFilePath;
-                    methodNode.Line = list[0].LineNumber;
-                    foreach (var c in list.OrderBy(c => c.DisplayName, StringComparer.Ordinal))
-                    {
-                        var display = c.DisplayName.StartsWith(byMethod.Key, StringComparison.Ordinal) ? methodName + c.DisplayName[byMethod.Key.Length..] : c.DisplayName;
-                        Register(methodNode.Child(TestNodeKind.Test, display), c);
-                    }
-                }
-            }
-            TestRoots.Add(projectNode);
-        }
-
-        void Register(TestNode node, TestCase c)
-        {
-            node.CaseId = c.Id;
-            node.SourcePath = c.CodeFilePath;
-            node.Line = c.LineNumber;
-            _testCases[c.Id] = node;
-            if (previous.TryGetValue(c.Id, out var old))
+            var node = AddToTree(key, item);
+            if (previous.TryGetValue(key, out var old))
                 node.SetResult(old.State, old.Duration, old.ErrorMessage, old.StackTrace, old.Output);
         }
+    }
 
-        static string Before(string name) => name.LastIndexOf('.') is var i and >= 0 ? name[..i] : "";
-        static string After(string name) => name.LastIndexOf('.') is var i and >= 0 ? name[(i + 1)..] : name;
+    /// <summary>A test's row, under its groups' (made as they are first needed).</summary>
+    TestNode AddToTree(string key, TestItem item)
+    {
+        TestNode? parent = null;
+        foreach (var group in item.Groups)
+        {
+            if (parent is null)
+            {
+                parent = TestRoots.FirstOrDefault(r => r.Kind == group.Kind && r.Name == group.Name);
+                if (parent is null)
+                    TestRoots.Add(parent = new TestNode(group.Kind, group.Name, null) { IsExpanded = true });
+            }
+            else
+                parent = parent.Child(group.Kind, group.Name);
+            // A theory's method goes to where it is written, as its rows do.
+            if (group.Kind == TestNodeKind.Method && parent.SourcePath is null)
+            {
+                parent.SourcePath = item.File;
+                parent.Line = item.Line;
+            }
+        }
+        var node = parent is null ? new TestNode(TestNodeKind.Test, item.Name, null) : parent.AddTest(item.Name);
+        if (parent is null)
+            TestRoots.Add(node);
+        node.CaseId = key;
+        node.SourcePath = item.File;
+        node.Line = item.Line;
+        _testCases[key] = node;
+        return node;
     }
 
     void UpdateTestCounts()
@@ -273,8 +317,11 @@ public partial class MainViewModel
     void ResetTesting()
     {
         _testCts?.Cancel();
-        _testHost?.Dispose();
-        _testHost = null;
+        _dotNetTests?.Dispose();
+        _dotNetTests = null;
+        foreach (var framework in _moduleTestFrameworks)
+            framework.Dispose();
+        _moduleTestFrameworks = [];
         _testCases.Clear();
         _discovered.Clear();
         _lastRun = [];
@@ -283,15 +330,113 @@ public partial class MainViewModel
         PassedCount = FailedCount = SkippedCount = 0;
         TestSummary = "Build the solution to discover tests.";
     }
-}
 
-public enum TestNodeKind
-{
-    Project,
-    Namespace,
-    Class,
-    Method,
-    Test,
+    /// <summary>
+    /// .NET's tests: the solution built, its test projects' assemblies discovered and run through the SDK's
+    /// vstest.console (xUnit, NUnit, MSTest), debugged by attaching to the test host vstest starts.
+    /// </summary>
+    sealed class DotNetTests(MainViewModel vm) : TestFramework
+    {
+        VsTestHost? _host;
+        readonly Dictionary<Guid, TestCase> _cases = [];
+
+        public override string Id => "dotnet";
+
+        public override string Name => ".NET";
+
+        public override bool CanDebug => true;
+
+        public override async Task<TestDiscovery> DiscoverAsync(CancellationToken ct)
+        {
+            if (vm.Solution is not { } solution)
+                return TestDiscovery.Failed("No solution is open.");
+            if (!await vm.RunBuildAsync("build", "Build"))
+                return TestDiscovery.Failed("Build failed; fix the errors to discover tests.");
+            vm.TestSummary = "Discovering tests...";
+            var assemblies = new List<string>();
+            foreach (var project in solution.Projects.Where(p => p.IsTestProject))
+                if (await vm.GetTargetPathAsync(project) is { } dll && File.Exists(dll))
+                    assemblies.Add(dll);
+            if (assemblies.Count == 0)
+                return TestDiscovery.Failed("No test assemblies were built.");
+            if (_host is null)
+            {
+                var console = await VsTestHost.FindConsoleAsync(solution.Directory);
+                if (console is null)
+                    return TestDiscovery.Failed("vstest.console was not found in the .NET SDK.");
+                _host = VsTestHost.Start(console, Path.Combine(Path.GetTempPath(), "Karvon", "vstest-logs"));
+                _host.Log += vm.BuildOutput.Append;
+            }
+            var cases = await _host.DiscoverAsync(assemblies, ct);
+            _cases.Clear();
+            foreach (var c in cases)
+                _cases[c.Id] = c;
+            return new TestDiscovery(ItemsOf(cases));
+        }
+
+        /// <summary>The cases as Test Explorer shows them: by project, namespace, class; a theory's rows under its method, named as VS names them.</summary>
+        static List<TestItem> ItemsOf(IReadOnlyList<TestCase> cases)
+        {
+            var items = new List<TestItem>();
+            foreach (var byProject in cases.GroupBy(c => Path.GetFileNameWithoutExtension(c.Source)).OrderBy(g => g.Key))
+                foreach (var byClass in byProject.GroupBy(c => Before(c.FullyQualifiedName)).OrderBy(g => g.Key))
+                {
+                    var ns = Before(byClass.Key);
+                    TestGroup[] groups = [new(TestNodeKind.Project, byProject.Key), new(TestNodeKind.Namespace, ns.Length == 0 ? "<global>" : ns), new(TestNodeKind.Class, After(byClass.Key))];
+                    foreach (var byMethod in byClass.GroupBy(c => c.FullyQualifiedName).OrderBy(g => g.Key))
+                    {
+                        var list = byMethod.ToList();
+                        var methodName = After(byMethod.Key);
+                        if (list.Count == 1)
+                        {
+                            items.Add(ItemOf(list[0], groups, methodName));
+                            continue;
+                        }
+                        // Theory / parameterized test: one row per data row, under its method.
+                        TestGroup[] method = [.. groups, new(TestNodeKind.Method, methodName)];
+                        foreach (var c in list.OrderBy(c => c.DisplayName, StringComparer.Ordinal))
+                            items.Add(ItemOf(c, method, c.DisplayName.StartsWith(byMethod.Key, StringComparison.Ordinal) ? methodName + c.DisplayName[byMethod.Key.Length..] : c.DisplayName));
+                    }
+                }
+            return items;
+
+            static TestItem ItemOf(TestCase c, IReadOnlyList<TestGroup> groups, string name) => new(c.Id.ToString(), groups, name, c.CodeFilePath, c.LineNumber)
+            {
+                // With the data row of a theory.
+                FullName = c.DisplayName.StartsWith(c.FullyQualifiedName, StringComparison.Ordinal) ? c.DisplayName : c.FullyQualifiedName,
+                Container = c.Source,
+            };
+        }
+
+        static string Before(string name) => name.LastIndexOf('.') is var i and >= 0 ? name[..i] : "";
+
+        static string After(string name) => name.LastIndexOf('.') is var i and >= 0 ? name[(i + 1)..] : name;
+
+        public override async Task RunAsync(IReadOnlyList<TestItem>? tests, bool debug, Action<TestItemResult> onResult, CancellationToken ct)
+        {
+            if (_host is not { } host)
+                return;
+            var cases = tests is null ? [.. _cases.Values] : tests.Select(t => _cases.GetValueOrDefault(Guid.Parse(t.Id))).OfType<TestCase>().ToList();
+            void OnResult(TestResultInfo r) => onResult(new TestItemResult(r.Id.ToString(), r.State, r.Duration, r.ErrorMessage, r.StackTrace, r.Output));
+            if (debug)
+            {
+                // vstest starts the test host and asks us to attach before any test runs, so breakpoints hit.
+                vm.DebugOutput.Clear();
+                var launcher = new DebuggingTestHostLauncher(
+                    pid => Dispatcher.UIThread.InvokeAsync(() => vm.AttachTestDebuggerAsync(pid)),
+                    vm.DebugOutput.Append);
+                await host.DebugAsync(cases, launcher, OnResult, ct);
+            }
+            else
+                await host.RunAsync(cases, OnResult, ct);
+        }
+
+        public override void Dispose()
+        {
+            _host?.Dispose();
+            _host = null;
+        }
+    }
 }
 
 /// <summary>A Test Explorer row; group rows aggregate their children's outcome like VS.</summary>
@@ -301,7 +446,8 @@ public partial class TestNode(TestNodeKind kind, string name, TestNode? parent) 
     public string Name { get; } = name;
     public TestNode? Parent { get; } = parent;
     public ObservableCollection<TestNode> Children { get; } = [];
-    public Guid? CaseId { get; set; }
+    /// <summary>A test's key in Test Explorer (its framework's id, a colon, its own); null for a group.</summary>
+    public string? CaseId { get; set; }
     public string? SourcePath { get; set; }
     public int Line { get; set; }
 
@@ -351,7 +497,15 @@ public partial class TestNode(TestNodeKind kind, string name, TestNode? parent) 
         return node;
     }
 
-    public IEnumerable<Guid> CaseIds() =>
+    /// <summary>A test's row, made each time (two tests may have the same name).</summary>
+    public TestNode AddTest(string name)
+    {
+        var node = new TestNode(TestNodeKind.Test, name, this);
+        Children.Add(node);
+        return node;
+    }
+
+    public IEnumerable<string> CaseIds() =>
         CaseId is { } id ? [id] : Children.SelectMany(c => c.CaseIds());
 
     public void SetResult(TestState state, TimeSpan duration, string? error, string? stack, string? output)

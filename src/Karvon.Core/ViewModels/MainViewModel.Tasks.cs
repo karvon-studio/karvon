@@ -127,8 +127,14 @@ public partial class MainViewModel
         OnPropertyChanged(nameof(TestTask));
         BuildSolutionCommand.NotifyCanExecuteChanged();
         RebuildSolutionCommand.NotifyCanExecuteChanged();
+        RefreshTestFrameworks();
         RunAllTestsCommand.NotifyCanExecuteChanged();
         DebugAllTestsCommand.NotifyCanExecuteChanged();
+        RunFailedTestsCommand.NotifyCanExecuteChanged();
+        RunSelectedTestsCommand.NotifyCanExecuteChanged();
+        RepeatLastTestRunCommand.NotifyCanExecuteChanged();
+        RefreshTestsCommand.NotifyCanExecuteChanged();
+        DebugSelectedTestsCommand.NotifyCanExecuteChanged();
         StartWithoutDebuggingCommand.NotifyCanExecuteChanged();
         StartDebuggingCommand.NotifyCanExecuteChanged();
     }

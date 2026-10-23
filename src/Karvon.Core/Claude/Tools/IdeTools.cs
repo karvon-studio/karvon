@@ -206,9 +206,10 @@ sealed class RunTestsTool(MainViewModel vm) : IdeTool(vm)
     public override string Name => "run_tests";
 
     public override string Description =>
-        "Builds the open solution and runs its tests (xUnit, NUnit, MSTest) in Karvon's Test Explorer; returns the counts, then each "
-        + "failure with its message, stack trace and file:line. A folder opened as it is runs its test task (.vscode/tasks.json's test "
-        + "group, or package.json's test script) and returns whether it passed and its output; filter and failedOnly do not apply there.";
+        "Builds the open solution and runs its tests (xUnit, NUnit, MSTest; Vitest in a package that depends on it) in Karvon's Test "
+        + "Explorer; returns the counts, then each failure with its message, stack trace and file:line. A folder opened as it is with no "
+        + "test framework Karvon knows runs its test task (.vscode/tasks.json's test group, or package.json's test script) and returns "
+        + "whether it passed and its output; filter and failedOnly do not apply there.";
 
     public override JsonObject InputSchema => Schema("""
         {"type":"object","properties":{
@@ -224,7 +225,7 @@ sealed class RunTestsTool(MainViewModel vm) : IdeTool(vm)
         _ = SolutionDirectory;
         if (Vm.IsBuildingForClaude)
             return ClaudeToolOutput.Error("Karvon is building or running tests already; wait for it, then call run_tests again.");
-        if (Vm.IsFolderWorkspace)
+        if (Vm.IsFolderWorkspace && !Vm.HasTestFrameworksForClaude)
         {
             if (Vm.TestTask is not { } task)
                 return ClaudeToolOutput.Error("The open folder has no test task: give .vscode/tasks.json one (group test), or package.json a test script.");
