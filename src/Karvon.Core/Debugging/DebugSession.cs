@@ -28,6 +28,8 @@ public sealed class DebugSession : IAsyncDisposable
     readonly DebugAdapter _adapter;
     readonly DapConnection _root;
     readonly List<DapConnection> _children = [];
+    /// <summary>What the adapter asked to run in a terminal (runInTerminal): run here, its output the program's.</summary>
+    readonly List<ProcessRunner> _terminals = [];
     readonly Dictionary<string, IReadOnlyList<int>> _breakpoints = [];
     readonly Dictionary<(DapConnection, int), (string File, int Line)> _breakpointIds = [];
     DapConnection? _stopped;
@@ -124,7 +126,7 @@ public sealed class DebugSession : IAsyncDisposable
             linesStartAt1 = true,
             columnsStartAt1 = true,
             supportsVariableType = true,
-            supportsRunInTerminalRequest = false,
+            supportsRunInTerminalRequest = true,
             supportsStartDebuggingRequest = true,
             locale = "en-us",
         }, ct);
@@ -146,8 +148,45 @@ public sealed class DebugSession : IAsyncDisposable
         dap.ReverseRequest = (command, arguments) => command switch
         {
             "startDebugging" => StartChild(arguments),
+            "runInTerminal" => RunInTerminal(arguments),
             _ => throw new NotSupportedException("not supported by Karvon"),
         };
+    }
+
+    /// <summary>
+    /// The adapter asks for its command to run in a terminal (a console of integratedTerminal, externalTerminal: kotlin-lsp's
+    /// Gradle, which runs the program): it runs here, its output in the session's (as the terminal would show it), and the
+    /// session lasts until it is done, the adapter's end aside (Gradle writes a task's output when the task is over).
+    /// </summary>
+    Task<object?> RunInTerminal(JsonElement arguments)
+    {
+        var args = arguments.GetProperty("args").EnumerateArray().Select(a => a.GetString() ?? "").ToList();
+        if (args.Count == 0)
+            throw new ArgumentException("runInTerminal has no command.");
+        var cwd = arguments.TryGetProperty("cwd", out var c) && c.GetString() is { Length: > 0 } dir ? dir : Environment.CurrentDirectory;
+        Dictionary<string, string> environment = [];
+        HashSet<string> unset = [];
+        if (arguments.TryGetProperty("env", out var env) && env.ValueKind == JsonValueKind.Object)
+            foreach (var variable in env.EnumerateObject())
+                if (variable.Value.ValueKind == JsonValueKind.String)
+                    environment[variable.Name] = variable.Value.GetString()!;
+                else
+                    unset.Add(variable.Name);
+        // A shell's line when the adapter says the shell may read it (its quoting, its variables), else the program's.
+        var (program, programArgs) = arguments.TryGetProperty("argsCanBeInterpretedByShell", out var shell) && shell.ValueKind == JsonValueKind.True
+            ? Workspace.TaskVariables.Shell(string.Join(' ', args))
+            : (args[0], args[1..]);
+        var runner = ProcessRunner.Start(program, programArgs, cwd, line => Output?.Invoke("stdout", line + "\n"), environment, unset);
+        lock (_terminals)
+            _terminals.Add(runner);
+        _ = Task.Run(async () =>
+        {
+            await runner.WaitAsync();
+            lock (_terminals)
+                _terminals.Remove(runner);
+            runner.Dispose();
+        });
+        return Task.FromResult<object?>(new { processId = runner.Id });
     }
 
     /// <summary>
@@ -272,8 +311,17 @@ public sealed class DebugSession : IAsyncDisposable
     {
         for (var i = 0; i < 40 && ChildCount() > 0; i++)
             await Task.Delay(50);
+        // What runs in its terminal says the rest of the program's output as it ends.
+        for (var i = 0; i < 600 && TerminalCount() > 0; i++)
+            await Task.Delay(50);
         End(_exitCode);
     });
+
+    int TerminalCount()
+    {
+        lock (_terminals)
+            return _terminals.Count;
+    }
 
     int ChildCount()
     {
@@ -375,6 +423,9 @@ public sealed class DebugSession : IAsyncDisposable
             string? path = null;
             if (f.TryGetProperty("source", out var s) && s.TryGetProperty("path", out var p))
                 path = p.GetString();
+            // A file's URI where a path was asked for (kotlin-lsp's attached sessions say file:///...): its path.
+            if (path is not null && path.StartsWith("file:", StringComparison.OrdinalIgnoreCase) && Uri.TryCreate(path, UriKind.Absolute, out var uri))
+                path = FileUris.ToPath(uri);
             return new StackFrameInfo(f.GetProperty("id").GetInt32(), f.GetProperty("name").GetString() ?? "",
                 path, f.TryGetProperty("line", out var l) ? l.GetInt32() : 0, f.TryGetProperty("column", out var c) ? c.GetInt32() : 0);
         }).ToList();
@@ -430,6 +481,11 @@ public sealed class DebugSession : IAsyncDisposable
     {
         if (!HasEnded && !_adapter.HasExited)
             await TerminateAsync();
+        List<ProcessRunner> terminals;
+        lock (_terminals)
+            terminals = [.. _terminals];
+        foreach (var terminal in terminals)
+            terminal.Kill();
         List<DapConnection> children;
         lock (_children)
             children = [.. _children];

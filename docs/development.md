@@ -13,7 +13,7 @@ The Database Explorer's engine is the [bengine](https://github.com/nbkabdulakhad
 
 The tests that download a language's servers and run its toolchain are off unless their variable is set:
 `KARVON_TYPESCRIPT_LIVE=1`, `KARVON_PYTHON_LIVE=1`, `KARVON_GO_LIVE=1`, `KARVON_RUST_LIVE=1`, `KARVON_CPP_LIVE=1` and
-`KARVON_JAVA_LIVE=1`. They never touch your own settings, SSH configuration or keyring.
+`KARVON_JAVA_LIVE=1` (and `KARVON_KOTLIN_LIVE=1`, which downloads about 350 MB). They never touch your own settings, SSH configuration or keyring.
 
 The README's screenshots are rendered by the tests too:
 
@@ -58,6 +58,7 @@ src/Karvon.Rust/        module: Rust (rust-analyzer, CodeLLDB, cargo build/check
 src/Karvon.Cpp/         module: C and C++ (clangd, CodeLLDB, CMake's configure/build/ctest/run, Make, CTest in Test Explorer)
 src/Karvon.Lldb/        CodeLLDB, which the Rust and C and C++ modules debug with
 src/Karvon.Java/        module: Java (jdtls with java-debug in it, Maven's and Gradle's builds, JUnit in Test Explorer)
+src/Karvon.Kotlin/      module: Kotlin (JetBrains' kotlin-lsp and its debugger, Gradle's tests in Test Explorer, a template)
 src/Karvon.Claude/      module: Claude Code (its session, protocol and view model, and the panel)
 external/bengine/       Bengine (submodule): the schema AST and the live-database layer the Database Explorer uses
 ```

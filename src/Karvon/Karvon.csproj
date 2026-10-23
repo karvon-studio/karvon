@@ -27,6 +27,7 @@
     <ProjectReference Include="..\Karvon.Rust\Karvon.Rust.csproj" />
     <ProjectReference Include="..\Karvon.Cpp\Karvon.Cpp.csproj" />
     <ProjectReference Include="..\Karvon.Java\Karvon.Java.csproj" />
+    <ProjectReference Include="..\Karvon.Kotlin\Karvon.Kotlin.csproj" />
     <ProjectReference Include="..\Karvon.Claude\Karvon.Claude.csproj" />
   </ItemGroup>
 </Project>

@@ -2,7 +2,6 @@ using System.Globalization;
 using System.Text;
 using System.Text.Json.Nodes;
 using System.Text.RegularExpressions;
-using System.Xml.Linq;
 using Karvon.Build;
 using Karvon.Modules;
 using Karvon.Testing;
@@ -295,50 +294,10 @@ public sealed partial class JUnitFramework(TestFrameworkStart start, Func<Cancel
     /// <summary>An option as the launcher's options file has it: in quotes, its backslashes and quotes escaped.</summary>
     static string Quote(string option) => "\"" + option.Replace("\\", "\\\\").Replace("\"", "\\\"") + "\"";
 
-    /// <summary>
-    /// The results of a run's XML reports (JUnit's legacy ones: Jupiter's, Vintage's), each by its test's id; a test a
-    /// parameterized method runs as several rows failed when one of them did. A test the files did not show joins the tree.
-    /// </summary>
-    internal IEnumerable<TestItemResult> Results(string reports)
-    {
-        if (!Directory.Exists(reports))
-            yield break;
-        var rows = new List<(string Id, string Class, string Method, TestState State, double Seconds, string? Message, string? Stack, string? Output)>();
-        foreach (var report in Directory.EnumerateFiles(reports, "TEST-*.xml"))
-        {
-            XDocument doc;
-            try
-            {
-                doc = XDocument.Load(report);
-            }
-            catch (Exception ex) when (ex is IOException or System.Xml.XmlException)
-            {
-                continue;
-            }
-            foreach (var testcase in doc.Descendants("testcase"))
-            {
-                var @class = (string?)testcase.Attribute("classname") ?? "";
-                var name = (string?)testcase.Attribute("name") ?? "";
-                var method = name.IndexOf('(') is var paren and > 0 ? name[..paren] : name;
-                var failure = testcase.Element("failure") ?? testcase.Element("error");
-                var state = failure is not null ? TestState.Failed : testcase.Element("skipped") is not null ? TestState.Skipped : TestState.Passed;
-                var seconds = double.TryParse((string?)testcase.Attribute("time"), NumberStyles.Float, CultureInfo.InvariantCulture, out var s) ? s : 0;
-                // The report's own lines (unique-id, display-name) are no output of the test's.
-                var output = string.Join('\n', ((string?)testcase.Element("system-out") ?? "").Split('\n')
-                    .Where(l => !l.StartsWith("unique-id: ", StringComparison.Ordinal) && !l.StartsWith("display-name: ", StringComparison.Ordinal))).Trim();
-                rows.Add(($"{@class}#{method}", @class, method, state, seconds, (string?)failure?.Attribute("message"), failure?.Value.Trim(), output.Length > 0 ? output : null));
-            }
-        }
-        foreach (var test in rows.GroupBy(r => r.Id))
-        {
-            var failed = test.FirstOrDefault(r => r.State == TestState.Failed);
-            var state = failed.Id is not null ? TestState.Failed : test.All(r => r.State == TestState.Skipped) ? TestState.Skipped : TestState.Passed;
-            var output = string.Join('\n', test.Select(r => r.Output).OfType<string>());
-            var first = test.First();
-            yield return new TestItemResult(test.Key, state, TimeSpan.FromSeconds(test.Sum(r => r.Seconds)), failed.Message, failed.Stack, output.Length > 0 ? output : null)
-            {
-                Item = _tests.ContainsKey(test.Key) ? null : ItemOf(first.Class, first.Method, null, 0),
-            };
-        }
-    }
+    /// <summary>The results of a run's XML reports (JUnit's legacy ones: Jupiter's, Vintage's); a test the files did not show joins the tree.</summary>
+    internal IEnumerable<TestItemResult> Results(string reports) =>
+        !Directory.Exists(reports)
+            ? []
+            : JUnitReports.Read(Directory.EnumerateFiles(reports, "TEST-*.xml"))
+                .Select(r => _tests.ContainsKey(r.Result.Id) ? r.Result : r.Result with { Item = ItemOf(r.Class, r.Method, null, 0) });
 }

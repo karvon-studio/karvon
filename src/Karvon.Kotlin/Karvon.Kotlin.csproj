@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- The Kotlin module: JetBrains' Kotlin language server in the editor (its Gradle and Maven import), its debugger for F5. -->
+  <PropertyGroup>
+    <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
+    <RootNamespace>Karvon.Kotlin</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="Karvon.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Karvon.Core\Karvon.Core.csproj" />
+  </ItemGroup>
+
+  <!-- Gradle's wrapper (Apache-2.0), as Gradle 9.1.0 makes it: the new project's gradlew, which kotlin-lsp runs it with. -->
+  <ItemGroup>
+    <EmbeddedResource Include="GradleWrapper\*" LogicalName="GradleWrapper/%(Filename)%(Extension)" />
+  </ItemGroup>
+</Project>

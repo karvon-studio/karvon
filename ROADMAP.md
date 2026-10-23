@@ -92,8 +92,9 @@ Each language is a module (in now unless it says next):
 - Go: gopls, Delve, a module's go build, test, vet and run, go test in Test Explorer.
 - Rust: rust-analyzer, CodeLLDB, a Cargo package's build, check, clippy, test and run, cargo test in Test Explorer.
 - C and C++: clangd, CodeLLDB, CMake's and Make's builds, CTest in Test Explorer.
-- Java: jdtls with java-debug in it, Maven's and Gradle's builds, JUnit (5, and 4) in Test Explorer, run and debugged;
-  next Kotlin.
+- Java: jdtls with java-debug in it, Maven's and Gradle's builds, JUnit (5, and 4) in Test Explorer, run and debugged.
+- Kotlin: JetBrains' kotlin-lsp (its Gradle and Maven import) and its debugger for F5 of a Gradle application, a Gradle
+  build's tests in Test Explorer (run by its Gradle, and debugged), and a Gradle application's template.
 
 Then a Windows release.
 

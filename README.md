@@ -1,7 +1,7 @@
 # Karvon Studio
 
 A native IDE with Visual Studio's look and workflow, made to grow by modules: C#, ASP.NET Core and Blazor, TypeScript
-and JavaScript, Python, Go, Rust, C and C++, and Java on Linux; macOS and Windows next ([roadmap](ROADMAP.md)). Built
+and JavaScript, Python, Go, Rust, C and C++, Java and Kotlin on Linux; macOS and Windows next ([roadmap](ROADMAP.md)). Built
 with Avalonia, its C# IntelliSense is Microsoft's Roslyn, the engine Visual Studio uses. It grew out of VSL, whose
 history this repository carries.
 

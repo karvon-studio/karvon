@@ -76,8 +76,8 @@ public class DebugLaunchTests
         Environment.SetEnvironmentVariable("KARVON_TEST_PORT", "8080");
         var file = Path.Combine(dir, "src", "app.js");
         var started = TaskVariables.ForFile(app.Configuration, dir, file);
-        Assert.Equal(Path.Combine(dir, "src", TestTools.PlatformKey + ".js"), started["program"]!.GetValue<string>());
-        Assert.Equal(["src/app.js", "--port", "8080"], started["args"]!.AsArray().Select(a => a!.GetValue<string>()));
+        Assert.Equal(Path.Combine(dir, "src", TestTools.PlatformKey + ".js"), Path.GetFullPath(started["program"]!.GetValue<string>()));
+        Assert.Equal([Path.Combine("src", "app.js"), "--port", "8080"], started["args"]!.AsArray().Select(a => a!.GetValue<string>()));
         Assert.Equal(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), started["env"]!["HOME_DIR"]!.GetValue<string>());
         Assert.Equal($"${{workspaceFolder}}/src/{TestTools.PlatformKey}.js", app.Configuration["program"]!.GetValue<string>());
 
@@ -375,6 +375,36 @@ public class DebugLaunchTests
         Assert.True(vm.Mode == DebugMode.Design, vm.DebugOutput.Document.Text);
         Assert.True(await vm.CloseSolutionCoreAsync());
         window.Close();
+        Directory.Delete(dir, recursive: true);
+    }
+
+    [Fact]
+    public async Task What_the_adapter_runs_in_a_terminal_runs_here_its_output_the_sessions()
+    {
+        // The adapter ends before its program does (as kotlin-lsp's Gradle launch ends when the JVM is gone and Gradle
+        // still says the task's output): the session lasts until the program is done, all of its output said.
+        var dir = NewFolder();
+        var adapter = Karvon.Debugging.DebugAdapter.Start("fake", new System.Diagnostics.ProcessStartInfo(TestTools.Python,
+            ["-I", Path.Combine(AppContext.BaseDirectory, "TestAssets", "FakeDap", "dap_server.py")]));
+        var program = new System.Text.Json.Nodes.JsonArray(TestTools.Python, "-c",
+            "import os, time; print('first', flush=True); time.sleep(1); print(os.environ['KARVON_FAKE_DAP'], 'KARVON_FAKE_UNSET' in os.environ)");
+        System.Environment.SetEnvironmentVariable("KARVON_FAKE_UNSET", "inherited");
+        var output = new System.Collections.Concurrent.ConcurrentQueue<string>();
+        var ended = new TaskCompletionSource<int?>();
+        await using var session = await Karvon.Debugging.DebugSession.StartAsync(adapter, "launch",
+            new System.Text.Json.Nodes.JsonObject { ["type"] = "fake", ["program"] = program, ["cwd"] = dir }, new Dictionary<string, IReadOnlyList<int>>(),
+            (_, _) => { }, s =>
+            {
+                s.Output += (_, text) => output.Enqueue(text);
+                s.Ended += code => ended.TrySetResult(code);
+            }, TestContext.Current.CancellationToken);
+        await ended.Task.WaitAsync(TimeSpan.FromSeconds(30), TestContext.Current.CancellationToken);
+        System.Environment.SetEnvironmentVariable("KARVON_FAKE_UNSET", null);
+        var text = string.Concat(output).ReplaceLineEndings("\n");
+        Assert.Contains("first\n", text);
+        Assert.Contains("started ", text);
+        // Its variables as the adapter said them: one set, one taken away.
+        Assert.Contains("set False\n", text);
         Directory.Delete(dir, recursive: true);
     }
 }
