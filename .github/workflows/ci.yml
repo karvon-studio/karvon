@@ -46,4 +46,6 @@ jobs:
           KARVON_PYTHON_LIVE: "1"
           # gopls and Delve built with the runner's Go (go install), go test in Test Explorer.
           KARVON_GO_LIVE: "1"
+          # rust-analyzer and CodeLLDB from their GitHub releases, with the runner's cargo.
+          KARVON_RUST_LIVE: "1"
         run: dotnet test Karvon.slnx -c Release --no-build --blame-hang-timeout 5m --blame-hang-dump-type none --logger "console;verbosity=normal"
