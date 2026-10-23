@@ -23,6 +23,8 @@ public sealed class RustModule : KarvonModule
 
     public override IReadOnlyList<WorkspaceTask> WorkspaceTasks(string workspace) => CargoTasks.Read(workspace);
 
+    public override IReadOnlyList<Templates.ProjectTemplate> ProjectTemplates => RustTemplates.All;
+
     public override IReadOnlyList<string> WorkspaceTaskFiles => ["Cargo.toml"];
 
     /// <summary>cargo's folder when Karvon's PATH has none (Karvon started from the desktop).</summary>

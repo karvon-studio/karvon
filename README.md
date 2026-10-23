@@ -31,7 +31,7 @@ needed.
 | | |
 |---|---|
 | ![Start window](docs/screenshots/start-window.png) | ![New project](docs/screenshots/new-project.png) |
-| **Start window**: recent solutions, clone, open a folder or a project | **New project** from every installed `dotnet new` template, with VS's options |
+| **Start window**: recent solutions, clone, open a folder or a project | **New project** from every installed `dotnet new` template, with VS's options, and the languages' own (TypeScript, Python, Go, Rust, C and C++, Java) |
 | ![Debugging](docs/screenshots/debugging.png) | ![Git](docs/screenshots/git.png) |
 | **Debugging**: breakpoints, stepping, Locals, Watch, Call Stack | **Git**: Changes window, side-by-side diff, branches |
 | ![Test Explorer](docs/screenshots/test-explorer.png) | ![Claude Code](docs/screenshots/claude-code.png) |

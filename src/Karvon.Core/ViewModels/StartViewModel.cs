@@ -128,6 +128,7 @@ public sealed partial class StartViewModel : ObservableObject
     readonly Settings _settings;
     readonly Func<DateTime> _now;
     readonly Func<CancellationToken, Task<IReadOnlyList<ProjectTemplate>>> _loadTemplates;
+    readonly IReadOnlyList<ProjectTemplate> _moduleTemplates;
     List<TemplateItem> _templates = [];
     Task? _templatesTask;
     bool _solutionNameEdited;
@@ -135,10 +136,14 @@ public sealed partial class StartViewModel : ObservableObject
     bool _clonePathEdited;
     bool _syncingClonePath;
 
+    /// <param name="moduleTemplates">The modules' templates (a Go module...), beside .NET's when a new project is no project of a solution.</param>
     public StartViewModel(Settings settings, Func<DateTime>? now = null,
-        Func<CancellationToken, Task<IReadOnlyList<ProjectTemplate>>>? loadTemplates = null, string? addToSolution = null)
+        Func<CancellationToken, Task<IReadOnlyList<ProjectTemplate>>>? loadTemplates = null, string? addToSolution = null,
+        IReadOnlyList<ProjectTemplate>? moduleTemplates = null)
     {
         _settings = settings;
+        // A module's project is no project of a .NET solution: Add > New Project has .NET's only.
+        _moduleTemplates = addToSolution is null ? moduleTemplates ?? [] : [];
         _now = now ?? (() => DateTime.Now);
         _loadTemplates = loadTemplates ?? TemplateCatalog.LoadAsync;
         AddToSolution = addToSolution;
@@ -157,7 +162,8 @@ public sealed partial class StartViewModel : ObservableObject
 
     public bool IsAddingToSolution => AddToSolution is not null;
 
-    public bool IsCreatingSolution => AddToSolution is null;
+    /// <summary>A new solution around the project: .NET's templates make one, a module's makes its folder only.</summary>
+    public bool IsCreatingSolution => AddToSolution is null && SelectedTemplate?.Template.Create is null;
 
     public string NewProjectTitle => IsAddingToSolution ? "Add a new project" : "Create a new project";
 
@@ -396,7 +402,7 @@ public sealed partial class StartViewModel : ObservableObject
     public partial string ProjectTypeFilter { get; set; } = AllProjectTypes;
 
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(SelectedTemplateName), nameof(SelectedTemplateTags))]
+    [NotifyPropertyChangedFor(nameof(SelectedTemplateName), nameof(SelectedTemplateTags), nameof(IsCreatingSolution), nameof(CreatedInText), nameof(ConfigureError))]
     [NotifyCanExecuteChangedFor(nameof(NextCommand))]
     public partial TemplateItem? SelectedTemplate { get; set; }
 
@@ -428,7 +434,16 @@ public sealed partial class StartViewModel : ObservableObject
         TemplatesLoading = true;
         try
         {
-            _templates = (await _loadTemplates(CancellationToken.None)).Select(t => new TemplateItem(t)).ToList();
+            // The modules' templates after .NET's (theirs is the SDK's, which may be slow to list or fail).
+            _templates = [.. _moduleTemplates.Select(t => new TemplateItem(t))];
+            try
+            {
+                _templates.InsertRange(0, (await _loadTemplates(CancellationToken.None)).Select(t => new TemplateItem(t)));
+            }
+            catch (Exception ex) when (_moduleTemplates.Count > 0 && ex is InvalidOperationException or IOException or System.Text.Json.JsonException)
+            {
+                Message = "The .NET project templates could not be loaded: " + ex.Message;
+            }
             foreach (var language in _templates.Select(t => t.Language).OfType<string>().Distinct().OrderBy(LanguageRank))
                 Languages.Add(language);
             foreach (var platform in _templates.SelectMany(t => t.Template.Platforms).Distinct().Order(StringComparer.OrdinalIgnoreCase))
@@ -451,7 +466,7 @@ public sealed partial class StartViewModel : ObservableObject
         }
     }
 
-    static int LanguageRank(string language) => language switch { "C#" => 0, "F#" => 1, "VB" => 2, _ => 3 };
+    static int LanguageRank(string language) => language switch { "C#" => 0, "F#" => 1, "VB" => 2, "TypeScript" => 3, "Python" => 4, _ => 5 };
 
     void FilterTemplates()
     {
@@ -541,12 +556,17 @@ public sealed partial class StartViewModel : ObservableObject
             _solutionNameEdited = true;
     }
 
+    /// <summary>A module's project is its folder alone, in the location.</summary>
+    bool IsModuleTemplate => SelectedTemplate?.Template.Create is not null;
+
     public string? ConfigureError => Page == StartPage.NewProject && ProjectName.Length == 0
         ? null
-        : ProjectCreator.Validate(ProjectName, Location, IsAddingToSolution ? ProjectName : SolutionName, SolutionInSameDirectory);
+        : IsModuleTemplate && Directory.Exists(Path.Combine(Location, ProjectName)) && Directory.EnumerateFileSystemEntries(Path.Combine(Location, ProjectName)).Any()
+            ? $"\"{Path.Combine(Location, ProjectName)}\" is there already, and not empty."
+            : ProjectCreator.Validate(ProjectName, Location, IsAddingToSolution || IsModuleTemplate ? ProjectName : SolutionName, SolutionInSameDirectory || IsModuleTemplate);
 
     NewProjectRequest? Request => SelectedTemplate is { } t
-        ? new NewProjectRequest(t.Template, ProjectName, Location, SolutionName, SolutionInSameDirectory,
+        ? new NewProjectRequest(t.Template, ProjectName, Location, IsModuleTemplate ? ProjectName : SolutionName, SolutionInSameDirectory || IsModuleTemplate,
             Options.Where(o => !o.IsDefault).Select(o => (o.Option, o.Value)).ToList())
         : null;
 
@@ -584,6 +604,17 @@ public sealed partial class StartViewModel : ObservableObject
         try
         {
             void Logged(string line) => Avalonia.Threading.Dispatcher.UIThread.Post(() => Log.Add(line));
+            // A module's template makes its folder, which opens as it is.
+            if (request.Template.Create is { } create)
+            {
+                Directory.CreateDirectory(request.ProjectDirectory);
+                var folder = await create(request, Logged, CancellationToken.None);
+                _settings.NewProjectLocation = request.Location;
+                _settings.AddRecentTemplate(request.Template.Identity);
+                _settings.Save();
+                Choose(folder);
+                return;
+            }
             if (IsAddingToSolution)
             {
                 CreatedProjects = await ProjectCreator.CreateProjectAsync(request, Logged);

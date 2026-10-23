@@ -91,6 +91,9 @@ public partial class MainViewModel : IWorkbench
         }
     }
 
+    /// <summary>The modules' new project templates (a Go module, a Cargo package...), for File > New > Project.</summary>
+    public IReadOnlyList<Templates.ProjectTemplate> ModuleProjectTemplates => [.. Modules.SelectMany(m => m.ProjectTemplates)];
+
     /// <summary>Karvon closes: what the modules started stops.</summary>
     public async Task ShutdownModulesAsync()
     {

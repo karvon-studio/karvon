@@ -129,6 +129,9 @@ public abstract partial class KarvonModule : ObservableObject, IDisposable, IAsy
     /// </summary>
     public virtual IReadOnlyList<Testing.TestFramework> TestFrameworks(TestFrameworkStart start) => [];
 
+    /// <summary>Its new project templates (a Go module, a Cargo package...), in File > New > Project beside .NET's.</summary>
+    public virtual IReadOnlyList<Templates.ProjectTemplate> ProjectTemplates => [];
+
     /// <summary>The debuggers it brings: F5 starts the one of a launch configuration's type.</summary>
     public virtual IReadOnlyList<DebuggerInfo> Debuggers => [];
 

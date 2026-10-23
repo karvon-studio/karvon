@@ -27,6 +27,8 @@ public sealed class JavaModule : KarvonModule
 
     public override IReadOnlyList<WorkspaceTask> WorkspaceTasks(string workspace) => JavaTasks.Read(workspace);
 
+    public override IReadOnlyList<Templates.ProjectTemplate> ProjectTemplates => JavaTemplates.All;
+
     public override IReadOnlyList<string> WorkspaceTaskFiles => ["pom.xml", "build.gradle", "build.gradle.kts"];
 
     public override IReadOnlyList<DebuggerInfo> Debuggers =>

@@ -22,6 +22,8 @@ public sealed class GoModule : KarvonModule
 
     public override IReadOnlyList<WorkspaceTask> WorkspaceTasks(string workspace) => GoTasks.Read(workspace);
 
+    public override IReadOnlyList<Templates.ProjectTemplate> ProjectTemplates => GoTemplates.All;
+
     public override IReadOnlyList<string> WorkspaceTaskFiles => ["go.mod"];
 
     /// <summary>Go's folder when Karvon's PATH has none (Karvon started from the desktop).</summary>

@@ -22,6 +22,8 @@ public sealed class CppModule : KarvonModule
 
     public override IReadOnlyList<WorkspaceTask> WorkspaceTasks(string workspace) => CppTasks.Read(workspace);
 
+    public override IReadOnlyList<Templates.ProjectTemplate> ProjectTemplates => CppTemplates.All;
+
     public override IReadOnlyList<string> WorkspaceTaskFiles => ["CMakeLists.txt", "Makefile", "makefile"];
 
     /// <summary>Test Explorer: CTest's tests, in a CMake folder that enables testing.</summary>

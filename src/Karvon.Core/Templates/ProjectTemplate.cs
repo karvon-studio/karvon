@@ -53,6 +53,17 @@ public sealed record ProjectTemplate(
     /// <summary>The template's own icon (extracted from its package), when it ships one.</summary>
     public string? IconPath { get; init; }
 
+    /// <summary>
+    /// A module's template (a Go module, a Cargo package...): it makes the project itself, in the request's project
+    /// folder, in place of dotnet new, with no solution around it; what it returns (that folder) opens.
+    /// </summary>
+    public Func<NewProjectRequest, Action<string>, CancellationToken, Task<string>>? Create { get; init; }
+
+    /// <summary>A module's template: its project folder is all it makes.</summary>
+    public static ProjectTemplate OfModule(string identity, string name, string language, string description, string defaultName,
+        IReadOnlyList<string> tags, Func<NewProjectRequest, Action<string>, CancellationToken, Task<string>> create) =>
+        new(identity, identity, name, identity, description, "Karvon", language, tags, ["Linux", "macOS", "Windows"], 0, defaultName, []) { Create = create };
+
     /// <summary>Language first, then platforms and project types, as VS lists them under a template.</summary>
     public IReadOnlyList<string> AllTags => [.. (Language is null ? [] : new[] { Language }), .. Platforms, .. Tags];
 

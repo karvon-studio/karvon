@@ -239,7 +239,7 @@ public partial class MainWindow : Window, IDialogService
     {
         if (Vm is not { } vm)
             return;
-        var startVm = new StartViewModel(vm.Settings);
+        var startVm = new StartViewModel(vm.Settings, moduleTemplates: vm.ModuleProjectTemplates);
         var start = new StartWindow { DataContext = startVm };
         if (page == StartPage.NewProject)
             startVm.ShowNewProjectCommand.Execute(null);
