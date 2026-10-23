@@ -79,7 +79,7 @@ public class SolutionLoaderTests
     {
         var ct = TestContext.Current.CancellationToken;
         var sln = await SampleSolution.GetAsync();
-        var solution = await SolutionLoader.LoadAsync(sln, ct);
+        var solution = await Karvon.DotNet.SolutionReader.LoadAsync(sln, ct);
 
         Assert.Equal(["Components", "Tests", "Web"], solution.Projects.Select(p => p.Name).Order());
         Assert.True(solution.Projects.Single(p => p.Name == "Tests").IsTestProject);

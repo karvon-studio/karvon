@@ -112,6 +112,10 @@ public sealed partial class DotNetModule : KarvonModule
     /// <summary>The SDK's project templates (dotnet new's), as Visual Studio lists them.</summary>
     public override Task<IReadOnlyList<ProjectTemplate>> LoadProjectTemplatesAsync(CancellationToken ct) => TemplateCatalog.LoadAsync(ct);
 
+    public override bool OpensWorkspace(string path) => SolutionReader.Opens(path);
+
+    public override Task<SolutionInfo> OpenWorkspaceAsync(string path, CancellationToken ct) => SolutionReader.LoadAsync(path, ct);
+
     /// <summary>dotnet build (clean, pack, publish) of the solution or of one of its projects, as Visual Studio builds it.</summary>
     public override BuildCommand? BuildSolution(SolutionInfo solution, BuildRequest request)
     {

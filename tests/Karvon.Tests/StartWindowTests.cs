@@ -168,7 +168,7 @@ public class ProjectCreatorTests
 
         Assert.Equal(Path.Combine(dir, "HelloSolution", "HelloSolution.slnx"), solution);
         Assert.Contains("static void Main", File.ReadAllText(Path.Combine(dir, "HelloSolution", "Hello", "Program.cs")));
-        var loaded = await SolutionLoader.LoadAsync(solution, TestContext.Current.CancellationToken);
+        var loaded = await Karvon.DotNet.SolutionReader.LoadAsync(solution, TestContext.Current.CancellationToken);
         Assert.Equal("Hello", Assert.Single(loaded.Projects).Name);
     }
 
@@ -225,7 +225,7 @@ public class ProjectCreatorTests
 
         // Server + WebAssembly client projects, in the template's own solution.
         Assert.Equal(Path.Combine(dir, "Shop"), Path.GetDirectoryName(solution));
-        var loaded = await SolutionLoader.LoadAsync(solution, TestContext.Current.CancellationToken);
+        var loaded = await Karvon.DotNet.SolutionReader.LoadAsync(solution, TestContext.Current.CancellationToken);
         Assert.Equal(["Shop", "Shop.Client"], loaded.Projects.Select(p => p.Name).Order());
     }
 }

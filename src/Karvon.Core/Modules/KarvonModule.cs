@@ -195,6 +195,13 @@ public abstract partial class KarvonModule : ObservableObject, IDisposable, IAsy
     /// <summary>Its items of the main menu (Tools > NuGet Package Manager, Tools > Trust ASP.NET Core Development Certificate).</summary>
     public virtual IReadOnlyList<ModuleMainMenuItem> MainMenus => [];
 
+    /// <summary>Whether it opens a workspace file (.NET's: a .sln, a .slnx, a project file); the core opens folders.</summary>
+    public virtual bool OpensWorkspace(string path) => false;
+
+    /// <summary>A workspace file it opens, read: the solution, its projects, and Solution Explorer's tree of them.</summary>
+    public virtual Task<SolutionInfo> OpenWorkspaceAsync(string path, CancellationToken ct) =>
+        Task.FromException<SolutionInfo>(new NotSupportedException($"{Name} opens no {Path.GetExtension(path)} file."));
+
     /// <summary>
     /// How it builds a solution that is its (.NET's: dotnet build of a .sln, a .slnx or a project): Build, Rebuild, Clean,
     /// Pack and Publish run it, its output in Output (Build), its errors in the Error List. Null for a solution, or a

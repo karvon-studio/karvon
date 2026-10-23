@@ -203,29 +203,34 @@ public class DotNetModuleTests
     }
 
     [AvaloniaFact]
-    public async Task With_the_module_off_there_is_no_nuget()
+    public async Task With_the_module_off_a_solution_does_not_open_and_its_folder_is_a_folder()
     {
         var sln = SolutionExplorerTests.CopySample();
         var vm = NewViewModel(settings => settings.DisabledModules = ["dotnet"]);
         var window = new MainWindow { DataContext = vm, Width = 1280, Height = 800 };
         window.Show();
-        await vm.OpenSolutionAsync(sln);
-
-        Assert.Equal(["Build Solution", "Rebuild Solution", "Clean Solution", "Run Tests", "-", "Add"],
-            Between(window.ExplorerMenuItems(vm.ExplorerRoots[0]), "Build Solution", "Add"));
         Assert.DoesNotContain(vm.Modules, m => m.Id == "dotnet");
+        Assert.Contains(vm.AllModules, m => m.Id == "dotnet" && m.Components.Count == 2);
+
+        // No module opens a .sln: it says which module is off.
+        Assert.False(vm.CanOpen(sln));
+        await vm.OpenSolutionAsync(sln);
+        Assert.Null(vm.Solution);
+        Assert.Equal("Failed to open solution: no module opens BlazorSample.sln: its module is off (Tools > Modules)", vm.StatusText);
+
+        // Its folder opens as a folder: none of .NET's commands, templates, tests or language server.
+        var dir = Path.GetDirectoryName(sln)!;
+        Assert.True(vm.CanOpen(dir));
+        await vm.OpenSolutionAsync(dir);
+        Assert.True(vm.Solution!.IsFolder);
         var web = vm.ExplorerRoots[0].Children.Single(c => c.Name == "Web");
+        Assert.Equal(NodeKind.Folder, web.Kind);
         var add = window.ExplorerMenuItems(web).OfType<MenuItem>().Single(m => (string?)m.Header == "Add");
-        Assert.Equal(["New Item...", "Existing Item...", "New Folder", "New EditorConfig", "-", "Project Reference..."], Lines(add.Items.OfType<object>()));
+        Assert.Equal(["New Item...", "Existing Item...", "New Folder", "New EditorConfig"], Lines(add.Items.OfType<object>()));
         Assert.Equal(ItemTemplates.General, vm.NewItemTemplates);
         Assert.False(vm.RunAllTestsCommand.CanExecute(null));
-        // No Roslyn: C# has no language server, and the status bar no IntelliSense.
         Assert.Empty(vm.ModuleLanguageServers);
         Assert.Equal("", vm.ServerStatus);
-        // No module builds the solution: Build says so, and runs nothing.
-        await vm.BuildSolutionCommand.ExecuteAsync(null);
-        Assert.Equal("No module builds BlazorSample.sln: its module is off (Tools > Modules).", vm.StatusText);
-        Assert.Contains(vm.AllModules, m => m.Id == "dotnet" && m.Components.Count == 2);
         var tools = window.MainMenu.Items.OfType<MenuItem>().Single(m => (string?)m.Header == "_Tools");
         Assert.Equal(["_Restart Language Server", "-", "_Modules..."], Lines(tools.Items.OfType<object>()));
         Assert.True(await vm.CloseSolutionCoreAsync());

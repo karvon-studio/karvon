@@ -27,6 +27,19 @@ public partial class MainViewModel
     /// <summary>A solution file to change: a project opened on its own has none, nor a folder.</summary>
     public bool HasSolutionFile => Solution is { IsSolutionFile: true };
 
+    /// <summary>A folder, as it is, or a workspace file its module opens (.NET's: a solution, a project).</summary>
+    async Task<SolutionInfo> LoadWorkspaceAsync(string path)
+    {
+        if (Directory.Exists(path))
+            return SolutionLoader.LoadFolder(path);
+        if (Modules.FirstOrDefault(m => m.OpensWorkspace(path)) is not { } module)
+            throw new NotSupportedException($"no module opens {Path.GetFileName(path)}: its module is off (Tools > Modules)");
+        return await module.OpenWorkspaceAsync(path, CancellationToken.None);
+    }
+
+    /// <summary>What Karvon opens: a folder, or a workspace file a module opens.</summary>
+    public bool CanOpen(string path) => Directory.Exists(path) || Modules.Any(m => m.OpensWorkspace(path));
+
     /// <summary>
     /// Reads the solution again after it or a project file changed (here or on disk), keeping what is expanded, and selects
     /// <paramref name="select"/>: a file or folder's path, or a solution folder's path in the solution ("/libs/").
@@ -41,7 +54,7 @@ public partial class MainViewModel
         SolutionInfo reloaded;
         try
         {
-            reloaded = await SolutionLoader.LoadAsync(solution.FilePath);
+            reloaded = await LoadWorkspaceAsync(solution.FilePath);
         }
         catch (Exception ex)
         {

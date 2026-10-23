@@ -297,7 +297,7 @@ public partial class MainViewModel : ObservableObject
             SetStatus($"Opening {Path.GetFileName(path)}...", StatusKind.Busy);
             try
             {
-                solution = await SolutionLoader.LoadAsync(path);
+                solution = await LoadWorkspaceAsync(path);
             }
             catch (Exception ex)
             {

@@ -63,7 +63,7 @@ public class SolutionEditorTests
         // Projects, in the solution or in a solution folder (made as needed); twice is once.
         await SolutionEditor.AddProjectsAsync(sln, [lib], "/libs/");
         await SolutionEditor.AddProjectsAsync(sln, [lib], "/libs/");
-        var loaded = await SolutionLoader.LoadAsync(sln);
+        var loaded = await Karvon.DotNet.SolutionReader.LoadAsync(sln);
         Assert.Equal(4, loaded.Projects.Count);
         var libs = Child(loaded.Root, "libs");
         Assert.Equal(NodeKind.SolutionFolder, libs.Kind);
@@ -81,7 +81,7 @@ public class SolutionEditorTests
         await Assert.ThrowsAsync<InvalidOperationException>(() => SolutionEditor.AddFolderAsync(sln, null, "a/b"));
         Assert.Equal("/libs/Shared/", await SolutionEditor.RenameFolderAsync(sln, nested, "Shared"));
         Assert.Equal("/packages/", await SolutionEditor.RenameFolderAsync(sln, "/libs/", "packages"));
-        loaded = await SolutionLoader.LoadAsync(sln);
+        loaded = await Karvon.DotNet.SolutionReader.LoadAsync(sln);
         var packages = Child(loaded.Root, "packages");
         Assert.Equal("/packages/Shared/", Child(packages, "Shared").SolutionFolder);
         Assert.Equal("/packages/", Child(packages, "Lib").SolutionFolder);
@@ -90,14 +90,14 @@ public class SolutionEditorTests
         File.WriteAllText(Path.Combine(dir, "build.props"), "<Project />");
         await SolutionEditor.AddFilesAsync(sln, SolutionEditor.SolutionItems, [Path.Combine(dir, "build.props")]);
         await SolutionEditor.AddFilesAsync(sln, "/packages/Shared/", [Path.Combine(dir, "Web", "Program.cs")]);
-        loaded = await SolutionLoader.LoadAsync(sln);
+        loaded = await Karvon.DotNet.SolutionReader.LoadAsync(sln);
         var items = Child(loaded.Root, "Solution Items");
         Assert.Equal(["build.props", "README.md"], items.Children.Select(c => c.Name).Order());
         Assert.All(items.Children, c => Assert.Equal(SolutionEditor.SolutionItems, c.SolutionFolder));
         Assert.Equal(Path.Combine(dir, "Web", "Program.cs"), Child(Child(Child(loaded.Root, "packages"), "Shared"), "Program.cs").Path);
         await SolutionEditor.MoveFileAsync(sln, SolutionEditor.SolutionItems, Path.Combine(dir, "build.props"), Path.Combine(dir, "Directory.Build.props"));
         await SolutionEditor.RemoveFileAsync(sln, SolutionEditor.SolutionItems, Path.Combine(dir, "README.md"));
-        loaded = await SolutionLoader.LoadAsync(sln);
+        loaded = await Karvon.DotNet.SolutionReader.LoadAsync(sln);
         Assert.Equal(["Directory.Build.props"], Child(loaded.Root, "Solution Items").Children.Select(c => c.Name));
         Assert.True(File.Exists(Path.Combine(dir, "README.md")));
 
@@ -105,11 +105,11 @@ public class SolutionEditorTests
         var renamed = Path.Combine(dir, "src", "Lib", "Library.csproj");
         File.Move(lib, renamed);
         await SolutionEditor.MoveProjectAsync(sln, lib, renamed);
-        loaded = await SolutionLoader.LoadAsync(sln);
+        loaded = await Karvon.DotNet.SolutionReader.LoadAsync(sln);
         Assert.Equal(renamed, Child(Child(loaded.Root, "packages"), "Library").Path);
         await SolutionEditor.RemoveProjectAsync(sln, Path.Combine(dir, "Tests", "Tests.csproj"));
         await SolutionEditor.RemoveFolderAsync(sln, "/packages/");
-        loaded = await SolutionLoader.LoadAsync(sln);
+        loaded = await Karvon.DotNet.SolutionReader.LoadAsync(sln);
         Assert.Equal(["Components", "Web"], loaded.Projects.Select(p => p.Name).Order());
         Assert.DoesNotContain(loaded.Root.Children, c => c.Name == "packages");
         Assert.True(File.Exists(renamed));

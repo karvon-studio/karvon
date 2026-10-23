@@ -11,6 +11,8 @@
   <ItemGroup>
     <!-- vstest.console's client, for Test Explorer's .NET tests. -->
     <PackageReference Include="Microsoft.TestPlatform.TranslationLayer" Version="18.7.0" />
+    <!-- Microsoft's .sln and .slnx reader. -->
+    <PackageReference Include="Microsoft.VisualStudio.SolutionPersistence" Version="1.0.52" />
   </ItemGroup>
 
   <ItemGroup>
