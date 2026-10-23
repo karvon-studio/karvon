@@ -103,7 +103,7 @@ public class WorkspaceTaskTests
     public void Problem_matchers_read_a_tasks_errors_as_VS_Code_does()
     {
         static Func<string, Karvon.Build.BuildDiagnostic?> Matcher(string json, string workspace = "/w") =>
-            ProblemMatchers.Of(System.Text.Json.JsonDocument.Parse(json).RootElement, text => TaskVariables.Expand(text, workspace))!;
+            ProblemMatchers.Of(System.Text.Json.JsonDocument.Parse(json).RootElement, text => TaskVariables.Expand(text, workspace))!();
 
         // VS Code's own, by their names.
         Assert.Equal(new Karvon.Build.BuildDiagnostic(Karvon.Lsp.DiagnosticSeverity.Warning, "", "unused variable 'x'", "src/main.c", 4, 7, null),
@@ -123,9 +123,67 @@ public class WorkspaceTaskTests
         var located = Matcher("""{ "pattern": { "regexp": "^(.+):(\\d+:\\d+): (\\w+): (.*)$", "location": 2, "severity": 3 } }""");
         Assert.Equal((Karvon.Lsp.DiagnosticSeverity.Warning, 10, 4, "deprecated"), located("a.py:10:4: warning: deprecated") is { } l ? (l.Severity, l.Line, l.Column, l.Message) : default);
 
-        // One that reads several lines, or that Karvon does not know: none (a build then reads file(line,col): error lines).
-        Assert.Null(ProblemMatchers.Of(System.Text.Json.JsonDocument.Parse("""{ "pattern": [{ "regexp": "^(.*)$" }, { "regexp": "x" }] }""").RootElement, s => s));
-        Assert.Null(ProblemMatchers.Of(System.Text.Json.JsonDocument.Parse("\"$eslint-stylish\"").RootElement, s => s));
+        // Patterns of lines one after another: ESLint's stylish output, a file and then a line for each of its problems.
+        var stylish = Matcher("\"$eslint-stylish\"");
+        Assert.Null(stylish("/w/src/app.js"));
+        Assert.Equal(new Karvon.Build.BuildDiagnostic(Karvon.Lsp.DiagnosticSeverity.Warning, "no-unused-vars", "'x' is assigned a value but never used", "/w/src/app.js", 3, 7, null),
+            stylish("   3:7   warning  'x' is assigned a value but never used  no-unused-vars"));
+        Assert.Equal(("/w/src/app.js", 9, Karvon.Lsp.DiagnosticSeverity.Error, "semi"), stylish("  9:12  error    Missing semicolon  semi") is { } next ? (next.File, next.Line, next.Severity, next.Code) : default);
+        Assert.Null(stylish(""));
+        Assert.Null(stylish("  1:1  error  Not after its file  semi"));
+        Assert.Equal("/w/b.js", (stylish("/w/b.js"), stylish("  1:1  error  Unexpected var  no-var")).Item2!.File);
+        Assert.Null(stylish("✖ 3 problems (2 errors, 1 warning)"));
+        // A task's own: no loop, so each problem has its two lines; and each run reads afresh.
+        var own2 = """
+            { "fileLocation": ["relative", "${workspaceFolder}"],
+              "pattern": [ { "regexp": "^In (.*):$", "file": 1 }, { "regexp": "^  line (\\d+): (\\w+) (.*)$", "line": 1, "severity": 2, "message": 3 } ] }
+            """;
+        var two = Matcher(own2);
+        Assert.Null(two("In lib/a.py:"));
+        Assert.Equal(("/w/lib/a.py", 4, Karvon.Lsp.DiagnosticSeverity.Warning, "unused import"), two("  line 4: warning unused import") is { } t ? (t.File, t.Line, t.Severity, t.Message) : default);
+        Assert.Null(two("  line 5: error not after its file"));
+        Assert.Null(two("In lib/b.py:"));
+        Assert.Null(Matcher(own2)("  line 1: error a new run, so not after its file"));
+        Assert.Null(two("something between"));
+        Assert.Null(two("  line 1: error not right after its file"));
+        // A list: each matcher reads every line.
+        var both = Matcher("""["$gcc", "$eslint-stylish"]""");
+        Assert.Null(both("/w/c.js"));
+        Assert.Equal("src/x.c", both("src/x.c:1:1: error: boom")!.File);
+        Assert.Null(both("/w/c.js"));
+        Assert.Equal(("/w/c.js", "semi"), both("  2:1  error  Missing semicolon  semi") is { } c ? (c.File, c.Code) : default);
+
+        // One that Karvon does not know: none (a build then reads file(line,col): error lines).
+        Assert.Null(ProblemMatchers.Of(System.Text.Json.JsonDocument.Parse("""{ "pattern": [{ "regexp": "^(.*)$" }, { "regexp": "(" }] }""").RootElement, s => s));
+        Assert.Null(ProblemMatchers.Of(System.Text.Json.JsonDocument.Parse("\"$lessCompile\"").RootElement, s => s));
+    }
+
+    [AvaloniaFact]
+    public async Task A_build_tasks_problems_of_several_lines_are_in_the_Error_List()
+    {
+        var dir = NewFolder();
+        var app = Path.Combine(dir, "app.js");
+        var lint = Path.Combine(dir, "lint.txt");
+        File.WriteAllText(lint, $"{app}\n  3:7  warning  'x' is assigned a value but never used  no-unused-vars\n  9:1  error  Missing semicolon  semi\n");
+        File.WriteAllText(VsCodeTasks.FileOf(dir), """
+            { "version": "2.0.0", "tasks": [
+              { "label": "lint", "type": "process", "command": "cat", "args": ["lint.txt"], "group": "build", "problemMatcher": "$eslint-stylish" }
+            ] }
+            """);
+        var vm = NewViewModel();
+        var window = new MainWindow { DataContext = vm, Width = 1280, Height = 800 };
+        window.Show();
+        await vm.OpenSolutionAsync(dir);
+
+        await vm.BuildSolutionCommand.ExecuteAsync(null);
+        Assert.Equal([(app, 9, 1, "semi"), (app, 3, 7, "no-unused-vars")], vm.Errors.Select(e => (e.FilePath, e.Line, e.Column, e.Code)));
+
+        // The next build reads afresh: problems' lines first have no file to be in.
+        File.WriteAllText(lint, "  1:1  error  Unexpected var  no-var\n");
+        await vm.BuildSolutionCommand.ExecuteAsync(null);
+        Assert.Empty(vm.Errors);
+        Assert.True(await vm.CloseSolutionCoreAsync());
+        Directory.Delete(dir, recursive: true);
     }
 
     [AvaloniaFact]

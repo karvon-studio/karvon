@@ -36,6 +36,12 @@ public sealed record WorkspaceTask(string Name, WorkspaceTaskKind Kind, string P
     /// </summary>
     public Func<string, Build.BuildDiagnostic?>? Problems { get; init; }
 
+    /// <summary>
+    /// Its problem matcher when that reads lines together (tasks.json's patterns of several lines, as ESLint's stylish
+    /// output has them): it makes a new reader for each run, and wins over Problems.
+    /// </summary>
+    public Func<Func<string, Build.BuildDiagnostic?>>? ProblemReader { get; init; }
+
     /// <summary>Variables set for it over Karvon's own (a PATH with its runtime's folder first...).</summary>
     public IReadOnlyDictionary<string, string>? Environment { get; init; }
 

@@ -107,7 +107,7 @@ public static class VsCodeTasks
             Environment = environment.Count > 0 ? environment : null,
             DependsOn = dependsOn,
             DependsInSequence = Str(Prop(task, "dependsOrder")) == "sequence",
-            Problems = ProblemMatchers.Of(Prop(task, "problemMatcher"), Expand),
+            ProblemReader = ProblemMatchers.Of(Prop(task, "problemMatcher"), Expand),
         };
     }
 

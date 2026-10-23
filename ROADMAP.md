@@ -31,11 +31,11 @@ it does today all along.
   language server, debugger, build, run and test commands, package manager and templates.
 - `.vscode/launch.json` and `tasks.json` are read, so existing projects run as they are (in now: `tasks.json` and the
   modules' tasks build, run and test a folder, a task's `dependsOn` first (together, or in sequence) and its
-  `problemMatcher` reading its errors (VS Code's `$msCompile`, `$tsc`, `$gcc` and `$go`, or its own pattern of one
-  line); `launch.json`'s configurations start under the debugger of their type, with `preLaunchTask` and
-  `postDebugTask`, and `serverReadyAction` opens the browser; its compounds debug their programs together (stopAll
-  too); both ask their `${input:}` (promptString, pickString); not yet: command inputs, problem patterns of several
-  lines).
+  `problemMatcher` reading its errors (VS Code's `$msCompile`, `$tsc`, `$gcc`, `$go`, `$eslint-stylish` and
+  `$eslint-compact`, or its own patterns, of one line or of several, the last looping); `launch.json`'s
+  configurations start under the debugger of their type, with `preLaunchTask` and `postDebugTask`, and
+  `serverReadyAction` opens the browser; its compounds debug their programs together (stopAll too); both ask their
+  `${input:}` (promptString, pickString); not yet: command inputs).
 - Claude's IDE tools (`run_build`, `run_tests`, `app_control`, `debug_*`) work for any workload (in now, for a folder's
   tasks and launch configurations).
 - Test Explorer for any workload: a module's test frameworks find and run their tests (in now: .NET's through vstest,
