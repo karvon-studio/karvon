@@ -279,7 +279,7 @@ public class LspClient : IAsyncDisposable
 
     public async Task<LspCompletionList> CompletionAsync(string path, LspPosition pos, string? triggerCharacter, CancellationToken ct)
     {
-        var result = await Rpc.RequestAsync("textDocument/completion", new
+        var result = await QueryAsync("textDocument/completion", new
         {
             textDocument = new { uri = ToUri(path) },
             position = pos,
@@ -290,7 +290,7 @@ public class LspClient : IAsyncDisposable
 
     public async Task<(LspCompletionItem Item, string? Documentation)> ResolveCompletionAsync(LspCompletionItem item, CancellationToken ct)
     {
-        var result = await Rpc.RequestAsync("completionItem/resolve", item.Raw, ct);
+        var result = await QueryAsync("completionItem/resolve", item.Raw, ct);
         if (result.ValueKind != JsonValueKind.Object)
             return (item, null);
         var resolved = LspParse.CompletionItem(result, default);
@@ -301,23 +301,43 @@ public class LspClient : IAsyncDisposable
         return (resolved, doc);
     }
 
+    /// <summary>
+    /// A request of the editor's (hover, completion, definition...). A server that is still reading the workspace, or
+    /// whose answer a change made stale, says so (ContentModified, ServerCancelled: rust-analyzer as it indexes): the
+    /// request is asked again, a few times, as the protocol has the client do.
+    /// </summary>
+    async Task<JsonElement> QueryAsync(string method, object? @params, CancellationToken ct)
+    {
+        for (var attempt = 1; ; attempt++)
+        {
+            try
+            {
+                return await Rpc.RequestAsync(method, @params, ct);
+            }
+            catch (LspException ex) when (ex.Code is -32801 or -32802 && attempt < 4)
+            {
+                await Task.Delay(100 * attempt, ct);
+            }
+        }
+    }
+
     public async Task<string?> HoverAsync(string path, LspPosition pos, CancellationToken ct)
     {
-        var result = await Rpc.RequestAsync("textDocument/hover", DocPos(path, pos), ct);
+        var result = await QueryAsync("textDocument/hover", DocPos(path, pos), ct);
         return result.ValueKind == JsonValueKind.Object && result.TryGetProperty("contents", out var c) ? LspParse.Markup(c) : null;
     }
 
     public async Task<LspSignatureHelp?> SignatureHelpAsync(string path, LspPosition pos, CancellationToken ct) =>
-        LspParse.SignatureHelp(await Rpc.RequestAsync("textDocument/signatureHelp", DocPos(path, pos), ct));
+        LspParse.SignatureHelp(await QueryAsync("textDocument/signatureHelp", DocPos(path, pos), ct));
 
     public async Task<IReadOnlyList<LspLocation>> DefinitionAsync(string path, LspPosition pos, CancellationToken ct) =>
-        LspParse.Locations(await Rpc.RequestAsync("textDocument/definition", DocPos(path, pos), ct));
+        LspParse.Locations(await QueryAsync("textDocument/definition", DocPos(path, pos), ct));
 
     public async Task<IReadOnlyList<LspLocation>> ImplementationAsync(string path, LspPosition pos, CancellationToken ct) =>
-        LspParse.Locations(await Rpc.RequestAsync("textDocument/implementation", DocPos(path, pos), ct));
+        LspParse.Locations(await QueryAsync("textDocument/implementation", DocPos(path, pos), ct));
 
     public async Task<IReadOnlyList<LspLocation>> ReferencesAsync(string path, LspPosition pos, CancellationToken ct) =>
-        LspParse.Locations(await Rpc.RequestAsync("textDocument/references", new
+        LspParse.Locations(await QueryAsync("textDocument/references", new
         {
             textDocument = new { uri = ToUri(path) },
             position = pos,
@@ -329,7 +349,7 @@ public class LspClient : IAsyncDisposable
     {
         if (_published.TryGetValue(ToUri(path), out var pushed))
             return pushed;
-        var result = await Rpc.RequestAsync("textDocument/diagnostic", new { textDocument = new { uri = ToUri(path) } }, ct);
+        var result = await QueryAsync("textDocument/diagnostic", new { textDocument = new { uri = ToUri(path) } }, ct);
         return result.ValueKind == JsonValueKind.Object && result.TryGetProperty("items", out var items)
             ? LspParse.Diagnostics(items)
             : [];
@@ -340,7 +360,7 @@ public class LspClient : IAsyncDisposable
     {
         if (SemanticTokenTypes.Count == 0)
             return [];
-        var result = await Rpc.RequestAsync("textDocument/semanticTokens/full", new { textDocument = new { uri = ToUri(path) } }, ct);
+        var result = await QueryAsync("textDocument/semanticTokens/full", new { textDocument = new { uri = ToUri(path) } }, ct);
         return result.ValueKind == JsonValueKind.Object && result.TryGetProperty("data", out var data) && data.ValueKind == JsonValueKind.Array
             ? data.EnumerateArray().Select(v => v.GetInt32()).ToArray()
             : [];
@@ -348,7 +368,7 @@ public class LspClient : IAsyncDisposable
 
     public async Task<IReadOnlyList<LspFoldingRange>> FoldingRangesAsync(string path, CancellationToken ct)
     {
-        var result = await Rpc.RequestAsync("textDocument/foldingRange", new { textDocument = new { uri = ToUri(path) } }, ct);
+        var result = await QueryAsync("textDocument/foldingRange", new { textDocument = new { uri = ToUri(path) } }, ct);
         if (result.ValueKind != JsonValueKind.Array)
             return [];
         static int? Int(JsonElement e, string name) => e.TryGetProperty(name, out var v) && v.ValueKind == JsonValueKind.Number ? v.GetInt32() : null;
@@ -360,7 +380,7 @@ public class LspClient : IAsyncDisposable
     }
 
     public async Task<IReadOnlyList<LspTextEdit>> FormatAsync(string path, int tabSize, bool insertSpaces, CancellationToken ct) =>
-        LspParse.TextEdits(await Rpc.RequestAsync("textDocument/formatting", new
+        LspParse.TextEdits(await QueryAsync("textDocument/formatting", new
         {
             textDocument = new { uri = ToUri(path) },
             options = new { tabSize, insertSpaces },
@@ -369,7 +389,7 @@ public class LspClient : IAsyncDisposable
     /// <summary>Returns per-file edits for a rename, or null when the symbol cannot be renamed.</summary>
     public async Task<IReadOnlyDictionary<string, IReadOnlyList<LspTextEdit>>?> RenameAsync(string path, LspPosition pos, string newName, CancellationToken ct)
     {
-        var result = await Rpc.RequestAsync("textDocument/rename", new
+        var result = await QueryAsync("textDocument/rename", new
         {
             textDocument = new { uri = ToUri(path) },
             position = pos,
@@ -394,7 +414,7 @@ public class LspClient : IAsyncDisposable
 
     /// <summary>Quick Actions and Refactorings (Ctrl+.) for a range, given the diagnostics it overlaps.</summary>
     public async Task<IReadOnlyList<LspCodeAction>> CodeActionsAsync(string path, LspRange range, IReadOnlyList<LspDiagnostic> diagnostics, CancellationToken ct) =>
-        LspParse.CodeActions(await Rpc.RequestAsync("textDocument/codeAction", new
+        LspParse.CodeActions(await QueryAsync("textDocument/codeAction", new
         {
             textDocument = new { uri = ToUri(path) },
             range,
@@ -411,7 +431,7 @@ public class LspClient : IAsyncDisposable
     {
         if (action.Raw.TryGetProperty("edit", out var inline))
             return LspParse.WorkspaceEdit(inline);
-        var resolved = await Rpc.RequestAsync("codeAction/resolve", action.Raw, ct);
+        var resolved = await QueryAsync("codeAction/resolve", action.Raw, ct);
         return resolved.ValueKind == JsonValueKind.Object && resolved.TryGetProperty("edit", out var edit)
             ? LspParse.WorkspaceEdit(edit)
             : [];
