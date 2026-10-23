@@ -1,10 +1,14 @@
-# A `vX.Y.Z` tag → self-contained Karvon for Linux x64 → GitHub Release with:
-#   karvon-studio_X_amd64.deb         Debian/Ubuntu: apt installs the dependencies; `karvon` command and menu entry
-#   Karvon-Studio-X-x86_64.AppImage   any distribution, no install
-#   karvon-studio-X-linux-x64.tar.gz   unpack anywhere and run ./Karvon
+# A `vX.Y.Z` tag → self-contained Karvon for Linux, macOS and Windows → GitHub Release with:
+#   karvon-studio_X_amd64.deb             Debian/Ubuntu: apt installs the dependencies; `karvon` command and menu entry
+#   Karvon-Studio-X-x86_64.AppImage       any distribution, no install
+#   karvon-studio-X-linux-x64.tar.gz      unpack anywhere and run ./Karvon
+#   Karvon-Studio-X-arm64.dmg, -x64.dmg   macOS (Apple Silicon, Intel): drag it to Applications; signed ad hoc, not notarized
+#   karvon-studio-arm64.rb, -x64.rb       their Homebrew casks, for a tap
+#   Karvon-Studio-X-Setup.exe             Windows installer (per user); not signed
+#   karvon-studio-X-win-x64.zip           Windows: unpack anywhere and run Karvon.exe
 # workflow_dispatch builds the packages as artifacts only (version 0.0.<run number>) without releasing.
 # None of the packages needs a .NET runtime; working on solutions needs the .NET SDK, as in any .NET IDE.
-# Packaging is deploy/linux/package.sh (also runs locally).
+# Packaging is deploy/linux/package.sh, deploy/macos/package.sh and deploy/windows/package.ps1 (also run locally).
 # No tests here: ci.yml has already run them on the tagged commit.
 name: release
 
@@ -51,8 +55,73 @@ jobs:
           path: packages/*
           if-no-files-found: error
 
+  package-macos:
+    name: Package — ${{ matrix.rid }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { rid: osx-arm64, arch: arm64 }
+          - { rid: osx-x64, arch: x64 }
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          submodules: true
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Version
+        run: |
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then VERSION="${GITHUB_REF_NAME#v}"; else VERSION="0.0.${GITHUB_RUN_NUMBER}"; fi
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+
+      - name: Publish
+        run: dotnet publish src/Karvon -c Release -r ${{ matrix.rid }} --self-contained -o out -p:Version=$VERSION
+
+      - name: Package (.dmg, Homebrew cask)
+        run: deploy/macos/package.sh out "$VERSION" ${{ matrix.arch }} packages
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: karvon-${{ matrix.rid }}
+          path: packages/*
+          if-no-files-found: error
+
+  package-windows:
+    name: Package — win-x64
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          submodules: true
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Version
+        shell: bash
+        run: |
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then VERSION="${GITHUB_REF_NAME#v}"; else VERSION="0.0.${GITHUB_RUN_NUMBER}"; fi
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+
+      - name: Publish
+        run: dotnet publish src/Karvon -c Release -r win-x64 --self-contained -o out -p:Version=$env:VERSION
+
+      - name: Package (installer, .zip)
+        run: deploy/windows/package.ps1 out $env:VERSION packages
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: karvon-win-x64
+          path: packages/*
+          if-no-files-found: error
+
   release:
-    needs: package
+    needs: [package, package-macos, package-windows]
     if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-24.04
     steps:

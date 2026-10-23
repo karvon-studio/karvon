@@ -1,0 +1,21 @@
+# Homebrew cask of Karvon Studio for @ARCH@ Macs (made by deploy/macos/package.sh, for a tap's Casks folder).
+cask "karvon-studio" do
+  version "@VERSION@"
+  sha256 "@SHA256@"
+
+  url "https://github.com/karvon-studio/karvon/releases/download/v#{version}/Karvon-Studio-#{version}-@ARCH@.dmg"
+  name "Karvon Studio"
+  desc "IDE with Visual Studio's look and workflow, made to grow by modules"
+  homepage "https://github.com/karvon-studio/karvon"
+
+  depends_on arch: :@BREW_ARCH@
+  depends_on macos: ">= :monterey"
+
+  app "Karvon Studio.app"
+  binary "#{appdir}/Karvon Studio.app/Contents/MacOS/Karvon", target: "karvon"
+
+  zap trash: [
+    "~/.config/karvon",
+    "~/Library/Application Support/karvon",
+  ]
+end
