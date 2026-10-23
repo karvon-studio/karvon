@@ -40,6 +40,11 @@ jobs:
           go-version: stable
           cache: false
 
+      # The Python module's uv projects: the runner has no uv.
+      - uses: astral-sh/setup-uv@v10
+        with:
+          enable-cache: false
+
       - name: Restore
         run: dotnet restore Karvon.slnx
 
