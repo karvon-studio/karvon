@@ -1,7 +1,8 @@
 using System.Collections.Concurrent;
 using System.Text.Json;
+using Karvon.Lsp;
 
-namespace Karvon.Lsp;
+namespace Karvon.DotNet.Lsp;
 
 /// <summary>
 /// Razor cohosting delegates the HTML half of .razor files to the client (VS and VS Code ship an HTML language

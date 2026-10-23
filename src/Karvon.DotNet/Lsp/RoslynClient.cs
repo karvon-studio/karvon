@@ -1,8 +1,9 @@
 using System.Diagnostics;
 using System.Text.Json;
 using Karvon.Build;
+using Karvon.Lsp;
 
-namespace Karvon.Lsp;
+namespace Karvon.DotNet.Lsp;
 
 /// <summary>
 /// Microsoft's Roslyn language server (roslyn-language-server, the one VS Code's C# Dev Kit uses) for a solution: C# and,

@@ -172,7 +172,7 @@ src/Karvon/             the application: the core and the modules it comes with 
 src/Karvon.Core/        the workbench; it knows no module
   Modules/     the module contract: KarvonModule, IWorkbench (see docs/modules.md)
   Ui/          what the modules' views share: overlay dialogs, read-only editors
-  Lsp/         JSON-RPC, Roslyn client, file watching, HTML service for Razor cohosting
+  Lsp/         JSON-RPC, the language server client, file watching
   Workspace/   solution and project loading, Solution Explorer tree
   Build/       dotnet runner, MSBuild output parser, dev certificates
   Debugging/   DAP client and sessions (child sessions too), netcoredbg
@@ -188,7 +188,7 @@ src/Karvon.Docker/      module: the Docker Explorer
 src/Karvon.Servers/     module: SSH servers
 src/Karvon.Mcp/         module: MCP Servers
 src/Karvon.Skills/      module: Skills (uses Karvon.Mcp)
-src/Karvon.DotNet/      module: .NET (the SDK's project templates, C#'s item templates, NuGet, vstest in Test Explorer)
+src/Karvon.DotNet/      module: .NET (Roslyn, netcoredbg, dotnet build, the SDK's templates, NuGet, vstest in Test Explorer)
 src/Karvon.TypeScript/  module: TypeScript and JavaScript (TypeScript 7's language server, package.json scripts, js-debug, Vitest, Jest)
 src/Karvon.Python/      module: Python (Pyright's language server, debugpy, pytest, the workspace's .venv)
 src/Karvon.Go/          module: Go (gopls, Delve, go build/test/vet/run, go test in Test Explorer)

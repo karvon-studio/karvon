@@ -366,10 +366,15 @@ public sealed partial class EditorHost : IDisposable, IDebugLineSource
 
     // ---- Language server session ------------------------------------------------------------------------
 
+    /// <summary>
+    /// The file served by a language server from now on (opened in it). Once only: a server that starts while the file
+    /// opens attaches it both ways, and a second didOpen would be an error to the server (Roslyn ends on one).
+    /// </summary>
     public void Attach(LspClient lsp)
     {
-        if (!lsp.Handles(FilePath))
+        if (!lsp.Handles(FilePath) || _lsp == lsp)
             return;
+        Detach();
         _lsp = lsp;
         lsp.DiagnosticsPublished += OnDiagnosticsPublished;
         _pendingChanges.Clear();

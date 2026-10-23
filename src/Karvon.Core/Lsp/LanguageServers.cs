@@ -6,7 +6,7 @@ namespace Karvon.Lsp;
 /// </summary>
 public static class LanguageServers
 {
-    static readonly List<Func<string, bool>> Served = [RoslynClient.Serves];
+    static readonly List<Func<string, bool>> Served = [];
 
     /// <summary>A workload's language server, by the files it serves.</summary>
     public static void Register(Func<string, bool> serves)

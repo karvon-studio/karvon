@@ -18,12 +18,12 @@ Each module is a project of its own, referencing `Karvon.Core`. The core referen
 - Rust (`src/Karvon.Rust`): rust-analyzer, CodeLLDB (which builds a launch configuration's "cargo" first), cargo's tasks;
 - C and C++ (`src/Karvon.Cpp`): clangd, CodeLLDB, CMake's and Make's builds; it and Rust share CodeLLDB (`src/Karvon.Lldb`);
 - Java (`src/Karvon.Java`): jdtls, with java-debug in it (one jdtls for the editor and F5), Maven's and Gradle's builds;
-- .NET (`src/Karvon.DotNet`): the SDK's project templates, C#'s and Razor's Add New Item templates, Test Explorer's
-  xUnit, NUnit and MSTest tests (vstest), netcoredbg (F5), dotnet build, the NuGet Package Manager and Solution
-  Explorer's NuGet commands so far, and Roslyn's and netcoredbg's downloads as its components;
+- .NET (`src/Karvon.DotNet`): Roslyn (C# and Razor), the SDK's project templates, C#'s and Razor's Add New Item
+  templates, Test Explorer's xUnit, NUnit and MSTest tests (vstest), netcoredbg (F5), dotnet build, the NuGet Package
+  Manager and Solution Explorer's NuGet commands so far, and Roslyn's and netcoredbg's downloads as its components;
 - Claude Code (`src/Karvon.Claude`).
 
-The rest of .NET (solutions, the C# editor, Start Without Debugging) still lives in the core and
+The rest of .NET (solutions and their projects, Start Without Debugging) still lives in the core and
 moves to the .NET module one part at a time.
 
 A module's resources are its assembly's (`avares://Karvon.Database/Assets/...`); the core's are
@@ -58,7 +58,7 @@ application's project references.
 | `ToolWindows` | Each tool window becomes a tab in its group (before Claude Code at the sides) and an item in the View menu. Its view is made the first time it shows: a module that is never opened reads nothing and starts nothing. |
 | `DocumentTemplates` | How the module's documents look in the document well, in every window. `Document<T>` puts the view under the well's blue line. |
 | `Overlay` and `OverlayTemplate` | The module's dialogs and messages over the whole window, once it has something to show. |
-| `LanguageServers` | The language servers it brings (an `LspClient` each, for the files it serves). One starts for the workspace when the first of its files opens in the editor, serves every editor of its files, and stops with the workspace. Servers that push diagnostics and servers that are asked for them both work. |
+| `LanguageServers` | The language servers it brings (an `LspClient` each, for the files it serves). One starts for the workspace when the first of its files opens in the editor, serves every editor of its files, and stops with the workspace; one with `ForWorkspace` (.NET's Roslyn, for a solution) starts as a workspace it is for opens, and its progress is the status bar's IntelliSense (`LspClient.IsReady`, `Ready`). Servers that push diagnostics and servers that are asked for them both work; `RefreshDiagnostics` and `RefreshSemanticTokens` ask the editors of its files again. Tools > Restart Language Server restarts them all. |
 | `WorkspaceTasks(workspace)` | The tasks it finds in a folder (`WorkspaceTask`: a program, its arguments, where it runs, and its kind). In a folder opened as it is, Build runs the build task, Start Without Debugging the run task chosen on the toolbar, Run All Tests the test task; Build > Run Task runs any of them, in a solution too. `.vscode/tasks.json`'s come first; a module's of the same name is left out. |
 | `WorkspaceProjects(workspace)` | The projects of its workload it finds in a folder (`WorkspaceProject`: a name, its folder, the file that makes it one). In a solution, Solution Explorer shows those that no .NET project holds beside the solution's projects, with that file's icon (a frontend's `package.json` folder). |
 | `WorkspaceTaskFiles` | The file names its tasks come from (`package.json`): saving one reads the tasks again. |
@@ -93,8 +93,8 @@ also matches null, so one added to the application would take over every empty p
 `IWorkbench` gives a module:
 - the settings;
 - the open folder, its changes, and the folder where Karvon keeps the solution's own things;
-- the open solution and its projects, read again on request (a package added), the project of a Solution
-  Explorer node, and Add New Item in a node's folder;
+- the open solution and its projects, read again on request (a package added) and when that happened, the project
+  of a Solution Explorer node, and Add New Item in a node's folder;
 - the build configuration, and Build Solution;
 - the document well: add, show, close and remove documents, the one in front, open a file at a line;
 - the files the editor saves, and a file picker;

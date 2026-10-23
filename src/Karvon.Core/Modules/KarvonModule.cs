@@ -38,7 +38,15 @@ public sealed record ToolWindowInfo(string Id, string Title, string MenuHeader, 
 /// <summary>A workload's language server: the files it serves, and how it starts for a folder.</summary>
 /// <param name="Id">Its id (one runs per workspace).</param>
 /// <param name="Serves">Whether it serves a file (by its path).</param>
-public sealed record LanguageServerInfo(string Id, string Name, Func<string, bool> Serves, Func<LanguageServerStart, Task<Lsp.LspClient>> StartAsync);
+public sealed record LanguageServerInfo(string Id, string Name, Func<string, bool> Serves, Func<LanguageServerStart, Task<Lsp.LspClient>> StartAsync)
+{
+    /// <summary>
+    /// For a server that starts with a workspace it is for, as that opens, rather than with the first file it serves
+    /// (Roslyn: a solution or a project, whose projects it loads first): whether a workspace is one. It does not start
+    /// for another; its progress is the status bar's IntelliSense.
+    /// </summary>
+    public Func<SolutionInfo, bool>? ForWorkspace { get; init; }
+}
 
 /// <summary>What a language server starts with.</summary>
 /// <param name="Workspace">The folder it serves: the solution's, or the folder opened.</param>

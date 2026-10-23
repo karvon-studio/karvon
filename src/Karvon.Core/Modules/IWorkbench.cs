@@ -26,6 +26,9 @@ public interface IWorkbench
     /// <summary>The solution read again (its projects changed: a package added), Solution Explorer keeping what is expanded.</summary>
     Task ReloadSolutionAsync();
 
+    /// <summary>The solution was read again: a project added, removed or renamed is in <see cref="Solution"/> now.</summary>
+    event Action? SolutionReloaded;
+
     /// <summary>The project a Solution Explorer node is in (its Dependencies, a package of it), or null.</summary>
     ProjectInfo? ProjectOf(ExplorerNode node);
 

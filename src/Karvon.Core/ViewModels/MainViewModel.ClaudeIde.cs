@@ -80,7 +80,7 @@ public partial class MainViewModel
 
     internal int StoppedThreadForClaude => _stoppedThread;
 
-    internal Lsp.LspClient? LanguageServerForClaude => _lsp;
+    internal Lsp.LspClient? LanguageServerForClaude(string path) => LanguageServerFor(path);
 
     /// <summary>Why the debugger last stopped ("breakpoint", "step", "exception", "pause"...) and the exception's text.</summary>
     internal (string Reason, string? Text) LastStopForClaude => (_stopReason, _stopText);

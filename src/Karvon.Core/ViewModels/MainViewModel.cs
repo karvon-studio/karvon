@@ -64,7 +64,6 @@ public partial class MainViewModel : ObservableObject
 {
     readonly List<ErrorItem> _buildErrors = [];
     (string Verb, string Target, bool Succeeded, TimeSpan Took)? _lastBuild;
-    RoslynClient? _lsp;
     CancellationTokenSource? _buildCts;
     ProcessRunner? _runProcess;
     int? _lastExitCode;
@@ -338,7 +337,7 @@ public partial class MainViewModel : ObservableObject
         if (_terminal is { } terminal)
             terminal.WorkingDirectory = solution.Directory;
         await OnModulesWorkspaceChangedAsync();
-        await StartLanguageServerAsync();
+        await StartWorkspaceLanguageServersAsync();
     }
 
     [RelayCommand]
@@ -377,7 +376,6 @@ public partial class MainViewModel : ObservableObject
             doc.Dispose();
         Documents.Clear();
         ActiveDocument = null;
-        await StopLanguageServerAsync();
         await StopModuleLanguageServersAsync();
         ExplorerRoots.Clear();
         StartupProjects.Clear();
@@ -406,110 +404,16 @@ public partial class MainViewModel : ObservableObject
 
     // ---- Language server -------------------------------------------------------------------------------------
 
-    async Task StartLanguageServerAsync()
-    {
-        // Roslyn serves a solution or a project; a folder opened as it is has neither.
-        if (Solution is not { IsFolder: false } solution)
-            return;
-        ServerStatus = "IntelliSense: starting...";
-        try
-        {
-            var install = await RoslynServerLocator.EnsureInstalledAsync(ServerOutput.Append, CancellationToken.None);
-            var logDir = Path.Combine(Path.GetTempPath(), "Karvon", "roslyn-logs");
-            var lsp = await RoslynClient.StartAsync(install, solution.FilePath, logDir, CancellationToken.None);
-            if (Solution != solution)
-            {
-                await lsp.DisposeAsync();
-                return;
-            }
-            _lsp = lsp;
-            lsp.Log += ServerOutput.Append;
-            lsp.Progress += text => Dispatcher.UIThread.Post(() =>
-            {
-                if (text is not null && !lsp.IsReady)
-                    ServerStatus = "IntelliSense: " + text;
-            });
-            lsp.ProjectsLoaded += () => Dispatcher.UIThread.Post(async () =>
-            {
-                ServerStatus = "IntelliSense: ready";
-                // Razor discovers components in the background after the projects load (~30 s on a large Blazor
-                // solution) without sending workspace/diagnostic/refresh, and early pulls report RZ10012
-                // "unexpected markup element". Keep refreshing open documents while that warms up.
-                for (var i = 0; i < 18; i++)
-                {
-                    await Task.Delay(i == 0 ? 100 : 5000);
-                    if (_lsp != lsp)
-                        return;
-                    foreach (var d in Editors)
-                    {
-                        d.Host.ScheduleDiagnostics(0);
-                        if (i == 0)
-                            d.Host.ScheduleSemanticTokens(0);
-                    }
-                }
-            });
-            lsp.SemanticTokensRefreshRequested += () => Dispatcher.UIThread.Post(() =>
-            {
-                foreach (var d in Editors)
-                    d.Host.ScheduleSemanticTokens(300);
-            });
-            lsp.DiagnosticsRefreshRequested += () => Dispatcher.UIThread.Post(() =>
-            {
-                foreach (var d in Editors)
-                    d.Host.ScheduleDiagnostics(300);
-            });
-            lsp.RestoreRequested += projects => Dispatcher.UIThread.Post(() => _ = RestoreAsync(projects));
-            lsp.Exited += _ => Dispatcher.UIThread.Post(() =>
-            {
-                if (_lsp != lsp)
-                    return;
-                _lsp = null;
-                foreach (var d in Editors)
-                    d.Host.Detach();
-                ServerStatus = "IntelliSense: stopped (Tools > Restart Language Server)";
-            });
-            ServerStatus = "IntelliSense: loading projects...";
-            foreach (var d in Editors)
-                d.Host.Attach(lsp);
-        }
-        catch (Exception ex)
-        {
-            ServerOutput.Append("Failed to start language server: " + ex);
-            ServerStatus = "IntelliSense: unavailable";
-        }
-    }
-
-    async Task StopLanguageServerAsync()
-    {
-        if (_lsp is not { } lsp)
-            return;
-        _lsp = null;
-        foreach (var d in Editors)
-            d.Host.Detach();
-        await lsp.DisposeAsync();
-        ServerStatus = "";
-    }
-
+    /// <summary>Tools > Restart Language Server: every language server of the workspace stops, and starts again for its files.</summary>
     [RelayCommand]
     async Task RestartLanguageServer()
     {
-        await StopLanguageServerAsync();
-        await StartLanguageServerAsync();
-    }
-
-    async Task<bool> RestoreAsync(IReadOnlyList<string> projects)
-    {
-        if (Solution is not { IsFolder: false })
-            return false;
-        var targets = projects.Count > 0 ? projects : [Solution.FilePath];
-        var ok = true;
-        foreach (var target in targets)
-        {
-            BuildOutput.Append($"Restoring packages for {target}...");
-            using var runner = ProcessRunner.Start(DotnetCli.Executable, ["restore", target], Solution.Directory, BuildOutput.Append);
-            ok &= await runner.WaitAsync() == 0;
-        }
-        return ok;
+        foreach (var d in Editors)
+            d.Host.Detach();
+        await StopModuleLanguageServersAsync();
+        await StartWorkspaceLanguageServersAsync();
+        foreach (var d in Editors)
+            AttachModuleLanguageServer(d);
     }
 
     // ---- Documents ---------------------------------------------------------------------------------------------
@@ -546,8 +450,6 @@ public partial class MainViewModel : ObservableObject
             if (Mode == DebugMode.Break)
                 host.DataTipProvider = EvaluateDataTipAsync;
             Documents.Add(existing);
-            if (_lsp is not null)
-                host.Attach(_lsp);
             AttachModuleLanguageServer(existing);
         }
         if (activate)

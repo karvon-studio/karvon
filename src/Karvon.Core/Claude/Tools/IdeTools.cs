@@ -733,7 +733,7 @@ sealed class CodeDiagnosticsTool(MainViewModel vm) : IdeTool(vm)
             var file = FileOf(path);
             if (!File.Exists(file))
                 return ClaudeToolOutput.Error($"{Relative(file)} does not exist.");
-            if (Vm.LanguageServerForClaude is not { } lsp || Path.GetExtension(file) is not (".cs" or ".razor" or ".cshtml"))
+            if (Vm.LanguageServerForClaude(file) is not { } lsp)
                 return new ClaudeToolOutput($"No language server checks {Relative(file)}, so there are no diagnostics for it.");
             if (Vm.Editors.FirstOrDefault(d => d.FilePath == file) is { } open)
                 found.AddRange((await lsp.DiagnosticsAsync(file, cancellationToken)).Select(d => (file, d)));

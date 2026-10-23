@@ -13,6 +13,7 @@ using static Karvon.Tests.UiTests;
 
 namespace Karvon.Tests;
 
+[Collection(SampleSolutionCollection.Name)]
 public class DotNetModuleTests
 {
     /// <summary>A menu as its headers, "-" for a separator.</summary>
@@ -167,6 +168,32 @@ public class DotNetModuleTests
     }
 
     [AvaloniaFact]
+    public async Task Roslyn_starts_with_the_solution_and_again_on_restart()
+    {
+        var sln = await SampleSolution.GetAsync();
+        var vm = NewViewModel();
+        var window = new MainWindow { DataContext = vm, Width = 1280, Height = 800 };
+        window.Show();
+        await vm.OpenSolutionAsync(sln);
+        var program = vm.OpenDocument(SampleSolution.PathOf(sln, "Web/Program.cs"))!;
+        await WaitUntil(() => vm.ServerStatus == "IntelliSense: ready", TimeSpan.FromMinutes(5));
+        var first = Assert.Single(vm.ModuleLanguageServers);
+        Assert.Same(first, vm.LanguageServerFor(program.FilePath));
+
+        // Tools > Restart Language Server: a new Roslyn, for the files open already.
+        await vm.RestartLanguageServerCommand.ExecuteAsync(null);
+        await WaitUntil(() => vm.ServerStatus == "IntelliSense: ready", TimeSpan.FromMinutes(5));
+        Assert.Equal("IntelliSense: ready", vm.ServerStatus);
+        var second = Assert.Single(vm.ModuleLanguageServers);
+        Assert.NotSame(first, second);
+        Assert.True(first.IsDisposed);
+        Assert.Same(second, vm.LanguageServerFor(program.FilePath));
+        Assert.True(await vm.CloseSolutionCoreAsync());
+        Assert.True(second.IsDisposed);
+        Assert.Equal("", vm.ServerStatus);
+    }
+
+    [AvaloniaFact]
     public async Task With_the_module_off_there_is_no_nuget()
     {
         var sln = SolutionExplorerTests.CopySample();
@@ -183,6 +210,9 @@ public class DotNetModuleTests
         Assert.Equal(["New Item...", "Existing Item...", "New Folder", "New EditorConfig", "-", "Project Reference..."], Lines(add.Items.OfType<object>()));
         Assert.Equal(ItemTemplates.General, vm.NewItemTemplates);
         Assert.False(vm.RunAllTestsCommand.CanExecute(null));
+        // No Roslyn: C# has no language server, and the status bar no IntelliSense.
+        Assert.Empty(vm.ModuleLanguageServers);
+        Assert.Equal("", vm.ServerStatus);
         // No module builds the solution: Build says so, and runs nothing.
         await vm.BuildSolutionCommand.ExecuteAsync(null);
         Assert.Equal("No module builds BlazorSample.sln: its module is off (Tools > Modules).", vm.StatusText);

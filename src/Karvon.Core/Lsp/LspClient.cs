@@ -6,7 +6,7 @@ namespace Karvon.Lsp;
 
 /// <summary>
 /// A language server over stdio (JSON-RPC): starting it, document sync, the editor's requests, file watching on its behalf,
-/// its progress and refreshes. A server's own requests and start come in a subclass (<see cref="RoslynClient"/>).
+/// its progress and refreshes. A server's own requests and start come in a subclass (the .NET module's Roslyn).
 /// </summary>
 public class LspClient : IAsyncDisposable
 {
@@ -49,7 +49,29 @@ public class LspClient : IAsyncDisposable
     public event Action<Exception?>? Exited;
 
     /// <summary>The server answers for the workspace (a server that loads projects first says when).</summary>
-    public bool IsReady { get; protected set; }
+    public bool IsReady
+    {
+        get => _ready;
+        protected set
+        {
+            if (_ready == value)
+                return;
+            _ready = value;
+            if (value)
+                Ready?.Invoke();
+        }
+    }
+
+    bool _ready;
+
+    /// <summary>It answers for the workspace now: started, or, for a server that loads projects first, they are in.</summary>
+    public event Action? Ready;
+
+    /// <summary>The editors of its files ask it for their diagnostics again, as when the server asks for a refresh.</summary>
+    public void RefreshDiagnostics() => DiagnosticsRefreshRequested?.Invoke();
+
+    /// <summary>The editors of its files ask it for their colors again, as when the server asks for a refresh.</summary>
+    public void RefreshSemanticTokens() => SemanticTokensRefreshRequested?.Invoke();
 
     public int WatcherCount => _watch.WatcherCount;
 

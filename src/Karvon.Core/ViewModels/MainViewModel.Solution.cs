@@ -79,11 +79,11 @@ public partial class MainViewModel
             SelectedExplorerNode = target;
             ExplorerSelectRequested?.Invoke(target);
         }
-        // Roslyn loads the projects it does not have yet (added, or a project file renamed); it follows project files itself.
-        var added = reloaded.Projects.Where(p => solution.Projects.All(known => known.FilePath != p.FilePath)).Select(p => p.FilePath).ToList();
-        if (_lsp is { } lsp && added.Count > 0)
-            await lsp.OpenProjectsAsync(added);
+        // Its language server loads the projects it does not have yet (added, or a project file renamed).
+        SolutionReloaded?.Invoke();
     }
+
+    public event Action? SolutionReloaded;
 
     /// <summary>
     /// The modules' projects beside the solution's (a frontend's package.json folder) under the solution, after its own:

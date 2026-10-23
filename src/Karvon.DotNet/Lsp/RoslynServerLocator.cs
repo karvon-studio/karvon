@@ -1,6 +1,6 @@
 using System.Diagnostics;
 
-namespace Karvon.Lsp;
+namespace Karvon.DotNet.Lsp;
 
 /// <summary>Where the Roslyn language server lives on disk.</summary>
 public sealed record RoslynServerInstall(string Executable, string Directory)

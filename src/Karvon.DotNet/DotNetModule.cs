@@ -1,5 +1,7 @@
 using Avalonia.Controls.Templates;
+using Avalonia.Threading;
 using Karvon.Build;
+using Karvon.DotNet.Lsp;
 using Karvon.DotNet.NuGet;
 using Karvon.DotNet.Templates;
 using Karvon.Modules;
@@ -29,8 +31,8 @@ public sealed class DotNetModule : KarvonModule
 
     public override IReadOnlyList<ModuleComponent> Components =>
     [
-        new("roslyn", "C# and Razor language server", Lsp.RoslynServerLocator.Version, Lsp.RoslynServerLocator.InstallRoot,
-            () => Lsp.RoslynServerLocator.Find() is not null, Lsp.RoslynServerLocator.EnsureInstalledAsync)
+        new("roslyn", "C# and Razor language server", RoslynServerLocator.Version, RoslynServerLocator.InstallRoot,
+            () => RoslynServerLocator.Find() is not null, RoslynServerLocator.EnsureInstalledAsync)
         {
             Description = "roslyn-language-server (MIT), Visual Studio's C# engine, from nuget.org.",
         },
@@ -40,6 +42,72 @@ public sealed class DotNetModule : KarvonModule
             Description = "Samsung's netcoredbg (MIT), from its GitHub release.",
         },
     ];
+
+    /// <summary>
+    /// Roslyn, Visual Studio's C# engine, for C# and Razor: it starts with a solution or a project (not with a folder),
+    /// loads its projects, and serves their files from then on.
+    /// </summary>
+    public override IReadOnlyList<LanguageServerInfo> LanguageServers =>
+        [new("roslyn", "C# and Razor language server (Roslyn)", RoslynClient.Serves, StartRoslynAsync) { ForWorkspace = solution => !solution.IsFolder }];
+
+    /// <summary>The running Roslyn, and the project files it was told of.</summary>
+    RoslynClient? _roslyn;
+    HashSet<string> _roslynProjects = [];
+
+    async Task<Karvon.Lsp.LspClient> StartRoslynAsync(LanguageServerStart start)
+    {
+        var solution = Workbench.Solution ?? throw new InvalidOperationException("No solution is open.");
+        var install = await RoslynServerLocator.EnsureInstalledAsync(start.Log, start.Cancellation);
+        var lsp = await RoslynClient.StartAsync(install, solution.FilePath, Path.Combine(Path.GetTempPath(), "Karvon", "roslyn-logs"), start.Cancellation);
+        _roslyn = lsp;
+        _roslynProjects = [.. solution.Projects.Select(p => p.FilePath)];
+        lsp.RestoreRequested += projects => Dispatcher.UIThread.Post(() => _ = RestoreForRoslynAsync(projects));
+        lsp.ProjectsLoaded += () => _ = WarmUpRazorAsync(lsp);
+        return lsp;
+    }
+
+    /// <summary>
+    /// Razor discovers components in the background after the projects load (~30 s on a large Blazor solution) without
+    /// sending workspace/diagnostic/refresh, and early pulls report RZ10012 "unexpected markup element": the open
+    /// documents are checked again while that warms up.
+    /// </summary>
+    static async Task WarmUpRazorAsync(RoslynClient lsp)
+    {
+        for (var i = 0; i < 18 && !lsp.IsDisposed; i++)
+        {
+            await Task.Delay(i == 0 ? 100 : 5000);
+            if (lsp.IsDisposed)
+                return;
+            lsp.RefreshDiagnostics();
+            if (i == 0)
+                lsp.RefreshSemanticTokens();
+        }
+    }
+
+    /// <summary>The solution read again: Roslyn loads the projects it does not have yet (added, or a project file renamed).</summary>
+    void OnSolutionReloaded()
+    {
+        if (_roslyn is not { IsDisposed: false } lsp || Workbench.Solution is not { } solution)
+            return;
+        var added = solution.Projects.Select(p => p.FilePath).Where(p => !_roslynProjects.Contains(p)).ToList();
+        _roslynProjects = [.. solution.Projects.Select(p => p.FilePath)];
+        if (added.Count > 0)
+            _ = lsp.OpenProjectsAsync(added);
+    }
+
+    /// <summary>A project Roslyn loads needs its packages: dotnet restore, in Output (Build).</summary>
+    async Task RestoreForRoslynAsync(IReadOnlyList<string> projects)
+    {
+        if (Workbench.Solution is not { IsFolder: false } solution)
+            return;
+        var output = Workbench.Output("Build");
+        var nuget = new NuGetService(solution.Directory, output.Append);
+        foreach (var project in projects.Count > 0 ? projects : [solution.FilePath])
+        {
+            output.Append($"Restoring packages for {project}...");
+            await nuget.RestoreAsync(project, CancellationToken.None);
+        }
+    }
 
     /// <summary>The SDK's project templates (dotnet new's), as Visual Studio lists them.</summary>
     public override Task<IReadOnlyList<ProjectTemplate>> LoadProjectTemplatesAsync(CancellationToken ct) => TemplateCatalog.LoadAsync(ct);
@@ -152,7 +220,11 @@ public sealed class DotNetModule : KarvonModule
     /// <summary>The Output window's Package Manager, as Visual Studio's: what NuGet's commands say.</summary>
     OutputChannel Output => Workbench.Output("Package Manager");
 
-    protected override void Started() => _ = Output;
+    protected override void Started()
+    {
+        _ = Output;
+        Workbench.SolutionReloaded += OnSolutionReloaded;
+    }
 
     /// <summary>The NuGet Package Manager of a project, or of the whole solution when null: the one open, else a new one.</summary>
     internal async Task ManagePackagesAsync(ProjectInfo? project)
