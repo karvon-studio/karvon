@@ -1,0 +1,31 @@
+name: Platforms
+
+# Builds Karvon on macOS and Windows, which ci.yml does not (it builds and tests on Linux). Run by hand: in a private
+# repository a macOS minute counts as ten of the plan's minutes and a Windows minute as two, so it does not run on
+# every push.
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build on ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          # The Database Explorer's engine (bengine) is a submodule.
+          submodules: true
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Restore
+        run: dotnet restore Karvon.slnx
+
+      - name: Build
+        run: dotnet build Karvon.slnx -c Release --no-restore

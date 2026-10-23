@@ -43,7 +43,8 @@ it does today all along.
   netcoredbg's build for Linux x64 and Arm64, Apple Silicon and Windows x64; the terminal's shell: zsh on macOS,
   PowerShell on Windows).
 - Cmd on macOS where Ctrl is on Linux and Windows.
-- CI builds and tests on Linux, macOS and Windows.
+- CI builds and tests on Linux, macOS and Windows (in now: the Platforms workflow builds on macOS and Windows, run by
+  hand; next, their tests).
 
 ## 1. Modify Karvon Studio
 

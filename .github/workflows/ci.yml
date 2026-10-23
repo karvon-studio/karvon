@@ -4,10 +4,10 @@ name: CI
 on:
   push:
     branches: [main]
-    paths-ignore: ['**.md', 'docs/**', 'src/Karvon.VisualStudio/**', '.github/workflows/vsix.yml', '.github/workflows/release.yml']
+    paths-ignore: ['**.md', 'docs/**', 'src/Karvon.VisualStudio/**', '.github/workflows/vsix.yml', '.github/workflows/release.yml', '.github/workflows/platforms.yml']
   pull_request:
     branches: [main]
-    paths-ignore: ['**.md', 'docs/**', 'src/Karvon.VisualStudio/**', '.github/workflows/vsix.yml', '.github/workflows/release.yml']
+    paths-ignore: ['**.md', 'docs/**', 'src/Karvon.VisualStudio/**', '.github/workflows/vsix.yml', '.github/workflows/release.yml', '.github/workflows/platforms.yml']
 
 # A newer push to the same branch makes an older run pointless.
 concurrency:
