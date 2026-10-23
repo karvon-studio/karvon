@@ -1,8 +1,8 @@
 name: Platforms
 
-# Builds Karvon on macOS and Windows, which ci.yml does not (it builds and tests on Linux). Run by hand: in a private
-# repository a macOS minute counts as ten of the plan's minutes and a Windows minute as two, so it does not run on
-# every push.
+# Builds and tests Karvon on macOS and Windows, which ci.yml does not (it builds and tests on Linux). Run by hand: in a
+# private repository a macOS minute counts as ten of the plan's minutes and a Windows minute as two, so it does not run
+# on every push.
 on:
   workflow_dispatch:
 
@@ -29,3 +29,16 @@ jobs:
 
       - name: Build
         run: dotnet build Karvon.slnx -c Release --no-restore
+
+      # The unit and headless UI tests (the languages' live ones are Linux's, in ci.yml). Each test is listed as it
+      # finishes; the results are kept for a run that fails.
+      - name: Test
+        timeout-minutes: 30
+        run: dotnet test Karvon.slnx -c Release --no-build --blame-hang-timeout 5m --blame-hang-dump-type none --logger "console;verbosity=normal" --logger "trx;LogFileName=results.trx" --results-directory test-results
+
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: test-results-${{ matrix.os }}
+          path: test-results
+          if-no-files-found: ignore
