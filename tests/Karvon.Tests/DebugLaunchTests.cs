@@ -68,8 +68,8 @@ public class DebugLaunchTests
         var dir = NewFolder();
         File.WriteAllText(VsCodeLaunch.FileOf(dir), """
             { "configurations": [
-              { "name": "Python app", "type": "python", "request": "launch", "program": "app.py" },
-              { "name": "Prepared", "type": "python", "request": "launch", "preLaunchTask": "missing" }
+              { "name": "Cobol app", "type": "cobol", "request": "launch", "program": "app.cbl" },
+              { "name": "Prepared", "type": "cobol", "request": "launch", "preLaunchTask": "missing" }
             ] }
             """);
         var vm = NewViewModel(modules: [.. Karvon.BuiltInModules.Create(), new FakeTaskModule()]);
@@ -78,13 +78,13 @@ public class DebugLaunchTests
         await vm.OpenSolutionAsync(dir);
 
         // launch.json's first (the first of them chosen), then the run tasks.
-        Assert.Equal(["Python app", "Prepared", "serve"], vm.StartupItems.Select(i => i.Name));
-        Assert.Equal("Python app", vm.StartupItem?.Name);
+        Assert.Equal(["Cobol app", "Prepared", "serve"], vm.StartupItems.Select(i => i.Name));
+        Assert.Equal("Cobol app", vm.StartupItem?.Name);
         Assert.True(vm.StartDebuggingCommand.CanExecute(null));
 
         // A type no module debugs, and a preLaunchTask the folder does not have: nothing starts, and the Output says why.
         await vm.StartDebuggingCommand.ExecuteAsync(null);
-        Assert.Contains("No debugger debugs 'python' (Python app): its module brings one", vm.DebugOutput.Document.Text);
+        Assert.Contains("No debugger debugs 'cobol' (Cobol app): its module brings one", vm.DebugOutput.Document.Text);
         Assert.Equal(DebugMode.Design, vm.Mode);
         vm.StartupItem = vm.StartupItems[1];
         await vm.StartDebuggingCommand.ExecuteAsync(null);

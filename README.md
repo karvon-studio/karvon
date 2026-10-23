@@ -187,7 +187,7 @@ src/Karvon.Servers/     module: SSH servers
 src/Karvon.Mcp/         module: MCP Servers
 src/Karvon.Skills/      module: Skills (uses Karvon.Mcp)
 src/Karvon.TypeScript/  module: TypeScript and JavaScript (TypeScript 7's language server, package.json scripts, js-debug, Vitest, Jest)
-src/Karvon.Python/      module: Python (Pyright's language server, the workspace's .venv)
+src/Karvon.Python/      module: Python (Pyright's language server, debugpy, the workspace's .venv)
 src/Karvon.Claude/      module: Claude Code (its session, protocol and view model are shared with the Visual Studio extension)
 external/bengine/       Bengine (submodule): the schema AST and the live-database layer the Database Explorer uses
 src/Karvon.VisualStudio/   the Claude Code panel as a Visual Studio extension (Windows), sharing src/Karvon.Claude's session and view model
@@ -196,7 +196,7 @@ src/Karvon.VisualStudio/   the Claude Code panel as a Visual Studio extension (W
 ## License
 
 MIT, see [LICENSE](LICENSE). Third-party: Cascadia Mono font (SIL OFL 1.1); Avalonia, AvaloniaEdit, TextMateSharp,
-Exclr8.Terminal and Porta.Pty (MIT); Markdig (BSD 2-Clause); roslyn-language-server, netcoredbg, js-debug and Pyright (MIT, downloaded at runtime);
+Exclr8.Terminal and Porta.Pty (MIT); Markdig (BSD 2-Clause); roslyn-language-server, netcoredbg, js-debug, Pyright and debugpy (MIT, downloaded at runtime);
 Material Icon Theme icons (MIT, Copyright (c) 2025 Material Extensions; `src/Karvon.Core/Assets/MaterialIcons`, refreshed with
 `scripts/update-material-icons.sh`, and `src/Karvon.Database/Assets/Icons`). The Database Explorer uses Bengine (same
 author) and its drivers: Npgsql (PostgreSQL License), Microsoft.Data.SqlClient, MySqlConnector, SSH.NET and

@@ -4,7 +4,8 @@ namespace Karvon.Python;
 
 /// <summary>
 /// Python: Pyright's language server in the editor of .py files (errors as you type, completion, hover, go to
-/// definition), installed the first time one of them opens, with the workspace's interpreter (its .venv first).
+/// definition), installed the first time one of them opens, and debugpy for F5, both with the workspace's interpreter
+/// (its .venv first).
 /// </summary>
 public sealed class PythonModule : KarvonModule
 {
@@ -14,7 +15,8 @@ public sealed class PythonModule : KarvonModule
 
     public override string Description =>
         "Pyright's language server for .py files: errors as you type, completion, hover, go to definition, references and "
-        + "rename, with the workspace's interpreter (its .venv first), installed the first time one of them opens (it runs on Node.js).";
+        + "rename, installed the first time one of them opens (it runs on Node.js); F5 debugs a launch.json python configuration "
+        + "with debugpy. Both use the workspace's interpreter (its .venv first).";
 
     public override IReadOnlyList<LanguageServerInfo> LanguageServers =>
         [new("pyright", "Python language server (Pyright)", PyrightServer.Serves, StartAsync)];
@@ -26,7 +28,16 @@ public sealed class PythonModule : KarvonModule
         {
             Description = "Pyright (MIT), Microsoft's Python type checker and language server, from the npm registry; it runs on Node.js.",
         },
+        new("debugpy", "Python debugger (debugpy)", DebugpyLocator.Version, DebugpyLocator.InstallRoot,
+            () => DebugpyLocator.Find() is not null, DebugpyLocator.EnsureInstalledAsync)
+        {
+            Description = "debugpy (MIT), Microsoft's Python debugger, from PyPI; the workspace's interpreter runs it.",
+        },
     ];
+
+    /// <summary>F5: debugpy, for launch.json's debugpy and python configurations.</summary>
+    public override IReadOnlyList<DebuggerInfo> Debuggers =>
+        [new("debugpy", $"debugpy {DebugpyLocator.Version}", PythonDebugger.Types, PythonDebugger.StartAsync)];
 
     async Task<Lsp.LspClient> StartAsync(LanguageServerStart start)
     {

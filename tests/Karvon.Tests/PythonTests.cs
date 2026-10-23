@@ -78,4 +78,46 @@ public class PythonTests
             Directory.Delete(dir, recursive: true);
         }
     }
+
+    [AvaloniaFact]
+    public async Task F5_debugs_python_with_debugpy()
+    {
+        Assert.SkipUnless(Environment.GetEnvironmentVariable("KARVON_PYTHON_LIVE") == "1", "Set KARVON_PYTHON_LIVE=1 to install debugpy from PyPI and debug with it.");
+        Assert.SkipUnless(PythonEnvironment.Interpreter("/", Environment.GetEnvironmentVariable("PATH") ?? "") is not null, "Python is not installed.");
+        var dir = Path.Combine(Path.GetTempPath(), "karvon-py-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(Path.Combine(dir, ".vscode"));
+        try
+        {
+            var main = Path.Combine(dir, "main.py");
+            File.WriteAllText(main, "def area(w, h):\n    result = w * h\n    return result\n\nprint(\"area\", area(3, 4))\n");
+            File.WriteAllText(Workspace.VsCodeLaunch.FileOf(dir), """
+                { "configurations": [ { "name": "Python: main", "type": "debugpy", "request": "launch", "program": "${workspaceFolder}/main.py" } ] }
+                """);
+            var vm = NewViewModel();
+            var window = new MainWindow { DataContext = vm, Width = 1280, Height = 800 };
+            window.Show();
+            await vm.OpenSolutionAsync(dir);
+            Assert.Equal("Python: main", vm.StartupItem?.Name);
+            var server = ClaudeOf(vm).ToolServer();
+
+            // F5: stopped on the breakpoint in the function; its variables, an expression, a step, then to its end.
+            vm.Breakpoints.Toggle(main, 3);
+            var started = await ClaudeIdeToolsTests.Text(server, "debug_control", new { action = "start" });
+            Assert.True(vm.Mode == ViewModels.DebugMode.Break, started + "\n" + vm.DebugOutput.Document.Text);
+            Assert.Matches(@"^Stopped \(breakpoint\) in area at main\.py:3\.$", started);
+            Assert.Equal("w * h = 12 (int)", await ClaudeIdeToolsTests.Text(server, "debug_evaluate", new { expression = "w * h" }));
+            Assert.Contains("  result: int = 12", await ClaudeIdeToolsTests.Text(server, "debug_locals", new { depth = 1 }));
+            Assert.True(vm.Breakpoints.IsVerified(main, 3));
+            await vm.StartDebuggingCommand.ExecuteAsync(null);
+            await WaitUntil(() => vm.Mode == ViewModels.DebugMode.Design, TimeSpan.FromSeconds(30));
+            Assert.True(vm.Mode == ViewModels.DebugMode.Design, vm.DebugOutput.Document.Text);
+            Assert.Contains("area 12", vm.DebugOutput.Document.Text);
+            Assert.True(await vm.CloseSolutionCoreAsync());
+            window.Close();
+        }
+        finally
+        {
+            Directory.Delete(dir, recursive: true);
+        }
+    }
 }
