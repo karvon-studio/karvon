@@ -11,7 +11,11 @@ it does today all along.
   `Karvon.Skills`). Core cannot reference a module; the compiler keeps the boundaries.
 - A module contributes through one interface: tool windows, documents, menu and context menu items, commands, Claude
   tools, settings, Solution Explorer nodes.
-- .NET becomes the first workload: Roslyn, netcoredbg, Test Explorer, NuGet and the templates move behind it.
+- .NET becomes the first workload: Roslyn, netcoredbg, Test Explorer, NuGet and the templates move behind it. It goes
+  feature by feature, each through an extension point the core gets for it: the NuGet window (menu and Solution
+  Explorer items from modules), the templates (New Project, Add New Item), Test Explorer (a workspace's tests), run and
+  debug (startup items), the build, Roslyn (a solution's language server), and last the solution itself (a module
+  opens .sln, .slnx and .csproj files; the core opens folders).
 - Modules can be turned on and off; everything still ships in one package.
 
 ## 0b. Languages
@@ -34,7 +38,8 @@ it does today all along.
 
 ## 0c. Every platform
 
-- No Linux-only code in Core: paths, process trees, the trash, opening files and URLs, the default shell.
+- No Linux-only code in Core: paths, process trees, the trash, opening files and URLs, the default shell (in now:
+  opening files, folders and URLs, and the trash, on Linux, macOS and Windows; process trees on Linux and macOS).
 - Cmd on macOS where Ctrl is on Linux and Windows.
 - CI builds and tests on Linux, macOS and Windows.
 

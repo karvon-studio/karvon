@@ -427,17 +427,7 @@ public partial class MainWindow : Window, IDialogService
     }
 
     /// <summary>Right-click on a document tab: VS's tab context menu.</summary>
-    static void OpenFolder(string folder)
-    {
-        try
-        {
-            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("xdg-open", folder) { UseShellExecute = false });
-        }
-        catch (Exception)
-        {
-            // No file manager registered.
-        }
-    }
+    static void OpenFolder(string folder) => Services.DesktopShell.Open(folder);
 
     /// <summary>Double-click in Git Changes: a file opens its diff, a folder or repository opens or closes.</summary>
     void OnGitItemDoubleTapped(object? sender, TappedEventArgs e)

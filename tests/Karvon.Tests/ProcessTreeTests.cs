@@ -102,4 +102,23 @@ public class ProcessTreeTests
             ProcessTree.KillOrphans(root, "BuildHost", "Microsoft.CodeAnalysis.LanguageServer");
         }
     }
+
+    [Fact]
+    public void Ps_reads_the_processes_where_there_is_no_proc()
+    {
+        // macOS's ps, one-digit days padded; a line that is not a process is left out.
+        var rows = ProcessTree.Ps.Parse("""
+              412     1 Fri Oct 23 10:02:41 2026 S    /usr/local/share/dotnet/dotnet exec BuildHost.dll  --pipe x
+             9001   412 Sat Oct  3 09:00:00 2026 Z <defunct>
+            PID PPID STARTED
+            """);
+        Assert.Equal([(412, 1, 'S', "/usr/local/share/dotnet/dotnet exec BuildHost.dll  --pipe x"), (9001, 412, 'Z', "<defunct>")],
+            rows.Select(r => (r.Pid, r.Parent, r.State, r.Command)));
+        Assert.Equal((ulong)new DateTime(2026, 10, 3, 9, 0, 0).Ticks, rows[1].Start);
+
+        // The real ps (Linux's takes the same options) knows this process and its parent.
+        var self = ProcessTree.Ps.Read().Single(r => r.Pid == Environment.ProcessId);
+        Assert.Equal(int.Parse(File.ReadAllText("/proc/self/stat").Split(") ")[1].Split(' ')[1]), self.Parent);
+        Assert.Equal(File.ReadAllText("/proc/self/cmdline").Replace('\0', ' ').Trim(), self.Command);
+    }
 }

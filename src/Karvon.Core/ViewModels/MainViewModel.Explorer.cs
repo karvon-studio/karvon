@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using CommunityToolkit.Mvvm.Input;
 using Karvon.Build;
 using Karvon.Workspace;
@@ -318,25 +317,5 @@ public partial class MainViewModel
     [RelayCommand]
     Task AddExistingItem(ExplorerNode? node) => AddExistingItemsAsync(node);
 
-    static async Task<bool> MoveToTrashAsync(string path)
-    {
-        try
-        {
-            using var gio = Process.Start(new ProcessStartInfo("gio", ["trash", path])
-            {
-                RedirectStandardError = true,
-                RedirectStandardOutput = true,
-                UseShellExecute = false,
-            });
-            if (gio is null)
-                return false;
-            await gio.WaitForExitAsync();
-            return gio.ExitCode == 0;
-        }
-        catch (System.ComponentModel.Win32Exception)
-        {
-            // No gio: deleted for good.
-            return false;
-        }
-    }
+    static Task<bool> MoveToTrashAsync(string path) => Services.DesktopShell.MoveToTrashAsync(path);
 }

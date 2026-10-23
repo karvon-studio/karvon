@@ -23,15 +23,6 @@ public partial class NuGetView : UserControl
     void OnProjectUrlClick(object? sender, RoutedEventArgs e)
     {
         if (Vm?.SelectedPackage?.ProjectUrl is { } url)
-        {
-            try
-            {
-                System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("xdg-open", url) { UseShellExecute = false });
-            }
-            catch (Exception)
-            {
-                // No browser registered.
-            }
-        }
+            Services.DesktopShell.Open(url);
     }
 }

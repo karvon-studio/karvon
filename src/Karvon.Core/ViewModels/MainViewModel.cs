@@ -1129,17 +1129,8 @@ public partial class MainViewModel : ObservableObject
         SetStatus("Ready", Solution is null ? StatusKind.NoSolution : StatusKind.Ready);
     }
 
-    static void OpenBrowser(string url)
-    {
-        try
-        {
-            Process.Start(new ProcessStartInfo("xdg-open", url) { UseShellExecute = false });
-        }
-        catch (Exception)
-        {
-            // No desktop opener available; the URL is in the Output window anyway.
-        }
-    }
+    /// <summary>A page in the desktop's browser; when there is none, the URL is in the Output window anyway.</summary>
+    static void OpenBrowser(string url) => DesktopShell.Open(url);
 
     // ---- Solution Explorer helpers -------------------------------------------------------------------------
 
