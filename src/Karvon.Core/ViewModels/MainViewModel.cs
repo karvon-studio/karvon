@@ -413,7 +413,11 @@ public partial class MainViewModel : ObservableObject
     async Task RestartLanguageServer()
     {
         foreach (var d in Editors)
+        {
             d.Host.Detach();
+            foreach (var linter in d.Host.Linters.ToList())
+                d.Host.DetachLinter(linter);
+        }
         await StopModuleLanguageServersAsync();
         await StartWorkspaceLanguageServersAsync();
         foreach (var d in Editors)

@@ -35,6 +35,9 @@ public interface IWorkbench
     /// <summary>A question with Yes and No (and the dialog closed: null), as Karvon asks its own.</summary>
     Task<bool?> ConfirmAsync(string title, string message);
 
+    /// <summary>Tools > Restart Language Server: the workspace's language servers stop, and start again for their files.</summary>
+    Task RestartLanguageServersAsync();
+
     /// <summary>The build configuration chosen on the toolbar ("Debug", "Release").</summary>
     string Configuration { get; }
 

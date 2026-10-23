@@ -74,6 +74,12 @@ public sealed class Settings
     /// <summary>The folders of the components removed in Tools > Modules: they go when Karvon Studio starts again.</summary>
     public List<string> RemovedComponents { get; set; } = [];
 
+    /// <summary>
+    /// The folders where ESLint may check the files (true) or may not (false), as the user answered: it runs a folder's
+    /// own ESLint, configuration and plugins, its code. Kept here, never in the folder.
+    /// </summary>
+    public Dictionary<string, bool> EslintFolders { get; set; } = [];
+
     /// <summary>Karvon's Docker tools see every container, not only the open solution's compose project.</summary>
     public bool ClaudeAllContainers { get; set; }
 

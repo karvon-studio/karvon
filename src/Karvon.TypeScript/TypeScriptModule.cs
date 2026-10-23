@@ -5,7 +5,8 @@ namespace Karvon.TypeScript;
 /// <summary>
 /// TypeScript and JavaScript: TypeScript 7's own language server in the editor of their files (errors as you type,
 /// completion, hover, go to definition, references, rename, formatting), installed the first time one of them opens; a
-/// folder's package.json scripts as its tasks (build, test, the app); and js-debug for F5.
+/// folder's package.json scripts as its tasks (build, test, the app); js-debug for F5; and ESLint's diagnostics beside
+/// TypeScript's, where the user lets it run the folder's ESLint.
 /// </summary>
 public sealed class TypeScriptModule : KarvonModule
 {
@@ -19,7 +20,8 @@ public sealed class TypeScriptModule : KarvonModule
         + "package.json scripts build, run and test it (with npm, pnpm, yarn or bun), and F5 debugs the app or a launch.json "
         + "configuration with js-debug, the JavaScript debugger of VS Code (installed the first time; it runs on Node.js). "
         + "Test Explorer runs and debugs a package's Vitest or Jest tests. VS Code's HTML, CSS (with SCSS and Less) and JSON "
-        + "language servers serve those files (installed the first time one of them opens; they run on Node.js).";
+        + "language servers serve those files (installed the first time one of them opens; they run on Node.js). In a folder with "
+        + "its own ESLint, ESLint checks the JavaScript and TypeScript files as you type, once you let it run there.";
 
     public override IReadOnlyList<LanguageServerInfo> LanguageServers =>
     [
@@ -27,7 +29,72 @@ public sealed class TypeScriptModule : KarvonModule
         WebServer("html", "HTML language server"),
         WebServer("css", "CSS language server"),
         WebServer("json", "JSON language server"),
+        new("eslint", "ESLint", EslintServer.Serves, StartEslintAsync) { Lints = true, MayStartAsync = MayRunEslintAsync },
     ];
+
+    /// <summary>Tools > ESLint in This Folder: whether ESLint checks the open folder's files, asked again.</summary>
+    public override IReadOnlyList<ModuleMainMenuItem> MainMenus =>
+        [new("Tools", new("_ESLint in This Folder...", ChooseEslintAsync) { After = "Restart Language Server" })];
+
+    static string FolderKey(string workspace) => Path.TrimEndingDirectorySeparator(Path.GetFullPath(workspace));
+
+    /// <summary>
+    /// Whether ESLint checks a workspace's files: only with the folder's own ESLint, and once the user let it, as that
+    /// runs the folder's code (its ESLint, configuration and plugins). The answer is kept in Karvon's settings.
+    /// </summary>
+    async Task<bool> MayRunEslintAsync(string workspace, string file)
+    {
+        if (EslintOf(workspace, file) is not { } library)
+            return false;
+        return Workbench.Settings.EslintFolders.TryGetValue(FolderKey(workspace), out var allowed) ? allowed : await AskEslintAsync(workspace, library) == true;
+    }
+
+    /// <summary>The folder's own ESLint: the file's, else the folder's, else one of its packages' (a frontend beside a solution).</summary>
+    static string? EslintOf(string workspace, string file) =>
+        EslintServer.LibraryFor(file, workspace) ?? EslintServer.LibraryFor(workspace, workspace)
+        ?? PackageScripts.Projects(workspace).Select(p => EslintServer.LibraryFor(p.Directory, workspace)).OfType<string>().FirstOrDefault();
+
+    /// <summary>The question, its answer kept (the dialog closed: none, and it is asked again the next time).</summary>
+    async Task<bool?> AskEslintAsync(string workspace, string library)
+    {
+        var answer = await Workbench.ConfirmAsync("ESLint", "Let ESLint check this folder's JavaScript and TypeScript as you type?\n\n"
+            + $"It runs the folder's own ESLint ({Path.GetRelativePath(workspace, library)}) with its configuration and plugins: code of the "
+            + "folder's. Let it only in a folder you trust; Tools > ESLint in This Folder changes your answer.");
+        if (answer is { } yes)
+        {
+            Workbench.Settings.EslintFolders[FolderKey(workspace)] = yes;
+            Workbench.SaveSettings();
+        }
+        return answer;
+    }
+
+    async Task ChooseEslintAsync()
+    {
+        if (Workbench.Workspace is not { } workspace)
+        {
+            Workbench.Status("Open a folder first: ESLint checks the files of a folder with its own ESLint.");
+            return;
+        }
+        if (EslintOf(workspace, workspace) is not { } library)
+        {
+            Workbench.Status("This folder has no ESLint of its own (node_modules/eslint): npm install --save-dev eslint, then try again.");
+            return;
+        }
+        Workbench.Settings.EslintFolders.TryGetValue(FolderKey(workspace), out var before);
+        if (await AskEslintAsync(workspace, library) is { } now && now != before)
+            await Workbench.RestartLanguageServersAsync();
+    }
+
+    async Task<Lsp.LspClient> StartEslintAsync(LanguageServerStart start)
+    {
+        var installing = EslintLocator.Find() is null;
+        if (installing)
+            Workbench.Status($"Installing ESLint's language server {EslintLocator.Version}...");
+        var server = await EslintServer.StartAsync(start);
+        if (installing)
+            Workbench.Status($"ESLint's language server {EslintLocator.Version} installed.");
+        return server;
+    }
 
     /// <summary>One of VS Code's HTML, CSS and JSON servers, for its language's files.</summary>
     LanguageServerInfo WebServer(string language, string name) =>
@@ -72,6 +139,11 @@ public sealed class TypeScriptModule : KarvonModule
             WebLanguagesLocator.IsInstalled, WebLanguagesLocator.EnsureInstalledAsync)
         {
             Description = "VS Code's own (MIT), from Open VSX, with the TypeScript library (Apache-2.0) for HTML's scripts; they run on Node.js.",
+        },
+        new("eslint", "ESLint language server", EslintLocator.Version, EslintLocator.InstallRoot,
+            () => EslintLocator.Find() is not null, EslintLocator.EnsureInstalledAsync)
+        {
+            Description = "The one of VS Code's ESLint extension (MIT), from Open VSX; on Node.js, it runs a folder's own ESLint where you let it.",
         },
     ];
 

@@ -37,6 +37,8 @@ public sealed partial class EditorHost : IDisposable, IDebugLineSource
     readonly List<LspContentChange> _pendingChanges = [];
     readonly Encoding _encoding;
     LspClient? _lsp;
+    /// <summary>The linters on the file beside its server (ESLint beside TypeScript's): its text and their diagnostics only.</summary>
+    readonly List<LspClient> _linters = [];
     int _version = 1;
     bool _flushScheduled;
     bool _chordCtrlK;
@@ -375,10 +377,10 @@ public sealed partial class EditorHost : IDisposable, IDebugLineSource
         if (!lsp.Handles(FilePath) || _lsp == lsp)
             return;
         Detach();
+        // What was typed and not sent yet goes to the linters, which have the file already; the server opens it as it is.
+        FlushChanges();
         _lsp = lsp;
         lsp.DiagnosticsPublished += OnDiagnosticsPublished;
-        _pendingChanges.Clear();
-        _version = 1;
         _ = lsp.DidOpenAsync(FilePath, Document.Text);
         ScheduleDiagnostics(200);
         ScheduleOutlining(300);
@@ -390,8 +392,42 @@ public sealed partial class EditorHost : IDisposable, IDebugLineSource
         if (_lsp is { } lsp)
             lsp.DiagnosticsPublished -= OnDiagnosticsPublished;
         _lsp = null;
-        _pendingChanges.Clear();
+        if (_linters.Count == 0)
+            _pendingChanges.Clear();
     }
+
+    /// <summary>
+    /// A linter on the file from now on, its diagnostics beside its server's (ESLint's beside TypeScript's): it gets the
+    /// file's text and edits too. Once only, as <see cref="Attach"/>.
+    /// </summary>
+    public void AttachLinter(LspClient linter)
+    {
+        if (!linter.Handles(FilePath) || _linters.Contains(linter) || _lsp == linter)
+            return;
+        FlushChanges();
+        _linters.Add(linter);
+        linter.DiagnosticsPublished += OnDiagnosticsPublished;
+        _ = linter.DidOpenAsync(FilePath, Document.Text);
+        ScheduleDiagnostics(200);
+    }
+
+    /// <summary>A linter that stopped: its diagnostics go.</summary>
+    public void DetachLinter(LspClient linter)
+    {
+        if (!_linters.Remove(linter))
+            return;
+        linter.DiagnosticsPublished -= OnDiagnosticsPublished;
+        if (_lsp is null && _linters.Count == 0)
+        {
+            _pendingChanges.Clear();
+            ShowDiagnostics([]);
+        }
+        else
+            ScheduleDiagnostics(0);
+    }
+
+    /// <summary>The linters on the file (for the tests).</summary>
+    internal IReadOnlyList<LspClient> Linters => _linters;
 
     /// <summary>A server that pushes its diagnostics sent this file's: they show at once.</summary>
     void OnDiagnosticsPublished(string path)
@@ -402,7 +438,7 @@ public sealed partial class EditorHost : IDisposable, IDebugLineSource
 
     void OnDocumentChanging(object? sender, DocumentChangeEventArgs e)
     {
-        if (_lsp is null)
+        if (_lsp is null && _linters.Count == 0)
             return;
         // Positions are computed against the pre-change text, as LSP incremental sync requires.
         var start = TextPositions.ToPosition(Document, e.Offset);
@@ -419,18 +455,20 @@ public sealed partial class EditorHost : IDisposable, IDebugLineSource
     public void FlushChanges()
     {
         _flushScheduled = false;
-        if (_lsp is null || _pendingChanges.Count == 0)
+        if (_pendingChanges.Count == 0 || _lsp is null && _linters.Count == 0)
             return;
         var changes = _pendingChanges.ToList();
         _pendingChanges.Clear();
         _version++;
-        _ = _lsp.DidChangeAsync(FilePath, _version, changes);
+        _ = _lsp?.DidChangeAsync(FilePath, _version, changes);
+        foreach (var linter in _linters)
+            _ = linter.DidChangeAsync(FilePath, _version, changes);
         ScheduleDiagnostics();
     }
 
     public void ScheduleDiagnostics(int delayMs = 600)
     {
-        if (_lsp is null)
+        if (_lsp is null && _linters.Count == 0)
             return;
         _diagnosticsCts?.Cancel();
         var cts = _diagnosticsCts = new CancellationTokenSource();
@@ -443,16 +481,25 @@ public sealed partial class EditorHost : IDisposable, IDebugLineSource
         {
             await Task.Delay(delayMs, ct);
             FlushChanges();
-            if (_lsp is not { } lsp)
+            var servers = new[] { _lsp }.Concat(_linters).OfType<LspClient>().ToList();
+            if (servers.Count == 0)
                 return;
-            var list = await lsp.DiagnosticsAsync(FilePath, ct);
-            if (ct.IsCancellationRequested)
+            // The server's and each linter's: one that fails keeps its last ones off, the others still show.
+            async Task<IReadOnlyList<LspDiagnostic>?> Of(LspClient server)
+            {
+                try
+                {
+                    return await server.DiagnosticsAsync(FilePath, ct);
+                }
+                catch (Exception ex) when (ex is LspException or IOException)
+                {
+                    return null;
+                }
+            }
+            var lists = await Task.WhenAll(servers.Select(Of));
+            if (ct.IsCancellationRequested || lists.All(l => l is null))
                 return;
-            Diagnostics = list;
-            _diagnostics.SetDiagnostics(list);
-            foreach (var view in Views)
-                view.TextArea.TextView.InvalidateLayer(KnownLayer.Selection);
-            DiagnosticsChanged?.Invoke();
+            ShowDiagnostics([.. lists.OfType<IReadOnlyList<LspDiagnostic>>().SelectMany(l => l)]);
         }
         catch (OperationCanceledException)
         {
@@ -460,6 +507,15 @@ public sealed partial class EditorHost : IDisposable, IDebugLineSource
         catch (Exception ex) when (ex is LspException or IOException)
         {
         }
+    }
+
+    void ShowDiagnostics(IReadOnlyList<LspDiagnostic> list)
+    {
+        Diagnostics = list;
+        _diagnostics.SetDiagnostics(list);
+        foreach (var view in Views)
+            view.TextArea.TextView.InvalidateLayer(KnownLayer.Selection);
+        DiagnosticsChanged?.Invoke();
     }
 
     // ---- Typing: IntelliSense --------------------------------------------------------------------------
@@ -1169,6 +1225,12 @@ public sealed partial class EditorHost : IDisposable, IDebugLineSource
             _ = lsp.DidCloseAsync(FilePath);
         }
         _lsp = null;
+        foreach (var linter in _linters)
+        {
+            linter.DiagnosticsPublished -= OnDiagnosticsPublished;
+            _ = linter.DidCloseAsync(FilePath);
+        }
+        _linters.Clear();
         _semanticCts?.Cancel();
         _textMate?.Dispose();
         RemoveSplit();

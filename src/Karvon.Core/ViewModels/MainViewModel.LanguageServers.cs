@@ -7,7 +7,8 @@ namespace Karvon.ViewModels;
 /// <summary>
 /// The modules' language servers (TypeScript's, Python's...): each starts for the open workspace when a file it serves
 /// first opens in the editor, serves every editor of its files from then on, and stops with the workspace. One that is
-/// for a kind of workspace (.NET's Roslyn: a solution) starts as that opens, its progress on the status bar.
+/// for a kind of workspace (.NET's Roslyn: a solution) starts as that opens, its progress on the status bar. A file has
+/// one server, the first that serves it, and any linters beside it (ESLint), each adding its diagnostics.
 /// </summary>
 public partial class MainViewModel
 {
@@ -25,7 +26,23 @@ public partial class MainViewModel
         _moduleServers.Values.Where(t => t.IsCompletedSuccessfully && t.Result is not null).Select(t => t.Result!);
 
     /// <summary>The running server of a file, or null (Claude's code_diagnostics).</summary>
-    internal LspClient? LanguageServerFor(string path) => ModuleLanguageServers.FirstOrDefault(l => l.Handles(path));
+    internal LspClient? LanguageServerFor(string path) =>
+        _moduleServers.Where(s => !IsLinter(s.Key) && s.Value.IsCompletedSuccessfully).Select(s => s.Value.Result).FirstOrDefault(l => l?.Handles(path) == true);
+
+    /// <summary>The running linters of a file (Claude's code_diagnostics).</summary>
+    internal IEnumerable<LspClient> LintersFor(string path) =>
+        _moduleServers.Where(s => IsLinter(s.Key) && s.Value.IsCompletedSuccessfully).Select(s => s.Value.Result).OfType<LspClient>().Where(l => l.Handles(path));
+
+    bool IsLinter(string id) => Modules.SelectMany(m => m.LanguageServers).Any(s => s.Id == id && s.Lints);
+
+    /// <summary>A server on an editor: as its file's server, or as one of its linters.</summary>
+    static void AttachTo(DocumentViewModel doc, LanguageServerInfo info, LspClient lsp)
+    {
+        if (info.Lints)
+            doc.Host.AttachLinter(lsp);
+        else
+            doc.Host.Attach(lsp);
+    }
 
     /// <summary>The workspace opened: the servers that are for it start, and attach to the files open already.</summary>
     async Task StartWorkspaceLanguageServersAsync()
@@ -34,33 +51,54 @@ public partial class MainViewModel
             return;
         var starting = Modules.SelectMany(m => m.LanguageServers)
             .Where(s => s.ForWorkspace?.Invoke(solution) == true && !_moduleServers.ContainsKey(s.Id))
-            .Select(s => _moduleServers[s.Id] = StartModuleLanguageServerAsync(s, solution)).ToList();
-        foreach (var start in starting)
+            .Select(s => (Info: s, Start: _moduleServers[s.Id] = StartModuleLanguageServerAsync(s, solution, null))).ToList();
+        foreach (var (info, start) in starting)
             if (await start is { } lsp && Solution == solution)
                 foreach (var d in Editors.Where(d => lsp.Handles(d.FilePath)))
-                    d.Host.Attach(lsp);
+                    AttachTo(d, info, lsp);
     }
 
     /// <summary>
-    /// A module's server for an editor's file: started the first time one of its files opens (one that is for a kind of
-    /// workspace only with it), then attached.
+    /// The modules' servers for an editor's file, its own and its linters: each started the first time one of its files
+    /// opens (one that is for a kind of workspace only with it), then attached.
     /// </summary>
-    async void AttachModuleLanguageServer(DocumentViewModel doc)
+    void AttachModuleLanguageServer(DocumentViewModel doc)
     {
-        if (Solution is not { } solution || Modules.SelectMany(m => m.LanguageServers).FirstOrDefault(s => s.Serves(doc.FilePath)) is not { } info)
+        if (Solution is not { } solution)
             return;
+        var servers = Modules.SelectMany(m => m.LanguageServers).Where(s => s.Serves(doc.FilePath)).ToList();
+        foreach (var info in servers.Where(s => s.Lints).Prepend(servers.FirstOrDefault(s => !s.Lints)).OfType<LanguageServerInfo>())
+            AttachModuleLanguageServer(doc, info, solution);
+    }
+
+    async void AttachModuleLanguageServer(DocumentViewModel doc, LanguageServerInfo info, Workspace.SolutionInfo solution)
+    {
         if (!_moduleServers.TryGetValue(info.Id, out var starting))
         {
             if (info.ForWorkspace is not null)
                 return;
-            _moduleServers[info.Id] = starting = StartModuleLanguageServerAsync(info, solution);
+            _moduleServers[info.Id] = starting = StartModuleLanguageServerAsync(info, solution, doc.FilePath);
         }
         if (await starting is { } lsp && Solution == solution && Editors.Contains(doc))
-            doc.Host.Attach(lsp);
+            AttachTo(doc, info, lsp);
     }
 
-    async Task<LspClient?> StartModuleLanguageServerAsync(LanguageServerInfo info, Workspace.SolutionInfo solution)
+    /// <param name="file">The file it starts for; null, as its workspace opens.</param>
+    async Task<LspClient?> StartModuleLanguageServerAsync(LanguageServerInfo info, Workspace.SolutionInfo solution, string? file)
     {
+        // One that asks first (ESLint: may it run the folder's code?): no, and it stays off while the workspace is open.
+        try
+        {
+            if (info.MayStartAsync is { } may && !await may(solution.Directory, file ?? solution.Directory))
+                return null;
+        }
+        catch (Exception ex)
+        {
+            ServerOutput.Append($"{info.Name} could not start: {ex.Message}");
+            return null;
+        }
+        if (Solution != solution)
+            return null;
         ServerOutput.Append($"Starting {info.Name}...");
         // A workspace's server says how it is doing on the status bar, as Visual Studio's IntelliSense does.
         var workspace = info.ForWorkspace is not null;
@@ -105,7 +143,10 @@ public partial class MainViewModel
                     return;
                 _moduleServers.Remove(info.Id);
                 foreach (var d in Editors.Where(d => lsp.Handles(d.FilePath)))
-                    d.Host.Detach();
+                    if (info.Lints)
+                        d.Host.DetachLinter(lsp);
+                    else
+                        d.Host.Detach();
                 ServerOutput.Append($"{info.Name} stopped.");
                 if (workspace)
                     ServerStatus = "IntelliSense: stopped (Tools > Restart Language Server)";

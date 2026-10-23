@@ -717,7 +717,7 @@ sealed class CodeDiagnosticsTool(MainViewModel vm) : IdeTool(vm)
     public override string Name => "code_diagnostics";
 
     public override string Description =>
-        "The errors and warnings the language server (Roslyn) reports: for one file (checked now, even if it is not open), or for every open file.";
+        "The errors and warnings the language servers (Roslyn, TypeScript's...) and linters (ESLint) report: for one file (checked now, even if it is not open), or for every open file.";
 
     public override JsonObject InputSchema => Schema("""
         {"type":"object","properties":{"path":{"type":"string","description":"A file relative to the solution's folder; omit for all open files."}}}
@@ -733,14 +733,21 @@ sealed class CodeDiagnosticsTool(MainViewModel vm) : IdeTool(vm)
             var file = FileOf(path);
             if (!File.Exists(file))
                 return ClaudeToolOutput.Error($"{Relative(file)} does not exist.");
-            if (Vm.LanguageServerForClaude(file) is not { } lsp)
+            // The file's server and its linters (ESLint).
+            var servers = Vm.LanguageServersForClaude(file).ToList();
+            if (servers.Count == 0)
                 return new ClaudeToolOutput($"No language server checks {Relative(file)}, so there are no diagnostics for it.");
-            if (Vm.Editors.FirstOrDefault(d => d.FilePath == file) is { } open)
-                found.AddRange((await lsp.DiagnosticsAsync(file, cancellationToken)).Select(d => (file, d)));
-            else
+            var open = Vm.Editors.Any(d => d.FilePath == file);
+            var text = open ? null : await File.ReadAllTextAsync(file, cancellationToken);
+            foreach (var lsp in servers)
             {
+                if (open)
+                {
+                    found.AddRange((await lsp.DiagnosticsAsync(file, cancellationToken)).Select(d => (file, d)));
+                    continue;
+                }
                 // Not open in the editor: opened in the server only, for as long as it takes to check it.
-                await lsp.DidOpenAsync(file, await File.ReadAllTextAsync(file, cancellationToken));
+                await lsp.DidOpenAsync(file, text!);
                 try
                 {
                     using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);

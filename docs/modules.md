@@ -62,7 +62,7 @@ application's project references.
 | `ToolWindows` | Each tool window becomes a tab in its group (before Claude Code at the sides) and an item in the View menu. Its view is made the first time it shows: a module that is never opened reads nothing and starts nothing. |
 | `DocumentTemplates` | How the module's documents look in the document well, in every window. `Document<T>` puts the view under the well's blue line. |
 | `Overlay` and `OverlayTemplate` | The module's dialogs and messages over the whole window, once it has something to show. |
-| `LanguageServers` | The language servers it brings (an `LspClient` each, for the files it serves). One starts for the workspace when the first of its files opens in the editor, serves every editor of its files, and stops with the workspace; one with `ForWorkspace` (.NET's Roslyn, for a solution) starts as a workspace it is for opens, and its progress is the status bar's IntelliSense (`LspClient.IsReady`, `Ready`). Servers that push diagnostics and servers that are asked for them both work; `RefreshDiagnostics` and `RefreshSemanticTokens` ask the editors of its files again. Tools > Restart Language Server restarts them all. |
+| `LanguageServers` | The language servers it brings (an `LspClient` each, for the files it serves). One starts for the workspace when the first of its files opens in the editor, serves every editor of its files, and stops with the workspace; one with `ForWorkspace` (.NET's Roslyn, for a solution) starts as a workspace it is for opens, and its progress is the status bar's IntelliSense (`LspClient.IsReady`, `Ready`). Servers that push diagnostics and servers that are asked for them both work; `RefreshDiagnostics` and `RefreshSemanticTokens` ask the editors of its files again. Tools > Restart Language Server restarts them all. A file has one server, the first that serves it; one with `Lints` (ESLint) is a linter, which starts beside it and only adds its diagnostics. `MayStartAsync` is asked before one starts for a workspace (ESLint's: whether the user lets it run the folder's code); no, and it stays off while the workspace is open. |
 | `WorkspaceTasks(workspace)` | The tasks it finds in a folder (`WorkspaceTask`: a program, its arguments, where it runs, and its kind). In a folder opened as it is, Build runs the build task, Start Without Debugging the run task chosen on the toolbar, Run All Tests the test task; Build > Run Task runs any of them, in a solution too. `.vscode/tasks.json`'s come first; a module's of the same name is left out. |
 | `WorkspaceProjects(workspace)` | The projects of its workload it finds in a folder (`WorkspaceProject`: a name, its folder, the file that makes it one). In a solution, Solution Explorer shows those that no .NET project holds beside the solution's projects, with that file's icon (a frontend's `package.json` folder). |
 | `WorkspaceTaskFiles` | The file names its tasks come from (`package.json`): saving one reads the tasks again. |
@@ -105,7 +105,8 @@ also matches null, so one added to the application would take over every empty p
 - the files the editor saves, and a file picker;
 - the tool windows (and one beside Claude Code, so the conversation stays in view);
 - a pane of its own in the Output window;
-- the browser, the status bar, and a question with Yes and No.
+- the browser, the status bar, and a question with Yes and No;
+- Restart Language Server (a linter let into the folder, or no longer).
 
 `Workbench.Service<T>()` gives a module what other parts of Karvon offer:
 - `IClaudeService` (the Claude Code module):

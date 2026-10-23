@@ -124,7 +124,7 @@ public class JsTestFrameworkTests
     }
 
     /// <summary>npm install in a package (from the registry), as its user would; false when Node.js is not here.</summary>
-    static async Task<bool> InstallAsync(string dir)
+    internal static async Task<bool> InstallAsync(string dir)
     {
         var path = string.Join(Path.PathSeparator, Karvon.Build.NodeLocator.DirectoryOffPath() ?? "", Environment.GetEnvironmentVariable("PATH") ?? "");
         if (TaskVariables.Find("npm", path, "/") is not { } npm)

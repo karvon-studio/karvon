@@ -46,6 +46,18 @@ public sealed record LanguageServerInfo(string Id, string Name, Func<string, boo
     /// for another; its progress is the status bar's IntelliSense.
     /// </summary>
     public Func<SolutionInfo, bool>? ForWorkspace { get; init; }
+
+    /// <summary>
+    /// A linter's: it only adds its diagnostics to the files it serves, beside their language's server (ESLint beside
+    /// TypeScript's), rather than being their server.
+    /// </summary>
+    public bool Lints { get; init; }
+
+    /// <summary>
+    /// Asked before it starts for a workspace, with the file it would start for (ESLint's: whether the user lets it run
+    /// the workspace's own ESLint and configuration): false, and it does not start for that workspace while it is open.
+    /// </summary>
+    public Func<string, string, Task<bool>>? MayStartAsync { get; init; }
 }
 
 /// <summary>What a language server starts with.</summary>

@@ -1,10 +1,12 @@
 """A language server for the tests, over stdio: it pushes a warning for each TODO in a file it is given (when it opens
-and on each change), and answers completion and hover. What it does not serve it refuses, as a real server would."""
+and on each change), and answers completion and hover. What it does not serve it refuses, as a real server would.
+Given a word (lsp_server.py FIXME), it is a linter's: it warns of that word instead."""
 import json
 import re
 import sys
 
 documents = {}
+word = sys.argv[1] if len(sys.argv) > 1 else "TODO"
 
 
 def read():
@@ -37,9 +39,9 @@ def publish(uri):
     text = documents[uri]
     diagnostics = []
     for i, line in enumerate(text.split("\n")):
-        for match in re.finditer("TODO", line):
+        for match in re.finditer(re.escape(word), line):
             diagnostics.append({"range": {"start": {"line": i, "character": match.start()}, "end": {"line": i, "character": match.end()}},
-                                "severity": 2, "source": "fake", "message": "TODO left"})
+                                "severity": 2, "source": "fake", "message": f"{word} left"})
     send({"jsonrpc": "2.0", "method": "textDocument/publishDiagnostics", "params": {"uri": uri, "diagnostics": diagnostics}})
 
 
