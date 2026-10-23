@@ -14,7 +14,8 @@ public sealed class RustModule : KarvonModule
 
     public override string Description =>
         "rust-analyzer in the editor of .rs files (errors as you type, completion, hover, go to definition, references, rename), "
-        + "CodeLLDB for F5, and a Cargo package's build, check, clippy, test and run as its tasks. rust-analyzer and CodeLLDB "
+        + "CodeLLDB for F5, a Cargo package's build, check, clippy, test and run as its tasks, and cargo test's tests in Test "
+        + "Explorer. rust-analyzer and CodeLLDB "
         + "download the first time they are needed (Rust itself is the user's, from rustup).";
 
     public override IReadOnlyList<LanguageServerInfo> LanguageServers =>
@@ -26,6 +27,10 @@ public sealed class RustModule : KarvonModule
 
     /// <summary>cargo's folder when Karvon's PATH has none (Karvon started from the desktop).</summary>
     public override IEnumerable<string> ToolDirectories => RustTools.DirectoryOffPath() is { } cargo ? [cargo] : [];
+
+    /// <summary>Test Explorer: cargo test's tests, in a Cargo package.</summary>
+    public override IReadOnlyList<Testing.TestFramework> TestFrameworks(TestFrameworkStart start) =>
+        CargoTestFramework.IsUsedIn(start.Workspace) ? [new CargoTestFramework(start)] : [];
 
     public override IReadOnlyList<DebuggerInfo> Debuggers =>
         [new("codelldb", $"CodeLLDB {RustTools.CodeLldbVersion}", RustDebugger.Types, RustDebugger.StartAsync)];

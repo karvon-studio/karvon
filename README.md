@@ -64,8 +64,8 @@ language server; it runs on Node.js) when the first `.py` file opens; gopls and 
 - **Debug** (F5; netcoredbg for .NET, js-debug for Node.js and TypeScript through its source maps): breakpoints that
   follow edits, Step Over / Into / Out, Locals, Watch, Call Stack, data tips, debugging tests.
 - **Test Explorer**: discover, Run All / Failed / Selected, theory rows, durations, failures with stack traces; .NET's
-  tests (xUnit, NUnit, MSTest), Vitest's and Jest's (by the package's own copy) and pytest's (by the workspace's .venv), run
-  or debugged.
+  tests (xUnit, NUnit, MSTest), Vitest's and Jest's (by the package's own copy), pytest's (by the workspace's .venv),
+  go test's and cargo test's, run or debugged.
 - **Git**: every repository of the solution in one Changes window (trees of staged and unstaged changes), stage,
   commit (a message Claude writes from the diff, if you like), fetch, pull, push, sync, local and remote branches, diff
   with word highlights, change bars in the editor margin, badges in Solution Explorer; follows commits and checkouts
@@ -191,7 +191,7 @@ src/Karvon.Skills/      module: Skills (uses Karvon.Mcp)
 src/Karvon.TypeScript/  module: TypeScript and JavaScript (TypeScript 7's language server, package.json scripts, js-debug, Vitest, Jest)
 src/Karvon.Python/      module: Python (Pyright's language server, debugpy, pytest, the workspace's .venv)
 src/Karvon.Go/          module: Go (gopls, Delve, go build/test/vet/run, go test in Test Explorer)
-src/Karvon.Rust/        module: Rust (rust-analyzer, CodeLLDB, cargo build/check/clippy/test/run)
+src/Karvon.Rust/        module: Rust (rust-analyzer, CodeLLDB, cargo build/check/clippy/test/run, cargo test in Test Explorer)
 src/Karvon.Claude/      module: Claude Code (its session, protocol and view model are shared with the Visual Studio extension)
 external/bengine/       Bengine (submodule): the schema AST and the live-database layer the Database Explorer uses
 src/Karvon.VisualStudio/   the Claude Code panel as a Visual Studio extension (Windows), sharing src/Karvon.Claude's session and view model

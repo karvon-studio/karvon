@@ -97,4 +97,91 @@ public class RustTests
             Directory.Delete(dir, recursive: true);
         }
     }
+
+    [AvaloniaFact]
+    public async Task Cargo_test_lists_runs_and_debugs_in_Test_Explorer()
+    {
+        Assert.SkipUnless(Environment.GetEnvironmentVariable("KARVON_RUST_LIVE") == "1"
+            && Workspace.TaskVariables.Find("cargo", RustTools.PathWithCargo(Environment.GetEnvironmentVariable("PATH") ?? ""), "/") is not null,
+            "Set KARVON_RUST_LIVE=1, with Rust installed, to build and test with cargo.");
+        var dir = Path.Combine(Path.GetTempPath(), "karvon-rust-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(Path.Combine(dir, "src"));
+        Directory.CreateDirectory(Path.Combine(dir, "tests"));
+        try
+        {
+            File.WriteAllText(Path.Combine(dir, "Cargo.toml"), "[package]\nname = \"shapes\"\nversion = \"0.1.0\"\nedition = \"2021\"\n");
+            var lib = Path.Combine(dir, "src", "lib.rs");
+            File.WriteAllText(lib, """
+                pub fn area(w: i32, h: i32) -> i32 { w * h }
+
+                #[cfg(test)]
+                mod tests {
+                    use super::*;
+
+                    #[test]
+                    fn multiplies() {
+                        let size = area(3, 4);
+                        assert_eq!(size, 12);
+                    }
+
+                    #[test]
+                    fn zero() {
+                        assert_eq!(area(0, 4), 1);
+                    }
+
+                    #[test]
+                    #[ignore]
+                    fn later() {}
+                }
+                """);
+            File.WriteAllText(Path.Combine(dir, "tests", "outside.rs"), "#[test]\nfn from_outside() {\n    assert_eq!(shapes::area(2, 2), 4);\n}\n");
+            var vm = NewViewModel();
+            var window = new MainWindow { DataContext = vm, Width = 1280, Height = 800 };
+            window.Show();
+            await vm.OpenSolutionAsync(dir);
+
+            // Run All Tests: each test binary's tests, by its target and modules, where they are.
+            await vm.RunAllTestsCommand.ExecuteAsync(null);
+            Assert.True(vm.TestSummary.StartsWith("Test run finished: 4 test(s) (2 Passed, 1 Failed, 1 Skipped)", StringComparison.Ordinal), vm.TestSummary + "\n" + vm.TestsOutput.Document.Text);
+            var package = Assert.Single(vm.TestRoots);
+            Assert.Equal(["src/lib.rs", "tests/outside.rs"], package.Children.Select(n => n.Name));
+            var module = package.Children[0].Children.Single(n => n.Name == "tests");
+            var multiplies = module.Children.Single(n => n.Name == "multiplies");
+            Assert.Equal((Testing.TestState.Passed, lib, 8), (multiplies.State, multiplies.SourcePath, multiplies.Line));
+            var zero = module.Children.Single(n => n.Name == "zero");
+            Assert.Equal(Testing.TestState.Failed, zero.State);
+            Assert.True(zero.ErrorMessage?.StartsWith("assertion `left == right` failed", StringComparison.Ordinal), zero.ErrorMessage + "\n" + zero.StackTrace);
+            Assert.Equal(Testing.TestState.Skipped, module.Children.Single(n => n.Name == "later").State);
+            Assert.Equal(Testing.TestState.Passed, package.Children[1].Children.Single().State);
+
+            // Run Failed Tests: that one, by --exact.
+            await vm.RunFailedTestsCommand.ExecuteAsync(null);
+            Assert.Equal((Testing.TestState.Passed, Testing.TestState.Failed), (multiplies.State, zero.State));
+            Assert.Contains("tests::zero --exact", vm.TestsOutput.Document.Text);
+
+            // Debug Selected Tests: the unit test binary under CodeLLDB, stopped in the test.
+            vm.SelectedTest = multiplies;
+            vm.Breakpoints.Toggle(lib, 10);
+            var debugging = vm.DebugSelectedTestsCommand.ExecuteAsync(null);
+            await WaitUntil(() => vm.Mode == ViewModels.DebugMode.Break && vm.CallStack.Count > 0, TimeSpan.FromMinutes(2));
+            Assert.True(vm.Mode == ViewModels.DebugMode.Break, vm.DebugOutput.Document.Text + "\n" + vm.TestsOutput.Document.Text);
+            Assert.Equal((lib, 10), (vm.CallStack[0].SourcePath, vm.CallStack[0].Line));
+            // assert_eq! is several places of line 10, where LLDB stops in turn: continue to the end.
+            var stops = 0;
+            while (!debugging.IsCompleted && stops++ < 10)
+            {
+                if (vm.Mode == ViewModels.DebugMode.Break)
+                    await vm.StartDebuggingCommand.ExecuteAsync(null);
+                await WaitUntil(() => debugging.IsCompleted || vm.Mode == ViewModels.DebugMode.Break, TimeSpan.FromSeconds(30));
+            }
+            Assert.True(debugging.IsCompleted, $"{stops} stops; " + vm.DebugOutput.Document.Text);
+            Assert.Equal(Testing.TestState.Passed, multiplies.State);
+            Assert.True(await vm.CloseSolutionCoreAsync());
+            window.Close();
+        }
+        finally
+        {
+            Directory.Delete(dir, recursive: true);
+        }
+    }
 }

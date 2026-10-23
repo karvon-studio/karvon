@@ -70,8 +70,8 @@ A signed and notarized `.dmg`, Homebrew; .NET debugging on Apple Silicon (netcor
 ## 4. More languages and Windows
 
 Python (Pyright's language server, debugpy for F5 (launch.json's, or the folder's main.py, app.py, manage.py or the
-file in the editor), and pytest in Test Explorer, with the workspace's .venv, in now; next uv), Go (gopls, Delve, a module's go build, test, vet and run, `go test` in Test Explorer: in now), Rust (rust-analyzer, CodeLLDB, a Cargo package's build, check, clippy, test and run: in now; next cargo test in Test
-Explorer) and C/C++ (clangd,
+file in the editor), and pytest in Test Explorer, with the workspace's .venv, in now; next uv), Go (gopls, Delve, a module's go build, test, vet and run, `go test` in Test Explorer: in now), Rust (rust-analyzer, CodeLLDB, a Cargo package's build, check, clippy, test and run, cargo test in Test Explorer: in
+now) and C/C++ (clangd,
 lldb-dap), Java and Kotlin (jdtls, java-debug, Maven, Gradle); a Windows release.
 
 ## What a language needs to be done
