@@ -43,8 +43,8 @@ it does today all along.
   trash, on Linux, macOS and Windows; process trees on Linux and macOS;
   netcoredbg's build for Linux x64 and Arm64, Apple Silicon and Windows x64; the terminal's shell: zsh on macOS,
   PowerShell on Windows).
-- Cmd on macOS where Ctrl is on Linux and Windows (in now: the window's keys, its menus, the editor's; Ctrl+Tab and
-  Ctrl+` stay Ctrl; next, the Database Explorer's keymap).
+- Cmd on macOS where Ctrl is on Linux and Windows (in now: the window's keys, its menus, the editor's, and the Database
+  Explorer's keymap, which takes Cmd as Ctrl; Ctrl+Tab and Ctrl+` stay Ctrl).
 - CI builds and tests on Linux, macOS and Windows (in now: the Platforms workflow builds on macOS and Windows, run by
   hand; next, their tests).
 

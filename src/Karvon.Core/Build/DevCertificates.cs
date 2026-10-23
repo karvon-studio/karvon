@@ -16,7 +16,8 @@ public enum DevCertificateTrust
 /// <summary>
 /// The ASP.NET Core HTTPS development certificate. On Linux `dotnet dev-certs https --trust` puts it in
 /// ~/.aspnet/dev-certs/trust (and in Chromium / Firefox NSS databases through certutil); OpenSSL, and so .NET
-/// and Kestrel, trust it once SSL_CERT_DIR lists that folder, which Karvon sets for everything it starts.
+/// and Kestrel, trust it once SSL_CERT_DIR lists that folder, which Karvon sets for everything it starts. On macOS
+/// and Windows it goes into the system's own store (the keychain, the certificate store), which needs nothing more.
 /// </summary>
 public static class DevCertificates
 {
@@ -45,6 +46,9 @@ public static class DevCertificates
     /// <summary>Makes the processes Karvon starts (run, debug, terminal) trust the development certificate.</summary>
     public static void ApplyToCurrentProcess()
     {
+        // .NET reads OpenSSL's SSL_CERT_DIR on Linux only.
+        if (!OperatingSystem.IsLinux())
+            return;
         if (CertDirectoryValue(Environment.GetEnvironmentVariable("SSL_CERT_DIR"), Directory.Exists) is { } value)
             Environment.SetEnvironmentVariable("SSL_CERT_DIR", value);
     }
