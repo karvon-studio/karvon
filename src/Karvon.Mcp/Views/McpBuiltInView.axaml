@@ -23,6 +23,13 @@
                  Text="The tools Karvon gives the Claude Code sessions it starts, beside the user's own servers: they work with what Karvon has open (the solution, the debugger, the Database Explorer's data sources, Docker, the Servers) as you would, and hide secrets. Those that only read go at once; a change asks first, and a destructive one asks every time." />
       <TextBlock Classes="dkMuted" IsVisible="{Binding IsOff}" TextWrapping="Wrap"
                  Text="They are off: the ClaudeKarvonTools setting in Karvon's settings.json." />
+      <CheckBox Name="ToolsFirst" IsChecked="{Binding ToolsFirst}" IsVisible="{Binding !IsOff}" Margin="0,0,0,10">
+        <StackPanel Spacing="2">
+          <TextBlock Text="Before the shell" />
+          <TextBlock Classes="dkMuted" FontSize="12" TextWrapping="Wrap"
+                     Text="Claude is told to use these, and a Bash command one of them does (dotnet build, psql, docker ps, ssh to one of the Servers, curl to Jira) is sent to it; the same command again goes through. For the sessions started after." />
+        </StackPanel>
+      </CheckBox>
       <ItemsControl ItemsSource="{Binding Tools}">
         <ItemsControl.ItemTemplate>
           <DataTemplate x:DataType="mvm:McpBuiltInToolNode">

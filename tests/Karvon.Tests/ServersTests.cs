@@ -186,6 +186,19 @@ public class ServersTests
     }
 
     [AvaloniaFact]
+    public void An_ssh_command_to_a_known_machine_is_one_for_Karvons_server_tools()
+    {
+        WriteConfig("Host lab\n  HostName 10.0.0.5\n  User tester\n");
+        var servers = new ServersExplorerViewModel(new TestServersHost()).Servers;
+        Assert.Equal("lab", ServersModule.ServerOf("ssh lab uptime", servers)?.Name);
+        Assert.Equal("lab", ServersModule.ServerOf("ssh -p 22 -i ~/.ssh/id tester@10.0.0.5 'df -h'", servers)?.Name);
+        Assert.Equal("lab", ServersModule.ServerOf("cd /tmp && ssh -t lab", servers)?.Name);
+        Assert.Null(ServersModule.ServerOf("ssh other.example.com", servers));
+        Assert.Null(ServersModule.ServerOf("ssh-keygen -t ed25519", servers));
+        Assert.Null(ServersModule.ServerOf("git push lab main", servers));
+    }
+
+    [AvaloniaFact]
     public async Task The_tree_groups_the_machines_and_a_page_says_why_it_cannot_connect()
     {
         WriteConfig("Host lab\n  HostName 127.0.0.1\n  Port 1\n  User tester\n\nHost web-1\n  HostName 127.0.0.1\n  Port 1\n");

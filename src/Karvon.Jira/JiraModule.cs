@@ -71,6 +71,18 @@ public sealed partial class JiraModule : KarvonModule, IJiraHost
 
     public override IEnumerable<IClaudeTool> ClaudeTools() => JiraClaudeTools.Create(EnsureExplorer);
 
+    /// <summary>Jira's REST API by curl (with a token from the environment), or a Jira CLI: Karvon's sign-in instead.</summary>
+    public override IEnumerable<ClaudeShellRule> ClaudeShellRules() =>
+    [
+        ClaudeShellRule.Command("jira api", @"(curl|wget|http|https|xh)\b[^;&|\n]*/rest/(api/[23]|agile/1\.0)/", Use),
+        ClaudeShellRule.Command("jira cli", @"(jira|acli)\s+", Use),
+    ];
+
+    const string Use =
+        "Karvon signs in to Jira for the user (its Jira window, the token in the system keyring): use mcp__karvon__jira_search, "
+        + "jira_issue, jira_projects, jira_create, jira_transition, jira_comment and jira_assign (jira_sites lists the sites), not "
+        + "curl or a Jira CLI; no token is needed, and none is in the environment.";
+
     /// <summary>What Claude did shows in Karvon: the issue it read or changed, the search it made.</summary>
     public override Task ShowClaudeToolAsync(string tool, JsonElement input, ClaudeToolOutput output)
     {

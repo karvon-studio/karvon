@@ -264,6 +264,9 @@ public abstract partial class KarvonModule : ObservableObject, IDisposable, IAsy
     /// <summary>The tools it gives the Claude Code sessions Karvon starts (mcp__karvon__*): new ones for each session.</summary>
     public virtual IEnumerable<IClaudeTool> ClaudeTools() => [];
 
+    /// <summary>The shell commands its tools do: Claude is sent to the tools instead (see <see cref="ClaudeShellRule"/>).</summary>
+    public virtual IEnumerable<ClaudeShellRule> ClaudeShellRules() => [];
+
     /// <summary>
     /// A call of one of its tools ran (on the UI thread): what it did, shown where the user would have done it (a
     /// container's logs on its page). It runs unless the user turned that off.

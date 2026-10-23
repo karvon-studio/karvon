@@ -254,6 +254,15 @@ public sealed class DatabaseModule : KarvonModule, IDatabaseService, IDatabaseTo
 
     public override IEnumerable<IClaudeTool> ClaudeTools() => DatabaseClaudeTools.Create(this);
 
+    /// <summary>The databases' shells: Karvon queries the user's data sources with their saved connections instead.</summary>
+    public override IEnumerable<ClaudeShellRule> ClaudeShellRules() =>
+    [
+        ClaudeShellRule.Command("database shells", @"(psql|mysql|mariadb|sqlcmd|sqlite3|mongosh|mongo)\b",
+            "Karvon queries the user's databases: mcp__karvon__db_connections lists their data sources, and db_schema, db_query and "
+            + "db_explain sign in with the connections they saved in the Database Explorer, so no password is needed (nor is any in the "
+            + "environment). Use them, not the database's shell."),
+    ];
+
     public override async Task ShowClaudeToolAsync(string tool, JsonElement input, ClaudeToolOutput output)
     {
         switch (tool)

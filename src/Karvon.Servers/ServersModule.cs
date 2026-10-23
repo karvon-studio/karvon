@@ -68,6 +68,35 @@ public sealed partial class ServersModule : KarvonModule, IServersHost
 
     public override IEnumerable<IClaudeTool> ClaudeTools() => ServerClaudeTools.Create(EnsureExplorer);
 
+    /// <summary>ssh to one of the Servers' machines: Karvon's own connection (its keys and passwords) runs the command instead.</summary>
+    public override IEnumerable<ClaudeShellRule> ClaudeShellRules() =>
+        [new("ssh", command => ServerOf(command, EnsureExplorer().Servers) is not null,
+            "Karvon connects to this server itself (the Servers window, with its keys and passwords): use mcp__karvon__server_exec (a "
+            + "command, which the user approves) or server_logs, not ssh; server_list names the servers.")];
+
+    /// <summary>The one of <paramref name="servers"/> an ssh command goes to (its destination: a name, a host or user@host), or null.</summary>
+    internal static ServerNode? ServerOf(string command, IEnumerable<ServerNode> servers)
+    {
+        foreach (System.Text.RegularExpressions.Match m in System.Text.RegularExpressions.Regex.Matches(command, @"(?:^|[;&|(\n`]|\$\()\s*(?:sudo\s+)?ssh\s+([^;&|\n]*)"))
+        {
+            // Its options (and their values), then its destination.
+            var words = m.Groups[1].Value.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+            for (var i = 0; i < words.Length; i++)
+            {
+                if (words[i].StartsWith('-'))
+                {
+                    if (words[i].Length == 2 && "bcDEeFIiJLlmOoPpQRSWw".Contains(words[i][1]))
+                        i++;
+                    continue;
+                }
+                var destination = words[i].Trim('"', '\'');
+                var host = destination[(destination.IndexOf('@') + 1)..];
+                return servers.FirstOrDefault(s => s.Name == destination || s.Name == host || s.Host.Address == host);
+            }
+        }
+        return null;
+    }
+
     public override Task ShowClaudeToolAsync(string tool, JsonElement input, ClaudeToolOutput output)
     {
         switch (tool)

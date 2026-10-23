@@ -9,7 +9,11 @@ namespace Karvon.Claude;
 /// over its control protocol (mcp_message requests carrying JSON-RPC), as the Agent SDK's in-process servers. No port, no
 /// token: only the CLI Karvon started can call it. Claude sees the tools as mcp__karvon__&lt;name&gt;.
 /// </summary>
-public sealed class ClaudeToolServer(IReadOnlyList<IClaudeTool> tools, string instructions)
+/// <param name="systemPrompt">What a session's system prompt gets (--append-system-prompt): to use these tools.</param>
+/// <param name="shellRules">The shell commands these tools do: a session's Bash call of one is sent to them (a hook).</param>
+/// <param name="toolsFirst">Whether the prompt and the rules hold now (a setting, read as each session starts); always by default.</param>
+public sealed class ClaudeToolServer(IReadOnlyList<IClaudeTool> tools, string instructions, string? systemPrompt = null,
+    IReadOnlyList<ClaudeShellRule>? shellRules = null, Func<bool>? toolsFirst = null)
 {
     public const string Name = KarvonToolNames.Server;
 
@@ -18,6 +22,15 @@ public sealed class ClaudeToolServer(IReadOnlyList<IClaudeTool> tools, string in
     readonly ConcurrentDictionary<string, CancellationTokenSource> _running = new();
 
     public IReadOnlyList<IClaudeTool> Tools { get; } = tools;
+
+    readonly IReadOnlyList<ClaudeShellRule> _shellRules = shellRules ?? [];
+
+    public string? SystemPrompt => toolsFirst?.Invoke() is false ? null : systemPrompt;
+
+    public IReadOnlyList<ClaudeShellRule> ShellRules => toolsFirst?.Invoke() is false ? [] : _shellRules;
+
+    /// <summary>The rule a Bash command breaks (it runs what one of these tools does), or null.</summary>
+    public ClaudeShellRule? ShellRuleFor(string command) => ShellRules.FirstOrDefault(r => r.Matches(command));
 
     /// <summary>A call ran (on the thread it ran on), with its input and what it gave: the host shows it where the user would have done it.</summary>
     public event Action<IClaudeTool, JsonElement, ClaudeToolOutput>? Called;

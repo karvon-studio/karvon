@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using System.Text.RegularExpressions;
 
 namespace Karvon.Claude;
 
@@ -34,6 +35,38 @@ public sealed record ClaudeToolOutput(string Text, bool IsError = false)
     public object? Detail { get; init; }
 
     public static ClaudeToolOutput Error(string message) => new(message, true);
+}
+
+/// <summary>
+/// A shell command one of Karvon's tools does (dotnet build, docker ps, psql, ssh to a server, Jira's API by curl): Claude's
+/// Bash call of it does not run, and Claude is told the tool to use instead (a PreToolUse hook Karvon answers), as long as
+/// the user keeps that setting on.
+/// </summary>
+/// <param name="Name">What it is ("dotnet build"), for Karvon's log.</param>
+/// <param name="Matches">Whether a Bash command (all of it, its lines and pipelines) runs it.</param>
+/// <param name="Use">What Claude is told instead: the tool, and why.</param>
+public sealed record ClaudeShellRule(string Name, Func<string, bool> Matches, string Use)
+{
+    /// <summary>
+    /// A rule for a program run as a command: at a line's start, after ; &amp;&amp; || | ( ` $( or a newline, after sudo and
+    /// variables set before it (A=1 dotnet build). <paramref name="pattern"/> is the program and what follows it.
+    /// </summary>
+    public static ClaudeShellRule Command(string name, string pattern, string use)
+    {
+        var regex = new Regex(@"(?:^|[;&|(\n`]|\$\()\s*(?:sudo\s+)?(?:[A-Za-z_][A-Za-z0-9_]*=\S*\s+)*(?:" + pattern + ")",
+            RegexOptions.IgnoreCase | RegexOptions.CultureInvariant, TimeSpan.FromMilliseconds(200));
+        return new ClaudeShellRule(name, command =>
+        {
+            try
+            {
+                return regex.IsMatch(command);
+            }
+            catch (RegexMatchTimeoutException)
+            {
+                return false;
+            }
+        }, use);
+    }
 }
 
 /// <summary>A tool of Karvon's own that Claude can call (mcp__karvon__name).</summary>

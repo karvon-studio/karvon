@@ -112,6 +112,8 @@ public class ClaudeKarvonToolsTests
         var entries = FakeClaude.Log(log);
         var argv = entries.First(e => e.Kind == "argv").Data.EnumerateArray().Select(a => a.GetString()).ToList();
         Assert.Equal("""{"mcpServers":{"karvon":{"type":"sdk","name":"karvon"}}}""", argv[argv.IndexOf("--mcp-config") + 1]);
+        // Without shell rules no hook is registered.
+        Assert.False(Initialize(entries).TryGetProperty("hooks", out var hooks) && hooks.ValueKind != JsonValueKind.Null);
         var mcp = entries.Where(e => e.Kind == "mcp").Select(e => e.Data).ToList();
         Assert.Equal("karvon", mcp[0].GetProperty("response").GetProperty("result").GetProperty("serverInfo").GetProperty("name").GetString());
         Assert.Equal(10, mcp[2].GetProperty("response").GetProperty("result").GetProperty("tools").GetArrayLength());
@@ -123,6 +125,99 @@ public class ClaudeKarvonToolsTests
         await vm.DisposeAsync();
         window.Close();
     }
+
+    [AvaloniaFact]
+    public async Task Claude_is_sent_to_Karvons_tools_before_the_shell_once()
+    {
+        var (dir, log) = FakeClaude.Workspace();
+        var vm = new ClaudeViewModel(new Karvon.Services.Settings(), () => dir, () => null, () => [], () => FakeClaude.Executable)
+        {
+            Tools = KarvonTools.Create([], IdeClaudeTools.ShellRules),
+        };
+        var window = new Window { Width = 560, Height = 900, Content = new ClaudeView { DataContext = vm } };
+        window.Show();
+        await WaitUntil(() => vm.Commands.Count > 0, TimeSpan.FromSeconds(10));
+
+        vm.Prompt = "shell first please";
+        await vm.SendCommand.ExecuteAsync(null);
+
+        // The build is sent to run_build without a card; the same build again, and ls, ask as any Bash does.
+        var again = await WaitFor<PermissionChatItem>(vm, c => c.IsPending);
+        Assert.Equal("cd src && dotnet build -c Release", again.Code);
+        await vm.AllowCommand.ExecuteAsync(again);
+        var ls = await WaitFor<PermissionChatItem>(vm, c => c.IsPending && c != again);
+        Assert.Equal("ls -la", ls.Code);
+        await vm.AllowCommand.ExecuteAsync(ls);
+        await WaitUntil(() => !vm.IsRunning, TimeSpan.FromSeconds(10));
+        var build = vm.Items.OfType<ToolChatItem>().First();
+        Assert.Contains("mcp__karvon__run_build", build.Result);
+
+        var entries = FakeClaude.Log(log);
+        var argv = entries.First(e => e.Kind == "argv").Data.EnumerateArray().Select(a => a.GetString()).ToList();
+        Assert.Equal(KarvonTools.SystemPrompt, argv[argv.IndexOf("--append-system-prompt") + 1]);
+        var hooks = Initialize(entries).GetProperty("hooks").GetProperty("PreToolUse")[0];
+        Assert.Equal("Bash", hooks.GetProperty("matcher").GetString());
+        Assert.Equal(ClaudeSession.ShellHook, hooks.GetProperty("hookCallbackIds")[0].GetString());
+        var answers = entries.Where(e => e.Kind == "hook").Select(e => e.Data).ToList();
+        Assert.Equal(3, answers.Count);
+        var deny = answers[0].GetProperty("hookSpecificOutput");
+        Assert.Equal(("PreToolUse", "deny"), (deny.GetProperty("hookEventName").GetString(), deny.GetProperty("permissionDecision").GetString()));
+        Assert.EndsWith("run the same command again: Karvon lets it through then.", deny.GetProperty("permissionDecisionReason").GetString());
+        Assert.All(answers.Skip(1), a => Assert.False(a.TryGetProperty("hookSpecificOutput", out _)));
+        await vm.DisposeAsync();
+        window.Close();
+    }
+
+    [Fact]
+    public void Turned_off_a_session_is_told_nothing_and_sent_nowhere()
+    {
+        var first = false;
+        var tools = KarvonTools.Create([], IdeClaudeTools.ShellRules, () => first);
+        Assert.Null(tools.SystemPrompt);
+        Assert.Empty(tools.ShellRules);
+        Assert.Null(tools.ShellRuleFor("dotnet build"));
+
+        // On again: the sessions started after have both.
+        first = true;
+        Assert.Equal(KarvonTools.SystemPrompt, tools.SystemPrompt);
+        Assert.Equal("dotnet build", tools.ShellRuleFor("dotnet build")?.Name);
+    }
+
+    /// <summary>The initialize request Karvon sent the CLI.</summary>
+    static JsonElement Initialize(List<(string Kind, JsonElement Data)> entries) => entries
+        .Where(e => e.Kind == "in" && e.Data.GetProperty("type").GetString() == "control_request")
+        .Select(e => e.Data.GetProperty("request"))
+        .First(r => r.GetProperty("subtype").GetString() == "initialize");
+
+    /// <summary>The shell's commands Karvon's built-in modules send to their tools (the ssh one is the Servers tests').</summary>
+    static readonly ClaudeToolServer ShellRules = KarvonTools.Create([],
+    [
+        .. IdeClaudeTools.ShellRules, .. new Karvon.Database.DatabaseModule().ClaudeShellRules(),
+        .. new Karvon.Docker.DockerModule().ClaudeShellRules(), .. new Karvon.Jira.JiraModule().ClaudeShellRules(),
+    ]);
+
+    [Theory]
+    [InlineData("dotnet build", "dotnet build")]
+    [InlineData("cd src && dotnet test --filter Unit", "dotnet build")]
+    [InlineData("DOTNET_NOLOGO=1 dotnet run --project App", "dotnet build")]
+    [InlineData("npm run test", "npm scripts")]
+    [InlineData("pnpm build", "npm scripts")]
+    [InlineData("PGPASSWORD=x psql -h db -U app -c 'select 1'", "database shells")]
+    [InlineData("sudo mysql -e 'show databases'", "database shells")]
+    [InlineData("docker ps -a", "docker")]
+    [InlineData("docker compose up -d", "docker")]
+    [InlineData("curl -s https://jira.example.com/rest/api/2/issue/ABC-1", "jira api")]
+    [InlineData("acli jira workitem view ABC-1", "jira cli")]
+    [InlineData("dotnet --version", null)]
+    [InlineData("dotnet add package Foo", null)]
+    [InlineData("echo dotnet build", null)]
+    [InlineData("npm install", null)]
+    [InlineData("docker build -t app .", null)]
+    [InlineData("mongod --dbpath data", null)]
+    [InlineData("curl -s https://example.com/api/2/items", null)]
+    [InlineData("git status", null)]
+    public void Shell_rules_name_the_commands_Karvons_tools_do(string command, string? rule) =>
+        Assert.Equal(rule, ShellRules.ShellRuleFor(command)?.Name);
 
     static async Task<T> WaitFor<T>(ClaudeViewModel vm, Func<T, bool> match) where T : ChatItem
     {

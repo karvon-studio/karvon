@@ -65,6 +65,12 @@ public sealed class Settings
     /// <summary>Claude Code gets Karvon's tools: the Database Explorer's data sources and the Docker engine (mcp__karvon__*).</summary>
     public bool ClaudeKarvonTools { get; set; } = true;
 
+    /// <summary>
+    /// Claude uses Karvon's tools for what they do: a Bash command they cover (dotnet build, docker, psql, ssh to a server,
+    /// Jira's API) does not run, and Claude is told the tool instead.
+    /// </summary>
+    public bool ClaudeKarvonToolsFirst { get; set; } = true;
+
     /// <summary>What Claude does with Karvon's tools shows in Karvon: a query's results, a container's logs, the build, a search...</summary>
     public bool ClaudeShowToolActivity { get; set; } = true;
 

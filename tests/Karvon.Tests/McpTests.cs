@@ -2,6 +2,7 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using Avalonia.Controls;
 using Avalonia.Headless.XUnit;
+using Avalonia.VisualTree;
 using Karvon.Claude;
 using Karvon.Claude.Tools;
 using Karvon.Mcp;
@@ -22,6 +23,8 @@ sealed class TestMcpHost(string? workspace) : IMcpHost
     public string? ClaudeFile => null;
 
     public IReadOnlyList<IClaudeTool> BuiltInTools { get; set; } = [];
+
+    public bool KarvonToolsFirst { get; set; } = true;
 
     public List<DocumentTab> Open { get; } = [];
 
@@ -545,6 +548,18 @@ public class McpTests
             var builtIn = vm.Roots.OfType<McpGroupNode>().First();
             Assert.Equal($"{host.BuiltInTools.Count} tools", builtIn.CountText);
             Assert.Equal("reads", builtIn.Items.OfType<McpBuiltInToolNode>().Single(t => t.Name == "container_list").Access);
+
+            // Its page: whether the sessions use them before the shell (the setting, which the host saves).
+            vm.OpenBuiltIn();
+            var tools = host.Open.OfType<McpBuiltInDocument>().Single();
+            page.Content = new McpBuiltInView { DataContext = tools };
+            CheckBox? first = null;
+            await WaitUntil(() => (first = page.GetVisualDescendants().OfType<CheckBox>().FirstOrDefault(c => c.Name == "ToolsFirst")) is not null, TimeSpan.FromSeconds(5));
+            Assert.True(first!.IsChecked);
+            first.IsChecked = false;
+            Assert.False(host.KarvonToolsFirst);
+            host.Open.Remove(tools);
+            page.Content = null;
 
             // Expanding it connects: its tools, resources and prompts under it.
             var echo = vm.Find("echo")!;

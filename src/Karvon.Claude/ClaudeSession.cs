@@ -38,6 +38,9 @@ public sealed class ClaudeSession : IAsyncDisposable
     readonly TaskCompletionSource<bool> _stderrDone = new(TaskCreationOptions.RunContinuationsAsynchronously);
     readonly CancellationTokenSource _toolCalls = new();
     ClaudeToolServer? _tools;
+
+    /// <summary>The Bash commands Karvon sent to its tools once: the same command again goes through (they could not do it).</summary>
+    readonly HashSet<string> _redirected = [];
     int _requestCounter;
     bool _disposed;
 
@@ -80,6 +83,17 @@ public sealed class ClaudeSession : IAsyncDisposable
 
     public bool HasExited => _process.HasExited;
 
+    /// <summary>The id of the PreToolUse hook Karvon answers for Bash (its shell rules).</summary>
+    public const string ShellHook = "karvon_shell";
+
+    /// <summary>
+    /// The hooks Karvon answers (as the Agent SDK's callbacks): before each Bash call, whether one of Karvon's tools does
+    /// it; none without shell rules.
+    /// </summary>
+    static object? Hooks(ClaudeToolServer? tools) => tools is { ShellRules.Count: > 0 }
+        ? new Dictionary<string, object> { ["PreToolUse"] = new[] { new { matcher = "Bash", hookCallbackIds = new[] { ShellHook } } } }
+        : null;
+
     /// <summary>The command-line arguments for <paramref name="options"/> (the SDK's streaming invocation).</summary>
     public static List<string> Arguments(ClaudeStartOptions options)
     {
@@ -99,6 +113,9 @@ public sealed class ClaudeSession : IAsyncDisposable
             args.AddRange(["--model", model]);
         if (options.Resume is { Length: > 0 } resume)
             args.AddRange(["--resume", resume]);
+        // In Karvon its tools come before the shell, as the session's system prompt says (Claude Code's own prompt kept).
+        if (options.Tools?.SystemPrompt is { Length: > 0 } prompt)
+            args.AddRange(["--append-system-prompt", prompt]);
         // Karvon's tools, and the servers of the other agents' configurations given to it, beside the user's own MCP servers.
         if (options.Tools is not null || options.McpConfigFile is not null)
         {
@@ -136,7 +153,7 @@ public sealed class ClaudeSession : IAsyncDisposable
         {
             using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
             timeout.CancelAfter(TimeSpan.FromSeconds(60));
-            session.Initialization = await session.RequestAsync(new { subtype = "initialize", hooks = (object?)null }, timeout.Token);
+            session.Initialization = await session.RequestAsync(new { subtype = "initialize", hooks = Hooks(options.Tools) }, timeout.Token);
         }
         catch (Exception ex)
         {
@@ -331,6 +348,12 @@ public sealed class ClaudeSession : IAsyncDisposable
             _ = AnswerMcpAsync(ClaudeProtocol.Str(root, "request_id"), ClaudeProtocol.Str(control, "server_name"), message.Clone());
             return;
         }
+        if (ClaudeProtocol.Str(root, "type") == "control_request" && root.TryGetProperty("request", out var hook)
+            && ClaudeProtocol.Str(hook, "subtype") == "hook_callback")
+        {
+            _ = AnswerHookAsync(ClaudeProtocol.Str(root, "request_id"), hook.Clone());
+            return;
+        }
         foreach (var ev in ClaudeProtocol.Parse(root))
         {
             if (ev is ClaudeInit init)
@@ -355,6 +378,35 @@ public sealed class ClaudeSession : IAsyncDisposable
         {
             // The CLI exited meanwhile.
         }
+    }
+
+    /// <summary>
+    /// Karvon's PreToolUse hook: a Bash command one of Karvon's tools does is denied the first time, its reason the tool to
+    /// use instead; the same command again, and anything else, goes on as it would (nothing said).
+    /// </summary>
+    async Task AnswerHookAsync(string? requestId, JsonElement request)
+    {
+        object answer = new { };
+        if (ClaudeProtocol.Str(request, "callback_id") == ShellHook && request.TryGetProperty("input", out var input)
+            && ClaudeProtocol.Str(input, "tool_name") == "Bash" && input.TryGetProperty("tool_input", out var toolInput)
+            && ClaudeProtocol.Str(toolInput, "command") is { } command && _tools?.ShellRuleFor(command) is { } rule
+            && FirstRedirect(command))
+            answer = new { hookSpecificOutput = new { hookEventName = "PreToolUse", permissionDecision = "deny", permissionDecisionReason =
+                rule.Use + " If they cannot do this one, run the same command again: Karvon lets it through then." } };
+        try
+        {
+            await WriteAsync(new { type = "control_response", response = new { subtype = "success", request_id = requestId, response = answer } });
+        }
+        catch (InvalidOperationException)
+        {
+            // The CLI exited meanwhile.
+        }
+    }
+
+    bool FirstRedirect(string command)
+    {
+        lock (_redirected)
+            return _redirected.Add(command.Trim());
     }
 
     /// <summary>A JSON-RPC message for Karvon's MCP server, answered when the tool is done (a query may take a while).</summary>

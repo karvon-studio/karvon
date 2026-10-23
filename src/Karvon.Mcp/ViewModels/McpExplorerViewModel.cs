@@ -24,6 +24,9 @@ public interface IMcpHost
     /// <summary>The tools Karvon gives the Claude Code sessions it starts; empty when they are off.</summary>
     IReadOnlyList<IClaudeTool> BuiltInTools { get; }
 
+    /// <summary>Whether the sessions Karvon starts use its tools before the shell (a setting, for the sessions started after).</summary>
+    bool KarvonToolsFirst { get; set; }
+
     IEnumerable<DocumentTab> Documents { get; }
 
     void ShowDocument(DocumentTab document);
@@ -290,11 +293,27 @@ public sealed class McpServerDocument(McpServerPageViewModel page) : DocumentTab
 }
 
 /// <summary>Karvon's own tools, as the Claude Code sessions Karvon starts have them.</summary>
-public sealed class McpBuiltInDocument(IReadOnlyList<McpBuiltInToolNode> tools) : DocumentTab
+public sealed class McpBuiltInDocument(IReadOnlyList<McpBuiltInToolNode> tools, IMcpHost host) : DocumentTab
 {
     public IReadOnlyList<McpBuiltInToolNode> Tools { get; } = tools;
 
     public bool IsOff => Tools.Count == 0;
+
+    /// <summary>
+    /// The sessions use these before the shell: their system prompt says so, and a Bash command one of them does is sent to it
+    /// once. For the sessions started after.
+    /// </summary>
+    public bool ToolsFirst
+    {
+        get => host.KarvonToolsFirst;
+        set
+        {
+            if (host.KarvonToolsFirst == value)
+                return;
+            host.KarvonToolsFirst = value;
+            OnPropertyChanged();
+        }
+    }
 
     public override string Key => "mcp:" + KarvonToolNames.Server;
 
@@ -449,7 +468,7 @@ public sealed partial class McpExplorerViewModel : ObservableObject, IDisposable
     internal void OpenBuiltIn()
     {
         var document = Host.Documents.OfType<McpBuiltInDocument>().FirstOrDefault()
-            ?? new McpBuiltInDocument([.. Host.BuiltInTools.Select(t => new McpBuiltInToolNode(this, t))]);
+            ?? new McpBuiltInDocument([.. Host.BuiltInTools.Select(t => new McpBuiltInToolNode(this, t))], Host);
         Host.ShowDocument(document);
     }
 

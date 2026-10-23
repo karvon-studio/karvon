@@ -30,6 +30,18 @@ public static class IdeClaudeTools
         new CodeDiagnosticsTool(vm),
         new FindInFilesTool(vm),
     ];
+
+    /// <summary>The shell's build, tests and run of the workspace, which Karvon's own do (and show).</summary>
+    public static IEnumerable<ClaudeShellRule> ShellRules =>
+    [
+        ClaudeShellRule.Command("dotnet build", @"dotnet\s+(build|test|run|watch|clean|msbuild|vstest)\b", Use),
+        ClaudeShellRule.Command("npm scripts", @"(npm|pnpm|yarn|bun)\s+(run\s+)?(build|test|start|dev)\b", Use),
+    ];
+
+    const string Use =
+        "Karvon builds, tests and runs this workspace: use mcp__karvon__run_build (its errors go to Karvon's Error List; build_errors "
+        + "reads them), mcp__karvon__run_tests (Test Explorer; test_failures reads them) or mcp__karvon__app_control (debug_control to "
+        + "debug), not the shell: they do what the command would, and the user sees it in Karvon.";
 }
 
 /// <summary>A match of <c>find_in_files</c>: Karvon lists them in Find Results.</summary>

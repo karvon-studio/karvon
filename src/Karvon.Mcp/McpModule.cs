@@ -108,6 +108,16 @@ public sealed partial class McpModule : KarvonModule, IMcpHost
 
     IReadOnlyList<IClaudeTool> IMcpHost.BuiltInTools => _claude?.BuiltInTools ?? [];
 
+    bool IMcpHost.KarvonToolsFirst
+    {
+        get => Workbench.Settings.ClaudeKarvonToolsFirst;
+        set
+        {
+            Workbench.Settings.ClaudeKarvonToolsFirst = value;
+            Workbench.SaveSettings();
+        }
+    }
+
     IEnumerable<DocumentTab> IMcpHost.Documents => Workbench.Documents;
 
     void IMcpHost.ShowDocument(DocumentTab document) => Workbench.ShowDocument(document);

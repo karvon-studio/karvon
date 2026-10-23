@@ -188,6 +188,10 @@ the solution's containers (`container_list`, `container_logs`, `container_inspec
 connections and passwords, which it never sees. Reading, building,
 testing and stepping run at once; a change asks first, one call at a time (destructive SQL says so), read-only data
 sources refuse changes, and secrets in logs and variables are hidden.
+Every session Karvon starts (new or resumed) uses them **before the shell**: its system prompt says so, and a Bash
+command one of them does (`dotnet build` or `test`, `npm run test`, `psql`, `docker ps`, `ssh` to one of the Servers,
+`curl` to Jira's API) is sent to the tool instead; the same command again goes through, for what the tools cannot do.
+Turned off with **Before the shell** on the karvon page of the MCP Servers window, for the sessions started after.
 
 ## Karvon Studio Installer and updates (Tools > Get Tools and Features)
 

@@ -122,7 +122,12 @@ public sealed class ClaudeModule : KarvonModule, IClaudeService
         var tools = Workbench.Modules.SelectMany(m => m.ClaudeTools().Select(t => (Module: m, Tool: t))).ToList();
         foreach (var (module, tool) in tools)
             _toolModules[tool.Name] = module;
-        return KarvonTools.Create([.. Workbench.ClaudeTools(), .. tools.Select(t => t.Tool)]);
+        // The shell commands the tools do go to them (the IDE's and the modules' that are on), unless the user turned it off
+        // (for the sessions started after).
+        var settings = Workbench.Settings;
+        return KarvonTools.Create([.. Workbench.ClaudeTools(), .. tools.Select(t => t.Tool)],
+            [.. Karvon.Claude.Tools.IdeClaudeTools.ShellRules, .. Workbench.Modules.SelectMany(m => m.ClaudeShellRules())],
+            () => settings.ClaudeKarvonToolsFirst);
     }
 
     /// <summary>A call ran (on its own thread): shown on the UI thread.</summary>
