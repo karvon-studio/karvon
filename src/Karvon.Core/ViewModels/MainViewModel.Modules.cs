@@ -31,27 +31,9 @@ public partial class MainViewModel : IWorkbench
         RegisterModuleLanguageServers();
     }
 
-    /// <summary>
-    /// .NET's components, which the core still has (it is to become a workload module): C#'s language server and its
-    /// debugger.
-    /// </summary>
-    public static IReadOnlyList<ModuleComponent> DotNetComponents { get; } =
-    [
-        new("roslyn", "C# and Razor language server", Lsp.RoslynServerLocator.Version, Lsp.RoslynServerLocator.InstallRoot,
-            () => Lsp.RoslynServerLocator.Find() is not null, Lsp.RoslynServerLocator.EnsureInstalledAsync)
-        {
-            Description = "roslyn-language-server (MIT), Visual Studio's C# engine, from nuget.org.",
-        },
-        new("netcoredbg", ".NET debugger", Debugging.NetcoredbgLocator.Version, Debugging.NetcoredbgLocator.InstallRoot,
-            () => Debugging.NetcoredbgLocator.Find() is not null, Debugging.NetcoredbgLocator.EnsureInstalledAsync)
-        {
-            Description = "Samsung's netcoredbg (MIT), from its GitHub release.",
-        },
-    ];
-
-    /// <summary>Every component Tools > Modules shows, by what it belongs to: .NET's, then each module's (on or off).</summary>
+    /// <summary>Every component Tools > Modules shows, by the module it belongs to (on or off).</summary>
     public IReadOnlyList<(string Owner, ModuleComponent Component)> Components =>
-        [.. DotNetComponents.Select(c => (".NET", c)), .. AllModules.SelectMany(m => m.Components.Select(c => (m.Name, c)))];
+        [.. AllModules.SelectMany(m => m.Components.Select(c => (m.Name, c)))];
 
     /// <summary>Whether a component goes when Karvon Studio starts again.</summary>
     public bool IsRemovalPending(ModuleComponent component) => Settings.RemovedComponents.Contains(component.InstallRoot);
@@ -128,6 +110,31 @@ public partial class MainViewModel : IWorkbench
     void IWorkbench.SaveSettings() => Settings.Save();
 
     string? IWorkbench.Workspace => Solution?.Directory;
+
+    Task IWorkbench.ReloadSolutionAsync() => ReloadSolutionAsync();
+
+    /// <summary>The project a Solution Explorer node is (a project's) or is under (its Dependencies, a package), in a solution folder or not.</summary>
+    public Workspace.ProjectInfo? ProjectOf(Workspace.ExplorerNode node)
+    {
+        if (node.Project is { } project)
+            return project;
+        return ExplorerRoots.FirstOrDefault() is { } root ? OwnerOf(root, node) : null;
+
+        static bool Contains(Workspace.ExplorerNode parent, Workspace.ExplorerNode target) =>
+            parent.Children.Any(c => c == target || Contains(c, target));
+
+        static Workspace.ProjectInfo? OwnerOf(Workspace.ExplorerNode at, Workspace.ExplorerNode target)
+        {
+            foreach (var child in at.Children)
+            {
+                if (child.Kind == Workspace.NodeKind.Project && Contains(child, target))
+                    return child.Project;
+                if (child.Kind == Workspace.NodeKind.SolutionFolder && OwnerOf(child, target) is { } found)
+                    return found;
+            }
+            return null;
+        }
+    }
 
     IEnumerable<DocumentTab> IWorkbench.Documents => Documents;
 

@@ -1,10 +1,10 @@
 using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-using Karvon.Packages;
+using Karvon.ViewModels;
 using Karvon.Workspace;
 
-namespace Karvon.ViewModels;
+namespace Karvon.DotNet.NuGet;
 
 public enum NuGetTab
 {

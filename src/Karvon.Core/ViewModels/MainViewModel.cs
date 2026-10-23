@@ -84,7 +84,7 @@ public partial class MainViewModel : ObservableObject
         BuildOutput = new OutputChannel("Build");
         DebugOutput = new OutputChannel("Debug");
         ServerOutput = new OutputChannel("Language Server");
-        OutputChannels = [BuildOutput, DebugOutput, ServerOutput, GitOutput, PackageManagerOutput];
+        OutputChannels = [BuildOutput, DebugOutput, ServerOutput, GitOutput];
         SelectedOutput = BuildOutput;
         InitializeDebugging();
         StartModules();
@@ -626,31 +626,6 @@ public partial class MainViewModel : ObservableObject
         RefreshErrorList();
         SaveSession();
     }
-
-    // ---- NuGet --------------------------------------------------------------------------------------------------
-
-    public OutputChannel PackageManagerOutput { get; } = new("Package Manager");
-
-    /// <summary>Opens the NuGet Package Manager for a project, or for the whole solution when null.</summary>
-    [RelayCommand]
-    async Task ManageNuGetPackages(ProjectInfo? project)
-    {
-        if (Solution is not { } solution)
-            return;
-        var key = project is null ? "nuget:solution" : "nuget:" + project.FilePath;
-        if (Documents.FirstOrDefault(d => d.Key == key) is { } open)
-        {
-            ActiveDocument = open;
-            return;
-        }
-        var manager = new NuGetViewModel(solution, project, PackageManagerOutput.Append, OnPackagesChangedAsync);
-        Documents.Add(manager);
-        ActiveDocument = manager;
-        await manager.InitializeAsync();
-    }
-
-    /// <summary>After install/uninstall: reload project files so Solution Explorer's Dependencies are current.</summary>
-    Task OnPackagesChangedAsync() => ReloadSolutionAsync();
 
     // ---- Solution Explorer context menu ----------------------------------------------------------------------
 

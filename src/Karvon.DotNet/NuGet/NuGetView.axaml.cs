@@ -1,9 +1,8 @@
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
-using Karvon.ViewModels;
 
-namespace Karvon.Views;
+namespace Karvon.DotNet.NuGet;
 
 public partial class NuGetView : UserControl
 {

@@ -6,6 +6,7 @@ using Avalonia.Controls.Templates;
 using Avalonia.Media;
 using CommunityToolkit.Mvvm.ComponentModel;
 using Karvon.Claude;
+using Karvon.Workspace;
 
 namespace Karvon.Modules;
 
@@ -54,6 +55,25 @@ public sealed record DebuggerInfo(string Id, string Name, IReadOnlyList<string> 
 /// <param name="Path">The tasks' PATH (the modules' tool folders first): the adapter's, and so the program's.</param>
 /// <param name="Log">Output (Debug): what installing or starting it says.</param>
 public sealed record DebuggerStart(string Workspace, JsonObject Configuration, string Path, Action<string> Log, CancellationToken Cancellation);
+
+/// <summary>
+/// An item a module puts in one of Karvon's menus: its header (with its access key, "Manage NuGet Packages for
+/// _Solution..."), what it runs; one with nothing to run is a separator.
+/// </summary>
+public sealed record ModuleMenuItem(string Header, Func<Task>? Run)
+{
+    public static ModuleMenuItem Separator { get; } = new("-", null);
+
+    public bool IsSeparator => Run is null;
+
+    public bool IsEnabled { get; init; } = true;
+
+    /// <summary>In a Solution Explorer menu: the item of Karvon's it goes after, by its header ("Run Tests").</summary>
+    public string? After { get; init; }
+}
+
+/// <summary>A module's submenu of the main menu: under the top menu (Tools), first in it, its items in it.</summary>
+public sealed record ModuleSubmenu(string Menu, string Header, IReadOnlyList<ModuleMenuItem> Items);
 
 /// <summary>What a module's test frameworks start with.</summary>
 /// <param name="Workspace">The open folder, or the solution's.</param>
@@ -128,6 +148,15 @@ public abstract partial class KarvonModule : ObservableObject, IDisposable, IAsy
     /// nothing until Test Explorer asks it to (Run All Tests, Refresh).
     /// </summary>
     public virtual IReadOnlyList<Testing.TestFramework> TestFrameworks(TestFrameworkStart start) => [];
+
+    /// <summary>
+    /// What it adds to Solution Explorer's menu of a node (a project's Manage NuGet Packages...): each item after the
+    /// item of Karvon's its After names, the rest at the end of Karvon's own (before Open in Terminal, Copy Full Path...).
+    /// </summary>
+    public virtual IReadOnlyList<ModuleMenuItem> ExplorerMenu(ExplorerNode node) => [];
+
+    /// <summary>Its submenus of the main menu (Tools > NuGet Package Manager).</summary>
+    public virtual IReadOnlyList<ModuleSubmenu> MainMenus => [];
 
     /// <summary>Its new project templates (a Go module, a Cargo package...), in File > New > Project beside .NET's.</summary>
     public virtual IReadOnlyList<Templates.ProjectTemplate> ProjectTemplates => [];

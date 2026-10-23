@@ -65,11 +65,6 @@
           </DockPanel>
         </Border>
       </DataTemplate>
-      <DataTemplate DataType="vm:NuGetViewModel" x:DataType="vm:NuGetViewModel">
-        <Border Classes="docframe" BorderBrush="#007ACC" BorderThickness="0,2,0,0">
-          <v:NuGetView />
-        </Border>
-      </DataTemplate>
       <DataTemplate DataType="vm:DiffViewModel" x:DataType="vm:DiffViewModel">
         <Border Classes="docframe" BorderBrush="#007ACC" BorderThickness="0,2,0,0">
           <v:ControlPresenter Control="{Binding View}" />

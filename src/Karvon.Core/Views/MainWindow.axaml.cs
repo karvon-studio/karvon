@@ -597,8 +597,7 @@ public partial class MainWindow : Window, IDialogService
             Item("Existing Item...", () => _ = vm.AddExistingItemsAsync(node), "Shift+Alt+A", enabled: inSolution),
             Item("New Solution Folder", () => _ = vm.AddSolutionFolderAsync(node), enabled: inSolution),
         ]);
-        var owner = node.Kind is NodeKind.Dependencies or NodeKind.DependencyGroup or NodeKind.Package or NodeKind.ProjectReference or NodeKind.Framework
-            && vm.ExplorerRoots.FirstOrDefault() is { } root ? OwnerOf(root, node) : null;
+        var owner = node.Kind is NodeKind.Dependencies or NodeKind.DependencyGroup or NodeKind.ProjectReference or NodeKind.Framework ? vm.ProjectOf(node) : null;
         switch (node.Kind)
         {
             // A folder opened as it is: its files, as a folder's; none of a solution's commands.
@@ -615,9 +614,6 @@ public partial class MainWindow : Window, IDialogService
                 items.Add(Item("Rebuild Solution", () => vm.RebuildSolutionCommand.Execute(null)));
                 items.Add(Item("Clean Solution", () => vm.CleanSolutionCommand.Execute(null)));
                 items.Add(Item("Run Tests", () => vm.RunAllTestsCommand.Execute(null), enabled: vm.RunAllTestsCommand.CanExecute(null)));
-                items.Add(new Separator());
-                items.Add(Item("Manage NuGet Packages for Solution...", () => vm.ManageNuGetPackagesCommand.Execute(null)));
-                items.Add(Item("Restore NuGet Packages", () => _ = vm.RestorePackagesAsync()));
                 items.Add(new Separator());
                 items.Add(SolutionAddMenu());
                 items.Add(Menu("Set Startup Project", vm.StartupProjects.Select(p =>
@@ -644,7 +640,6 @@ public partial class MainWindow : Window, IDialogService
                 items.Add(Item("Publish to Folder", () => vm.PublishProjectCommand.Execute(project)));
                 items.Add(new Separator());
                 items.Add(AddMenu(project));
-                items.Add(Item("Manage NuGet Packages...", () => vm.ManageNuGetPackagesCommand.Execute(project)));
                 if (project.IsRunnable)
                     items.Add(Item("Manage User Secrets", () => _ = vm.ManageUserSecretsAsync(project)));
                 items.Add(Item("Set as Startup Project", () => vm.SetStartupProjectCommand.Execute(project), enabled: project.IsRunnable));
@@ -656,12 +651,6 @@ public partial class MainWindow : Window, IDialogService
             case NodeKind.Dependencies or NodeKind.DependencyGroup:
                 if (node.Kind == NodeKind.Dependencies || node.Name == "Projects")
                     items.Add(Item("Add Project Reference...", () => _ = vm.EditProjectReferencesAsync(owner), enabled: owner is not null));
-                items.Add(Item("Manage NuGet Packages...", () => vm.ManageNuGetPackagesCommand.Execute(owner), enabled: owner is not null));
-                break;
-            case NodeKind.Package:
-                items.Add(Item("Manage NuGet Packages...", () => vm.ManageNuGetPackagesCommand.Execute(owner), enabled: owner is not null));
-                items.Add(new Separator());
-                items.Add(Item("Remove", () => _ = vm.RemovePackageAsync(owner!, node.Name), enabled: owner is not null));
                 break;
             case NodeKind.ProjectReference when path is not null:
                 items.Add(Item("Open Project File", () => vm.OpenDocument(path)));
@@ -702,6 +691,24 @@ public partial class MainWindow : Window, IDialogService
                     items.Add(Item("Delete", () => _ = vm.DeleteAsync(node), "Delete"));
                 break;
         }
+        // What the modules add (a project's Manage NuGet Packages...): each after the item of Karvon's it names, in the
+        // order the module gives them, the rest after Karvon's own.
+        var placed = new Dictionary<string, object>();
+        foreach (var module in vm.Modules)
+            foreach (var extra in module.ExplorerMenu(node))
+            {
+                var control = ModuleMenuControl(vm, extra);
+                var anchor = extra.After is not { } after ? null
+                    : placed.TryGetValue(after, out var last) ? last
+                    : items.FirstOrDefault(i => i is MenuItem { Header: string header } && header == after);
+                if (anchor is null)
+                    items.Add(control);
+                else
+                {
+                    items.Insert(items.IndexOf(anchor) + 1, control);
+                    placed[extra.After!] = control;
+                }
+            }
         if (folder is not null)
         {
             if (items.Count > 0)
@@ -727,22 +734,6 @@ public partial class MainWindow : Window, IDialogService
             items.Insert(1, new Separator());
         }
         return items;
-
-        static bool Contains(ExplorerNode parent, ExplorerNode target) =>
-            parent.Children.Any(c => c == target || Contains(c, target));
-
-        // The project a dependency is under, in a solution folder or not.
-        static ProjectInfo? OwnerOf(ExplorerNode at, ExplorerNode target)
-        {
-            foreach (var child in at.Children)
-            {
-                if (child.Kind == NodeKind.Project && Contains(child, target))
-                    return child.Project;
-                if (child.Kind == NodeKind.SolutionFolder && OwnerOf(child, target) is { } found)
-                    return found;
-            }
-            return null;
-        }
     }
 
     /// <summary>Renames a node in place, as VS does: a text box over its name with the base name selected.</summary>

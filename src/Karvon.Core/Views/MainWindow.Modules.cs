@@ -31,6 +31,8 @@ public partial class MainWindow
                     app.DataTemplates.Add(template);
             foreach (var tool in module.ToolWindows)
                 AddModuleToolWindow(vm, tool);
+            foreach (var submenu in module.MainMenus)
+                AddModuleSubmenu(vm, submenu);
             if (module.OverlayTemplate is { } overlay)
             {
                 var host = new ContentControl
@@ -67,6 +69,44 @@ public partial class MainWindow
         }
         menu.Click += (_, _) => ShowModuleToolWindow(vm, tool);
         ViewMenu.Items.Insert(ViewMenu.Items.IndexOf(ViewTerminalItem), menu);
+    }
+
+    /// <summary>How many of the modules' submenus each top menu has, first in it.</summary>
+    readonly Dictionary<MenuItem, int> _moduleSubmenus = [];
+
+    /// <summary>A module's submenu, after the other modules' first in its top menu (Tools), a separator after them.</summary>
+    void AddModuleSubmenu(MainViewModel vm, ModuleSubmenu submenu)
+    {
+        if (MainMenu.Items.OfType<MenuItem>().FirstOrDefault(m => m.Header is string header && header.Replace("_", "") == submenu.Menu) is not { } top)
+            return;
+        var menu = new MenuItem { Header = submenu.Header };
+        foreach (var item in submenu.Items)
+            menu.Items.Add(ModuleMenuControl(vm, item));
+        var count = _moduleSubmenus.GetValueOrDefault(top);
+        if (count == 0)
+            top.Items.Insert(0, new Separator());
+        top.Items.Insert(count, menu);
+        _moduleSubmenus[top] = count + 1;
+    }
+
+    /// <summary>A module's menu item as a menu has it: a separator, or an item running what the module gives it.</summary>
+    internal static Control ModuleMenuControl(MainViewModel vm, ModuleMenuItem item)
+    {
+        if (item.IsSeparator)
+            return new Separator();
+        var control = new MenuItem { Header = item.Header, IsEnabled = item.IsEnabled };
+        control.Click += async (_, _) =>
+        {
+            try
+            {
+                await item.Run!();
+            }
+            catch (Exception ex)
+            {
+                ((IWorkbench)vm).Status(ex.Message);
+            }
+        };
+        return control;
     }
 
     /// <summary>A module's tool window in front, as its module shows it.</summary>
@@ -119,18 +159,6 @@ public partial class MainWindow
             },
         })).ToList();
         var list = new StackPanel { Spacing = 12 };
-        // .NET is the core's still: always there, its components listed as a module's.
-        list.Children.Add(new StackPanel
-        {
-            Spacing = 2,
-            Children =
-            {
-                new TextBlock { Text = ".NET", FontWeight = FontWeight.SemiBold },
-                new TextBlock { Text = "C#, ASP.NET Core and Blazor: part of Karvon Studio itself for now.", Foreground = gray },
-            },
-        });
-        foreach (var component in MainViewModel.DotNetComponents)
-            list.Children.Add(ComponentRow(vm, component, gray));
         foreach (var (module, box) in boxes)
         {
             list.Children.Add(box);

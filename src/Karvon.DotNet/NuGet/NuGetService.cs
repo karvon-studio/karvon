@@ -1,7 +1,7 @@
 using System.Text.Json;
 using Karvon.Build;
 
-namespace Karvon.Packages;
+namespace Karvon.DotNet.NuGet;
 
 public sealed record PackageSearchResult(string Id, string LatestVersion, long TotalDownloads, string? Owners, string? Description, string? ProjectUrl, string Source);
 
@@ -94,6 +94,9 @@ public sealed class NuGetService(string workingDirectory, Action<string>? log = 
 
     public Task<(bool Success, string Output)> UninstallAsync(string project, string id, CancellationToken ct) =>
         RunAsync(["remove", project, "package", id], ct);
+
+    /// <summary>dotnet restore of a solution or a project.</summary>
+    public Task<(bool Success, string Output)> RestoreAsync(string target, CancellationToken ct) => RunAsync(["restore", target], ct);
 
     static Version ParseVersion(string v)
     {

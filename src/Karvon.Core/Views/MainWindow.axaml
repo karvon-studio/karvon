@@ -31,7 +31,7 @@
 
   <DockPanel>
     <!-- ===== Menu ===== -->
-    <Menu DockPanel.Dock="Top" Background="{StaticResource VsEnvironmentBrush}">
+    <Menu Name="MainMenu" DockPanel.Dock="Top" Background="{StaticResource VsEnvironmentBrush}">
       <MenuItem Header="_File">
         <MenuItem Header="Start _Window" Click="OnStartWindow" />
         <MenuItem Header="_New">
@@ -227,10 +227,6 @@
         <MenuItem Header="_New Branch..." Command="{Binding NewBranchCommand}" />
       </MenuItem>
       <MenuItem Header="_Tools">
-        <MenuItem Header="_NuGet Package Manager">
-          <MenuItem Header="Manage NuGet Packages for _Solution..." Command="{Binding ManageNuGetPackagesCommand}" />
-        </MenuItem>
-        <Separator />
         <MenuItem Header="_Restart Language Server" Command="{Binding RestartLanguageServerCommand}" />
         <MenuItem Header="_Trust ASP.NET Core Development Certificate" Command="{Binding TrustDevCertificateCommand}" />
         <Separator />

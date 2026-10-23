@@ -3,6 +3,7 @@ using Bengine.Introspection.Servers;
 using Karvon.Claude;
 using Karvon.Services;
 using Karvon.ViewModels;
+using Karvon.Workspace;
 
 namespace Karvon.Modules;
 
@@ -18,6 +19,15 @@ public interface IWorkbench
 
     /// <summary>The open solution's folder, or null.</summary>
     string? Workspace { get; }
+
+    /// <summary>The open solution (or folder) and its projects, or null.</summary>
+    SolutionInfo? Solution { get; }
+
+    /// <summary>The solution read again (its projects changed: a package added), Solution Explorer keeping what is expanded.</summary>
+    Task ReloadSolutionAsync();
+
+    /// <summary>The project a Solution Explorer node is in (its Dependencies, a package of it), or null.</summary>
+    ProjectInfo? ProjectOf(ExplorerNode node);
 
     /// <summary>A solution was opened or closed.</summary>
     event Action? WorkspaceChanged;

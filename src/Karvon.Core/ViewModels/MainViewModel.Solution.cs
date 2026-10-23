@@ -428,14 +428,6 @@ public partial class MainViewModel
         return ok;
     }
 
-    /// <summary>Remove on a package in Dependencies.</summary>
-    public async Task<bool> RemovePackageAsync(ProjectInfo project, string package)
-    {
-        var ok = await RunDotnetAsync(["remove", project.FilePath, "package", package]);
-        await ReloadSolutionAsync();
-        return ok;
-    }
-
     /// <summary>
     /// Manage User Secrets: the project's secrets.json (in ~/.microsoft/usersecrets, outside the solution), opened; a
     /// project without a UserSecretsId gets one first (dotnet user-secrets init), as VS does.
@@ -478,19 +470,6 @@ public partial class MainViewModel
     }
 
     // ---- The solution ------------------------------------------------------------------------------------------
-
-    /// <summary>Restore NuGet Packages: dotnet restore of the solution, in Output (Build).</summary>
-    public async Task<bool> RestorePackagesAsync()
-    {
-        if (Solution is null)
-            return false;
-        SelectedOutput = BuildOutput;
-        ShowToolWindow(ToolWindows.Output);
-        SetStatus("Restoring NuGet packages...", StatusKind.Busy);
-        var ok = await RestoreAsync([]);
-        SetStatus(ok ? "Restore succeeded" : "Restore failed", StatusKind.Ready);
-        return ok;
-    }
 
     /// <summary>Create Git Repository: git init in the solution's folder, the SDK's .gitignore for .NET when it has none, then Git Changes.</summary>
     public async Task<bool> CreateGitRepositoryAsync()

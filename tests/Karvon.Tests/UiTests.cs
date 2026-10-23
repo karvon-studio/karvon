@@ -5,6 +5,7 @@ using Avalonia.Headless.XUnit;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 using Karvon.Claude;
+using Karvon.DotNet.NuGet;
 using Karvon.Lsp;
 using Karvon.Editor;
 using AvaloniaEdit.Folding;
@@ -1340,7 +1341,7 @@ public class UiTests
         var components = vm.Solution!.Projects.Single(p => p.Name == "Components");
         var csproj = File.ReadAllText(components.FilePath);
 
-        await vm.ManageNuGetPackagesCommand.ExecuteAsync(components);
+        await vm.Module<Karvon.DotNet.DotNetModule>()!.ManagePackagesAsync(components);
         var nuget = Assert.IsType<NuGetViewModel>(vm.ActiveDocument);
         Assert.Equal("NuGet: Components", nuget.Title);
         Assert.DoesNotContain(nuget.Packages, p => p.IsInstalled);
