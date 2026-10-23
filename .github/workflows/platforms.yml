@@ -5,6 +5,12 @@ name: Platforms
 # on every push.
 on:
   workflow_dispatch:
+    inputs:
+      os:
+        description: Where it runs (one only, while its tests are being fixed, spares the other's minutes)
+        type: choice
+        options: [both, macos, windows]
+        default: both
 
 jobs:
   build:
@@ -12,7 +18,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [macos-latest, windows-latest]
+        os: ${{ fromJSON(inputs.os == 'macos' && '["macos-latest"]' || inputs.os == 'windows' && '["windows-latest"]' || '["macos-latest","windows-latest"]') }}
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v5

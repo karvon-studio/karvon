@@ -16,9 +16,7 @@ public static class FakeClaude
 {
     static FakeClaude()
     {
-        Executable = Path.Combine(AppContext.BaseDirectory, "TestAssets", "FakeClaude", "claude");
-        File.SetUnixFileMode(Executable, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute
-            | UnixFileMode.GroupRead | UnixFileMode.GroupExecute | UnixFileMode.OtherRead | UnixFileMode.OtherExecute);
+        Executable = TestTools.Command(Path.Combine(AppContext.BaseDirectory, "TestAssets", "FakeClaude", "claude"));
         ConfigDirectory = Path.Combine(Path.GetTempPath(), "karvon-claude-config-" + Environment.ProcessId);
         Environment.SetEnvironmentVariable("KARVON_CLAUDE_PATH", Executable);
         Environment.SetEnvironmentVariable("CLAUDE_CONFIG_DIR", ConfigDirectory);

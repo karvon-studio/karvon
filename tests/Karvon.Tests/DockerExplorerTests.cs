@@ -27,9 +27,7 @@ public static class FakeDocker
         Directory.CreateDirectory(folder);
         var statePath = Path.Combine(folder, "state.json");
         File.WriteAllText(statePath, (state ?? Sample()).ToJsonString());
-        var docker = Path.Combine(folder, "docker");
-        File.WriteAllText(docker, $"#!/bin/sh\nKARVON_FAKE_DOCKER_STATE='{statePath}' exec python3 -I '{Script}' \"$@\"\n");
-        File.SetUnixFileMode(docker, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
+        var docker = TestTools.Command(Script, folder, new Dictionary<string, string> { ["KARVON_FAKE_DOCKER_STATE"] = statePath });
         return (docker, statePath, folder);
     }
 

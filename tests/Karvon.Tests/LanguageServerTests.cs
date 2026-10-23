@@ -60,7 +60,7 @@ sealed class FakeLanguageClient : LspClient
     /// <param name="word">A linter's: the word it warns of (else TODO).</param>
     public static async Task<LspClient> StartAsync(LanguageServerStart start, string? word)
     {
-        var (process, rpc) = Launch(new ProcessStartInfo("python3", ["-I", Path.Combine(AppContext.BaseDirectory, "TestAssets", "FakeLsp", "lsp_server.py"), .. word is null ? Array.Empty<string>() : [word]]));
+        var (process, rpc) = Launch(new ProcessStartInfo(TestTools.Python, ["-I", Path.Combine(AppContext.BaseDirectory, "TestAssets", "FakeLsp", "lsp_server.py"), .. word is null ? Array.Empty<string>() : [word]]));
         var client = new FakeLanguageClient(process, rpc, start.Workspace);
         await client.InitializeAsync(start.Workspace, null, start.Cancellation);
         return client;

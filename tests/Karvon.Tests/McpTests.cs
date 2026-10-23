@@ -104,11 +104,11 @@ public class McpTests
         var home = Home();
         var workspace = Folder("karvon-mcp-ws");
         var config = Folder("karvon-mcp-config");
-        Write(Path.Combine(workspace, ".mcp.json"), """
+        Write(Path.Combine(workspace, ".mcp.json"), $$"""
             {
               // The folder's servers
               "mcpServers": {
-                "echo": { "command": "python3", "args": ["-I", "echo_server.py"], },
+                "echo": { "command": "{{TestTools.Python}}", "args": ["-I", "echo_server.py"], },
               },
             }
             """);
@@ -152,7 +152,7 @@ public class McpTests
         Assert.Equal(["Project:echo", "ClaudeUser:notes", "ClaudeLocal:db", "Codex:docs", "GeminiUser:search", "GeminiUser:feed", "Karvon:mine", "Karvon:notes", "Karvon:karvon"],
             read.Servers.Select(s => s.Key));
         var servers = read.Servers.ToDictionary(s => s.Key);
-        Assert.Equal("stdio python3 -I echo_server.py", servers["Project:echo"].Transport);
+        Assert.Equal($"stdio {TestTools.Python} -I echo_server.py", servers["Project:echo"].Transport);
         Assert.Equal("${KARVON_TEST_MCP_TOKEN:-none}", servers["ClaudeUser:notes"].Env["NOTES_TOKEN"]);
         Assert.Equal("HTTP http://127.0.0.1:9/mcp", servers["ClaudeLocal:db"].Transport);
         Assert.Equal("stdio docs-server --port 7", servers["Codex:docs"].Transport);
@@ -329,7 +329,7 @@ public class McpTests
     /// <summary>The fake OAuth server (oauth_server.py) with its options: its process, its port, what it was asked.</summary>
     static async Task<(System.Diagnostics.Process Process, int Port, List<string> Said)> OAuthServerAsync(params string[] options)
     {
-        var process = System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("python3", ["-I", Path.Combine(AppContext.BaseDirectory, "TestAssets", "FakeMcp", "oauth_server.py"), .. options])
+        var process = System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(TestTools.Python, ["-I", Path.Combine(AppContext.BaseDirectory, "TestAssets", "FakeMcp", "oauth_server.py"), .. options])
         {
             RedirectStandardOutput = true,
             RedirectStandardError = true,
@@ -521,7 +521,7 @@ public class McpTests
         {
             mcpServers = new Dictionary<string, object>
             {
-                ["echo"] = new { command = "python3", args = new[] { "-I", EchoServer } },
+                ["echo"] = new { command = TestTools.Python, args = new[] { "-I", EchoServer } },
                 ["broken"] = new { command = "karvon-no-such-program" },
             },
         }));
@@ -617,7 +617,7 @@ public class McpTests
             Assert.StartsWith("There is a server named echo in ", form.Problem);
             form.Name = "shared";
             Assert.Equal("Write the command that starts the server.", form.Problem);
-            form.CommandLine = $"python3 -I \"{EchoServer}\"";
+            form.CommandLine = $"{TestTools.Python} -I \"{EchoServer}\"";
             form.Environment = "GREETING=${USER}";
             Assert.Null(form.Problem);
             Assert.Equal(McpOrigin.Project, form.Where.Origin);
@@ -626,7 +626,7 @@ public class McpTests
             form.Confirm();
             await adding;
             var shared = JsonNode.Parse(File.ReadAllText(Path.Combine(workspace, ".mcp.json")))!["mcpServers"]!["shared"]!;
-            Assert.Equal($$$"""{"type":"stdio","command":"python3","args":["-I","{{{EchoServer}}}"],"env":{"GREETING":"${USER}"}}""", shared.ToJsonString());
+            Assert.Equal($$$"""{"type":"stdio","command":"{{{TestTools.Python}}}","args":["-I","{{{EchoServer.Replace("\\", "\\\\")}}}"],"env":{"GREETING":"${USER}"}}""", shared.ToJsonString());
             Assert.NotNull(vm.Find("shared"));
             Assert.Equal(2, host.Open.Count);
 

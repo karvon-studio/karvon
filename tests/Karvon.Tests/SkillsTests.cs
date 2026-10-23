@@ -76,7 +76,7 @@ public class SkillsTests
     {
         Directory.CreateDirectory(Path.GetDirectoryName(path)!);
         File.WriteAllText(path, text);
-        if (executable)
+        if (executable && !OperatingSystem.IsWindows())
             File.SetUnixFileMode(path, File.GetUnixFileMode(path) | UnixFileMode.UserExecute);
     }
 
