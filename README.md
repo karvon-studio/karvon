@@ -62,7 +62,7 @@ TypeScript 7 (Apache-2.0, its own language server; no Node.js needed) when the f
 - **Debug** (F5; netcoredbg for .NET, js-debug for Node.js and TypeScript through its source maps): breakpoints that
   follow edits, Step Over / Into / Out, Locals, Watch, Call Stack, data tips, debugging tests.
 - **Test Explorer**: discover, Run All / Failed / Selected, theory rows, durations, failures with stack traces; .NET's
-  tests (xUnit, NUnit, MSTest) and Vitest's, by the package's own vitest, both run or debugged.
+  tests (xUnit, NUnit, MSTest), Vitest's and Jest's (by the package's own copy), run or debugged.
 - **Git**: every repository of the solution in one Changes window (trees of staged and unstaged changes), stage,
   commit (a message Claude writes from the diff, if you like), fetch, pull, push, sync, local and remote branches, diff
   with word highlights, change bars in the editor margin, badges in Solution Explorer; follows commits and checkouts

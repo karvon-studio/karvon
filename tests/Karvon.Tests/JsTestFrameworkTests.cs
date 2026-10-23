@@ -9,16 +9,16 @@ using static Karvon.Tests.UiTests;
 
 namespace Karvon.Tests;
 
-/// <summary>Vitest's tests in Test Explorer, found and run by the package's own vitest.</summary>
-public class VitestTests
+/// <summary>Vitest's and Jest's tests in Test Explorer, found and run by the package's own copy.</summary>
+public class JsTestFrameworkTests
 {
-    static string NewPackage()
+    static string NewPackage(string framework = "vitest")
     {
         var dir = Path.Combine(Path.GetTempPath(), "karvon-vitest-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(Path.Combine(dir, "src"));
         File.WriteAllText(Path.Combine(dir, "package.json"), """
             { "name": "shapes", "private": true, "type": "module", "scripts": { "test": "vitest run" }, "devDependencies": { "vitest": "^3.2.0" } }
-            """);
+            """.Replace("\"vitest\": \"^3.2.0\"", framework == "jest" ? "\"jest\": \"^30.0.0\"" : "\"vitest\": \"^3.2.0\"").Replace("\"type\": \"module\", ", framework == "jest" ? "" : "\"type\": \"module\", "));
         File.WriteAllText(Path.Combine(dir, "src", "math.test.ts"), """
             import { describe, it, expect } from "vitest";
             describe("area", () => {
@@ -57,13 +57,8 @@ public class VitestTests
     public async Task Vitest_finds_runs_and_reports_the_tests()
     {
         Assert.SkipUnless(Environment.GetEnvironmentVariable("KARVON_TYPESCRIPT_LIVE") == "1", "Set KARVON_TYPESCRIPT_LIVE=1 to install Vitest from npm and run it.");
-        var path = string.Join(Path.PathSeparator, NodeLocator.DirectoryOffPath() ?? "", Environment.GetEnvironmentVariable("PATH") ?? "");
-        var npm = TaskVariables.Find("npm", path, "/");
-        Assert.SkipUnless(npm is not null, "Node.js is not installed.");
         var dir = NewPackage();
-        var installed = new List<string>();
-        using (var runner = Karvon.Build.ProcessRunner.Start(npm!, ["install", "--ignore-scripts", "--no-audit", "--no-fund"], dir, installed.Add, new Dictionary<string, string> { ["PATH"] = path }))
-            Assert.True(await runner.WaitAsync(TestContext.Current.CancellationToken) == 0, string.Join("\n", installed));
+        Assert.SkipUnless(await InstallAsync(dir), "Node.js is not installed.");
         var vm = NewViewModel();
         var window = new MainWindow { DataContext = vm, Width = 1280, Height = 800 };
         window.Show();
@@ -123,6 +118,55 @@ public class VitestTests
         await debugging.WaitAsync(TimeSpan.FromSeconds(60), TestContext.Current.CancellationToken);
         Assert.Equal(DebugMode.Design, vm.Mode);
         Assert.Equal(TestState.Passed, adds.State);
+        Assert.True(await vm.CloseSolutionCoreAsync());
+        window.Close();
+        Directory.Delete(dir, recursive: true);
+    }
+
+    /// <summary>npm install in a package (from the registry), as its user would; false when Node.js is not here.</summary>
+    static async Task<bool> InstallAsync(string dir)
+    {
+        var path = string.Join(Path.PathSeparator, NodeLocator.DirectoryOffPath() ?? "", Environment.GetEnvironmentVariable("PATH") ?? "");
+        if (TaskVariables.Find("npm", path, "/") is not { } npm)
+            return false;
+        var installed = new List<string>();
+        using var runner = Karvon.Build.ProcessRunner.Start(npm, ["install", "--ignore-scripts", "--no-audit", "--no-fund"], dir, installed.Add, new Dictionary<string, string> { ["PATH"] = path });
+        Assert.True(await runner.WaitAsync(TestContext.Current.CancellationToken) == 0, string.Join("\n", installed));
+        return true;
+    }
+
+    [AvaloniaFact]
+    public async Task Jest_names_its_tests_as_it_runs_them()
+    {
+        Assert.SkipUnless(Environment.GetEnvironmentVariable("KARVON_TYPESCRIPT_LIVE") == "1", "Set KARVON_TYPESCRIPT_LIVE=1 to install Jest from npm and run it.");
+        var dir = NewPackage("jest");
+        var test = Path.Combine(dir, "src", "math.test.js");
+        File.Move(Path.Combine(dir, "src", "math.test.ts"), test);
+        // Jest takes the file as CommonJS, its globals as they are.
+        File.WriteAllText(test, File.ReadAllText(test).Replace("import { describe, it, expect } from \"vitest\";\n", ""));
+        Assert.SkipUnless(await InstallAsync(dir), "Node.js is not installed.");
+        var vm = NewViewModel();
+        var window = new MainWindow { DataContext = vm, Width = 1280, Height = 800 };
+        window.Show();
+        await vm.OpenSolutionAsync(dir);
+
+        // Nothing before the first run; then each test where it is, by its describe blocks.
+        await vm.RunAllTestsCommand.ExecuteAsync(null);
+        Assert.True(vm.TestSummary.StartsWith("Test run finished: 3 test(s) (1 Passed, 1 Failed, 1 Skipped)", StringComparison.Ordinal), vm.TestSummary + "\n" + vm.TestsOutput.Document.Text);
+        var file = Assert.Single(Assert.Single(vm.TestRoots).Children);
+        Assert.Equal("src/math.test.js", file.Name);
+        var area = file.Children.Single(n => n.Name == "area");
+        // Where it is (the file has no import line: line 2).
+        Assert.Equal((TestState.Passed, 2), (area.Children.Single(n => n.Name == "multiplies").State, area.Children.Single(n => n.Name == "multiplies").Line));
+        var zero = area.Children.Single(n => n.Name == "of nothing").Children.Single();
+        Assert.Equal(TestState.Failed, zero.State);
+        Assert.StartsWith("Error: expect(received).toBe(expected)", zero.ErrorMessage);
+        Assert.Equal(TestState.Skipped, file.Children.Single(n => n.Name == "later").State);
+
+        // Run Failed Tests: that one only.
+        await vm.RunFailedTestsCommand.ExecuteAsync(null);
+        Assert.Equal(TestState.Failed, zero.State);
+        Assert.Equal(TestState.Passed, area.Children.Single(n => n.Name == "multiplies").State);
         Assert.True(await vm.CloseSolutionCoreAsync());
         window.Close();
         Directory.Delete(dir, recursive: true);

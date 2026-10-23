@@ -152,7 +152,10 @@ public partial class MainViewModel
             if (!await DiscoverTestsAsync())
                 return;
             var selected = (keys ?? [.. _discovered.Keys]).Where(k => _discovered.TryGetValue(k, out var d) && match?.Invoke(k, d.Item) != false).ToList();
-            if (selected.Count == 0)
+            var everything = keys is null && match is null;
+            // All of them: every framework runs, one that names its tests only as it runs them (Jest) too.
+            var frameworks = everything ? TestFrameworks.ToList() : selected.Select(k => _discovered[k].Framework).Distinct().ToList();
+            if (selected.Count == 0 && !(everything && frameworks.Count > 0))
             {
                 TestSummary = "No tests to run.";
                 return;
@@ -161,27 +164,25 @@ public partial class MainViewModel
             _testRuns++;
             foreach (var key in selected)
                 _testCases[key].SetResult(TestState.NotRun, TimeSpan.Zero, null, null, null);
-            SetStatus($"Running {selected.Count} test(s)...", StatusKind.Busy);
+            SetStatus(selected.Count > 0 ? $"Running {selected.Count} test(s)..." : "Running the tests...", StatusKind.Busy);
             var cts = _testCts = new CancellationTokenSource();
             var sw = Stopwatch.StartNew();
-            var everything = keys is null && match is null;
-            foreach (var group in selected.GroupBy(k => _discovered[k].Framework))
+            foreach (var framework in frameworks)
             {
-                var framework = group.Key;
                 if (debug && !framework.CanDebug)
-                {
                     TestsOutput.Append($"{framework.Name} tests cannot be debugged yet: they run without the debugger.");
-                }
                 void OnResult(TestItemResult r) => Dispatcher.UIThread.Post(() => ApplyResult(framework, r));
-                await framework.RunAsync(everything ? null : [.. group.Select(k => _discovered[k].Item)], debug && framework.CanDebug, OnResult, cts.Token);
+                List<TestItem>? mine = everything ? null : [.. selected.Where(k => _discovered[k].Framework == framework).Select(k => _discovered[k].Item)];
+                await framework.RunAsync(mine, debug && framework.CanDebug, OnResult, cts.Token);
                 if (cts.IsCancellationRequested)
                     break;
             }
             await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
             UpdateTestCounts();
-            var ran = selected.Count(k => _testCases.TryGetValue(k, out var n) && n.State is TestState.Passed or TestState.Failed or TestState.Skipped);
+            // With those a framework found as it ran them.
+            var ran = _lastRun.Count(k => _testCases.TryGetValue(k, out var n) && n.State is TestState.Passed or TestState.Failed or TestState.Skipped);
             TestSummary = cts.IsCancellationRequested
-                ? $"Test run canceled: {ran} of {selected.Count} test(s) ran."
+                ? $"Test run canceled: {ran} of {_lastRun.Count} test(s) ran."
                 : $"Test run finished: {ran} test(s) ({PassedCount} Passed, {FailedCount} Failed, {SkippedCount} Skipped) run in {sw.Elapsed.TotalSeconds:0.0} sec";
             SetStatus(FailedCount > 0 ? $"{FailedCount} test(s) failed" : "Tests passed", StatusKind.Ready);
         }
