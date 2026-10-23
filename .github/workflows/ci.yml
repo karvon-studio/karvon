@@ -45,6 +45,16 @@ jobs:
         with:
           enable-cache: false
 
+      # kotlin-lsp (about 350 MB) and what Gradle downloads for the Kotlin template (its distribution, Kotlin's plugin),
+      # kept between runs: a cold one takes minutes.
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.local/share/karvon/kotlin-lsp
+            ~/.gradle/wrapper/dists
+            ~/.gradle/caches/modules-2
+          key: kotlin-lsp-263.6379.0-gradle-9.1.0-kotlin-2.2.20
+
       - name: Restore
         run: dotnet restore Karvon.slnx
 
@@ -53,9 +63,10 @@ jobs:
 
       # Unit tests plus the headless UI tests of the main window; the integration tests restore and build a
       # sample Blazor solution, install roslyn-language-server and netcoredbg, and drive a fake Claude Code CLI.
-      # Normally ~3 min. Each test is listed as it finishes, and one that hangs for 5 minutes is named and the run fails.
+      # Normally ~3 min. Each test is listed as it finishes, and one that hangs for 10 minutes is named and the run fails
+      # (Kotlin's, without its cache, downloads kotlin-lsp and Gradle for some minutes).
       - name: Test
-        timeout-minutes: 15
+        timeout-minutes: 25
         env:
           # TypeScript 7, js-debug, Vitest and Jest from the npm registry and GitHub (a few seconds each).
           KARVON_TYPESCRIPT_LIVE: "1"
@@ -78,7 +89,7 @@ jobs:
           DOTNET_DbgMiniDumpName: ${{ runner.temp }}/dumps/karvon-%p-%t.dmp
         run: |
           mkdir -p "$RUNNER_TEMP/dumps"
-          dotnet test Karvon.slnx -c Release --no-build --blame-hang-timeout 5m --blame-hang-dump-type none --logger "console;verbosity=normal"
+          dotnet test Karvon.slnx -c Release --no-build --blame-hang-timeout 10m --blame-hang-dump-type none --logger "console;verbosity=normal"
 
       - name: Keep the crash dumps
         if: failure()

@@ -51,7 +51,7 @@ public class ClaudeIdeToolsTests
         // The tests, as Test Explorer runs them: counts, then each failure with its message and place.
         var tests = await Text(server, "run_tests", new { filter = "GreetingTests" });
         Assert.StartsWith("5 test(s): 3 passed, 1 failed, 1 skipped", tests);
-        Assert.Contains($"Tests.GreetingTests.Deliberately_failing: failed ({Path.Combine("Tests", "GreetingTests.cs")}:", tests);
+        Assert.Contains("Tests.GreetingTests.Deliberately_failing: failed (Tests/GreetingTests.cs:", tests);
         Assert.Contains("Assert.Equal() Failure", tests);
         Assert.StartsWith("5 test(s): 3 passed, 1 failed", await Text(server, "test_failures", new { }));
         Assert.StartsWith("1 test(s): 0 passed, 1 failed", await Text(server, "run_tests", new { failedOnly = true }));
