@@ -40,7 +40,7 @@ lists them). Karvon Studio updates itself: it checks once a day and installs the
   `package.json` scripts.
 - **Build, run, debug and test** each language, with the Error List and Test Explorer.
 - **Git**, **Terminal** and **NuGet**.
-- **Database Explorer**, **Docker Explorer**, **Servers** (SSH), **Jira**, **MCP Servers** and **Skills**.
+- **Database Explorer**, **Docker Explorer**, **Servers** (SSH), **Jira**, **Ports** (port forwarding), **MCP Servers** and **Skills**.
 - **Claude Code**, your own `claude` CLI, with Karvon's tools: the build, the tests, the debugger, the databases.
 - **Karvon Studio Installer** (`karvon --installer`, or Tools > Get Tools and Features) and **updates**.
 

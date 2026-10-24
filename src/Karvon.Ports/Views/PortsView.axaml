@@ -1,0 +1,122 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:v="using:Karvon.Views"
+             xmlns:pvm="using:Karvon.Ports.ViewModels"
+             x:Class="Karvon.Ports.Views.PortsView"
+             x:DataType="pvm:PortsViewModel">
+  <UserControl.Styles>
+    <StyleInclude Source="avares://Karvon.Core/Themes/ExplorerStyles.axaml" />
+    <Style Selector="Grid.portRow">
+      <Setter Property="MinHeight" Value="26" />
+      <Setter Property="Background" Value="Transparent" />
+    </Style>
+    <Style Selector="Grid.portRow:pointerover">
+      <Setter Property="Background" Value="#2A2D2E" />
+    </Style>
+    <Style Selector="Grid.portRow TextBlock">
+      <Setter Property="VerticalAlignment" Value="Center" />
+      <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+    </Style>
+    <!-- A row's buttons show on hover, as Visual Studio Code's. -->
+    <Style Selector="Grid.portRow StackPanel.rowActions">
+      <Setter Property="Opacity" Value="0" />
+    </Style>
+    <Style Selector="Grid.portRow:pointerover StackPanel.rowActions">
+      <Setter Property="Opacity" Value="1" />
+    </Style>
+    <Style Selector="Grid.portRow Button.tbi v|VsIcon">
+      <Setter Property="Width" Value="13" />
+      <Setter Property="Height" Value="13" />
+    </Style>
+    <Style Selector="Button.address">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderThickness" Value="0" />
+      <Setter Property="Padding" Value="0" />
+      <Setter Property="Foreground" Value="#4DAAFC" />
+      <Setter Property="Cursor" Value="Hand" />
+      <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+    <Style Selector="Button.address:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="Foreground" Value="#7CC1FF" />
+    </Style>
+  </UserControl.Styles>
+
+  <DockPanel>
+    <Border DockPanel.Dock="Top" Padding="4,2">
+      <StackPanel Orientation="Horizontal" Spacing="2">
+        <Button Name="ForwardButton" Classes="tbi" Command="{Binding ForwardPortCommand}" CommandParameter="{x:Null}" ToolTip.Tip="Forward a Port…">
+          <v:VsIcon Kind="Plus" />
+        </Button>
+        <Button Name="ServiceButton" Classes="tbi" Command="{Binding ServiceSettingsCommand}" ToolTip.Tip="Tunnel Service and API Key…">
+          <v:VsIcon Kind="Globe" />
+        </Button>
+        <TextBlock Name="ServiceText" Text="{Binding ServiceText}" Classes="dkMuted" FontSize="11.5" Margin="8,0,0,0" VerticalAlignment="Center" />
+      </StackPanel>
+    </Border>
+
+    <!-- The columns, as Visual Studio Code's Ports view has them. -->
+    <Grid DockPanel.Dock="Top" ColumnDefinitions="110,*,70,100,130,120" Margin="10,2,10,2" IsVisible="{Binding !IsEmpty}">
+      <TextBlock Text="Port" Classes="dkHeader" />
+      <TextBlock Grid.Column="1" Text="Forwarded Address" Classes="dkHeader" />
+      <TextBlock Grid.Column="2" Text="Protocol" Classes="dkHeader" />
+      <TextBlock Grid.Column="3" Text="Connections" Classes="dkHeader" />
+      <TextBlock Grid.Column="4" Text="State" Classes="dkHeader" />
+    </Grid>
+
+    <ScrollViewer HorizontalScrollBarVisibility="Disabled">
+      <StackPanel>
+        <ItemsControl Name="ForwardList" ItemsSource="{Binding Forwards}">
+          <ItemsControl.ItemTemplate>
+            <DataTemplate x:DataType="pvm:PortForward">
+              <Grid Classes="portRow" ColumnDefinitions="110,*,70,100,130,120" RowDefinitions="Auto,Auto" Margin="10,0">
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                  <Ellipse Classes="dot" Classes.running="{Binding IsOnline}" Classes.paused="{Binding IsConnecting}" Classes.failing="{Binding IsFailed}" />
+                  <TextBlock Text="{Binding Port}" FontFamily="{StaticResource VsCodeFont}" ToolTip.Tip="{Binding LocalAddress}" />
+                </StackPanel>
+                <Button Grid.Column="1" Classes="address" Command="{Binding OpenCommand}" IsVisible="{Binding CanOpen}" ToolTip.Tip="Open in Browser"
+                        HorizontalAlignment="Left">
+                  <TextBlock Text="{Binding Address}" />
+                </Button>
+                <TextBlock Grid.Column="1" Text="{Binding AddressText}" IsVisible="{Binding !CanOpen}" Classes="dkMuted" />
+                <TextBlock Grid.Column="2" Text="{Binding ProtocolText}" />
+                <TextBlock Grid.Column="3" Text="{Binding ConnectionsText}" />
+                <TextBlock Grid.Column="4" Text="{Binding StateText}" />
+                <StackPanel Grid.Column="5" Classes="rowActions" Orientation="Horizontal" Spacing="2" HorizontalAlignment="Right">
+                  <Button Classes="tbi" Click="OnCopy" IsVisible="{Binding IsOnline}" ToolTip.Tip="Copy Forwarded Address"><v:VsIcon Kind="Copy" /></Button>
+                  <Button Classes="tbi" Command="{Binding OpenCommand}" IsVisible="{Binding CanOpen}" ToolTip.Tip="Open in Browser"><v:VsIcon Kind="Globe" /></Button>
+                  <Button Classes="tbi" Command="{Binding StartCommand}" IsVisible="{Binding !IsRunning}" ToolTip.Tip="Forward Again"><v:VsIcon Kind="DockerPlay" /></Button>
+                  <Button Classes="tbi" Command="{Binding StopCommand}" IsVisible="{Binding IsRunning}" ToolTip.Tip="Stop Forwarding"><v:VsIcon Kind="DockerStop" /></Button>
+                  <Button Classes="tbi" Command="{Binding RemoveCommand}" ToolTip.Tip="Remove"><v:VsIcon Kind="Trash" /></Button>
+                </StackPanel>
+                <TextBlock Grid.Row="1" Grid.Column="1" Grid.ColumnSpan="5" Text="{Binding Error}" IsVisible="{Binding HasError}" Foreground="#F14C4C"
+                           FontSize="11.5" TextWrapping="Wrap" TextTrimming="None" Margin="0,0,0,4" />
+              </Grid>
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+
+        <StackPanel IsVisible="{Binding IsEmpty}" Margin="12,8" Spacing="8" MaxWidth="720" HorizontalAlignment="Left">
+          <TextBlock Text="No forwarded ports" FontWeight="SemiBold" />
+          <TextBlock Classes="dkMuted" TextWrapping="Wrap" Text="{Binding EmptyText}" />
+          <Button Classes="dkPrimary" Content="Forward a Port" Command="{Binding ForwardPortCommand}" CommandParameter="{x:Null}" HorizontalAlignment="Left" />
+        </StackPanel>
+
+        <!-- The running program's ports: one click to forward (never forwarded by themselves, that makes them public). -->
+        <TextBlock Text="The running program listens on" IsVisible="{Binding HasDetected}" Classes="dkMuted" FontSize="11.5" Margin="10,10,10,2" />
+        <ItemsControl Name="DetectedList" ItemsSource="{Binding Detected}">
+          <ItemsControl.ItemTemplate>
+            <DataTemplate x:DataType="pvm:DetectedPort">
+              <Grid Classes="portRow" ColumnDefinitions="110,*,120" Margin="10,0">
+                <TextBlock Text="{Binding Port}" FontFamily="{StaticResource VsCodeFont}" Classes="dkMuted" Margin="16,0,0,0" />
+                <TextBlock Grid.Column="1" Text="{Binding Url}" Classes="dkMuted" />
+                <Button Grid.Column="2" Classes="dkLink" Content="Forward…" HorizontalAlignment="Right" VerticalAlignment="Center"
+                        Command="{Binding $parent[UserControl].((pvm:PortsViewModel)DataContext).ForwardPortCommand}" CommandParameter="{Binding}" />
+              </Grid>
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+      </StackPanel>
+    </ScrollViewer>
+  </DockPanel>
+</UserControl>

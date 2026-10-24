@@ -631,15 +631,7 @@ sealed partial class AppControlTool(MainViewModel vm) : IdeTool(vm)
         return text.ToString();
     }
 
-    /// <summary>ASP.NET Core's "Now listening on:" URLs; a task's local URLs (Vite's "Local: http://localhost:5173/"...).</summary>
-    List<string> Listening() =>
-        (Vm.IsFolderWorkspace ? LocalUrl() : ListeningLine()).Matches(Vm.DebugOutput.Document.Text).Select(m => m.Groups[1].Value.TrimEnd('/')).Distinct().ToList();
-
-    [GeneratedRegex(@"Now listening on: (\S+)")]
-    private static partial Regex ListeningLine();
-
-    [GeneratedRegex(@"(https?://(?:localhost|127\.0\.0\.1|0\.0\.0\.0|\[::1?\])(?::\d+)?[^\s\u001b'"")]*)")]
-    private static partial Regex LocalUrl();
+    List<string> Listening() => [.. Vm.ListeningUrls];
 }
 
 // ---- Editor -------------------------------------------------------------------------------------------------------

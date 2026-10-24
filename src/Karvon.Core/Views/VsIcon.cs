@@ -42,7 +42,7 @@ public sealed class VsIcon : Control
         "Docker", "DockerContainer", "DockerStack", "DockerImage", "DockerVolume", "DockerNetwork", "DockerPlay", "DockerStop", "DockerRestart",
         "DockerPause", "DockerDelete", "DockerMore", "DockerLink", "DockerBack", "DockerTerminal", "DockerLogs", "DockerStats", "DockerInspect",
         "ToolExplorer", "ToolTests", "ToolGit", "ToolDatabase", "ToolErrors", "ToolOutput", "ToolFind", "ToolLocals", "ToolCallStack", "ToolTerminal",
-        "ToolServers", "ToolMcp", "ToolSkills", "ToolJira",
+        "ToolServers", "ToolMcp", "ToolSkills", "ToolJira", "ToolPorts",
     ];
 
     public string? Kind
@@ -526,6 +526,10 @@ public sealed class VsIcon : Control
                 break;
             case "ToolServers":
                 Line(dc, "M4.5 3.5h15a1 1 0 0 1 1 1v5a1 1 0 0 1-1 1h-15a1 1 0 0 1-1-1v-5a1 1 0 0 1 1-1z M4.5 13.5h15a1 1 0 0 1 1 1v5a1 1 0 0 1-1 1h-15a1 1 0 0 1-1-1v-5a1 1 0 0 1 1-1z M7.5 7h.01 M7.5 17h.01 M11 7h6 M11 17h6", fg, 1.6);
+                break;
+            case "ToolPorts":
+                // A mast sending out: a port reached from outside.
+                Line(dc, "M12 13.5v7 M9 20.5h6 M12 13.2a1.6 1.6 0 1 0 0-3.2a1.6 1.6 0 1 0 0 3.2z M8.6 8.2a4.8 4.8 0 0 0 0 6.8 M15.4 8.2a4.8 4.8 0 0 1 0 6.8 M5.7 5.3a8.9 8.9 0 0 0 0 12.6 M18.3 5.3a8.9 8.9 0 0 1 0 12.6", fg, 1.6);
                 break;
             case "ToolJira":
                 // A board: its columns and their cards (Jira's issues).

@@ -1,0 +1,66 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:pvm="using:Karvon.Ports.ViewModels"
+             x:Class="Karvon.Ports.Views.PortsOverlay"
+             x:DataType="pvm:PortsViewModel">
+  <UserControl.Styles>
+    <StyleInclude Source="avares://Karvon.Core/Themes/ExplorerStyles.axaml" />
+  </UserControl.Styles>
+
+  <!-- Over the window: the Ports window's dialogs. Clicks pass through otherwise. -->
+  <Panel Name="DialogLayer" IsVisible="{Binding HasDialog}" Background="#99000000">
+    <ContentControl Content="{Binding Dialog}" HorizontalAlignment="Center" VerticalAlignment="Center">
+      <ContentControl.DataTemplates>
+        <DataTemplate DataType="pvm:ForwardPortDialog">
+          <Border Classes="dkCard" Width="480" Padding="22,18" Background="#2B2B2F">
+            <StackPanel Spacing="8">
+              <TextBlock Text="{Binding Title}" FontSize="16" FontWeight="SemiBold" />
+              <TextBlock Text="Local port" Classes="dkMuted" />
+              <TextBox Name="PortBox" Classes="dkField" Text="{Binding PortText}" PlaceholderText="5000" />
+              <TextBlock Text="As" Classes="dkMuted" />
+              <ComboBox Name="ProtocolBox" ItemsSource="{x:Static pvm:ForwardPortDialog.Protocols}" SelectedIndex="{Binding ProtocolIndex}" HorizontalAlignment="Stretch" />
+              <TextBlock Text="Name (optional)" Classes="dkMuted" IsVisible="{Binding IsHttp}" />
+              <TextBox Name="SubdomainBox" Classes="dkField" Text="{Binding Subdomain}" PlaceholderText="Your key's name" IsVisible="{Binding IsHttp}" />
+              <TextBlock Text="Public port (optional)" Classes="dkMuted" IsVisible="{Binding IsTcp}" />
+              <TextBox Name="PublicPortBox" Classes="dkField" Text="{Binding PublicPortText}" PlaceholderText="Any (the service may allow a fixed one)" IsVisible="{Binding IsTcp}" />
+              <TextBlock Classes="dkMuted" TextWrapping="Wrap"><Run Text="It will be at " /><Run Text="{Binding Preview}" Foreground="#CCCCCC" /><Run Text=": anyone with the address reaches the port while it is forwarded." /></TextBlock>
+              <TextBlock Name="Problem" Text="{Binding Problem}" Foreground="#F14C4C" TextWrapping="Wrap" IsVisible="{Binding Problem, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+              <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right" Margin="0,6,0,0">
+                <Button Classes="dkOutline" Command="{Binding CancelCommand}" Content="Cancel" IsCancel="True" />
+                <Button Classes="dkPrimary" Command="{Binding ConfirmCommand}" Content="{Binding ConfirmText}" IsEnabled="{Binding CanConfirm}" IsDefault="True" />
+              </StackPanel>
+            </StackPanel>
+          </Border>
+        </DataTemplate>
+
+        <DataTemplate DataType="pvm:PortsServiceDialog">
+          <Border Classes="dkCard" Width="520" Padding="22,18" Background="#2B2B2F">
+            <StackPanel Spacing="8">
+              <TextBlock Text="{Binding Title}" FontSize="16" FontWeight="SemiBold" />
+              <TextBlock Text="Service" Classes="dkMuted" />
+              <TextBox Name="ServiceBox" Classes="dkField" Text="{Binding Service}" PlaceholderText="https://tulki.uz/config.json" />
+              <TextBlock Classes="dkMuted" FontSize="11" TextWrapping="Wrap" Text="A jprq server's config page, or its event port (host:4321)." />
+              <TextBlock Text="API key" Classes="dkMuted" />
+              <TextBox Name="KeyBox" Classes="dkField" PasswordChar="•" RevealPassword="False" Text="{Binding Key}" PlaceholderText="{Binding KeyPlaceholder}" />
+              <Button Classes="dkLink" Command="{Binding ShowSiteCommand}" IsVisible="{Binding HasSite}" HorizontalAlignment="Left">
+                <TextBlock><Run Text="Get a key: " /><Run Text="{Binding Site}" /></TextBlock>
+              </Button>
+              <CheckBox Content="Keep it in the system keyring" IsChecked="{Binding Keep}" IsVisible="{Binding CanKeep}" />
+              <TextBlock Text="Without a keyring, Karvon asks for it once a session." Classes="dkMuted" FontSize="11" IsVisible="{Binding !CanKeep}" />
+              <TextBlock Classes="dkMuted" FontSize="11" TextWrapping="Wrap"
+                         Text="The key goes to the service's event port with each tunnel, as jprq's own client sends it (without TLS)." />
+              <TextBlock Name="Problem" Text="{Binding Problem}" Foreground="#F14C4C" TextWrapping="Wrap" IsVisible="{Binding Problem, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+              <Grid ColumnDefinitions="Auto,*,Auto" Margin="0,6,0,0">
+                <Button Classes="dkOutline" Command="{Binding ForgetKeyCommand}" Content="Forget Key" IsVisible="{Binding HasKey}" />
+                <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8">
+                  <Button Classes="dkOutline" Command="{Binding CancelCommand}" Content="Cancel" IsCancel="True" />
+                  <Button Classes="dkPrimary" Command="{Binding ConfirmCommand}" Content="{Binding ConfirmText}" IsEnabled="{Binding CanConfirm}" IsDefault="True" />
+                </StackPanel>
+              </Grid>
+            </StackPanel>
+          </Border>
+        </DataTemplate>
+      </ContentControl.DataTemplates>
+    </ContentControl>
+  </Panel>
+</UserControl>

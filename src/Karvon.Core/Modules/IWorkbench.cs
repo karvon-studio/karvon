@@ -140,6 +140,15 @@ public interface IWorkbench
     /// <summary>A page in the desktop's browser.</summary>
     void OpenUrl(string url);
 
+    /// <summary>
+    /// Where the program Karvon runs (Ctrl+F5, F5, a folder's task) listens, as its output says it (http://localhost:5000);
+    /// empty when nothing runs.
+    /// </summary>
+    IReadOnlyList<string> ListeningUrls { get; }
+
+    /// <summary>The program started or stopped, or said another place it listens.</summary>
+    event Action? ListeningChanged;
+
     /// <summary>A line in the status bar.</summary>
     void Status(string text);
 

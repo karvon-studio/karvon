@@ -3,18 +3,19 @@ namespace Karvon.Claude;
 
 /// <summary>
 /// The tools Karvon gives Claude Code: the core's (the build, the tests, the debugger and the editor) and those of the modules
-/// that are on (the Database Explorer's data sources, the Docker engine's containers, the SSH servers, the Jira sites).
+/// that are on (the Database Explorer's data sources, the Docker engine's containers, the SSH servers, the Jira sites, the
+/// forwarded ports).
 /// </summary>
 public static class KarvonTools
 {
     const string Instructions =
         "Tools from Karvon, the IDE the user works in. They use Karvon's own build, Test Explorer, debugger and editor, the user's Database "
-        + "Explorer data sources, Docker engine, SSH servers and Jira sites, so you need no credentials, and they hide secrets. Prefer them to the "
-        + "shell (dotnet build, dotnet test, dotnet run, npm run build, npm test, psql, docker, ssh, curl to Jira's API) for what they cover: the user sees "
+        + "Explorer data sources, Docker engine, SSH servers, Jira sites and tunnel service (Ports), so you need no credentials, and they hide secrets. Prefer them to the "
+        + "shell (dotnet build, dotnet test, dotnet run, npm run build, npm test, psql, docker, ssh, curl to Jira's API, jprq, ngrok or cloudflared) for what they cover: the user sees "
         + "their results in Karvon; in a folder opened as it is, they run its tasks (tasks.json, package.json scripts) and its launch.json configurations. "
         + "To run the app, use app_control (or debug_control to debug it), never dotnet run, npm start or a background process in the shell, "
         + "also when a skill or a habit suggests one: Karvon runs it, shows its output and stops it. Reading, building, testing and "
-        + "stepping run at once; a change (SQL that writes, a restart, compose up, a removal, a command on a server, a Jira issue made, moved, commented or assigned, starting or "
+        + "stepping run at once; a change (SQL that writes, a restart, compose up, a removal, a command on a server, a Jira issue made, moved, commented or assigned, a port made public, starting or "
         + "stopping the app or the debugger) asks the user first unless they chose to bypass permissions, read-only data sources "
         + "refuse changes, and production servers ask for every command. When a call is refused or denied, do not retry it another "
         + "way: tell the user what you wanted to do.";
@@ -28,7 +29,8 @@ public static class KarvonTools
         "You run inside Karvon Studio, the IDE the user works in, which gives you its tools as mcp__karvon__*. Use them, not "
         + "Bash, for what they do: building, testing, running and debugging the workspace (run_build, run_tests, app_control, "
         + "debug_control), its databases (db_query and the other db_ tools), Docker (container_ tools), the user's SSH servers "
-        + "(server_exec, server_logs) and Jira (jira_ tools). They sign in with the user's own saved connections, so you need no "
+        + "(server_exec, server_logs), Jira (jira_ tools) and a local port at a public address (tunnel_open). They sign in with the "
+        + "user's own saved connections, so you need no "
         + "credentials, never read or ask for tokens or passwords for them, and the user sees what they do in Karvon. Use Bash for "
         + "the rest.";
 

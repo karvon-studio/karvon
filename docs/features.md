@@ -128,6 +128,22 @@ Claude Code's Jira tools work through Karvon's sign-in, so Claude never sees a t
 type by the project's id, its start and end in the site's date fields), `jira_transition` (by the transition's or the
 status's name, in the workflow's own language), `jira_comment` and `jira_assign`.
 
+## Ports (View > Ports)
+
+As Visual Studio Code's port forwarding: a local port at a public address through a jprq tunnel service (tulki.uz by
+default; another one by its config page or its event port, host:4321). HTTP is `https://name.domain` (the service's
+TLS in front of the plain local port; the name is your key's when you give none), TCP a host and port (SSH, a database,
+an HTTPS port as it is; a fixed public port where the service allows it). The window lists the forwarded ports (their
+address, protocol, visitors and state, with copy, open, stop and remove) and the ports the running program listens on
+(its "Now listening on" or a task's local URLs), one click to forward; nothing is forwarded by itself. A lost connection
+is made again, waiting longer each time. The service's API key stays in the system keyring (`ports.json` has the
+service only); jprq sends it to the service's event port as its own client does, without TLS. The solution keeps its
+forwarded ports, stopped; they stop when it closes.
+
+Claude Code's tools: `tunnel_list`, `tunnel_open` (asking you first: it makes the port public) and `tunnel_close`,
+through Karvon's own client, so Claude never sees the key. A `jprq`, `ngrok` or `cloudflared` tunnel in Bash is sent to
+them.
+
 ## MCP Servers (View > MCP Servers)
 
 The MCP servers of every agent's configuration in one tree, this folder's

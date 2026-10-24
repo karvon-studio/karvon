@@ -86,6 +86,7 @@ public partial class MainViewModel : ObservableObject
             Karvon.Claude.ClaudeLanguage.Instance.Language = Settings.UiLanguage;
         BuildOutput = new OutputChannel("Build");
         DebugOutput = new OutputChannel("Debug");
+        WatchListening();
         ServerOutput = new OutputChannel("Language Server");
         OutputChannels = [BuildOutput, DebugOutput, ServerOutput, GitOutput];
         SelectedOutput = BuildOutput;

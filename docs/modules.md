@@ -11,6 +11,8 @@ Each module is a project of its own, referencing `Karvon.Core`. The core referen
 - Docker Explorer (`src/Karvon.Docker`);
 - Servers (`src/Karvon.Servers`);
 - Jira (`src/Karvon.Jira`): Jira's REST API (Cloud's and Server's), its sites' secrets in the keyring, and Claude's Jira tools;
+- Ports (`src/Karvon.Ports`): port forwarding through a jprq tunnel service (its multiplexing protocol, gob and all, in C#),
+  a bottom tool window, the workbench's `ListeningUrls`, and Claude's tunnel tools;
 - MCP Servers (`src/Karvon.Mcp`);
 - Skills (`src/Karvon.Skills`, which uses MCP Servers);
 - TypeScript and JavaScript (`src/Karvon.TypeScript`): a workload, so the example of one: a language server, its
@@ -113,6 +115,8 @@ also matches null, so one added to the application would take over every empty p
 - the tool windows (and one beside Claude Code, so the conversation stays in view);
 - a pane of its own in the Output window;
 - the browser, the status bar, and a question with Yes and No;
+- where the program Karvon runs listens (`ListeningUrls`, from its output; `ListeningChanged` when it starts, stops or
+  says another);
 - Restart Language Server (a linter let into the folder, or no longer);
 - a command of its own run as the tasks run (`RunAsync`), and the Package Manager of one of its projects
   (`ManagePackagesAsync` with its `PackageSource`: the registry's search, a package's versions and details, the

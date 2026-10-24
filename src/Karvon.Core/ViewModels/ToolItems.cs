@@ -57,6 +57,9 @@ public sealed partial class OutputChannel : ObservableObject
 
     public event Action? Appended;
 
+    /// <summary>The text was emptied (a new run).</summary>
+    public event Action? Cleared;
+
     public void Append(string line)
     {
         if (Dispatcher.UIThread.CheckAccess())
@@ -116,6 +119,7 @@ public sealed partial class OutputChannel : ObservableObject
         _spans.Clear();
         _ansi.Reset();
         Document.Text = "";
+        Cleared?.Invoke();
     }
 
     public override string ToString() => Name;
