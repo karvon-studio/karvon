@@ -236,6 +236,7 @@ public partial class MainViewModel
         HasGit = false;
         GitBranch = GitSyncText = "";
         GitChangeCount = 0;
+        GitChanged?.Invoke();
         StagedChanges.Clear();
         UnstagedChanges.Clear();
         Branches.Clear();
@@ -293,6 +294,7 @@ public partial class MainViewModel
         GitBranch = primary?.Branch ?? "";
         GitSyncText = primary?.Status?.Branch.Upstream is null ? "" : $"↑{primary.Ahead} ↓{primary.Behind}";
         ShowGitScope();
+        GitChanged?.Invoke();
 
         // Working-tree status wins over the index for the badge, matching what the editor shows.
         _gitBadges = GitRepositories.SelectMany(r => r.Changes).OrderBy(c => c.Staged ? 0 : 1).GroupBy(c => c.Path)
@@ -492,8 +494,16 @@ public partial class MainViewModel
     }
 
     [RelayCommand(CanExecute = nameof(CanSync))]
-    Task Push() => InEachRepositoryAsync("Push", r => r.Status is { } status ? r.Repository.PushAsync(status.Branch, GitOutput.Append)
-        : Task.FromResult(new GitResult(0, "")));
+    Task Push() => InEachRepositoryAsync("Push", async r => r.Status is { } status ? Pushed(r, await r.Repository.PushAsync(status.Branch, GitOutput.Append))
+        : new GitResult(0, ""));
+
+    /// <summary>A push went through: the modules hear of it (its pipeline may start).</summary>
+    GitResult Pushed(GitRepoItem repository, GitResult push)
+    {
+        if (push.Success)
+            GitPushed?.Invoke(repository.Repository);
+        return push;
+    }
 
     /// <summary>Pull, then push, in each repository in scope (Git Changes' Sync).</summary>
     [RelayCommand(CanExecute = nameof(CanSync))]
@@ -503,7 +513,7 @@ public partial class MainViewModel
         await InEachRepositoryAsync("Sync", async r =>
         {
             var pull = await r.Repository.PullAsync(GitOutput.Append);
-            return pull.Success && r.Status is { } status ? await r.Repository.PushAsync(status.Branch, GitOutput.Append) : pull;
+            return pull.Success && r.Status is { } status ? Pushed(r, await r.Repository.PushAsync(status.Branch, GitOutput.Append)) : pull;
         });
         await AfterWorkingTreeChangedAsync();
     }

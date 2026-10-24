@@ -7,7 +7,7 @@ it does today all along.
 ## 0a. Module boundaries
 
 - The app splits into projects: `Karvon.Core` (editor, Explorer, Git, Terminal, Find, settings) and one project per
-  module (`Karvon.DotNet`, `Karvon.Database`, `Karvon.Docker`, `Karvon.Servers`, `Karvon.Jira`, `Karvon.Ports`, `Karvon.Claude`, `Karvon.Mcp`,
+  module (`Karvon.DotNet`, `Karvon.Database`, `Karvon.Docker`, `Karvon.Servers`, `Karvon.Jira`, `Karvon.Ports`, `Karvon.Pipelines`, `Karvon.Claude`, `Karvon.Mcp`,
   `Karvon.Skills`). Core cannot reference a module; the compiler keeps the boundaries.
 - A module contributes through one interface: tool windows, documents, menu and context menu items, commands, Claude
   tools, settings, Solution Explorer nodes.

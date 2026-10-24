@@ -42,7 +42,7 @@ public sealed class VsIcon : Control
         "Docker", "DockerContainer", "DockerStack", "DockerImage", "DockerVolume", "DockerNetwork", "DockerPlay", "DockerStop", "DockerRestart",
         "DockerPause", "DockerDelete", "DockerMore", "DockerLink", "DockerBack", "DockerTerminal", "DockerLogs", "DockerStats", "DockerInspect",
         "ToolExplorer", "ToolTests", "ToolGit", "ToolDatabase", "ToolErrors", "ToolOutput", "ToolFind", "ToolLocals", "ToolCallStack", "ToolTerminal",
-        "ToolServers", "ToolMcp", "ToolSkills", "ToolJira", "ToolPorts",
+        "ToolServers", "ToolMcp", "ToolSkills", "ToolJira", "ToolPorts", "ToolPipelines",
     ];
 
     public string? Kind
@@ -526,6 +526,10 @@ public sealed class VsIcon : Control
                 break;
             case "ToolServers":
                 Line(dc, "M4.5 3.5h15a1 1 0 0 1 1 1v5a1 1 0 0 1-1 1h-15a1 1 0 0 1-1-1v-5a1 1 0 0 1 1-1z M4.5 13.5h15a1 1 0 0 1 1 1v5a1 1 0 0 1-1 1h-15a1 1 0 0 1-1-1v-5a1 1 0 0 1 1-1z M7.5 7h.01 M7.5 17h.01 M11 7h6 M11 17h6", fg, 1.6);
+                break;
+            case "ToolPipelines":
+                // Jobs in a row, one after another, each a step of the run.
+                Line(dc, "M3.5 9.5h4v5h-4z M10 9.5h4v5h-4z M16.5 9.5h4v5h-4z M7.5 12h2.5 M14 12h2.5 M5.5 9.5v-3.5h13v3.5 M5.5 14.5v3.5h13v-3.5", fg, 1.6);
                 break;
             case "ToolPorts":
                 // A mast sending out: a port reached from outside.

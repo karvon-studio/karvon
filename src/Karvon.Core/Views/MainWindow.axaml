@@ -3,6 +3,7 @@
         xmlns:vm="using:Karvon.ViewModels"
         xmlns:ws="using:Karvon.Workspace"
         xmlns:v="using:Karvon.Views"
+        xmlns:mod="using:Karvon.Modules"
         xmlns:ae="https://github.com/avaloniaui/avaloniaedit"
         x:Class="Karvon.Views.MainWindow"
         x:DataType="vm:MainViewModel"
@@ -301,7 +302,7 @@
 
     <!-- ===== Status bar ===== -->
     <Border DockPanel.Dock="Bottom" Height="23" Background="{Binding Status, Converter={x:Static v:StatusBrushConverter.Instance}}">
-      <Grid ColumnDefinitions="*,Auto,Auto,Auto,Auto" Margin="8,0">
+      <Grid ColumnDefinitions="*,Auto,Auto,Auto,Auto,Auto" Margin="8,0">
         <TextBlock Text="{Binding StatusText}" VerticalAlignment="Center" Foreground="White" TextTrimming="CharacterEllipsis" />
         <TextBlock Grid.Column="1" Text="{Binding ServerStatus}" VerticalAlignment="Center" Foreground="White" Margin="0,0,24,0" />
         <TextBlock Grid.Column="2" Text="{Binding CaretText}" VerticalAlignment="Center" Foreground="White" MinWidth="120" Margin="0,0,16,0" />
@@ -313,7 +314,25 @@
             <TextBlock Text="{Binding UpdateBadge}" Foreground="White" VerticalAlignment="Center" />
           </StackPanel>
         </Button>
-        <StackPanel Grid.Column="4" Orientation="Horizontal" Spacing="2" IsVisible="{Binding HasGit}">
+        <!-- The modules' items (Pipelines: the branch's last run) -->
+        <ItemsControl Name="ModuleStatusItems" Grid.Column="4" ItemsSource="{Binding StatusItems}" Margin="0,0,6,0">
+          <ItemsControl.ItemsPanel>
+            <ItemsPanelTemplate>
+              <StackPanel Orientation="Horizontal" Spacing="2" />
+            </ItemsPanelTemplate>
+          </ItemsControl.ItemsPanel>
+          <ItemsControl.ItemTemplate>
+            <DataTemplate x:DataType="mod:ModuleStatusItem">
+              <Button Classes="tb" Padding="6,0" MinHeight="20" Command="{Binding ActivateCommand}" IsVisible="{Binding IsVisible}" ToolTip.Tip="{Binding ToolTip}">
+                <StackPanel Orientation="Horizontal" Spacing="5">
+                  <v:VsIcon Kind="{Binding Icon}" Width="13" Height="13" Foreground="White" IsVisible="{Binding HasIcon}" />
+                  <TextBlock Text="{Binding Text}" Foreground="White" VerticalAlignment="Center" />
+                </StackPanel>
+              </Button>
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+        <StackPanel Grid.Column="5" Orientation="Horizontal" Spacing="2" IsVisible="{Binding HasGit}">
           <Button Classes="tb" Padding="6,0" MinHeight="20" Command="{Binding ShowGitChangesCommand}" ToolTip.Tip="Pending changes">
             <StackPanel Orientation="Horizontal" Spacing="4">
               <v:VsIcon Kind="Pencil" Width="13" Height="13" Foreground="White" />

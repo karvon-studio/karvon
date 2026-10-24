@@ -50,6 +50,7 @@ src/Karvon.Docker/      module: the Docker Explorer
 src/Karvon.Servers/     module: SSH servers
 src/Karvon.Jira/        module: Jira Cloud, Server and Data Center sites, their issues and boards, Claude's Jira tools
 src/Karvon.Ports/       module: Ports (port forwarding through a jprq tunnel service), Claude's tunnel tools
+src/Karvon.Pipelines/   module: Pipelines (GitHub Actions and GitLab CI runs, jobs and logs), Claude's pipeline tools
 src/Karvon.Mcp/         module: MCP Servers
 src/Karvon.Skills/      module: Skills (uses Karvon.Mcp)
 src/Karvon.DotNet/      module: .NET (solutions and projects, Roslyn, netcoredbg, dotnet build, the SDK's templates, NuGet, vstest)

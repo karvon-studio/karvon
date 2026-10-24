@@ -13,6 +13,8 @@ Each module is a project of its own, referencing `Karvon.Core`. The core referen
 - Jira (`src/Karvon.Jira`): Jira's REST API (Cloud's and Server's), its sites' secrets in the keyring, and Claude's Jira tools;
 - Ports (`src/Karvon.Ports`): port forwarding through a jprq tunnel service (its multiplexing protocol, gob and all, in C#),
   a bottom tool window, the workbench's `ListeningUrls`, and Claude's tunnel tools;
+- Pipelines (`src/Karvon.Pipelines`): GitHub Actions (through gh) and GitLab CI, a run's page, a status bar item, and
+  Claude's pipeline tools;
 - MCP Servers (`src/Karvon.Mcp`);
 - Skills (`src/Karvon.Skills`, which uses MCP Servers);
 - TypeScript and JavaScript (`src/Karvon.TypeScript`): a workload, so the example of one: a language server, its
@@ -85,6 +87,7 @@ application's project references.
 | `ItemTemplates` | Its Add New Item templates (`ItemTemplate`: C#'s class, interface...), before those that are no language's (a text file, JSON, Markdown). Its first is what Add New Item suggests in a project. |
 | `Debuggers` | The debuggers it brings (`DebuggerInfo`: the launch configuration types it debugs, and how its `DebugAdapter` starts: a program on stdin and stdout, or a DAP server whose child sessions are connections of their own). F5 starts the one of the chosen launch configuration's type, with the configuration (its variables put in), which it may complete; `PrepareAsync` asks first what a start needs (a certificate trusted), and `RunWithoutDebuggingAsync` is the program Ctrl+F5 runs for a configuration, when that is no debugger's noDebug (dotnet run). A task it debugs carries its `DebugLaunch` in `WorkspaceTask.Debug`. A launch configuration's `serverReadyAction` opens the browser once the program listens. netcoredbg is the .NET module's, for `coreclr` and `dotnet` (a project and its launch profile, as F5 starts a solution's startup project). |
 | `ClaudeTools()` | The tools it gives the Claude Code sessions Karvon starts (`mcp__karvon__*`). A module that is off gives none. |
+| `StatusItem` | Its item in the status bar, before Git's (`ModuleStatusItem`: an icon, a few words, a tooltip, what a click does; hidden until `IsVisible`). |
 | `ClaudeShellRules()` | The shell commands its tools do (`ClaudeShellRule.Command(name, pattern, use)`: a command at the start of the line or after `;`, `&&`, `\|`, sudo or `VAR=value`; or a test of its own, as the Servers' ssh to a known machine). A session's Bash call of one is denied once, `use` its reason: which tool to use. |
 | `ShowClaudeToolAsync` | One of its tools ran: show what it did where the user would have done it (a container's logs on its page). |
 | `Started()` | Runs once Karvon has started with the module on: subscribe to the workbench here. |
@@ -117,6 +120,8 @@ also matches null, so one added to the application would take over every empty p
 - the browser, the status bar, and a question with Yes and No;
 - where the program Karvon runs listens (`ListeningUrls`, from its output; `ListeningChanged` when it starts, stops or
   says another);
+- the solution's Git repositories and their branches (`Repositories`), `GitChanged` when Git's state is read again, and
+  `GitPushed` after a push of Karvon's;
 - Restart Language Server (a linter let into the folder, or no longer);
 - a command of its own run as the tasks run (`RunAsync`), and the Package Manager of one of its projects
   (`ManagePackagesAsync` with its `PackageSource`: the registry's search, a package's versions and details, the

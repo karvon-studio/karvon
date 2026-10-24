@@ -1,0 +1,103 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:v="using:Karvon.Views"
+             xmlns:ae="https://github.com/avaloniaui/avaloniaedit"
+             xmlns:pvm="using:Karvon.Pipelines.ViewModels"
+             x:Class="Karvon.Pipelines.Views.PipelinePageView"
+             x:DataType="pvm:PipelinePageViewModel">
+  <UserControl.Styles>
+    <StyleInclude Source="avares://Karvon.Core/Themes/ExplorerStyles.axaml" />
+    <Style Selector="ListBox#JobList ListBoxItem">
+      <Setter Property="Padding" Value="10,4" />
+    </Style>
+    <Style Selector="Grid.job Button.tbi">
+      <Setter Property="Opacity" Value="0" />
+    </Style>
+    <Style Selector="ListBoxItem:pointerover Grid.job Button.tbi, ListBoxItem:selected Grid.job Button.tbi">
+      <Setter Property="Opacity" Value="1" />
+    </Style>
+    <Style Selector="Grid.job Button.tbi v|VsIcon">
+      <Setter Property="Width" Value="12" />
+      <Setter Property="Height" Value="12" />
+    </Style>
+  </UserControl.Styles>
+
+  <DockPanel Background="{StaticResource VsToolWindowBrush}">
+    <!-- The run: its state, commit, and what can be done with it -->
+    <Border DockPanel.Dock="Top" Padding="20,14,20,10" BorderBrush="{StaticResource VsBorderBrush}" BorderThickness="0,0,0,1">
+      <StackPanel Spacing="8">
+        <StackPanel Orientation="Horizontal" Spacing="10">
+          <v:VsIcon Kind="{Binding Icon}" Width="20" Height="20" VerticalAlignment="Center" />
+          <SelectableTextBlock Name="Heading" Text="{Binding Heading}" FontSize="19" VerticalAlignment="Center" TextWrapping="Wrap" />
+        </StackPanel>
+        <TextBlock Name="Facts" Text="{Binding Facts}" Classes="dkMuted" TextWrapping="Wrap" />
+        <WrapPanel Orientation="Horizontal">
+          <Border Classes="pill" Classes.green="{Binding IsPassed}" Classes.red="{Binding IsFailed}" Classes.blue="{Binding IsActive}" Margin="0,0,8,6">
+            <TextBlock Name="StatusPill" Text="{Binding StatusText}" />
+          </Border>
+          <Button Classes="dkPrimary" Content="Re-run Failed Jobs" Command="{Binding RetryFailedCommand}" IsVisible="{Binding IsFailed}" Margin="0,0,6,6" />
+          <Button Classes="dkOutline" Content="Re-run All Jobs" Command="{Binding RetryAllCommand}" IsVisible="{Binding CanRetry}" Margin="0,0,6,6" />
+          <Button Classes="dkOutline" Content="Cancel" Command="{Binding CancelCommand}" IsVisible="{Binding IsActive}" Margin="0,0,6,6" />
+          <Button Classes="dkOutline" Content="Open in Browser" Command="{Binding OpenInBrowserCommand}" Margin="0,0,6,6" />
+          <Button Classes="dkOutline" Command="{Binding AskClaudeCommand}" IsVisible="{Binding IsFailed}" Margin="0,0,6,6"
+                  ToolTip.Tip="The failed run as Claude Code's task: it reads the log with its pipeline tools">
+            <StackPanel Orientation="Horizontal" Spacing="6">
+              <v:VsIcon Kind="Claude" Width="14" Height="14" />
+              <TextBlock Text="Ask Claude to Fix" />
+            </StackPanel>
+          </Button>
+          <Button Classes="tbi" Command="{Binding RefreshCommand}" ToolTip.Tip="Refresh" Margin="0,0,6,6"><v:VsIcon Kind="Refresh" /></Button>
+          <ProgressBar IsIndeterminate="True" IsVisible="{Binding IsBusy}" Width="80" Height="3" MinWidth="0" VerticalAlignment="Center" Margin="0,0,0,6" />
+        </WrapPanel>
+        <TextBlock Name="Error" Text="{Binding Error}" Foreground="#F14C4C" TextWrapping="Wrap" IsVisible="{Binding Error, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+      </StackPanel>
+    </Border>
+
+    <!-- Its jobs (by stage on GitLab) -->
+    <Border DockPanel.Dock="Left" Width="300" BorderBrush="{StaticResource VsBorderBrush}" BorderThickness="0,0,1,0">
+      <ListBox Name="JobList" ItemsSource="{Binding Jobs}" SelectedItem="{Binding SelectedJob}" Background="Transparent">
+        <ListBox.ItemTemplate>
+          <DataTemplate x:DataType="pvm:JobRow">
+            <StackPanel>
+              <TextBlock Text="{Binding Stage}" IsVisible="{Binding ShowsStage}" Classes="dkMuted" FontSize="11" FontWeight="SemiBold" Margin="0,6,0,4" />
+              <Grid Classes="job" ColumnDefinitions="Auto,*,Auto,Auto" ToolTip.Tip="{Binding StatusText}">
+                <v:VsIcon Kind="{Binding Icon}" Width="14" Height="14" Margin="0,0,8,0" VerticalAlignment="Center" />
+                <TextBlock Grid.Column="1" Text="{Binding Name}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+                <TextBlock Grid.Column="2" Text="{Binding Duration}" Classes="dkMuted" FontSize="11" Margin="6,0" VerticalAlignment="Center" />
+                <Button Grid.Column="3" Classes="tbi" Command="{Binding $parent[UserControl].((pvm:PipelinePageViewModel)DataContext).RetryJobCommand}" CommandParameter="{Binding}"
+                        IsVisible="{Binding CanRetry}" ToolTip.Tip="Re-run This Job"><v:VsIcon Kind="Restart" /></Button>
+                <Button Grid.Column="3" Classes="tbi" Command="{Binding $parent[UserControl].((pvm:PipelinePageViewModel)DataContext).RetryJobCommand}" CommandParameter="{Binding}"
+                        IsVisible="{Binding CanPlay}" ToolTip.Tip="Start This Manual Job"><v:VsIcon Kind="DockerPlay" /></Button>
+              </Grid>
+            </StackPanel>
+          </DataTemplate>
+        </ListBox.ItemTemplate>
+      </ListBox>
+    </Border>
+
+    <!-- The job: its steps (GitHub's), its log -->
+    <DockPanel Margin="16,12">
+      <DockPanel DockPanel.Dock="Top" Margin="0,0,0,8" IsVisible="{Binding HasJob}">
+        <Button DockPanel.Dock="Right" Classes="dkLink" Content="Open Job in Browser" Command="{Binding OpenJobInBrowserCommand}" CommandParameter="{Binding SelectedJob}" />
+        <TextBlock Name="JobTitle" Text="{Binding SelectedJob.Name, FallbackValue=''}" FontWeight="SemiBold" FontSize="14" VerticalAlignment="Center" />
+      </DockPanel>
+      <ItemsControl Name="Steps" DockPanel.Dock="Top" ItemsSource="{Binding SelectedJob.Steps, FallbackValue={x:Null}}" IsVisible="{Binding HasSteps}" Margin="0,0,0,10">
+        <ItemsControl.ItemTemplate>
+          <DataTemplate x:DataType="pvm:StepRow">
+            <Grid ColumnDefinitions="Auto,*,Auto" Height="22">
+              <v:VsIcon Kind="{Binding Icon}" Width="13" Height="13" Margin="0,0,8,0" VerticalAlignment="Center" />
+              <TextBlock Grid.Column="1" Text="{Binding Name}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+              <TextBlock Grid.Column="2" Text="{Binding Duration}" Classes="dkMuted" FontSize="11" VerticalAlignment="Center" />
+            </Grid>
+          </DataTemplate>
+        </ItemsControl.ItemTemplate>
+      </ItemsControl>
+      <TextBlock DockPanel.Dock="Top" Name="LogNote" Text="{Binding LogNote}" Classes="dkMuted" TextWrapping="Wrap" Margin="0,0,0,8"
+                 IsVisible="{Binding LogNote, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+      <Border BorderBrush="#3F3F46" BorderThickness="1" CornerRadius="6" ClipToBounds="True">
+        <ae:TextEditor Name="LogEditor" FontFamily="{StaticResource VsCodeFont}" FontSize="12" Background="#181818" Foreground="#D4D4D4"
+                       Padding="10,6" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto" WordWrap="False" />
+      </Border>
+    </DockPanel>
+  </DockPanel>
+</UserControl>

@@ -157,6 +157,9 @@ public abstract partial class KarvonModule : ObservableObject, IDisposable, IAsy
     /// <summary>The Material icon that stands for it (its workload's card in the installer: "csharp", "docker"); none by default.</summary>
     public virtual string? Icon => null;
 
+    /// <summary>Its item in the status bar, or none (see <see cref="ModuleStatusItem"/>).</summary>
+    public virtual ModuleStatusItem? StatusItem => null;
+
     public virtual IReadOnlyList<ToolWindowInfo> ToolWindows => [];
 
     /// <summary>How its documents look in the document well: a template for each of its document types.</summary>

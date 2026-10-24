@@ -182,6 +182,27 @@ public sealed class GitRepository
             ? await RunAsync(Root, ["push", "--set-upstream", "origin", name], output: output)
             : await RunAsync(Root, ["push"], output: output);
 
+    /// <summary>A remote's URL as git has it, or null. It may carry a credential: never show it as it is.</summary>
+    public async Task<string?> RemoteUrlAsync(string remote = "origin")
+    {
+        var result = await RunAsync(Root, ["remote", "get-url", remote]);
+        return result.Success && result.Output.Trim() is { Length: > 0 } url ? url : null;
+    }
+
+    /// <summary>The subjects of commits by their hashes (those the repository has; the others are not in it).</summary>
+    public async Task<IReadOnlyDictionary<string, string>> SubjectsAsync(IEnumerable<string> hashes)
+    {
+        var list = hashes.Where(h => h.Length >= 7 && h.All(char.IsAsciiHexDigit)).Distinct().ToList();
+        if (list.Count == 0)
+            return new Dictionary<string, string>();
+        var result = await RunAsync(Root, ["log", "--no-walk=unsorted", "--ignore-missing", "--format=%H%x09%s", .. list]);
+        var subjects = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var line in result.Output.Split('\n', StringSplitOptions.RemoveEmptyEntries))
+            if (line.Split('\t', 2) is [var hash, var subject])
+                subjects[hash.Trim()] = subject.TrimEnd('\r');
+        return subjects;
+    }
+
     public async Task<IReadOnlyList<string>> BranchesAsync()
     {
         var result = await RunAsync(Root, ["for-each-ref", "--format=%(refname:short)", "refs/heads"]);

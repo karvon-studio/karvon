@@ -144,6 +144,21 @@ Claude Code's tools: `tunnel_list`, `tunnel_open` (asking you first: it makes th
 through Karvon's own client, so Claude never sees the key. A `jprq`, `ngrok` or `cloudflared` tunnel in Bash is sent to
 them.
 
+## Pipelines (View > Pipelines)
+
+The open repository's CI, as it goes: GitHub Actions' workflow runs (read through your own `gh`, signed in; without
+it, a token with the repo and workflow scopes) and GitLab CI's pipelines (gitlab.com's or your company's, found by the
+remote; a personal access token, read_api to watch, api to retry and cancel). Tokens stay in the system keyring. The
+window lists the checked-out branch's runs (or every branch's), read again every 10 s while one runs and every minute
+else, and right after a push; the branch's latest run is in the status bar, and a run that finishes says so. A run
+opens as a page: its state, commit, branch, who and how long; its jobs (by stage on GitLab), a job's steps (GitHub's)
+and log, colored (GitLab's as it runs, GitHub's once the job is done); Re-run failed jobs, Re-run all, Cancel, a job
+again or a manual one started, Open in browser, and Ask Claude to fix a failed run. Nothing is read before a sign-in.
+
+Claude Code's tools: `pipeline_list`, `pipeline_jobs`, `pipeline_log` (the end of a job's log, the failed one's by
+default), and, each asking you first, `pipeline_retry` and `pipeline_cancel`. `gh run`, `glab ci` and GitLab's
+pipelines API by curl in Bash are sent to them.
+
 ## MCP Servers (View > MCP Servers)
 
 The MCP servers of every agent's configuration in one tree, this folder's

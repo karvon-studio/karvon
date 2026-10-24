@@ -17,6 +17,9 @@ public partial class MainViewModel : IWorkbench
     /// <summary>The modules that are on, started.</summary>
     public IReadOnlyList<KarvonModule> Modules { get; private set; } = [];
 
+    /// <summary>The modules' items in the status bar.</summary>
+    public IReadOnlyList<ModuleStatusItem> StatusItems { get; private set; } = [];
+
     /// <summary>A module that is on.</summary>
     public T? Module<T>() where T : KarvonModule => Modules.OfType<T>().FirstOrDefault();
 
@@ -28,6 +31,7 @@ public partial class MainViewModel : IWorkbench
         Modules = [.. AllModules.Where(m => !Settings.DisabledModules.Contains(m.Id))];
         foreach (var module in Modules)
             module.Start(this);
+        StatusItems = [.. Modules.Select(m => m.StatusItem).OfType<ModuleStatusItem>()];
         RegisterModuleLanguageServers();
     }
 
@@ -269,6 +273,12 @@ public partial class MainViewModel : IWorkbench
     void IWorkbench.Status(string text) => SetStatus(text);
 
     T? IWorkbench.Service<T>() where T : class => Modules.OfType<T>().FirstOrDefault();
+
+    IReadOnlyList<GitRepositoryState> IWorkbench.Repositories => [.. GitRepositories.Select(r => new GitRepositoryState(r.Repository, r.Status?.Branch.Branch))];
+
+    public event Action? GitChanged;
+
+    public event Action<Git.GitRepository>? GitPushed;
 
     IReadOnlyDictionary<string, string> IWorkbench.WorkspaceState => _state.Modules;
 

@@ -149,12 +149,24 @@ public interface IWorkbench
     /// <summary>The program started or stopped, or said another place it listens.</summary>
     event Action? ListeningChanged;
 
+    /// <summary>The open solution's Git repositories (a folder may hold several) and their branches; none without Git.</summary>
+    IReadOnlyList<GitRepositoryState> Repositories { get; }
+
+    /// <summary>Git's state was read again (a branch switched, a commit, a solution opened or closed).</summary>
+    event Action? GitChanged;
+
+    /// <summary>A push of Karvon's went through (Git Changes' Push or Sync).</summary>
+    event Action<Git.GitRepository>? GitPushed;
+
     /// <summary>A line in the status bar.</summary>
     void Status(string text);
 
     /// <summary>What Karvon or another module offers (<see cref="IClaudeService"/>), or null when it is off.</summary>
     T? Service<T>() where T : class;
 }
+
+/// <summary>A Git repository of the solution's, and the branch it is on (null when its HEAD is detached).</summary>
+public sealed record GitRepositoryState(Git.GitRepository Repository, string? Branch);
 
 /// <summary>The editor in front: its file and, when something is selected, the lines and the text.</summary>
 public sealed record EditorSelection(string FilePath, int? StartLine, int? EndLine, string? Text);

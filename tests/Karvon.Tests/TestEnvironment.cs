@@ -41,6 +41,8 @@ static class TestEnvironment
         if (Environment.GetEnvironmentVariable("RestoreConfigFile") is null)
             Environment.SetEnvironmentVariable("RestoreConfigFile", Path.Combine(AppContext.BaseDirectory, "TestAssets", "BlazorSample", "nuget.config"));
         Environment.SetEnvironmentVariable("BENGINE_KEYRING", "off");
+        // The Pipelines never read GitHub through the user's own gh.
+        Environment.SetEnvironmentVariable("KARVON_GH_PATH", "off");
         // Karvon Studio's releases are never read from GitHub: a feed of the tests' own, with none.
         if (Environment.GetEnvironmentVariable("KARVON_UPDATE_FEED") is null)
         {
