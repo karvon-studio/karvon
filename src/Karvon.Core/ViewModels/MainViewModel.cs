@@ -454,6 +454,7 @@ public partial class MainViewModel : ObservableObject
             }
             existing = new DocumentViewModel(host);
             Wire(existing);
+            host.Pane = Modules.Select(m => m.EditorPane(host)).FirstOrDefault(p => p is not null);
             host.AttachBreakpoints(Breakpoints);
             _ = RefreshGitBaselineAsync(existing);
             if (Mode == DebugMode.Break)

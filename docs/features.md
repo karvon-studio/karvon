@@ -185,6 +185,21 @@ the keyring for a GitLab (the same one).
 Claude gets `pr_list`, `pr_view` and `pr_diff`, and, asking you, `pr_create`, `pr_comment`, `pr_review` and
 `pr_merge`; `gh pr` and `glab mr` in Bash are sent to them.
 
+## HTTP Client (.http files, View > Endpoints Explorer)
+
+Visual Studio's HTTP editor: a `.http` file's requests (between `###` lines: a method and URL, `?` and `&` query lines,
+headers, a body) sent from the editor, ▶ beside each or **Send Request** for the one at the caret; the response beside
+the file (status, time, size; the body highlighted, JSON indented; its headers; the request as it went out, its
+variables put in) and the file's earlier responses. Variables: `@name = value`, `http-client.env.json`'s environments
+(`$shared`, and the `.user` file's own values over them; one chosen in the pane), `# @name login` and
+`{{login.response.body.$.token}}`, `{{$guid}}`, `{{$randomInt}}`, `{{$timestamp}}`, `{{$datetime}}`,
+`{{$processEnv}}`, `{{$dotenv}}`. A development server's own certificate is taken (https://localhost).
+The **Endpoints Explorer** lists the solution's ASP.NET Core endpoints by project (controllers' actions with their
+routes, minimal APIs' `MapGet`... after their `MapGroup`s, `@page`s), read again when a source is saved; one opens where
+it is written or, with **Generate Request**, goes into its project's `.http` file (its host address from
+`launchSettings.json`). Claude gets `http_endpoints` and `http_send` (a file's request with its environment, or one of
+its own; to localhost at once, elsewhere asking you).
+
 ## Kubernetes (View > Kubernetes)
 
 Your clusters through your own `kubectl` and kubeconfig (its auth plugins and all); Karvon names the context in every

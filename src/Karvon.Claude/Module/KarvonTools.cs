@@ -4,7 +4,7 @@ namespace Karvon.Claude;
 /// <summary>
 /// The tools Karvon gives Claude Code: the core's (the build, the tests, the debugger and the editor) and those of the modules
 /// that are on (the Database Explorer's data sources, the Docker engine's containers, the SSH servers, the Jira sites, the
-/// forwarded ports, the repository's CI and its pull requests, the user's Kubernetes clusters).
+/// forwarded ports, the repository's CI and its pull requests, the user's Kubernetes clusters, the solution's HTTP endpoints).
 /// </summary>
 public static class KarvonTools
 {
@@ -31,7 +31,7 @@ public static class KarvonTools
         + "Bash, for what they do: building, testing, running and debugging the workspace (run_build, run_tests, app_control, "
         + "debug_control), its databases (db_query and the other db_ tools), Docker (container_ tools), the user's SSH servers "
         + "(server_exec, server_logs), Jira (jira_ tools), a local port at a public address (tunnel_open), the repository's CI "
-        + "runs and their logs (pipeline_ tools) its pull requests (pr_ tools) and the user's Kubernetes clusters (k8s_ tools). They sign in with the "
+        + "runs and their logs (pipeline_ tools) its pull requests (pr_ tools), the user's Kubernetes clusters (k8s_ tools) and HTTP requests to the app (http_send, http_endpoints). They sign in with the "
         + "user's own saved connections, so you need no "
         + "credentials, never read or ask for tokens or passwords for them, and the user sees what they do in Karvon. Use Bash for "
         + "the rest.";

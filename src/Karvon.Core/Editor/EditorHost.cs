@@ -10,6 +10,7 @@ using Avalonia.Threading;
 using AvaloniaEdit;
 using AvaloniaEdit.CodeCompletion;
 using AvaloniaEdit.Document;
+using AvaloniaEdit.Editing;
 using AvaloniaEdit.Folding;
 using AvaloniaEdit.Rendering;
 using AvaloniaEdit.TextMate;
@@ -170,6 +171,25 @@ public sealed partial class EditorHost : IDisposable, IDebugLineSource
     public event Action? AskClaudeRequested;
 
     public bool HasGitBaseline => _gitBaseline is not null;
+
+    /// <summary>A module's pane beside the editor (see <see cref="EditorPane"/>), set by the workbench when the file opens.</summary>
+    public EditorPane? Pane { get; set; }
+
+    readonly List<Func<AbstractMargin>> _margins = [];
+
+    /// <summary>A margin of a module's, left of the others, in each pane of the editor (and the second one after a split).</summary>
+    public void AddMargin(Func<AbstractMargin> make)
+    {
+        _margins.Add(make);
+        foreach (var view in Views)
+            view.TextArea.LeftMargins.Insert(0, make());
+    }
+
+    void AddModuleMargins(TextEditor view)
+    {
+        foreach (var make in _margins)
+            view.TextArea.LeftMargins.Insert(0, make());
+    }
     public event Action? CaretMoved;
     public event Action? DiagnosticsChanged;
     public event Action<IReadOnlyList<LspLocation>>? DefinitionsFound;
@@ -1269,6 +1289,7 @@ public sealed partial class EditorHost : IDisposable, IDebugLineSource
         _linters.Clear();
         _semanticCts?.Cancel();
         _textMate?.Dispose();
+        Pane?.Dispose();
         RemoveSplit();
         _gitTimer?.Stop();
         if (_breakpoints is not null)

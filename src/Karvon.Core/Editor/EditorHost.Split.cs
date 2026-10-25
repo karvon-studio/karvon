@@ -52,6 +52,7 @@ public sealed partial class EditorHost
         AddGitMargin(second);
         AddDebugAdornments(second);
         AddBlameMargin(second);
+        AddModuleMargins(second);
         ApplyOutlines(Outlining.Scan(Document, FilePath));
         if (_lsp is not null)
             ScheduleOutlining(0);

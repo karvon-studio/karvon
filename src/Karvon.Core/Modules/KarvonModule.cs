@@ -265,6 +265,12 @@ public abstract partial class KarvonModule : ObservableObject, IDisposable, IAsy
     public virtual IReadOnlyList<DebuggerInfo> Debuggers => [];
 
     /// <summary>The tools it gives the Claude Code sessions Karvon starts (mcp__karvon__*): new ones for each session.</summary>
+    /// <summary>
+    /// A pane of its own beside the editor of a file it takes (null for the others), as the HTTP client's response is
+    /// beside a .http file; it may add margins to the editor too (<see cref="Editor.EditorHost.AddMargin"/>).
+    /// </summary>
+    public virtual Editor.EditorPane? EditorPane(Editor.EditorHost host) => null;
+
     public virtual IEnumerable<IClaudeTool> ClaudeTools() => [];
 
     /// <summary>The shell commands its tools do: Claude is sent to the tools instead (see <see cref="ClaudeShellRule"/>).</summary>

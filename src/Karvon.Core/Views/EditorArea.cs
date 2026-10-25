@@ -23,6 +23,7 @@ public sealed class EditorArea : DockPanel
     readonly ControlPresenter _editor = new();
     readonly GridSplitter _splitter = new() { Background = new SolidColorBrush(Color.Parse("#3F3F46")) };
     readonly MarkdownPreview _preview = new();
+    readonly ControlPresenter _pane = new();
     readonly Grid _panes = new();
     readonly Border _toolbar;
     readonly VsIcon _previewIcon = new() { Kind = "Eye" };
@@ -54,6 +55,7 @@ public sealed class EditorArea : DockPanel
         _panes.Children.Add(_editor);
         _panes.Children.Add(_splitter);
         _panes.Children.Add(_preview);
+        _panes.Children.Add(_pane);
         Children.Add(_panes);
         ArrangePanes();
     }
@@ -121,14 +123,27 @@ public sealed class EditorArea : DockPanel
         _positionIcon.Kind = PreviewBelow ? "PreviewRight" : "PreviewBelow";
         ToolTip.SetTip(_positionButton, PreviewBelow ? "Show the preview to the right" : "Show the preview below");
         _preview.Host = show ? host : null;
-        _splitter.IsVisible = _preview.IsVisible = show;
+        _preview.IsVisible = show;
+        // A module's pane, to the right (the HTTP client's response).
+        var pane = markdown ? null : host?.Pane?.View;
+        _pane.Control = pane;
+        _pane.IsVisible = pane is not null;
+        _splitter.IsVisible = show || pane is not null;
 
         _panes.RowDefinitions.Clear();
         _panes.ColumnDefinitions.Clear();
-        foreach (var control in new Control[] { _editor, _splitter, _preview })
+        foreach (var control in new Control[] { _editor, _splitter, _preview, _pane })
         {
             Grid.SetRow(control, 0);
             Grid.SetColumn(control, 0);
+        }
+        if (pane is not null)
+        {
+            _panes.ColumnDefinitions = new ColumnDefinitions("*,4,*");
+            _splitter.ResizeDirection = GridResizeDirection.Columns;
+            Grid.SetColumn(_splitter, 1);
+            Grid.SetColumn(_pane, 2);
+            return;
         }
         if (!show)
             return;

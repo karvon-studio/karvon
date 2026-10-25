@@ -1,0 +1,58 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:v="using:Karvon.Views"
+             xmlns:hvm="using:Karvon.Http.ViewModels"
+             x:Class="Karvon.Http.Views.EndpointsView"
+             x:DataType="hvm:EndpointsViewModel">
+  <UserControl.Styles>
+    <StyleInclude Source="avares://Karvon.Core/Themes/ExplorerStyles.axaml" />
+    <Style Selector="TreeView#Tree TreeViewItem" x:DataType="hvm:EndpointGroup">
+      <Setter Property="IsExpanded" Value="{Binding IsExpanded, Mode=TwoWay}" />
+    </Style>
+    <Style Selector="TreeView#Tree TreeViewItem /template/ ContentPresenter#PART_HeaderPresenter">
+      <Setter Property="HorizontalAlignment" Value="Stretch" />
+      <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+    </Style>
+  </UserControl.Styles>
+
+  <DockPanel>
+    <Border DockPanel.Dock="Top" Background="{StaticResource VsEnvironmentBrush}">
+      <TextBlock Classes="toolTitle" Text="Endpoints Explorer" />
+    </Border>
+    <DockPanel DockPanel.Dock="Top" Margin="4,2">
+      <Button DockPanel.Dock="Left" Name="RefreshButton" Classes="tbi" Command="{Binding RefreshCommand}" ToolTip.Tip="Refresh"><v:VsIcon Kind="Refresh" /></Button>
+      <TextBox Name="FilterBox" Classes="dkField" Text="{Binding Filter}" PlaceholderText="Filter by route or method" Margin="4,0,0,0" />
+    </DockPanel>
+    <ProgressBar DockPanel.Dock="Top" IsIndeterminate="True" IsVisible="{Binding IsBusy}" Height="2" MinHeight="0" Margin="6,0" />
+    <TextBlock DockPanel.Dock="Top" Name="Message" Text="{Binding Message}" Classes="dkMuted" TextWrapping="Wrap" Margin="12,8"
+               IsVisible="{Binding Message, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+    <TreeView Name="Tree" ItemsSource="{Binding Groups}" Background="Transparent" ScrollViewer.HorizontalScrollBarVisibility="Disabled" DoubleTapped="OnDoubleTapped">
+      <TreeView.DataTemplates>
+        <TreeDataTemplate DataType="hvm:EndpointGroup" ItemsSource="{Binding Items}">
+          <StackPanel Orientation="Horizontal" Spacing="6" Height="22">
+            <v:VsIcon Kind="Project" Width="14" Height="14" />
+            <TextBlock Text="{Binding Title}" FontWeight="SemiBold" VerticalAlignment="Center" />
+          </StackPanel>
+        </TreeDataTemplate>
+        <DataTemplate DataType="hvm:EndpointRow">
+          <Grid ColumnDefinitions="56,*,Auto" ToolTip.Tip="{Binding Where}" Background="Transparent" MinHeight="22">
+            <Grid.ContextMenu>
+              <ContextMenu>
+                <MenuItem Header="Generate Request" Command="{Binding $parent[UserControl].((hvm:EndpointsViewModel)DataContext).GenerateRequestCommand}" CommandParameter="{Binding}" />
+                <MenuItem Header="Go To Source" Command="{Binding $parent[UserControl].((hvm:EndpointsViewModel)DataContext).OpenCommand}" CommandParameter="{Binding}" />
+              </ContextMenu>
+            </Grid.ContextMenu>
+            <TextBlock Text="{Binding Method}" FontWeight="SemiBold" FontSize="11" VerticalAlignment="Center"
+                       Foreground="{Binding Method, Converter={x:Static hvm:HttpConverters.MethodBrush}}" />
+            <StackPanel Grid.Column="1">
+              <TextBlock Text="{Binding Path}" TextTrimming="CharacterEllipsis" />
+              <TextBlock Text="{Binding Where}" Classes="dkMuted" FontSize="11" TextTrimming="CharacterEllipsis" />
+            </StackPanel>
+            <Button Grid.Column="2" Classes="tbi" Command="{Binding $parent[UserControl].((hvm:EndpointsViewModel)DataContext).GenerateRequestCommand}" CommandParameter="{Binding}"
+                    ToolTip.Tip="Generate Request (in the project's .http file)"><v:VsIcon Kind="Send" Width="12" Height="12" /></Button>
+          </Grid>
+        </DataTemplate>
+      </TreeView.DataTemplates>
+    </TreeView>
+  </DockPanel>
+</UserControl>

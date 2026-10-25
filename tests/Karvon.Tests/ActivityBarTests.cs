@@ -156,7 +156,7 @@ public class ActivityBarTests
 
         // Reset Window Layout: every tab back in its place, in the first order.
         window.ResetWindowLayout();
-        Assert.Equal([ToolWindows.SolutionExplorer, ToolWindows.TestExplorer, ToolWindows.GitChanges, Karvon.Database.DatabaseModule.ToolWindowId, Karvon.Docker.DockerModule.ToolWindowId, Karvon.Servers.ServersModule.ToolWindowId, Karvon.Jira.JiraModule.ToolWindowId, Karvon.Pipelines.PipelinesModule.ToolWindowId, Karvon.PullRequests.PullRequestsModule.ToolWindowId, Karvon.Kubernetes.KubernetesModule.ToolWindowId, Karvon.Mcp.McpModule.ToolWindowId, Karvon.Skills.SkillsModule.ToolWindowId, Karvon.Claude.ClaudeModule.ToolWindowId],
+        Assert.Equal([ToolWindows.SolutionExplorer, ToolWindows.TestExplorer, ToolWindows.GitChanges, Karvon.Database.DatabaseModule.ToolWindowId, Karvon.Docker.DockerModule.ToolWindowId, Karvon.Servers.ServersModule.ToolWindowId, Karvon.Jira.JiraModule.ToolWindowId, Karvon.Pipelines.PipelinesModule.ToolWindowId, Karvon.PullRequests.PullRequestsModule.ToolWindowId, Karvon.Kubernetes.KubernetesModule.ToolWindowId, Karvon.Http.HttpModule.ToolWindowId, Karvon.Mcp.McpModule.ToolWindowId, Karvon.Skills.SkillsModule.ToolWindowId, Karvon.Claude.ClaudeModule.ToolWindowId],
             Order(rightTabs));
         Assert.Empty(vm.Settings.Layout.ToolOrder);
         window.Close();
