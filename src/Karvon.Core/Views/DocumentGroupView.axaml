@@ -77,6 +77,11 @@
           <git:GitHistoryView />
         </Border>
       </DataTemplate>
+      <DataTemplate DataType="git:MergeEditorViewModel" x:DataType="git:MergeEditorViewModel">
+        <Border Classes="docframe" BorderBrush="#007ACC" BorderThickness="0,2,0,0">
+          <git:MergeEditorView />
+        </Border>
+      </DataTemplate>
       <DataTemplate DataType="pkg:PackagesViewModel" x:DataType="pkg:PackagesViewModel">
         <Border Classes="docframe" BorderBrush="#007ACC" BorderThickness="0,2,0,0">
           <pkg:PackagesView />

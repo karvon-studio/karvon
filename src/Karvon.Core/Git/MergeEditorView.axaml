@@ -1,0 +1,86 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:v="using:Karvon.Views"
+             xmlns:ae="https://github.com/avaloniaui/avaloniaedit"
+             xmlns:git="using:Karvon.Git"
+             x:Class="Karvon.Git.MergeEditorView"
+             x:DataType="git:MergeEditorViewModel">
+  <UserControl.Styles>
+    <StyleInclude Source="avares://Karvon.Core/Themes/ExplorerStyles.axaml" />
+    <Style Selector="TextBlock.paneTitle">
+      <Setter Property="FontWeight" Value="SemiBold" />
+      <Setter Property="Margin" Value="8,4" />
+    </Style>
+    <Style Selector="ListBox#ConflictList ListBoxItem">
+      <Setter Property="Padding" Value="8,6" />
+    </Style>
+  </UserControl.Styles>
+
+  <DockPanel Background="{StaticResource VsToolWindowBrush}">
+    <!-- What is merged, how far it is, and the whole-file choices -->
+    <Border DockPanel.Dock="Top" Padding="12,8" BorderBrush="{StaticResource VsBorderBrush}" BorderThickness="0,0,0,1">
+      <DockPanel>
+        <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="6">
+          <Button Classes="dkOutline" Content="Take All Incoming" Command="{Binding TakeAllIncomingCommand}" />
+          <Button Classes="dkOutline" Content="Take All Current" Command="{Binding TakeAllCurrentCommand}" />
+          <Button Classes="dkOutline" Command="{Binding AskClaudeCommand}" ToolTip.Tip="Claude Code resolves it in the file; its edit shows here to review">
+            <StackPanel Orientation="Horizontal" Spacing="6">
+              <v:VsIcon Kind="Claude" Width="14" Height="14" />
+              <TextBlock Text="Ask Claude to Resolve" />
+            </StackPanel>
+          </Button>
+          <Button Name="AcceptButton" Classes="dkPrimary" Content="Accept Merge" Command="{Binding AcceptMergeCommand}" />
+        </StackPanel>
+        <StackPanel VerticalAlignment="Center">
+          <TextBlock Text="{Binding FileName, StringFormat=Merging {0}}" FontWeight="SemiBold" />
+          <TextBlock Name="Summary" Text="{Binding Summary}" Classes="dkMuted" FontSize="11" />
+        </StackPanel>
+      </DockPanel>
+    </Border>
+
+    <!-- The conflicts: each taken from a side, or both -->
+    <Border DockPanel.Dock="Right" Width="240" BorderBrush="{StaticResource VsBorderBrush}" BorderThickness="1,0,0,0">
+      <ListBox Name="ConflictList" ItemsSource="{Binding Conflicts}" Background="Transparent">
+        <ListBox.ItemTemplate>
+          <DataTemplate x:DataType="git:MergeConflictRow">
+            <StackPanel Spacing="4">
+              <Grid ColumnDefinitions="*,Auto">
+                <TextBlock><Run Text="{Binding Title}" FontWeight="SemiBold" /><Run Text="  line " Foreground="#9D9D9D" /><Run Text="{Binding Line}" Foreground="#9D9D9D" /></TextBlock>
+                <Border Grid.Column="1" Classes="pill" Classes.green="{Binding IsResolved}" Classes.red="{Binding !IsResolved}">
+                  <TextBlock Text="{Binding State}" />
+                </Border>
+              </Grid>
+              <StackPanel Orientation="Horizontal" Spacing="4">
+                <Button Classes="dkLink" Content="Incoming" Command="{Binding $parent[UserControl].((git:MergeEditorViewModel)DataContext).TakeIncomingCommand}" CommandParameter="{Binding}" />
+                <Button Classes="dkLink" Content="Current" Command="{Binding $parent[UserControl].((git:MergeEditorViewModel)DataContext).TakeCurrentCommand}" CommandParameter="{Binding}" />
+                <Button Classes="dkLink" Content="Both" Command="{Binding $parent[UserControl].((git:MergeEditorViewModel)DataContext).TakeBothCommand}" CommandParameter="{Binding}" />
+              </StackPanel>
+            </StackPanel>
+          </DataTemplate>
+        </ListBox.ItemTemplate>
+      </ListBox>
+    </Border>
+
+    <Grid RowDefinitions="*,5,*">
+      <Grid ColumnDefinitions="*,5,*">
+        <DockPanel>
+          <TextBlock DockPanel.Dock="Top" Classes="paneTitle" Text="{Binding IncomingLabel}" Foreground="#75BEFF" />
+          <ae:TextEditor Name="IncomingEditor" FontFamily="{StaticResource VsCodeFont}" FontSize="13" Background="#1E1E1E" Foreground="#DCDCDC"
+                         ShowLineNumbers="True" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto" />
+        </DockPanel>
+        <GridSplitter Grid.Column="1" ResizeDirection="Columns" Background="{StaticResource VsBorderBrush}" />
+        <DockPanel Grid.Column="2">
+          <TextBlock DockPanel.Dock="Top" Classes="paneTitle" Text="{Binding CurrentLabel}" Foreground="#89D185" />
+          <ae:TextEditor Name="CurrentEditor" FontFamily="{StaticResource VsCodeFont}" FontSize="13" Background="#1E1E1E" Foreground="#DCDCDC"
+                         ShowLineNumbers="True" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto" />
+        </DockPanel>
+      </Grid>
+      <GridSplitter Grid.Row="1" ResizeDirection="Rows" Background="{StaticResource VsBorderBrush}" />
+      <DockPanel Grid.Row="2">
+        <TextBlock DockPanel.Dock="Top" Classes="paneTitle" Text="Result" />
+        <ae:TextEditor Name="ResultEditor" FontFamily="{StaticResource VsCodeFont}" FontSize="13" Background="#1E1E1E" Foreground="#DCDCDC"
+                       ShowLineNumbers="True" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto" />
+      </DockPanel>
+    </Grid>
+  </DockPanel>
+</UserControl>

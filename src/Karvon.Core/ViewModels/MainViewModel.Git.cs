@@ -155,6 +155,7 @@ public partial class MainViewModel
         foreach (var doc in Editors.Where(d => files.Contains(d.FilePath)).ToList())
             if (doc.Host.ReloadIfChangedOnDisk())
                 SetStatus($"{doc.FileName} was reloaded because it changed on disk.");
+        FollowMergeEditors(files);
         if (repository)
             await RefreshAllGitBaselinesAsync();
     }
@@ -296,6 +297,7 @@ public partial class MainViewModel
         ShowGitScope();
         GitChanged?.Invoke();
         FollowHistories();
+        ShowGitInProgress();
 
         // Working-tree status wins over the index for the badge, matching what the editor shows.
         _gitBadges = GitRepositories.SelectMany(r => r.Changes).OrderBy(c => c.Staged ? 0 : 1).GroupBy(c => c.Path)
@@ -586,6 +588,9 @@ public partial class MainViewModel
         if (item is null || RepositoryOf(item) is not { } git)
             return;
         var change = item.Change;
+        // A conflict is resolved in the merge editor, not looked at as a diff.
+        if (change.Kind == GitChangeKind.Conflicted && OpenMergeEditor(change.Path) is not null)
+            return;
         string left, right, leftLabel, rightLabel, key;
         if (change.Staged)
         {

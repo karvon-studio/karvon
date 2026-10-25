@@ -15,6 +15,32 @@ public enum GitChangeKind
 
 public sealed record GitBranchStatus(string? Branch, string? Upstream, int Ahead, int Behind);
 
+/// <summary>What git can be in the middle of, its conflicts waiting.</summary>
+public enum GitOperation
+{
+    Merge,
+    CherryPick,
+    Revert,
+    Rebase,
+}
+
+public static class GitOperations
+{
+    public static string Command(this GitOperation operation) => operation switch
+    {
+        GitOperation.Merge => "merge",
+        GitOperation.CherryPick => "cherry-pick",
+        GitOperation.Revert => "revert",
+        _ => "rebase",
+    };
+
+    public static string Verb(this GitOperation operation) => operation switch
+    {
+        GitOperation.CherryPick => "cherry-pick",
+        _ => operation.Command(),
+    };
+}
+
 public sealed record GitFileChange(string Path, string RelativePath, GitChangeKind Kind, bool Staged, string? OriginalPath)
 {
     /// <summary>VS / Git one-letter status.</summary>
@@ -341,6 +367,22 @@ public sealed class GitRepository
         var result = await RunAsync(Root, args, optionalLocks: false, input: contents);
         return result.Success ? GitBlame.Parse(result.Output) : null;
     }
+
+    /// <summary>What git is in the middle of (its state files say), or null.</summary>
+    public GitOperation? InProgress()
+    {
+        bool Has(string name) => File.Exists(System.IO.Path.Combine(GitDir, name)) || Directory.Exists(System.IO.Path.Combine(GitDir, name));
+        return Has("rebase-merge") || Has("rebase-apply") ? GitOperation.Rebase
+            : Has("MERGE_HEAD") ? GitOperation.Merge
+            : Has("CHERRY_PICK_HEAD") ? GitOperation.CherryPick
+            : Has("REVERT_HEAD") ? GitOperation.Revert
+            : null;
+    }
+
+    public Task<GitResult> AbortAsync(GitOperation operation) => RunAsync(Root, [operation.Command(), "--abort"]);
+
+    /// <summary>The operation on to its next step, its commit message as git wrote it (no editor is opened).</summary>
+    public Task<GitResult> ContinueAsync(GitOperation operation) => RunAsync(Root, ["-c", "core.editor=true", operation.Command(), "--continue"]);
 
     /// <summary>The file's staged content (the index), or null when it is not in the index.</summary>
     public async Task<string?> ShowIndexAsync(string path)

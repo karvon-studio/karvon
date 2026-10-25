@@ -772,6 +772,17 @@
                     <Run Text="Commits as" /><Run Text=" " /><Run Text="{Binding GitAuthor}" FontWeight="SemiBold" />
                   </TextBlock>
                 </DockPanel>
+                <!-- A merge (a cherry-pick, a revert, a rebase) under way: how it stands, abort it or go on -->
+                <Border Name="GitInProgress" Background="#3A2E10" BorderBrush="#7A5F1A" BorderThickness="1" CornerRadius="3" Padding="8,6"
+                        IsVisible="{Binding IsGitOperationInProgress}">
+                  <DockPanel>
+                    <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="4" VerticalAlignment="Center" Margin="6,0,0,0">
+                      <Button Content="Continue" Command="{Binding ContinueGitOperationCommand}" IsVisible="{Binding CanContinueGitOperation}" Padding="8,2" />
+                      <Button Content="Abort" Command="{Binding AbortGitOperationCommand}" Padding="8,2" />
+                    </StackPanel>
+                    <TextBlock Text="{Binding GitInProgressText}" TextWrapping="Wrap" Foreground="#E2C08D" VerticalAlignment="Center" />
+                  </DockPanel>
+                </Border>
                 <!-- The message, with Claude's pen in its corner -->
                 <Grid>
                   <TextBox Name="CommitMessageBox" Text="{Binding CommitMessage}" PlaceholderText="Enter a message &lt;Required&gt;" AcceptsReturn="True" TextWrapping="Wrap"

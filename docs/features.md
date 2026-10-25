@@ -89,6 +89,11 @@ files asking first. A file's history follows its renames; the histories open fol
 **Blame (Annotate)** (Git menu, or the editor's menu): left of the line numbers, the commit each line last changed in
 (date, author, subject; a bar as warm as the commit is new), unsaved lines as not committed yet; it follows edits
 and commits, hovering tells the commit, clicking opens it in the history.
+**Merge conflicts**: a conflicted file opens in the **merge editor** (Visual Studio's): the incoming and current sides
+above, their conflicts shaded, the result below, editable; each conflict taken from one side, the other or both (or all
+at once), the result red where a conflict is left; **Ask Claude to Resolve** (its edit of the file comes back here to
+review); **Accept Merge** writes it and stages it. Git Changes says when a merge, a cherry-pick, a revert or a rebase
+is under way and how many files conflict, with **Abort** (asked first) and **Continue**.
 
 ## Database Explorer (Ctrl+Alt+S)
 
@@ -286,4 +291,4 @@ Keyboard shortcuts follow Visual Studio (Help > Keyboard Shortcuts).
 ## Not yet
 
 Conditional breakpoints, exception settings, Immediate window, debugging Blazor WebAssembly in the browser,
-Fix All, merge conflict editor, WinForms / WPF designers.
+Fix All, WinForms / WPF designers.
