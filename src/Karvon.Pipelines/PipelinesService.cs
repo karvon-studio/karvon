@@ -53,16 +53,21 @@ public sealed class PipelineConnector(PipelineSecrets secrets, Func<string?> gh)
     public PipelineSecrets Secrets => secrets;
 
     /// <summary>The service, or null when a token is needed (none is kept, and for GitHub no gh is signed in).</summary>
-    public async Task<IPipelineProvider?> ConnectAsync(RepoRemote remote, CancellationToken ct)
+    public async Task<IPipelineProvider?> ConnectAsync(RepoRemote remote, CancellationToken ct) =>
+        remote.Provider == CiProvider.GitHub
+            ? await GitHubAsync(remote, ct) is { } api ? new GitHubActions(remote, api) : null
+            : GitLab(remote) is { } gitlab ? new GitLabCi(gitlab) : null;
+
+    /// <summary>GitHub's API through the signed-in gh, else with a kept token; null when there is neither.</summary>
+    public async Task<IGitHubApi?> GitHubAsync(RepoRemote remote, CancellationToken ct)
     {
-        if (remote.Provider == CiProvider.GitHub)
-        {
-            if (gh() is { } cli && await GhCliApi.SignedInAsync(cli, remote.Host, ct))
-                return new GitHubActions(remote, new GhCliApi(cli, remote.Host));
-            return secrets.Get(remote) is { } token ? new GitHubActions(remote, new GitHubTokenApi(remote.Host, token)) : null;
-        }
-        return secrets.Get(remote) is { } key ? new GitLabCi(remote, key) : null;
+        if (gh() is { } cli && await GhCliApi.SignedInAsync(cli, remote.Host, ct))
+            return new GhCliApi(cli, remote.Host);
+        return secrets.Get(remote) is { } token ? new GitHubTokenApi(remote.Host, token) : null;
     }
+
+    /// <summary>A GitLab's API with its kept token; null when there is none.</summary>
+    public GitLabApi? GitLab(RepoRemote remote) => secrets.Get(remote) is { } token ? new GitLabApi(remote, token) : null;
 
     /// <summary>Where the service makes a token with the scopes the window needs.</summary>
     public static string TokenPage(RepoRemote remote) => remote.Provider == CiProvider.GitHub

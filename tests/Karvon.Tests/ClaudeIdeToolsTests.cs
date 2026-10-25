@@ -37,7 +37,7 @@ public class ClaudeIdeToolsTests
         window.Show();
         await vm.OpenSolutionAsync(sln);
         var server = ClaudeOf(vm).ToolServer();
-        Assert.Equal(42, server.Tools.Count);
+        Assert.Equal(49, server.Tools.Count);
         var program = SampleSolution.PathOf(sln, "Web/Program.cs");
 
         // The build, as Build > Build Solution, and its errors.

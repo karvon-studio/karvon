@@ -158,6 +158,15 @@ public interface IWorkbench
     /// <summary>A push of Karvon's went through (Git Changes' Push or Sync).</summary>
     event Action<Git.GitRepository>? GitPushed;
 
+    /// <summary>The repository's branch pushed as Git Changes' Push does (its upstream set the first time); GitPushed follows.</summary>
+    Task<bool> PushAsync(Git.GitRepository repository);
+
+    /// <summary>
+    /// A git command of the module's, run as Git Changes runs one: in Output (Git), Git's state read again after it; the
+    /// files on disk followed when it changed them (a checkout).
+    /// </summary>
+    Task<bool> RunGitAsync(string title, Func<Task<Git.GitResult>> operation, bool changesFiles = false);
+
     /// <summary>A line in the status bar.</summary>
     void Status(string text);
 

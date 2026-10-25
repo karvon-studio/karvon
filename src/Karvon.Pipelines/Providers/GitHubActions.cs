@@ -13,6 +13,9 @@ public interface IGitHubApi : IDisposable
     Task<string> GetAsync(string path, CancellationToken ct);
 
     Task PostAsync(string path, CancellationToken ct);
+
+    /// <summary>A request with a method of its own (POST, PUT, PATCH, DELETE) and a JSON body, if any: what GitHub answers.</summary>
+    Task<string> SendAsync(string method, string path, string? json, CancellationToken ct);
 }
 
 /// <summary>
@@ -52,6 +55,15 @@ public sealed class GhCliApi(string gh, string host) : IGitHubApi
             throw new PipelineException(Message(error, output));
     }
 
+    public async Task<string> SendAsync(string method, string path, string? json, CancellationToken ct)
+    {
+        List<string> args = ["api", "--hostname", host, "--method", method, "-H", "Accept: application/vnd.github+json", path];
+        if (json is not null)
+            args.AddRange(["--input", "-"]);
+        var (code, output, error) = await RunAsync(gh, args, ct, json);
+        return code == 0 ? output : throw new PipelineException(Message(error, output));
+    }
+
     /// <summary>gh's error, and GitHub's message when the body says one.</summary>
     static string Message(string error, string output)
     {
@@ -67,12 +79,13 @@ public sealed class GhCliApi(string gh, string host) : IGitHubApi
         return text.Length > 0 ? "GitHub: " + text : "gh failed.";
     }
 
-    internal static async Task<(int Code, string Output, string Error)> RunAsync(string gh, IReadOnlyList<string> args, CancellationToken ct)
+    internal static async Task<(int Code, string Output, string Error)> RunAsync(string gh, IReadOnlyList<string> args, CancellationToken ct, string? input = null)
     {
         var psi = new ProcessStartInfo(gh)
         {
             RedirectStandardOutput = true,
             RedirectStandardError = true,
+            RedirectStandardInput = input is not null,
             UseShellExecute = false,
             StandardOutputEncoding = Encoding.UTF8,
             StandardErrorEncoding = Encoding.UTF8,
@@ -85,6 +98,11 @@ public sealed class GhCliApi(string gh, string host) : IGitHubApi
         psi.Environment["GH_NO_UPDATE_NOTIFIER"] = "1";
         psi.Environment["NO_COLOR"] = "1";
         using var process = Process.Start(psi) ?? throw new PipelineException("gh could not be started.");
+        if (input is not null)
+        {
+            await process.StandardInput.BaseStream.WriteAsync(new UTF8Encoding(false).GetBytes(input), ct);
+            process.StandardInput.Close();
+        }
         var output = process.StandardOutput.ReadToEndAsync(ct);
         var error = process.StandardError.ReadToEndAsync(ct);
         try
@@ -139,6 +157,16 @@ public sealed class GitHubTokenApi : IGitHubApi
         using var response = await _http.PostAsync(path, null, ct);
         if (!response.IsSuccessStatusCode)
             throw new PipelineException(Message(response.StatusCode, await response.Content.ReadAsStringAsync(ct)));
+    }
+
+    public async Task<string> SendAsync(string method, string path, string? json, CancellationToken ct)
+    {
+        using var request = new HttpRequestMessage(new HttpMethod(method), path);
+        if (json is not null)
+            request.Content = new StringContent(json, Encoding.UTF8, "application/json");
+        using var response = await _http.SendAsync(request, ct);
+        var body = await response.Content.ReadAsStringAsync(ct);
+        return response.IsSuccessStatusCode ? body : throw new PipelineException(Message(response.StatusCode, body));
     }
 
     static string Message(HttpStatusCode status, string body)

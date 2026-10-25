@@ -1,0 +1,80 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:v="using:Karvon.Views"
+             xmlns:prvm="using:Karvon.PullRequests.ViewModels"
+             x:Class="Karvon.PullRequests.Views.PullRequestsView"
+             x:DataType="prvm:PullRequestsViewModel">
+  <UserControl.Styles>
+    <StyleInclude Source="avares://Karvon.Core/Themes/ExplorerStyles.axaml" />
+    <Style Selector="ListBox#PullRequestList ListBoxItem">
+      <Setter Property="Padding" Value="8,5" />
+    </Style>
+    <Style Selector="Grid.pr StackPanel.rowActions">
+      <Setter Property="Opacity" Value="0" />
+    </Style>
+    <Style Selector="ListBoxItem:pointerover Grid.pr StackPanel.rowActions, ListBoxItem:selected Grid.pr StackPanel.rowActions">
+      <Setter Property="Opacity" Value="1" />
+    </Style>
+    <Style Selector="Grid.pr Button.tbi v|VsIcon">
+      <Setter Property="Width" Value="13" />
+      <Setter Property="Height" Value="13" />
+    </Style>
+  </UserControl.Styles>
+
+  <DockPanel>
+    <Border DockPanel.Dock="Top" Background="{StaticResource VsEnvironmentBrush}">
+      <TextBlock Classes="toolTitle" Text="Pull Requests" />
+    </Border>
+    <Border DockPanel.Dock="Top" Padding="4,2">
+      <DockPanel>
+        <StackPanel Orientation="Horizontal" Spacing="2">
+          <Button Name="RefreshButton" Classes="tbi" Command="{Binding RefreshCommand}" ToolTip.Tip="Refresh"><v:VsIcon Kind="Refresh" /></Button>
+          <Button Name="NewButton" Classes="tbi" Command="{Binding NewCommand}" IsEnabled="{Binding IsReady}" ToolTip.Tip="{Binding NewText}"><v:VsIcon Kind="Plus" /></Button>
+          <Button Classes="tbi" Command="{Binding SignInCommand}" IsVisible="{Binding HasRepository}" ToolTip.Tip="Sign In…"><v:VsIcon Kind="Plug" /></Button>
+          <ComboBox Name="FilterBox" ItemsSource="{Binding Filters}" SelectedItem="{Binding Filter}" MinWidth="130" Margin="4,0,0,0" />
+        </StackPanel>
+        <ComboBox Name="RepositoryBox" ItemsSource="{Binding Repositories}" SelectedItem="{Binding Repository}" IsVisible="{Binding HasManyRepositories}"
+                  MinWidth="140" Margin="6,0,0,0" HorizontalAlignment="Right" />
+        <ProgressBar IsIndeterminate="True" IsVisible="{Binding IsBusy}" Width="60" Height="3" MinWidth="0" Margin="8,0" HorizontalAlignment="Right" VerticalAlignment="Center" />
+      </DockPanel>
+    </Border>
+    <TextBlock DockPanel.Dock="Top" Text="{Binding Heading}" Classes="dkMuted" FontSize="11" Margin="10,0,10,4" TextTrimming="CharacterEllipsis"
+               IsVisible="{Binding Heading, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+
+    <!-- Not signed in yet: what Karvon needs -->
+    <StackPanel DockPanel.Dock="Top" IsVisible="{Binding NeedsToken}" Margin="12,8" Spacing="8">
+      <TextBlock Text="{Binding Repository.ServiceName, FallbackValue=''}" FontWeight="SemiBold" />
+      <TextBlock Classes="dkMuted" TextWrapping="Wrap"
+                 Text="Karvon reads them with your own sign-in: gh auth login for GitHub, a personal access token for a GitLab (kept in the system keyring, the Pipelines window's too; Claude Code never sees it)." />
+      <Button Name="SignInButton" Classes="dkPrimary" Content="Sign In…" Command="{Binding SignInCommand}" HorizontalAlignment="Left" />
+    </StackPanel>
+    <TextBlock DockPanel.Dock="Top" Name="Message" Text="{Binding Message}" Classes="dkMuted" TextWrapping="Wrap" Margin="12,8"
+               IsVisible="{Binding Message, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+
+    <ListBox Name="PullRequestList" ItemsSource="{Binding Rows}" Background="Transparent" DoubleTapped="OnDoubleTapped" KeyDown="OnKeyDown">
+      <ListBox.ItemTemplate>
+        <DataTemplate x:DataType="prvm:PullRequestRow">
+          <Grid Classes="pr" ColumnDefinitions="Auto,*,Auto" ToolTip.Tip="{Binding PullRequest.Url}">
+            <v:VsIcon Kind="{Binding Icon}" Width="15" Height="15" VerticalAlignment="Top" Margin="0,2,8,0" />
+            <StackPanel Grid.Column="1" Spacing="1">
+              <TextBlock Text="{Binding Title}" TextTrimming="CharacterEllipsis" />
+              <TextBlock Text="{Binding Detail}" Classes="dkMuted" FontSize="11" TextTrimming="CharacterEllipsis" />
+            </StackPanel>
+            <Panel Grid.Column="2" Margin="8,0,0,0">
+              <StackPanel Orientation="Horizontal" Spacing="3" VerticalAlignment="Top" HorizontalAlignment="Right" Margin="0,2,0,0" IsVisible="{Binding HasComments}">
+                <v:VsIcon Kind="Comment" Width="12" Height="12" />
+                <TextBlock Text="{Binding CommentCount}" Classes="dkMuted" FontSize="11" />
+              </StackPanel>
+              <StackPanel Classes="rowActions" Orientation="Horizontal" Spacing="1" VerticalAlignment="Bottom" Background="{StaticResource VsToolWindowBrush}">
+                <Button Classes="tbi" Command="{Binding $parent[UserControl].((prvm:PullRequestsViewModel)DataContext).CheckoutRowCommand}" CommandParameter="{Binding}"
+                        ToolTip.Tip="Check Out Its Branch"><v:VsIcon Kind="Branch" /></Button>
+                <Button Classes="tbi" Command="{Binding $parent[UserControl].((prvm:PullRequestsViewModel)DataContext).OpenInBrowserCommand}" CommandParameter="{Binding}"
+                        ToolTip.Tip="Open in Browser"><v:VsIcon Kind="Globe" /></Button>
+              </StackPanel>
+            </Panel>
+          </Grid>
+        </DataTemplate>
+      </ListBox.ItemTemplate>
+    </ListBox>
+  </DockPanel>
+</UserControl>

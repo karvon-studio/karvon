@@ -280,6 +280,14 @@ public partial class MainViewModel : IWorkbench
 
     public event Action<Git.GitRepository>? GitPushed;
 
+    Task<bool> IWorkbench.PushAsync(Git.GitRepository repository) =>
+        GitRepositories.FirstOrDefault(r => r.Repository.Root == repository.Root) is { Status: { } status } item
+            ? GitOperationAsync("Push", async () => Pushed(item, await repository.PushAsync(status.Branch, GitOutput.Append)))
+            : Task.FromResult(false);
+
+    Task<bool> IWorkbench.RunGitAsync(string title, Func<Task<Git.GitResult>> operation, bool changesFiles) =>
+        HistoryOperationAsync(title, operation, changesFiles);
+
     IReadOnlyDictionary<string, string> IWorkbench.WorkspaceState => _state.Modules;
 
     EditorSelection? IWorkbench.ActiveEditorSelection()

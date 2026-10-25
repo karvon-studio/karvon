@@ -177,6 +177,17 @@ public sealed class GitRepository
 
     public Task<GitResult> PullAsync(Action<string>? output = null) => RunAsync(Root, ["pull", "--ff-only"], output: output);
 
+    /// <summary>One ref fetched from a remote ("feature", "pull/7/head:pr/7"); a fast-forward only, as git fetches a branch.</summary>
+    public Task<GitResult> FetchRefAsync(string remote, string refspec, Action<string>? output = null) =>
+        RunAsync(Root, ["fetch", remote, refspec], output: output);
+
+    /// <summary>The subjects of the commits on HEAD that a ref ("origin/main") does not have, oldest first; null when the ref is not there.</summary>
+    public async Task<IReadOnlyList<string>?> SubjectsSinceAsync(string reference)
+    {
+        var result = await RunAsync(Root, ["log", "--reverse", "--format=%s", $"{reference}..HEAD"], optionalLocks: false);
+        return result.Success ? result.Output.Split('\n', StringSplitOptions.RemoveEmptyEntries) : null;
+    }
+
     public async Task<GitResult> PushAsync(GitBranchStatus branch, Action<string>? output = null) =>
         branch.Upstream is null && branch.Branch is { } name
             ? await RunAsync(Root, ["push", "--set-upstream", "origin", name], output: output)

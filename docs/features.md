@@ -167,6 +167,19 @@ Claude Code's tools: `pipeline_list`, `pipeline_jobs`, `pipeline_log` (the end o
 default), and, each asking you first, `pipeline_retry` and `pipeline_cancel`. `gh run`, `glab ci` and GitLab's
 pipelines API by curl in Bash are sent to them.
 
+## Pull Requests (View > Pull Requests)
+
+The repository's GitHub pull requests and GitLab merge requests (any GitLab host, found by the remote): open, created
+by you, waiting for your review, closed or all, read again every two minutes and after a push; the checked-out
+branch's own in the status bar. One opens as a page: what it asks, its description, the conversation (comments on
+lines with their file and line), the reviewers' say, its checks, its files, each a diff against what the change
+started from; Comment, Approve, Request Changes, Merge (a merge commit, squash or rebase; the branch deleted, if you
+like), Close, Check Out (a fork's as `pr/N`), Open in Browser, Ask Claude to Review. **New Pull Request** pushes the
+branch and proposes it into the default branch. Signed in as the Pipelines are: your own `gh` for GitHub, a token in
+the keyring for a GitLab (the same one).
+Claude gets `pr_list`, `pr_view` and `pr_diff`, and, asking you, `pr_create`, `pr_comment`, `pr_review` and
+`pr_merge`; `gh pr` and `glab mr` in Bash are sent to them.
+
 ## MCP Servers (View > MCP Servers)
 
 The MCP servers of every agent's configuration in one tree, this folder's

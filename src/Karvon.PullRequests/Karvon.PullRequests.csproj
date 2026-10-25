@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- The Pull Requests module: the repository's GitHub pull requests and GitLab merge requests, a page each, Claude Code's tools for them. -->
+  <PropertyGroup>
+    <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
+    <RootNamespace>Karvon.PullRequests</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="Karvon.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Karvon.Core\Karvon.Core.csproj" />
+    <!-- The services' sign-in (gh, the kept tokens) and their APIs are the pipelines'. -->
+    <ProjectReference Include="..\Karvon.Pipelines\Karvon.Pipelines.csproj" />
+  </ItemGroup>
+</Project>

@@ -15,6 +15,8 @@ Each module is a project of its own, referencing `Karvon.Core`. The core referen
   a bottom tool window, the workbench's `ListeningUrls`, and Claude's tunnel tools;
 - Pipelines (`src/Karvon.Pipelines`): GitHub Actions (through gh) and GitLab CI, a run's page, a status bar item, and
   Claude's pipeline tools;
+- Pull Requests (`src/Karvon.PullRequests`, which uses the Pipelines' sign-in and APIs): GitHub's pull requests and
+  GitLab's merge requests, a page each, a status bar item, and Claude's pull request tools;
 - MCP Servers (`src/Karvon.Mcp`);
 - Skills (`src/Karvon.Skills`, which uses MCP Servers);
 - TypeScript and JavaScript (`src/Karvon.TypeScript`): a workload, so the example of one: a language server, its
@@ -121,7 +123,8 @@ also matches null, so one added to the application would take over every empty p
 - where the program Karvon runs listens (`ListeningUrls`, from its output; `ListeningChanged` when it starts, stops or
   says another);
 - the solution's Git repositories and their branches (`Repositories`), `GitChanged` when Git's state is read again, and
-  `GitPushed` after a push of Karvon's;
+  `GitPushed` after a push of Karvon's; a branch pushed as Git Changes pushes it (`PushAsync`), and a git command of
+  its own run as Git Changes runs one (`RunGitAsync`: in Output, the status read again after);
 - Restart Language Server (a linter let into the folder, or no longer);
 - a command of its own run as the tasks run (`RunAsync`), and the Package Manager of one of its projects
   (`ManagePackagesAsync` with its `PackageSource`: the registry's search, a package's versions and details, the

@@ -42,7 +42,8 @@ public sealed class VsIcon : Control
         "Docker", "DockerContainer", "DockerStack", "DockerImage", "DockerVolume", "DockerNetwork", "DockerPlay", "DockerStop", "DockerRestart",
         "DockerPause", "DockerDelete", "DockerMore", "DockerLink", "DockerBack", "DockerTerminal", "DockerLogs", "DockerStats", "DockerInspect",
         "ToolExplorer", "ToolTests", "ToolGit", "ToolDatabase", "ToolErrors", "ToolOutput", "ToolFind", "ToolLocals", "ToolCallStack", "ToolTerminal",
-        "ToolServers", "ToolMcp", "ToolSkills", "ToolJira", "ToolPorts", "ToolPipelines",
+        "ToolServers", "ToolMcp", "ToolSkills", "ToolJira", "ToolPorts", "ToolPipelines", "ToolPullRequests",
+        "PullRequest", "PullRequestDraft", "PullRequestMerged", "PullRequestClosed", "Comment",
     ];
 
     public string? Kind
@@ -68,6 +69,8 @@ public sealed class VsIcon : Control
     static readonly Color Purple = Color.Parse("#B180D7");
     static readonly Color Gray = Color.Parse("#C5C5C5");
     static readonly Color Page = Color.Parse("#C5C5C5");
+
+    const string PullRequestPath = "M6 3a3 3 0 1 0 0 6a3 3 0 1 0 0-6z M18 15a3 3 0 1 0 0 6a3 3 0 1 0 0-6z M13 6h3a2 2 0 0 1 2 2v7 M6 9v12";
 
     static readonly ConcurrentDictionary<string, Geometry> Geometries = new();
 
@@ -530,6 +533,25 @@ public sealed class VsIcon : Control
             case "ToolPipelines":
                 // Jobs in a row, one after another, each a step of the run.
                 Line(dc, "M3.5 9.5h4v5h-4z M10 9.5h4v5h-4z M16.5 9.5h4v5h-4z M7.5 12h2.5 M14 12h2.5 M5.5 9.5v-3.5h13v3.5 M5.5 14.5v3.5h13v-3.5", fg, 1.6);
+                break;
+            case "ToolPullRequests":
+                // A branch's change asking to come into another: a pull request.
+                Line(dc, PullRequestPath, fg, 1.6);
+                break;
+            case "PullRequest":
+                Line(dc, PullRequestPath, Green, 2);
+                break;
+            case "PullRequestDraft":
+                Line(dc, "M6 3a3 3 0 1 0 0 6a3 3 0 1 0 0-6z M18 15a3 3 0 1 0 0 6a3 3 0 1 0 0-6z M18 5v1 M18 10v1 M6 9v12", fg, 2);
+                break;
+            case "PullRequestMerged":
+                Line(dc, "M6 3a3 3 0 1 0 0 6a3 3 0 1 0 0-6z M18 15a3 3 0 1 0 0 6a3 3 0 1 0 0-6z M6 21V9a9 9 0 0 0 9 9", Purple, 2);
+                break;
+            case "PullRequestClosed":
+                Line(dc, "M6 3a3 3 0 1 0 0 6a3 3 0 1 0 0-6z M6 9v12 M18 15a3 3 0 1 0 0 6a3 3 0 1 0 0-6z M18 11.5V15 M21 3l-6 6 M21 9l-6-6", Red, 2);
+                break;
+            case "Comment":
+                Line(dc, "M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z", fg, 1.8);
                 break;
             case "ToolPorts":
                 // A mast sending out: a port reached from outside.

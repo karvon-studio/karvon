@@ -69,6 +69,9 @@ sealed class FakeGitLab : IAsyncDisposable
 
     public ConcurrentQueue<(string Request, string? Token)> Requests { get; } = new();
 
+    /// <summary>The bodies it was sent, by request ("PUT /api/v4/...").</summary>
+    public ConcurrentQueue<(string Request, string Body)> Bodies { get; } = new();
+
     public void Route(string method, string pathAndQuery, object body, int status = 200) =>
         _routes[$"{method} {pathAndQuery}"] = (status, body is string s ? s : JsonSerializer.Serialize(body));
 
@@ -101,14 +104,17 @@ sealed class FakeGitLab : IAsyncDisposable
                         if (header.StartsWith("Content-Length:", StringComparison.OrdinalIgnoreCase))
                             length = int.Parse(header[15..].Trim());
                     }
+                    var sent = new char[length];
                     if (length > 0)
-                        await reader.ReadBlockAsync(new char[length]);
+                        await reader.ReadBlockAsync(sent);
                     var parts = line.Split(' ');
                     var request = $"{parts[0]} {parts.ElementAtOrDefault(1)}";
                     Requests.Enqueue((request, token));
+                    if (length > 0)
+                        Bodies.Enqueue((request, new string(sent)));
                     var (status, body) = token != Token ? (401, """{"message":"401 Unauthorized"}""")
                         : _routes.TryGetValue(request, out var route) ? route
-                        : parts[0] == "POST" ? (201, "{}") : (404, """{"message":"404 Project Not Found"}""");
+                        : parts[0] == "POST" ? (201, "{}") : parts[0] is "PUT" or "DELETE" ? (200, "{}") : (404, """{"message":"404 Project Not Found"}""");
                     var bytes = Encoding.UTF8.GetBytes(body);
                     var head = $"HTTP/1.1 {status} {(status < 300 ? "OK" : "Error")}\r\nContent-Type: application/json\r\nContent-Length: {bytes.Length}\r\nConnection: close\r\n\r\n";
                     await stream.WriteAsync(Encoding.ASCII.GetBytes(head));

@@ -8,7 +8,8 @@ namespace Karvon.Pipelines.ViewModels;
 /// A CI service's token, by host (GitLab's personal access token; GitHub's when gh is not signed in): kept in the system
 /// keyring when asked. Its page makes one with the scopes needed.
 /// </summary>
-public sealed partial class PipelineTokenDialog(RepoRemote remote, bool canKeep, bool hasToken) : OverlayDialog($"{remote.ProviderName} on {remote.Authority}", "Save")
+public sealed partial class PipelineTokenDialog(RepoRemote remote, bool canKeep, bool hasToken, string? explanation = null)
+    : OverlayDialog($"{remote.ProviderName} on {remote.Authority}", "Save")
 {
     public RepoRemote Remote => remote;
 
@@ -16,9 +17,9 @@ public sealed partial class PipelineTokenDialog(RepoRemote remote, bool canKeep,
 
     public bool HasToken => hasToken;
 
-    public string Explanation => remote.Provider == CiProvider.GitHub
+    public string Explanation => explanation ?? (remote.Provider == CiProvider.GitHub
         ? "Karvon reads GitHub Actions through your gh CLI when it is signed in (gh auth login). Without it, give a token with the repo and workflow scopes."
-        : $"A personal access token of {remote.Authority}: read_api to watch the pipelines, api to retry and cancel them.";
+        : $"A personal access token of {remote.Authority}: read_api to watch the pipelines, api to retry and cancel them.");
 
     public string TokenPage => PipelineConnector.TokenPage(remote);
 

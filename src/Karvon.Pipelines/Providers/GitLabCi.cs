@@ -1,4 +1,3 @@
-using System.Net;
 using System.Text.Json;
 using static Karvon.Pipelines.Providers.GitHubActions;
 
@@ -10,58 +9,21 @@ namespace Karvon.Pipelines.Providers;
 /// </summary>
 public sealed class GitLabCi : IPipelineProvider
 {
-    readonly HttpClient _http;
+    readonly GitLabApi _api;
 
-    public GitLabCi(RepoRemote remote, string token, HttpMessageHandler? handler = null)
+    public GitLabCi(RepoRemote remote, string token, HttpMessageHandler? handler = null) : this(new GitLabApi(remote, token, handler))
     {
-        Remote = remote;
-        _http = new HttpClient(handler ?? new HttpClientHandler(), disposeHandler: true)
-        {
-            BaseAddress = new Uri($"{remote.Scheme}://{remote.Authority}/api/v4/projects/{Uri.EscapeDataString(remote.Path)}/"),
-            Timeout = TimeSpan.FromSeconds(30),
-        };
-        _http.DefaultRequestHeaders.Add("PRIVATE-TOKEN", token);
-        _http.DefaultRequestHeaders.UserAgent.ParseAdd("Karvon-Studio");
     }
 
-    public RepoRemote Remote { get; }
+    public GitLabCi(GitLabApi api) => _api = api;
+
+    public RepoRemote Remote => _api.Remote;
 
     public bool LogsWhileRunning => true;
 
-    async Task<string> GetAsync(string path, CancellationToken ct)
-    {
-        using var response = await _http.GetAsync(path, ct);
-        var body = await response.Content.ReadAsStringAsync(ct);
-        return response.IsSuccessStatusCode ? body : throw new PipelineException(Message(response.StatusCode, body));
-    }
+    Task<string> GetAsync(string path, CancellationToken ct) => _api.GetAsync(_api.Project + path, ct);
 
-    async Task PostAsync(string path, CancellationToken ct)
-    {
-        using var response = await _http.PostAsync(path, null, ct);
-        if (!response.IsSuccessStatusCode)
-            throw new PipelineException(Message(response.StatusCode, await response.Content.ReadAsStringAsync(ct)));
-    }
-
-    string Message(HttpStatusCode status, string body)
-    {
-        var said = "";
-        try
-        {
-            var root = JsonDocument.Parse(body).RootElement;
-            said = root.TryGetProperty("message", out var m) ? m.ValueKind == JsonValueKind.String ? m.GetString()! : m.GetRawText()
-                : root.TryGetProperty("error", out var e) ? e.GetString() ?? "" : "";
-        }
-        catch (JsonException)
-        {
-        }
-        return status switch
-        {
-            HttpStatusCode.Unauthorized => $"{Remote.Host} did not accept the token (401): give a new one.",
-            HttpStatusCode.Forbidden => $"{Remote.Host}: the token may not do this (403); retrying and canceling need its api scope.",
-            HttpStatusCode.NotFound => $"{Remote.Host} has no {Remote.Path} the token can see (404).",
-            _ => $"{Remote.Host}: HTTP {(int)status}" + (said.Length > 0 ? $": {said}" : "") + ".",
-        };
-    }
+    Task PostAsync(string path, CancellationToken ct) => _api.SendAsync(HttpMethod.Post, _api.Project + path, null, ct);
 
     public async Task<IReadOnlyList<Pipeline>> PipelinesAsync(string? branch, int count, CancellationToken ct)
     {
@@ -112,5 +74,5 @@ public sealed class GitLabCi : IPipelineProvider
         _ => PipelineStatus.Queued,
     };
 
-    public void Dispose() => _http.Dispose();
+    public void Dispose() => _api.Dispose();
 }

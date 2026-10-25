@@ -6,6 +6,7 @@
   </PropertyGroup>
   <ItemGroup>
     <InternalsVisibleTo Include="Karvon.Tests" />
+    <InternalsVisibleTo Include="Karvon.PullRequests" />
   </ItemGroup>
 
   <ItemGroup>

@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-"""A fake gh CLI for the Pipelines tests: `auth status` and `api`, answered from FAKE_GH_DATA/routes.json, calls logged."""
+"""A fake gh CLI for the Pipelines and Pull Requests tests: `auth status` and `api`, answered from FAKE_GH_DATA/routes.json,
+calls logged (a body given by --input -, on a line of its own after its call, as "< {json}")."""
 import json
 import os
 import sys
@@ -20,6 +21,12 @@ if args[:1] == ["api"]:
         if args[i] in ("--hostname", "-H", "--header"):
             i += 2
             continue
+        if args[i] == "--input":
+            body = sys.stdin.read()
+            with open(os.path.join(DATA, "calls.txt"), "a") as log:
+                log.write("< " + json.dumps(json.loads(body), separators=(",", ":"), sort_keys=True) + "\n")
+            i += 2
+            continue
         if args[i] in ("--method", "-X"):
             method = args[i + 1]
             i += 2
@@ -28,7 +35,8 @@ if args[:1] == ["api"]:
         i += 1
     route = routes.get("routes", {}).get(f"{method} {path}")
     if route is None:
-        if method == "POST":
+        if method != "GET":
+            sys.stdout.write("{}")
             sys.exit(0)
         sys.stderr.write("gh: Not Found (HTTP 404)\n")
         sys.stdout.write(json.dumps({"message": "Not Found"}))
