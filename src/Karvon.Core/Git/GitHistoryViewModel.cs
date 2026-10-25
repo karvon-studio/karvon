@@ -288,6 +288,20 @@ public sealed partial class GitHistoryViewModel : DocumentTab
         await _vm.HistoryOperationAsync($"Revert {r.ShortHash}", () => Repository.RevertAsync(r.Commit), workingTree: true);
     }
 
+    /// <summary>An interactive rebase of the branch's commits after this one (it must be one of HEAD's).</summary>
+    [RelayCommand]
+    async Task RebaseFromAsync(GitHistoryRow? row)
+    {
+        if ((row ?? Selected) is not { } r)
+            return;
+        if (!await Repository.IsAncestorOfHeadAsync(r.Commit.Hash))
+        {
+            _vm.SetStatus($"{r.ShortHash} is not one of the checked-out branch's commits: rebase from one of them.");
+            return;
+        }
+        await _vm.OpenRebaseAsync(Repository, r.Commit);
+    }
+
     /// <summary>The current branch reset to the commit: soft, mixed or hard (which loses the changes after it).</summary>
     [RelayCommand]
     async Task ResetAsync(string? mode)

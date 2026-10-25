@@ -1,0 +1,47 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:v="using:Karvon.Views"
+             xmlns:git="using:Karvon.Git"
+             x:Class="Karvon.Git.GitRebaseView"
+             x:DataType="git:GitRebaseViewModel">
+  <UserControl.Styles>
+    <StyleInclude Source="avares://Karvon.Core/Themes/ExplorerStyles.axaml" />
+    <Style Selector="ListBox#StepList ListBoxItem">
+      <Setter Property="Padding" Value="10,4" />
+    </Style>
+  </UserControl.Styles>
+
+  <DockPanel Background="{StaticResource VsToolWindowBrush}">
+    <Border DockPanel.Dock="Top" Padding="12,8" BorderBrush="{StaticResource VsBorderBrush}" BorderThickness="0,0,0,1">
+      <StackPanel Spacing="6">
+        <DockPanel>
+          <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="6">
+            <Button Classes="dkOutline" Content="Move Up" Command="{Binding MoveUpCommand}" CommandParameter="{x:Null}" />
+            <Button Classes="dkOutline" Content="Move Down" Command="{Binding MoveDownCommand}" CommandParameter="{x:Null}" />
+            <Button Name="StartButton" Classes="dkPrimary" Content="Start Rebase" Command="{Binding StartCommand}" />
+          </StackPanel>
+          <TextBlock Text="{Binding Heading}" FontWeight="SemiBold" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+        </DockPanel>
+        <TextBlock Classes="dkMuted" TextWrapping="Wrap"
+                   Text="pick keeps a commit, reword gives it a message of its own, edit stops after it, squash and fixup fold it into the one above (squash keeps both messages), drop leaves it out." />
+        <TextBlock Text="Merges among them are left out: the rebase makes a line of the commits they brought." Foreground="#CCA700" IsVisible="{Binding HasMerges}" TextWrapping="Wrap" />
+        <TextBlock Name="Error" Text="{Binding Error}" Foreground="#F14C4C" TextWrapping="Wrap" IsVisible="{Binding Error, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+      </StackPanel>
+    </Border>
+    <ListBox Name="StepList" ItemsSource="{Binding Steps}" SelectedItem="{Binding Selected}" Background="Transparent">
+      <ListBox.ItemTemplate>
+        <DataTemplate x:DataType="git:RebaseStep">
+          <StackPanel Spacing="4">
+            <Grid ColumnDefinitions="110,80,*">
+              <ComboBox ItemsSource="{x:Static git:RebaseStep.Actions}" SelectedItem="{Binding Action}" MinWidth="100" />
+              <TextBlock Grid.Column="1" Text="{Binding ShortHash}" FontFamily="{StaticResource VsCodeFont}" Foreground="#9D9D9D" VerticalAlignment="Center" Margin="8,0" />
+              <TextBlock Grid.Column="2" Text="{Binding Subject}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" Classes.dkMuted="{Binding IsDropped}"
+                         TextDecorations="{Binding IsDropped, Converter={x:Static git:GitRebaseView.Strike}}" />
+            </Grid>
+            <TextBox Classes="dkField" Text="{Binding Message}" AcceptsReturn="True" TextWrapping="Wrap" MinHeight="50" IsVisible="{Binding IsReword}" Margin="110,0,0,4" />
+          </StackPanel>
+        </DataTemplate>
+      </ListBox.ItemTemplate>
+    </ListBox>
+  </DockPanel>
+</UserControl>

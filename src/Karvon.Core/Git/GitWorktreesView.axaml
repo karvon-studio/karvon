@@ -1,0 +1,43 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:v="using:Karvon.Views"
+             xmlns:git="using:Karvon.Git"
+             x:Class="Karvon.Git.GitWorktreesView"
+             x:DataType="git:GitWorktreesViewModel">
+  <UserControl.Styles>
+    <StyleInclude Source="avares://Karvon.Core/Themes/ExplorerStyles.axaml" />
+    <Style Selector="ListBox#WorktreeList ListBoxItem">
+      <Setter Property="Padding" Value="10,6" />
+    </Style>
+  </UserControl.Styles>
+
+  <DockPanel Background="{StaticResource VsToolWindowBrush}">
+    <Border DockPanel.Dock="Top" Padding="12,8" BorderBrush="{StaticResource VsBorderBrush}" BorderThickness="0,0,0,1">
+      <StackPanel Orientation="Horizontal" Spacing="6">
+        <Button Classes="dkPrimary" Content="Add Worktree…" Command="{Binding AddCommand}" />
+        <Button Classes="dkOutline" Content="Open" Command="{Binding OpenCommand}" CommandParameter="{x:Null}" />
+        <Button Classes="dkOutline" Content="Remove" Command="{Binding RemoveCommand}" CommandParameter="{x:Null}" />
+        <Button Classes="dkOutline" Content="Prune" Command="{Binding PruneCommand}" ToolTip.Tip="Forget the worktrees whose folders are gone" />
+        <Button Classes="tbi" Command="{Binding RefreshCommand}" ToolTip.Tip="Refresh"><v:VsIcon Kind="Refresh" /></Button>
+      </StackPanel>
+    </Border>
+    <ListBox Name="WorktreeList" ItemsSource="{Binding Worktrees}" SelectedItem="{Binding Selected}" Background="Transparent" DoubleTapped="OnDoubleTapped">
+      <ListBox.ItemTemplate>
+        <DataTemplate x:DataType="git:GitWorktree">
+          <Grid ColumnDefinitions="Auto,*,Auto">
+            <v:VsIcon Kind="Branch" Width="15" Height="15" Margin="0,0,8,0" VerticalAlignment="Top" />
+            <StackPanel Grid.Column="1">
+              <TextBlock Text="{Binding Path}" TextTrimming="CharacterEllipsis" />
+              <TextBlock Classes="dkMuted" FontSize="11"><Run Text="{Binding Branch, FallbackValue='(detached)', TargetNullValue='(detached HEAD)'}" /><Run Text=" · " /><Run Text="{Binding ShortHead}" /></TextBlock>
+            </StackPanel>
+            <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="6">
+              <Border Classes="pill blue" IsVisible="{Binding IsMain}"><TextBlock Text="main worktree" /></Border>
+              <Border Classes="pill" IsVisible="{Binding IsLocked}"><TextBlock Text="locked" /></Border>
+              <Border Classes="pill red" IsVisible="{Binding IsPrunable}"><TextBlock Text="folder gone" /></Border>
+            </StackPanel>
+          </Grid>
+        </DataTemplate>
+      </ListBox.ItemTemplate>
+    </ListBox>
+  </DockPanel>
+</UserControl>

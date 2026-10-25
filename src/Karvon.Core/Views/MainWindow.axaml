@@ -1,6 +1,7 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:vm="using:Karvon.ViewModels"
+        xmlns:git="using:Karvon.Git"
         xmlns:ws="using:Karvon.Workspace"
         xmlns:v="using:Karvon.Views"
         xmlns:mod="using:Karvon.Modules"
@@ -227,6 +228,8 @@
         <MenuItem Header="Compare with _Unmodified" Command="{Binding CompareActiveWithUnmodifiedCommand}" />
         <MenuItem Header="View Branch _History" Command="{Binding ShowHistoryCommand}" />
         <MenuItem Header="_Blame (Annotate)" Command="{Binding ToggleBlameCommand}" />
+        <MenuItem Header="Show _Line Blame" ToggleType="CheckBox" IsChecked="{Binding LineBlame}" />
+        <MenuItem Header="Manage _Worktrees" Command="{Binding ManageWorktreesCommand}" />
         <Separator />
         <MenuItem Header="_Fetch" Command="{Binding FetchCommand}" />
         <MenuItem Header="_Pull" Command="{Binding PullCommand}" />
@@ -880,9 +883,25 @@
                     </Panel>
                   </Button>
                 </Grid>
-                <Button Command="{Binding CommitCommand}" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" Background="#0E639C" Foreground="White">
-                  <TextBlock Text="{Binding CommitButtonText}" />
-                </Button>
+                <Grid ColumnDefinitions="*,Auto">
+                  <Button Command="{Binding CommitCommand}" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" Background="#0E639C" Foreground="White">
+                    <TextBlock Text="{Binding CommitButtonText}" />
+                  </Button>
+                  <!-- Stash, with the message's text, as Visual Studio's Commit dropdown -->
+                  <Button Name="StashButton" Grid.Column="1" Margin="4,0,0,0" Padding="8,2" ToolTip.Tip="Stash">
+                    <StackPanel Orientation="Horizontal" Spacing="4">
+                      <TextBlock Text="Stash" VerticalAlignment="Center" />
+                      <v:VsIcon Kind="Chevron" Width="10" Height="10" />
+                    </StackPanel>
+                    <Button.Flyout>
+                      <MenuFlyout>
+                        <MenuItem Header="Stash All" Command="{Binding StashAllCommand}" />
+                        <MenuItem Header="Stash All and Keep Staged" Command="{Binding StashKeepStagedCommand}" />
+                        <MenuItem Header="Stash Staged" Command="{Binding StashStagedCommand}" />
+                      </MenuFlyout>
+                    </Button.Flyout>
+                  </Button>
+                </Grid>
               </StackPanel>
               <TextBlock DockPanel.Dock="Top" Margin="8" TextWrapping="Wrap" Foreground="{StaticResource VsGrayTextBrush}"
                          IsVisible="{Binding !HasGit}" Text="The open solution is not in a Git repository." />
@@ -956,6 +975,39 @@
                     </ListBox.ItemTemplate>
                   </ListBox>
                   <TextBlock Margin="8,6" Foreground="{StaticResource VsGrayTextBrush}" IsVisible="{Binding HasNoGitChanges}" Text="No changes: nothing to commit." />
+                  <!-- Stashes: applied, popped, dropped; opened, their files -->
+                  <TextBlock Text="{Binding Stashes.Count, StringFormat=Stashes ({0})}" FontWeight="SemiBold" Margin="6,8,4,2" IsVisible="{Binding HasStashes}" />
+                  <ItemsControl Name="StashList" ItemsSource="{Binding Stashes}">
+                    <ItemsControl.ItemTemplate>
+                      <DataTemplate x:DataType="vm:GitStashItem">
+                        <StackPanel>
+                          <Grid ColumnDefinitions="Auto,*" Background="Transparent" Margin="2,1">
+                            <Grid.ContextMenu>
+                              <ContextMenu>
+                                <MenuItem Header="Apply" Command="{Binding $parent[Window].((vm:MainViewModel)DataContext).ApplyStashCommand}" CommandParameter="{Binding}" />
+                                <MenuItem Header="Pop" Command="{Binding $parent[Window].((vm:MainViewModel)DataContext).PopStashCommand}" CommandParameter="{Binding}" />
+                                <MenuItem Header="Drop" Command="{Binding $parent[Window].((vm:MainViewModel)DataContext).DropStashCommand}" CommandParameter="{Binding}" />
+                              </ContextMenu>
+                            </Grid.ContextMenu>
+                            <Button Classes="tbi gitChevron" Padding="0" Command="{Binding $parent[Window].((vm:MainViewModel)DataContext).ToggleStashCommand}" CommandParameter="{Binding}">
+                              <v:VsIcon Kind="Chevron" Width="12" Height="12" Classes.collapsed="{Binding !IsExpanded}" />
+                            </Button>
+                            <StackPanel Grid.Column="1" Margin="4,0,0,0">
+                              <TextBlock Text="{Binding Title}" TextTrimming="CharacterEllipsis" />
+                              <TextBlock Text="{Binding Detail}" Foreground="{StaticResource VsGrayTextBrush}" FontSize="11" />
+                            </StackPanel>
+                          </Grid>
+                          <ItemsControl ItemsSource="{Binding Files}" IsVisible="{Binding IsExpanded}" Margin="22,0,0,4">
+                            <ItemsControl.ItemTemplate>
+                              <DataTemplate x:DataType="git:GitCommitFile">
+                                <Button Classes="dkLink" Content="{Binding Path}" Click="OnStashFileClick" HorizontalAlignment="Left" Padding="0,1" />
+                              </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                          </ItemsControl>
+                        </StackPanel>
+                      </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                  </ItemsControl>
                 </StackPanel>
               </ScrollViewer>
             </DockPanel>

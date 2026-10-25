@@ -95,7 +95,13 @@ Create Branch / Tag, Checkout (detached), Cherry-Pick, Revert and Reset (soft, m
 files asking first. A file's history follows its renames; the histories open follow new commits and checkouts.
 **Blame (Annotate)** (Git menu, or the editor's menu): left of the line numbers, the commit each line last changed in
 (date, author, subject; a bar as warm as the commit is new), unsaved lines as not committed yet; it follows edits
-and commits, hovering tells the commit, clicking opens it in the history.
+and commits, hovering tells the commit, clicking opens it in the history. **Show Line Blame** (on by default): the
+caret line's commit after its text, as GitLens has it (who, when, why).
+**Stashes** (Git Changes' Stash: All, All and Keep Staged, Staged; the message box's text the stash's message): each
+applied, popped or dropped, its files each a diff. **Manage Worktrees** (Git menu): a branch's worktree beside the
+repository (a new branch's too), opened here, removed, the gone ones pruned. **Interactive Rebase from Here** (a
+commit's menu in the history): the commits after it, oldest first, each picked, reworded, stopped at to edit,
+squashed, fixed up or dropped, in the order they are put in; git's editor never opens.
 **Merge conflicts**: a conflicted file opens in the **merge editor** (Visual Studio's): the incoming and current sides
 above, their conflicts shaded, the result below, editable; each conflict taken from one side, the other or both (or all
 at once), the result red where a conflict is left; **Ask Claude to Resolve** (its edit of the file comes back here to

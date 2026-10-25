@@ -1030,6 +1030,12 @@ public partial class MainWindow : Window, IDialogService
 
     void OnShowCallStack(object? sender, RoutedEventArgs e) => Vm?.ShowToolWindow(ToolWindows.CallStack);
 
+    void OnStashFileClick(object? sender, RoutedEventArgs e)
+    {
+        if (sender is Control { DataContext: Git.GitCommitFile file } control && control.FindAncestorOfType<ItemsControl>()?.DataContext is GitStashItem stash)
+            _ = Vm?.OpenStashFileAsync(stash, file);
+    }
+
     void OnBreakpointDoubleTapped(object? sender, TappedEventArgs e)
     {
         if (BreakpointList.SelectedItem is BreakpointItem item && e.Source is Control source && source.FindAncestorOfType<CheckBox>(includeSelf: true) is null

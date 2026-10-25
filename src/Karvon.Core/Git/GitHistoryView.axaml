@@ -70,6 +70,7 @@
             <Separator />
             <MenuItem Header="Cherry-Pick" Command="{Binding CherryPickCommand}" CommandParameter="{x:Null}" />
             <MenuItem Header="Revert" Command="{Binding RevertCommand}" CommandParameter="{x:Null}" />
+            <MenuItem Header="Interactive Rebase from Here…" Command="{Binding RebaseFromCommand}" CommandParameter="{x:Null}" />
             <MenuItem Header="Reset Current Branch to Here">
               <MenuItem Header="Soft (keep the changes staged)" Command="{Binding ResetCommand}" CommandParameter="soft" />
               <MenuItem Header="Mixed (keep the changes)" Command="{Binding ResetCommand}" CommandParameter="mixed" />

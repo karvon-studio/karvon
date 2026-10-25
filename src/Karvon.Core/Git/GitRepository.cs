@@ -15,6 +15,29 @@ public enum GitChangeKind
 
 public sealed record GitBranchStatus(string? Branch, string? Upstream, int Ahead, int Behind);
 
+/// <summary>A stash: its ref (stash@{0}), its commit and parents (the commit it was made on first), when, what it says.</summary>
+public sealed record GitStash(string Ref, string Hash, IReadOnlyList<string> Parents, DateTimeOffset Date, string Message)
+{
+    /// <summary>As a commit, to read its files against the commit it was made on.</summary>
+    public GitCommit Commit => new(Hash, [.. Parents.Take(1)], "", "", Date, [], Message);
+}
+
+/// <summary>A worktree: its folder, its HEAD, its branch (null when detached); the main one is the repository's own.</summary>
+public sealed record GitWorktree(string Path, string Head, string? Branch, bool IsMain, bool IsLocked, bool IsPrunable, bool IsBare)
+{
+    public string ShortHead => Head.Length > 8 ? Head[..8] : Head;
+}
+
+public enum GitStashMode
+{
+    /// <summary>Every change, untracked files too.</summary>
+    All,
+    /// <summary>Every change, the staged ones also kept staged.</summary>
+    KeepStaged,
+    /// <summary>The staged changes only.</summary>
+    Staged,
+}
+
 /// <summary>What git can be in the middle of, its conflicts waiting.</summary>
 public enum GitOperation
 {
@@ -367,6 +390,97 @@ public sealed class GitRepository
         var result = await RunAsync(Root, args, optionalLocks: false, input: contents);
         return result.Success ? GitBlame.Parse(result.Output) : null;
     }
+
+    /// <summary>The stashes, the latest first (stash@{0}).</summary>
+    public async Task<IReadOnlyList<GitStash>> StashesAsync()
+    {
+        var result = await RunAsync(Root, ["stash", "list", "--format=%gd%x1f%H%x1f%P%x1f%ct%x1f%gs%x1e"], optionalLocks: false);
+        if (!result.Success)
+            return [];
+        return [.. result.Output.Split('\u001e', StringSplitOptions.RemoveEmptyEntries).Select(r => r.Trim('\n').Split('\u001f')).Where(p => p.Length == 5)
+            .Select(p => new GitStash(p[0], p[1], p[2].Split(' ', StringSplitOptions.RemoveEmptyEntries),
+                long.TryParse(p[3], out var t) ? DateTimeOffset.FromUnixTimeSeconds(t).ToLocalTime() : DateTimeOffset.MinValue, p[4]))];
+    }
+
+    /// <summary>The changes stashed: all of them (untracked files too), all but the staged ones kept, or the staged ones only.</summary>
+    public Task<GitResult> StashAsync(string? message, GitStashMode mode)
+    {
+        List<string> args = ["stash", "push"];
+        args.AddRange(mode switch
+        {
+            GitStashMode.KeepStaged => ["--include-untracked", "--keep-index"],
+            GitStashMode.Staged => ["--staged"],
+            _ => ["--include-untracked"],
+        });
+        if (message is { Length: > 0 })
+            args.AddRange(["-m", message]);
+        return RunAsync(Root, args);
+    }
+
+    /// <summary>A stash's changes put back in the working tree; popped, it is dropped once they are.</summary>
+    public Task<GitResult> ApplyStashAsync(string stash, bool pop) => RunAsync(Root, ["stash", pop ? "pop" : "apply", stash]);
+
+    public Task<GitResult> DropStashAsync(string stash) => RunAsync(Root, ["stash", "drop", stash]);
+
+    /// <summary>The commits after one up to HEAD (all of HEAD's when null), oldest first: what a rebase onto it goes through.</summary>
+    public async Task<IReadOnlyList<GitCommit>> CommitsSinceAsync(string? commit)
+    {
+        var result = await RunAsync(Root, ["log", "--reverse", "--topo-order", GitLog.Format, commit is null ? "HEAD" : $"{commit}..HEAD"], optionalLocks: false);
+        return result.Success ? GitLog.Parse(result.Output) : [];
+    }
+
+    /// <summary>Whether a commit is one of HEAD's (so a rebase from it goes through the branch's commits).</summary>
+    public async Task<bool> IsAncestorOfHeadAsync(string commit) =>
+        (await RunAsync(Root, ["merge-base", "--is-ancestor", commit, "HEAD"], optionalLocks: false)).Success;
+
+    /// <summary>
+    /// git rebase -i onto a commit (from the first one when null), its todo the file given (no editor opens: the todo is
+    /// copied in, a squash's message is git's).
+    /// </summary>
+    public Task<GitResult> RebaseInteractiveAsync(string? onto, string todo) =>
+        RunAsync(Root, ["-c", "core.editor=true", "-c", $"sequence.editor=cp '{todo.Replace('\\', '/').Replace("'", "'\\''")}'", "rebase", "-i",
+            .. onto is null ? new[] { "--root" } : [onto]]);
+
+    /// <summary>The repository's worktrees, its main one first (git worktree list).</summary>
+    public async Task<IReadOnlyList<GitWorktree>> WorktreesAsync()
+    {
+        var result = await RunAsync(Root, ["worktree", "list", "--porcelain"], optionalLocks: false);
+        if (!result.Success)
+            return [];
+        var worktrees = new List<GitWorktree>();
+        foreach (var block in result.Output.Replace("\r\n", "\n").Split("\n\n", StringSplitOptions.RemoveEmptyEntries))
+        {
+            string? path = null, head = null, branch = null;
+            bool detached = false, locked = false, prunable = false, bare = false;
+            foreach (var line in block.Split('\n', StringSplitOptions.RemoveEmptyEntries))
+            {
+                var (key, value) = line.IndexOf(' ') is > 0 and var space ? (line[..space], line[(space + 1)..]) : (line, "");
+                switch (key)
+                {
+                    case "worktree": path = value; break;
+                    case "HEAD": head = value; break;
+                    case "branch": branch = value.StartsWith("refs/heads/", StringComparison.Ordinal) ? value[11..] : value; break;
+                    case "detached": detached = true; break;
+                    case "locked": locked = true; break;
+                    case "prunable": prunable = true; break;
+                    case "bare": bare = true; break;
+                }
+            }
+            if (path is not null)
+                worktrees.Add(new GitWorktree(path, head ?? "", detached ? null : branch, worktrees.Count == 0, locked, prunable, bare));
+        }
+        return worktrees;
+    }
+
+    /// <summary>A worktree at a folder, of a branch there is (or a new one made at HEAD).</summary>
+    public Task<GitResult> AddWorktreeAsync(string path, string branch, bool newBranch) =>
+        RunAsync(Root, newBranch ? ["worktree", "add", "-b", branch, path] : ["worktree", "add", path, branch]);
+
+    public Task<GitResult> RemoveWorktreeAsync(string path, bool force) =>
+        RunAsync(Root, force ? ["worktree", "remove", "--force", path] : ["worktree", "remove", path]);
+
+    /// <summary>The worktrees whose folders are gone, forgotten.</summary>
+    public Task<GitResult> PruneWorktreesAsync() => RunAsync(Root, ["worktree", "prune"]);
 
     /// <summary>What git is in the middle of (its state files say), or null.</summary>
     public GitOperation? InProgress()

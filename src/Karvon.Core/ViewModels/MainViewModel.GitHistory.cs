@@ -57,12 +57,33 @@ public partial class MainViewModel
     [RelayCommand]
     Task ToggleBlame() => ActiveEditor?.Host.ToggleBlameAsync() ?? Task.CompletedTask;
 
+    /// <summary>Git > Show Line Blame: the caret line's commit after its text, in every editor (kept).</summary>
+    public bool LineBlame
+    {
+        get => Settings.LineBlame;
+        set
+        {
+            if (Settings.LineBlame == value)
+                return;
+            Settings.LineBlame = value;
+            Settings.Save();
+            foreach (var editor in Editors)
+                editor.Host.ShowLineBlame = value;
+            OnPropertyChanged();
+        }
+    }
+
+    [RelayCommand]
+    void ToggleLineBlame() => LineBlame = !LineBlame;
+
     void WireBlame(DocumentViewModel doc)
     {
         doc.Host.BlameProvider = text => RepositoryOf(doc.FilePath)?.Repository is { } repository
             ? repository.BlameAsync(doc.FilePath, text)
             : Task.FromResult<IReadOnlyList<GitBlameCommit>?>(null);
         doc.Host.BlameCommitRequested += commit => _ = RevealCommitAsync(doc.FilePath, commit.Hash);
+        doc.Host.CaretMoved += () => doc.Host.RefreshLineBlame();
+        doc.Host.ShowLineBlame = Settings.LineBlame;
     }
 
     /// <summary>A file a commit changed, against the commit's first parent (its first version against nothing).</summary>

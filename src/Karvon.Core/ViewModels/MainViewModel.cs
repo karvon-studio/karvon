@@ -265,7 +265,7 @@ public partial class MainViewModel : ObservableObject
         }
     }
 
-    void SetStatus(string text, StatusKind? kind = null)
+    internal void SetStatus(string text, StatusKind? kind = null)
     {
         StatusText = text;
         if (kind is { } k)
@@ -660,7 +660,7 @@ public partial class MainViewModel : ObservableObject
     }
 
     [RelayCommand]
-    void SaveAll()
+    internal void SaveAll()
     {
         foreach (var doc in Editors.Where(d => d.IsDirty))
             doc.Host.Save();

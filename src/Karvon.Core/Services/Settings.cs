@@ -120,6 +120,9 @@ public sealed class Settings
     /// <summary>The Markdown preview is below the editor instead of to its right.</summary>
     public bool MarkdownPreviewBelow { get; set; }
 
+    /// <summary>The caret line's commit after its text (Git > Show Line Blame).</summary>
+    public bool LineBlame { get; set; } = true;
+
     /// <summary>Exception Settings: the exceptions each debugger (by its type) breaks on, as chosen.</summary>
     public Dictionary<string, List<string>> ExceptionBreakpoints { get; set; } = [];
 

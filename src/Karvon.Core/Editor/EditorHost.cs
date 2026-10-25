@@ -88,6 +88,7 @@ public sealed partial class EditorHost : IDisposable, IDebugLineSource
             SyncBreakpointsFromAnchors();
             ScheduleGitChanges();
             ScheduleBlame();
+            LineBlameEdited();
         };
         Document.UndoStack.PropertyChanged += (_, e) =>
         {
