@@ -25,6 +25,32 @@ public sealed class VsTestHost : IDisposable
         </RunSettings>
         """;
 
+    /// <summary>The run's settings with coverlet's collector (XPlat Code Coverage): a Cobertura report per test project.</summary>
+    /// <summary>
+    /// The run settings with coverlet's collector: found where the test projects' coverlet.collector package keeps it
+    /// (dotnet test adds that folder to the adapters' paths as well), its reports written under <paramref name="results"/>.
+    /// </summary>
+    internal static string CoverageRunSettings(IReadOnlyList<string> collectors, string results) => $"""
+        <RunSettings>
+          <RunConfiguration>
+            <DesignMode>true</DesignMode>
+            <CollectSourceInformation>true</CollectSourceInformation>
+            <TestAdaptersPaths>{System.Security.SecurityElement.Escape(string.Join(';', collectors))}</TestAdaptersPaths>
+            <ResultsDirectory>{System.Security.SecurityElement.Escape(results)}</ResultsDirectory>
+          </RunConfiguration>
+          <DataCollectionRunSettings>
+            <DataCollectors>
+              <DataCollector friendlyName="XPlat Code Coverage">
+                <Configuration>
+                  <Format>cobertura</Format>
+                  <ExcludeByAttribute>GeneratedCodeAttribute,CompilerGeneratedAttribute,ExcludeFromCodeCoverageAttribute</ExcludeByAttribute>
+                </Configuration>
+              </DataCollector>
+            </DataCollectors>
+          </DataCollectionRunSettings>
+        </RunSettings>
+        """;
+
     readonly VsTestConsoleWrapper _wrapper;
     readonly SemaphoreSlim _gate = new(1, 1);
 
@@ -99,6 +125,24 @@ public sealed class VsTestHost : IDisposable
         }
     }
 
+    /// <summary>Runs the given tests with coverlet's collector: the coverage files the run attached.</summary>
+    public async Task<IReadOnlyList<string>> RunCoverageAsync(IReadOnlyList<TestCase> tests, IReadOnlyList<string> collectors, string results,
+        Action<TestResultInfo> onUpdate, CancellationToken ct)
+    {
+        await _gate.WaitAsync(ct);
+        try
+        {
+            var handler = new RunHandler(onUpdate, m => Log?.Invoke(m));
+            await using var reg = ct.Register(_wrapper.CancelTestRun);
+            await Task.Run(() => _wrapper.RunTests(tests, CoverageRunSettings(collectors, results), new TestPlatformOptions { CollectMetrics = false }, handler), CancellationToken.None);
+            return handler.Attachments;
+        }
+        finally
+        {
+            _gate.Release();
+        }
+    }
+
     /// <summary>Runs tests with a host launcher that starts testhost under the debugger.</summary>
     public async Task<TimeSpan> DebugAsync(IReadOnlyList<TestCase> tests, Microsoft.VisualStudio.TestPlatform.ObjectModel.Client.Interfaces.ITestHostLauncher launcher,
         Action<TestResultInfo> onUpdate, CancellationToken ct)
@@ -166,6 +210,9 @@ public sealed class VsTestHost : IDisposable
     {
         public TimeSpan Elapsed { get; private set; }
 
+        /// <summary>The files the run's collectors attached (coverlet's coverage.cobertura.xml).</summary>
+        public List<string> Attachments { get; } = [];
+
         public void HandleTestRunStatsChange(TestRunChangedEventArgs? args)
         {
             if (args is null)
@@ -180,6 +227,10 @@ public sealed class VsTestHost : IDisposable
         {
             Report(lastChunkArgs?.NewTestResults);
             Elapsed = testRunCompleteArgs.ElapsedTimeInRunningTests;
+            foreach (var set in (runContextAttachments ?? []).Concat(testRunCompleteArgs.AttachmentSets ?? []))
+                foreach (var attachment in set.Attachments)
+                    if (attachment.Uri.IsFile && !Attachments.Contains(attachment.Uri.LocalPath))
+                        Attachments.Add(attachment.Uri.LocalPath);
             if (testRunCompleteArgs.Error is { } error)
                 log(error.Message);
         }

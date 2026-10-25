@@ -69,6 +69,16 @@ public abstract class TestFramework : IDisposable
     /// <summary>These of its tests (null: all of them), under the debugger when asked; each result as it comes.</summary>
     public abstract Task RunAsync(IReadOnlyList<TestItem>? tests, bool debug, Action<TestItemResult> onResult, CancellationToken ct);
 
+    /// <summary>Whether it measures code coverage as its tests run (Test > Analyze Code Coverage).</summary>
+    public virtual bool CanCollectCoverage => false;
+
+    /// <summary>
+    /// These of its tests run, their code coverage measured: the coverage reports made (Cobertura's or LCOV), and why
+    /// there are none when there could not be (coverlet missing from the test project).
+    /// </summary>
+    public virtual Task<(IReadOnlyList<string> Reports, string? Problem)> RunCoverageAsync(IReadOnlyList<TestItem>? tests, Action<TestItemResult> onResult, CancellationToken ct) =>
+        Task.FromResult<(IReadOnlyList<string>, string?)>(([], $"{Name} does not measure coverage."));
+
     public virtual void Dispose()
     {
     }

@@ -54,6 +54,7 @@ public sealed partial class EditorHost
         AddBlameMargin(second);
         AddModuleMargins(second);
         AddLineBlame(second);
+        AddCoverageMargin(second);
         ApplyOutlines(Outlining.Scan(Document, FilePath));
         if (_lsp is not null)
             ScheduleOutlining(0);

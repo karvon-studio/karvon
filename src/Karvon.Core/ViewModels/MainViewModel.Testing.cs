@@ -35,7 +35,7 @@ public partial class MainViewModel
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(RunAllTestsCommand), nameof(RunFailedTestsCommand), nameof(RunSelectedTestsCommand),
         nameof(RepeatLastTestRunCommand), nameof(RefreshTestsCommand), nameof(CancelTestRunCommand),
-        nameof(DebugAllTestsCommand), nameof(DebugSelectedTestsCommand))]
+        nameof(DebugAllTestsCommand), nameof(DebugSelectedTestsCommand), nameof(AnalyzeCodeCoverageCommand))]
     public partial bool IsTesting { get; set; }
 
     [ObservableProperty]

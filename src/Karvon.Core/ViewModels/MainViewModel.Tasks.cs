@@ -151,6 +151,7 @@ public partial class MainViewModel
         RebuildSolutionCommand.NotifyCanExecuteChanged();
         RefreshTestFrameworks();
         RunAllTestsCommand.NotifyCanExecuteChanged();
+        AnalyzeCodeCoverageCommand.NotifyCanExecuteChanged();
         DebugAllTestsCommand.NotifyCanExecuteChanged();
         RunFailedTestsCommand.NotifyCanExecuteChanged();
         RunSelectedTestsCommand.NotifyCanExecuteChanged();

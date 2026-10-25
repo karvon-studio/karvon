@@ -82,12 +82,23 @@ The **Breakpoints** window (Ctrl+Alt+B) lists them all, to turn on and off, edit
 Settings** (Ctrl+Alt+E): the exceptions the debugger says it can break on, checked as you like for each debugger
 (kept, and told to a running session at once). The **Immediate** window (Ctrl+Alt+I): an expression evaluated where
 the program stopped (an assignment too: Locals and Watch follow), Up for the ones before.
+**Diagnostic Tools** (Ctrl+Alt+F2): while the program runs (F5 or Ctrl+F5), its processes' CPU (a share of all the
+processors) and memory, each second, as graphs. For a .NET process (dotnet run's app, not the SDK's own) **Take Memory
+Snapshot** lists the GC heap's types by size and count (dotnet-gcdump), and **Record CPU Profile** lists the functions
+by the CPU spent in them for the seconds chosen, Total and Self (dotnet-trace; the managed code's time on the CPU).
+Both tools are Microsoft's, installed once you say so (dotnet tool install, into Karvon's data folder); the dump and
+the trace are deleted as soon as they are read.
 
 ## Test Explorer
 
 Discover, Run All / Failed / Selected, theory rows, durations, failures with stack traces; .NET's
 tests (xUnit, NUnit, MSTest), Vitest's and Jest's (by the package's own copy), pytest's (by the workspace's .venv),
 go test's, cargo test's, CTest's and JUnit's, run or debugged.
+**Code coverage** (Test > Analyze Code Coverage for All Tests): .NET's tests run with coverlet's collector (the test
+project needs the coverlet.collector package), then every file's lines are colored beside the text (covered green,
+not covered red, some branches only amber) and **Code Coverage Results** lists the files, the least covered first.
+Another tool's report (Cobertura's XML, LCOV: Vitest's, Jest's, pytest-cov's, cargo llvm-cov's) is loaded with Test >
+Load Coverage Report. Claude reads it with `test_coverage` (a file's lines not covered too).
 
 ## Git
 
@@ -285,7 +296,7 @@ keep working in the background, Remote Control (go on from claude.ai or the Clau
 Explorer; English or O‘zbekcha. Old conversations open at their last message, compaction summaries and long
 prompts fold.
 Claude gets Karvon's own tools (`mcp__karvon__*`, an MCP server inside Karvon): the build and the tests (`run_build`,
-`build_errors`, `run_tests`, `test_failures`), running the app as Ctrl+F5 does (`app_control`: start, stop, restart,
+`build_errors`, `run_tests`, `test_failures`, `test_coverage`), running the app as Ctrl+F5 does (`app_control`: start, stop, restart,
 its URLs and output), the debugger where it stopped (`debug_state`, `debug_locals`, `debug_evaluate`,
 `debug_control`), the editor (`editor_selection`, `open_document`, `code_diagnostics`,
 `find_in_files`), the Database Explorer's data sources (`db_connections`, `db_schema`, `db_query`, `db_explain`),

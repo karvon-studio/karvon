@@ -52,7 +52,7 @@ public partial class MainViewModel
     [NotifyPropertyChangedFor(nameof(IsDebugging), nameof(IsInBreakMode), nameof(StartButtonText))]
     [NotifyCanExecuteChangedFor(nameof(StartDebuggingCommand), nameof(StartWithoutDebuggingCommand), nameof(StopCommand),
         nameof(RestartCommand), nameof(StepOverCommand), nameof(StepIntoCommand), nameof(StepOutCommand), nameof(BreakAllCommand),
-        nameof(RunAllTestsCommand), nameof(RunFailedTestsCommand), nameof(RunSelectedTestsCommand), nameof(RepeatLastTestRunCommand), nameof(RefreshTestsCommand), nameof(DebugAllTestsCommand), nameof(DebugSelectedTestsCommand))]
+        nameof(RunAllTestsCommand), nameof(RunFailedTestsCommand), nameof(RunSelectedTestsCommand), nameof(RepeatLastTestRunCommand), nameof(RefreshTestsCommand), nameof(DebugAllTestsCommand), nameof(DebugSelectedTestsCommand), nameof(AnalyzeCodeCoverageCommand))]
     public partial DebugMode Mode { get; set; }
 
     [ObservableProperty]

@@ -208,6 +208,8 @@ public sealed partial class DotNetModule : KarvonModule
     /// <summary>The solution's xUnit, NUnit and MSTest tests, through the SDK's vstest; in Test Explorer once it has a test project.</summary>
     public override IReadOnlyList<Karvon.Testing.TestFramework> TestFrameworks(TestFrameworkStart start) => [new Testing.DotNetTests(Workbench, start)];
 
+    public override IReadOnlyList<Karvon.Diagnostics.ProcessDiagnostic> ProcessDiagnostics { get; } = [new Diagnostics.MemorySnapshot(), new Diagnostics.CpuProfile()];
+
     public override IReadOnlyList<IDataTemplate> DocumentTemplates => [Document<NuGetViewModel>(_ => new NuGetView())];
 
     public override IReadOnlyList<ModuleMainMenuItem> MainMenus =>

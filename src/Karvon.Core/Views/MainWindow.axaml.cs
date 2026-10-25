@@ -1043,6 +1043,14 @@ public partial class MainWindow : Window, IDialogService
             Vm?.GoToBreakpointCommand.Execute(item);
     }
 
+    void OnCoverageDoubleTapped(object? sender, TappedEventArgs e)
+    {
+        if (CoverageList.SelectedItem is CoverageRow row)
+            Vm?.OpenCoverageFileCommand.Execute(row);
+    }
+
+    void OnShowCoverageResults(object? sender, RoutedEventArgs e) => Vm?.ShowToolWindow(ToolWindows.CoverageResults);
+
     void OnImmediateKeyDown(object? sender, KeyEventArgs e)
     {
         if (sender is not TextBox box || Vm is not { } vm)

@@ -28,6 +28,8 @@ public static class ToolWindows
     public const string Breakpoints = "Breakpoints";
     public const string Immediate = "Immediate";
     public const string ExceptionSettings = "ExceptionSettings";
+    public const string CoverageResults = "CoverageResults";
+    public const string DiagnosticTools = "DiagnosticTools";
     public const string Terminal = "Terminal";
 }
 
@@ -90,6 +92,7 @@ public partial class MainViewModel : ObservableObject
         BuildOutput = new OutputChannel("Build");
         DebugOutput = new OutputChannel("Debug");
         WatchListening();
+        WatchUsage();
         ServerOutput = new OutputChannel("Language Server");
         OutputChannels = [BuildOutput, DebugOutput, ServerOutput, GitOutput];
         SelectedOutput = BuildOutput;
@@ -124,7 +127,7 @@ public partial class MainViewModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(WindowTitle))]
     [NotifyPropertyChangedFor(nameof(HasSolution))]
     [NotifyCanExecuteChangedFor(nameof(BuildSolutionCommand), nameof(RebuildSolutionCommand), nameof(CleanSolutionCommand), nameof(StartWithoutDebuggingCommand), nameof(StartDebuggingCommand))]
-    [NotifyCanExecuteChangedFor(nameof(RunAllTestsCommand), nameof(RunFailedTestsCommand), nameof(RunSelectedTestsCommand), nameof(RepeatLastTestRunCommand), nameof(RefreshTestsCommand), nameof(DebugAllTestsCommand), nameof(DebugSelectedTestsCommand))]
+    [NotifyCanExecuteChangedFor(nameof(RunAllTestsCommand), nameof(RunFailedTestsCommand), nameof(RunSelectedTestsCommand), nameof(RepeatLastTestRunCommand), nameof(RefreshTestsCommand), nameof(DebugAllTestsCommand), nameof(DebugSelectedTestsCommand), nameof(AnalyzeCodeCoverageCommand))]
     public partial SolutionInfo? Solution { get; set; }
 
     [ObservableProperty]
@@ -148,7 +151,7 @@ public partial class MainViewModel : ObservableObject
 
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(BuildSolutionCommand), nameof(RebuildSolutionCommand), nameof(CleanSolutionCommand), nameof(StartWithoutDebuggingCommand), nameof(StartDebuggingCommand))]
-    [NotifyCanExecuteChangedFor(nameof(RunAllTestsCommand), nameof(RunFailedTestsCommand), nameof(RunSelectedTestsCommand), nameof(RepeatLastTestRunCommand), nameof(RefreshTestsCommand), nameof(DebugAllTestsCommand), nameof(DebugSelectedTestsCommand))]
+    [NotifyCanExecuteChangedFor(nameof(RunAllTestsCommand), nameof(RunFailedTestsCommand), nameof(RunSelectedTestsCommand), nameof(RepeatLastTestRunCommand), nameof(RefreshTestsCommand), nameof(DebugAllTestsCommand), nameof(DebugSelectedTestsCommand), nameof(AnalyzeCodeCoverageCommand))]
     public partial bool IsBuilding { get; set; }
 
     [ObservableProperty]
@@ -503,6 +506,8 @@ public partial class MainViewModel : ObservableObject
         host.CompareRequested += () => _ = CompareWithUnmodifiedAsync(doc);
         WireBlame(doc);
         ApplyEditorView(host);
+        if (ShowCoverageColoring && Coverage?.For(doc.FilePath) is { } coverage)
+            host.SetCoverage(coverage);
         host.BreakpointEditRequested += (line, logpoint) => EditBreakpoint(doc.FilePath, line, logpoint);
         host.AskClaudeRequested += ShowClaude;
         host.ZoomChanged += () => Settings.EditorZoom = host.Zoom;

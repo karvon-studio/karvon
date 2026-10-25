@@ -55,6 +55,9 @@ public sealed class DebugSession : IAsyncDisposable
     readonly Dictionary<string, IReadOnlyList<SourceBreakpoint>> _breakpoints = [];
     IReadOnlyList<string> _exceptionFilters = [];
 
+    /// <summary>The program's process, when the adapter said it (its process event) or ran it here (runInTerminal).</summary>
+    public int? ProcessId { get; private set; }
+
     /// <summary>What the debugger said it can do, when it started.</summary>
     public DebugCapabilities Capabilities { get; private set; } = DebugCapabilities.None;
     readonly Dictionary<(DapConnection, int), (string File, int Line)> _breakpointIds = [];
@@ -211,6 +214,7 @@ public sealed class DebugSession : IAsyncDisposable
         var runner = ProcessRunner.Start(program, programArgs, cwd, line => Output?.Invoke("stdout", line + "\n"), environment, unset);
         lock (_terminals)
             _terminals.Add(runner);
+        ProcessId = runner.Id;
         _ = Task.Run(async () =>
         {
             await runner.WaitAsync();
@@ -307,6 +311,10 @@ public sealed class DebugSession : IAsyncDisposable
                 break;
             case "continued":
                 Continued?.Invoke();
+                break;
+            case "process":
+                if (body.TryGetProperty("systemProcessId", out var pid) && pid.TryGetInt32(out var processId))
+                    ProcessId = processId;
                 break;
             case "output":
                 var category = body.TryGetProperty("category", out var c) ? c.GetString() ?? "console" : "console";

@@ -40,6 +40,8 @@ public static class ToolWindowTabs
         ToolWindows.Breakpoints => "Breakpoint",
         ToolWindows.Immediate => "ToolImmediate",
         ToolWindows.ExceptionSettings => "Warning",
+        ToolWindows.CoverageResults => "ToolCoverage",
+        ToolWindows.DiagnosticTools => "Gauge",
         ToolWindows.Terminal => "ToolTerminal",
         _ => "ToolExplorer",
     };

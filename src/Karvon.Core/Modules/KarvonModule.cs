@@ -264,6 +264,9 @@ public abstract partial class KarvonModule : ObservableObject, IDisposable, IAsy
     /// <summary>The debuggers it brings: F5 starts the one of a launch configuration's type.</summary>
     public virtual IReadOnlyList<DebuggerInfo> Debuggers => [];
 
+    /// <summary>What the module finds out about a process of the program running (Diagnostic Tools: a memory snapshot, a CPU profile).</summary>
+    public virtual IReadOnlyList<Diagnostics.ProcessDiagnostic> ProcessDiagnostics => [];
+
     /// <summary>The tools it gives the Claude Code sessions Karvon starts (mcp__karvon__*): new ones for each session.</summary>
     /// <summary>
     /// A pane of its own beside the editor of a file it takes (null for the others), as the HTTP client's response is

@@ -5,6 +5,7 @@
         xmlns:ws="using:Karvon.Workspace"
         xmlns:v="using:Karvon.Views"
         xmlns:mod="using:Karvon.Modules"
+        xmlns:diag="using:Karvon.Diagnostics"
         xmlns:ae="https://github.com/avaloniaui/avaloniaedit"
         x:Class="Karvon.Views.MainWindow"
         x:DataType="vm:MainViewModel"
@@ -32,6 +33,7 @@
     <KeyBinding Gesture="Ctrl+Alt+B" Command="{Binding ShowBreakpointsWindowCommand}" />
     <KeyBinding Gesture="Ctrl+Alt+I" Command="{Binding ShowImmediateWindowCommand}" />
     <KeyBinding Gesture="Ctrl+Alt+E" Command="{Binding ShowExceptionSettingsCommand}" />
+    <KeyBinding Gesture="Ctrl+Alt+F2" Command="{Binding ShowDiagnosticToolsCommand}" />
   </Window.KeyBindings>
 
   <DockPanel>
@@ -189,6 +191,7 @@
         <MenuItem Header="_Breakpoints" InputGesture="Ctrl+Alt+B" Command="{Binding ShowBreakpointsWindowCommand}" />
         <MenuItem Header="_Immediate" InputGesture="Ctrl+Alt+I" Command="{Binding ShowImmediateWindowCommand}" />
         <MenuItem Header="E_xception Settings" InputGesture="Ctrl+Alt+E" Command="{Binding ShowExceptionSettingsCommand}" />
+        <MenuItem Header="Show _Diagnostic Tools" InputGesture="Ctrl+Alt+F2" Command="{Binding ShowDiagnosticToolsCommand}" />
       </MenuItem>
       <MenuItem Header="_Test">
         <MenuItem Command="{Binding RunAllTestsCommand}">
@@ -218,6 +221,11 @@
         <MenuItem Header="Run _Failed Tests" Command="{Binding RunFailedTestsCommand}" />
         <MenuItem Header="Re_fresh Tests" Command="{Binding RefreshTestsCommand}" />
         <MenuItem Header="_Cancel Test Run" Command="{Binding CancelTestRunCommand}" />
+        <Separator />
+        <MenuItem Header="Analyze Code C_overage for All Tests" Command="{Binding AnalyzeCodeCoverageCommand}" />
+        <MenuItem Header="Load Coverage _Report..." Command="{Binding LoadCoverageReportCommand}" />
+        <MenuItem Header="Show Code Coverage Colo_ring" ToggleType="CheckBox" IsChecked="{Binding ShowCoverageColoring}" />
+        <MenuItem Header="Code Coverage Res_ults" Click="OnShowCoverageResults" />
         <Separator />
         <MenuItem Click="OnShowTestExplorer">
           <MenuItem.Header>
@@ -1017,6 +1025,111 @@
               </ScrollViewer>
             </DockPanel>
           </TabItem>
+          <!-- Code Coverage Results: each file's lines covered, the least covered first -->
+          <TabItem Header="Code Coverage Results" Tag="CoverageResults">
+            <DockPanel>
+              <Border DockPanel.Dock="Top" Background="{StaticResource VsEnvironmentBrush}">
+                <TextBlock Classes="toolTitle" Text="Code Coverage Results" />
+              </Border>
+              <Border DockPanel.Dock="Top" Padding="4,2">
+                <StackPanel Orientation="Horizontal" Spacing="2">
+                  <Button Classes="tb" Command="{Binding AnalyzeCodeCoverageCommand}" ToolTip.Tip="Analyze Code Coverage for All Tests"><v:VsIcon Kind="RunAll" Width="14" Height="14" /></Button>
+                  <Button Classes="tb" Command="{Binding LoadCoverageReportCommand}" ToolTip.Tip="Load a Coverage Report (Cobertura XML, LCOV)"><v:VsIcon Kind="Open" Width="14" Height="14" /></Button>
+                  <ToggleButton Classes="tb" IsChecked="{Binding ShowCoverageColoring}" ToolTip.Tip="Show Code Coverage Coloring"><v:VsIcon Kind="ToolCoverage" Width="14" Height="14" /></ToggleButton>
+                  <Button Classes="tb" Command="{Binding ClearCoverageCommand}" IsEnabled="{Binding HasCoverage}" ToolTip.Tip="Clear the Results"><v:VsIcon Kind="ClearAll" Width="14" Height="14" /></Button>
+                </StackPanel>
+              </Border>
+              <TextBlock DockPanel.Dock="Top" Name="CoverageSummaryText" Text="{Binding CoverageSummary}" Margin="8,2,8,4" Foreground="{StaticResource VsGrayTextBrush}" TextWrapping="Wrap" />
+              <Grid DockPanel.Dock="Top" ColumnDefinitions="*,64,72" Margin="8,2" IsVisible="{Binding HasCoverage}">
+                <TextBlock Text="File" Foreground="{StaticResource VsGrayTextBrush}" />
+                <TextBlock Grid.Column="1" Text="Covered" Foreground="{StaticResource VsGrayTextBrush}" HorizontalAlignment="Right" />
+                <TextBlock Grid.Column="2" Text="Lines" Foreground="{StaticResource VsGrayTextBrush}" HorizontalAlignment="Right" />
+              </Grid>
+              <ListBox Name="CoverageList" Classes="dense" ItemsSource="{Binding CoverageRows}" DoubleTapped="OnCoverageDoubleTapped">
+                <ListBox.ItemTemplate>
+                  <DataTemplate x:DataType="vm:CoverageRow">
+                    <Grid ColumnDefinitions="*,64,72" ToolTip.Tip="{Binding File.Path}">
+                      <StackPanel Orientation="Horizontal" Spacing="6">
+                        <TextBlock Text="{Binding Name}" VerticalAlignment="Center" />
+                        <TextBlock Text="{Binding Folder}" Foreground="{StaticResource VsGrayTextBrush}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                      </StackPanel>
+                      <TextBlock Grid.Column="1" Text="{Binding Percent}" HorizontalAlignment="Right" VerticalAlignment="Center"
+                                 Foreground="{Binding IsLow, Converter={x:Static v:DebugConverters.ErrorBrush}}" />
+                      <TextBlock Grid.Column="2" Text="{Binding Lines}" HorizontalAlignment="Right" VerticalAlignment="Center" Foreground="{StaticResource VsGrayTextBrush}" />
+                    </Grid>
+                  </DataTemplate>
+                </ListBox.ItemTemplate>
+              </ListBox>
+            </DockPanel>
+          </TabItem>
+
+          <!-- Diagnostic Tools: the program's CPU and memory as it runs; a memory snapshot, a CPU profile -->
+          <TabItem Header="Diagnostic Tools" Tag="DiagnosticTools">
+            <DockPanel>
+              <Border DockPanel.Dock="Top" Background="{StaticResource VsEnvironmentBrush}">
+                <TextBlock Classes="toolTitle" Text="Diagnostic Tools" />
+              </Border>
+              <StackPanel DockPanel.Dock="Top" Margin="8,4" Spacing="6">
+                <DockPanel>
+                  <Grid DockPanel.Dock="Top" ColumnDefinitions="*,Auto">
+                    <TextBlock Text="CPU (% of all processors)" Foreground="{StaticResource VsGrayTextBrush}" />
+                    <TextBlock Grid.Column="1" Name="CpuUsageText" Text="{Binding CpuText}" />
+                  </Grid>
+                  <v:UsageGraph Name="CpuGraph" Height="70" Margin="0,2" Values="{Binding CpuHistory}" Maximum="100" Color="#3794FF" />
+                </DockPanel>
+                <DockPanel>
+                  <Grid DockPanel.Dock="Top" ColumnDefinitions="*,Auto">
+                    <TextBlock Text="Process Memory (MB)" Foreground="{StaticResource VsGrayTextBrush}" />
+                    <TextBlock Grid.Column="1" Name="MemoryUsageText" Text="{Binding MemoryText}" />
+                  </Grid>
+                  <v:UsageGraph Name="MemoryGraph" Height="70" Margin="0,2" Values="{Binding MemoryHistory}" Color="#E2A355" />
+                </DockPanel>
+              </StackPanel>
+              <WrapPanel DockPanel.Dock="Top" Margin="8,2" Orientation="Horizontal">
+                <TextBlock Text="Process" VerticalAlignment="Center" Margin="0,0,6,0" Foreground="{StaticResource VsGrayTextBrush}" />
+                <ComboBox Name="DiagnosticProcessBox" ItemsSource="{Binding DiagnosticProcesses}" SelectedItem="{Binding SelectedDiagnosticProcess}" MinWidth="180" Margin="0,0,8,4">
+                  <ComboBox.ItemTemplate>
+                    <DataTemplate x:DataType="diag:DiagnosedProcess">
+                      <TextBlock Text="{Binding Label}" ToolTip.Tip="{Binding CommandLine}" />
+                    </DataTemplate>
+                  </ComboBox.ItemTemplate>
+                </ComboBox>
+                <ItemsControl ItemsSource="{Binding AvailableDiagnostics}">
+                  <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate><WrapPanel Orientation="Horizontal" /></ItemsPanelTemplate>
+                  </ItemsControl.ItemsPanel>
+                  <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="diag:ProcessDiagnostic">
+                      <Button Content="{Binding Name}" ToolTip.Tip="{Binding Description}" Padding="10,3" Margin="0,0,4,4"
+                              Command="{Binding $parent[Window].((vm:MainViewModel)DataContext).RunDiagnosticCommand}" CommandParameter="{Binding}" />
+                    </DataTemplate>
+                  </ItemsControl.ItemTemplate>
+                </ItemsControl>
+                <TextBlock Text="for" VerticalAlignment="Center" Margin="8,0,4,0" Foreground="{StaticResource VsGrayTextBrush}" IsVisible="{Binding HasTimedDiagnostics}" />
+                <ComboBox ItemsSource="{Binding TraceDurations}" SelectedItem="{Binding SelectedTraceDuration}" IsVisible="{Binding HasTimedDiagnostics}" ToolTip.Tip="How long a CPU profile records (seconds)" />
+                <TextBlock Text="s" VerticalAlignment="Center" Margin="4,0,8,0" Foreground="{StaticResource VsGrayTextBrush}" IsVisible="{Binding HasTimedDiagnostics}" />
+                <Button Classes="tb" Command="{Binding CancelDiagnosticCommand}" IsVisible="{Binding IsRunningDiagnostic}" ToolTip.Tip="Cancel"><v:VsIcon Kind="Stop" Width="14" Height="14" /></Button>
+              </WrapPanel>
+              <TextBlock DockPanel.Dock="Top" Name="DiagnosticsMessageText" Text="{Binding DiagnosticsMessage}" Margin="8,4" TextWrapping="Wrap" Foreground="{StaticResource VsGrayTextBrush}" />
+              <Grid DockPanel.Dock="Top" ColumnDefinitions="*,80,80" Margin="8,2" IsVisible="{Binding HasDiagnosticReport}">
+                <TextBlock Text="{Binding DiagnosticReport.NameHeader}" Foreground="{StaticResource VsGrayTextBrush}" />
+                <TextBlock Grid.Column="1" Text="{Binding DiagnosticReport.FirstHeader}" Foreground="{StaticResource VsGrayTextBrush}" HorizontalAlignment="Right" />
+                <TextBlock Grid.Column="2" Text="{Binding DiagnosticReport.SecondHeader}" Foreground="{StaticResource VsGrayTextBrush}" HorizontalAlignment="Right" />
+              </Grid>
+              <ListBox Name="DiagnosticReportList" Classes="dense" ItemsSource="{Binding DiagnosticReport.Rows}">
+                <ListBox.ItemTemplate>
+                  <DataTemplate x:DataType="diag:DiagnosticRow">
+                    <Grid ColumnDefinitions="*,80,80" ToolTip.Tip="{Binding Detail}">
+                      <TextBlock Text="{Binding Name}" FontFamily="{StaticResource VsCodeFont}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+                      <TextBlock Grid.Column="1" Text="{Binding First}" HorizontalAlignment="Right" VerticalAlignment="Center" />
+                      <TextBlock Grid.Column="2" Text="{Binding Second}" HorizontalAlignment="Right" VerticalAlignment="Center" Foreground="{StaticResource VsGrayTextBrush}" />
+                    </Grid>
+                  </DataTemplate>
+                </ListBox.ItemTemplate>
+              </ListBox>
+            </DockPanel>
+          </TabItem>
+
           <!-- The modules' tool windows go here (MainWindow.Modules.cs) -->
         </TabControl>
       </Border>

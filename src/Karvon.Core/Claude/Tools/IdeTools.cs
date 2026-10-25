@@ -20,6 +20,7 @@ public static class IdeClaudeTools
         new BuildErrorsTool(vm),
         new RunTestsTool(vm),
         new TestFailuresTool(vm),
+        new TestCoverageTool(vm),
         new DebugStateTool(vm),
         new DebugLocalsTool(vm),
         new DebugEvaluateTool(vm),
@@ -276,6 +277,75 @@ sealed class TestFailuresTool(MainViewModel vm) : IdeTool(vm)
 
     protected override Task<ClaudeToolOutput> RunAsync(JsonElement input, CancellationToken cancellationToken) =>
         Task.FromResult(new ClaudeToolOutput(Vm.HasTestRunForClaude ? TestReport.Describe(Vm) : "No tests have run since Karvon opened the solution; call run_tests."));
+}
+
+/// <summary><c>test_coverage</c>: how much of the code the tests cover (run with coverage, or the report the user loaded), a file's lines not covered.</summary>
+sealed class TestCoverageTool(MainViewModel vm) : IdeTool(vm)
+{
+    public override string Name => "test_coverage";
+
+    public override string Description =>
+        "The code coverage of the tests in Karvon: each file's share of lines covered, the least covered first; with file, that file's "
+        + "lines not covered and partly covered (some branches only). With run, the tests run first with coverage measured (.NET's "
+        + "coverlet collector, which the test project needs); without, the last analysis or the report the user loaded (Cobertura, LCOV).";
+
+    public override JsonObject InputSchema => Schema("""
+        {"type":"object","properties":{
+          "run":{"type":"boolean","description":"Run all the tests with coverage first (as Test > Analyze Code Coverage for All Tests)."},
+          "file":{"type":"string","description":"A file (relative to the solution, or absolute): its lines not covered."}}}
+        """);
+
+    public override ClaudeToolPlan Plan(JsonElement input) =>
+        Bool(input, "run") ? new(ToolAccess.Run, "Analyze Code Coverage", "all tests", "") : new(ToolAccess.Read, "Code Coverage", Str(input, "file"), "");
+
+    protected override async Task<ClaudeToolOutput> RunAsync(JsonElement input, CancellationToken cancellationToken)
+    {
+        if (Bool(input, "run"))
+        {
+            _ = SolutionDirectory;
+            if (Vm.IsBuildingForClaude)
+                return ClaudeToolOutput.Error("Karvon is building or running tests already; wait for it, then call test_coverage again.");
+            await Vm.AnalyzeCodeCoverage();
+            if (Vm.Coverage is null)
+                return new ClaudeToolOutput(Vm.TestSummaryForClaude, true);
+        }
+        if (Vm.Coverage is not { } coverage)
+            return new ClaudeToolOutput("No code coverage yet: call test_coverage with run, or the user loads a report (Test > Load Coverage Report).");
+        if (Str(input, "file") is { Length: > 0 } file)
+        {
+            var path = Path.IsPathRooted(file) ? file : Path.Combine(Vm.Solution?.Directory ?? "", file);
+            if (coverage.For(path) is not { } lines)
+                return new ClaudeToolOutput($"The coverage has no lines of {file} (no test ran its code, or it is no code file).");
+            var text = new StringBuilder($"{RelativeOf(Vm, path)}: {lines.Percent:0.#}% covered ({lines.Covered} of {lines.Total} lines).");
+            text.Append("\nNot covered: ").Append(Ranges(lines.Lines.Where(l => !l.Value.IsCovered).Select(l => l.Key)));
+            text.Append("\nPartly covered (some branches only): ").Append(Ranges(lines.Lines.Where(l => l.Value is { IsCovered: true, Partial: true }).Select(l => l.Key)));
+            return new ClaudeToolOutput(text.ToString());
+        }
+        var report = new StringBuilder($"{Vm.CoverageSummary}. The least covered first:");
+        foreach (var f in coverage.Files.OrderBy(f => f.Percent).ThenBy(f => f.Path, StringComparer.Ordinal).Take(60))
+            report.Append($"\n{f.Percent,5:0.#}%  {f.Covered}/{f.Total}  {RelativeOf(Vm, f.Path)}");
+        if (coverage.Files.Count > 60)
+            report.Append($"\n… and {coverage.Files.Count - 60} more files.");
+        return new ClaudeToolOutput(report.ToString());
+    }
+
+    /// <summary>Lines as ranges: "3-5, 9, 12-14" (none: "none").</summary>
+    internal static string Ranges(IEnumerable<int> lines)
+    {
+        var sorted = lines.Order().ToList();
+        if (sorted.Count == 0)
+            return "none";
+        var parts = new List<string>();
+        for (var i = 0; i < sorted.Count;)
+        {
+            var j = i;
+            while (j + 1 < sorted.Count && sorted[j + 1] == sorted[j] + 1)
+                j++;
+            parts.Add(i == j ? $"{sorted[i]}" : $"{sorted[i]}-{sorted[j]}");
+            i = j + 1;
+        }
+        return string.Join(", ", parts);
+    }
 }
 
 // ---- Debugger -----------------------------------------------------------------------------------------------------

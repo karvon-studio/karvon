@@ -176,6 +176,10 @@ public static partial class ProcessTree
         }
     }
 
+    /// <summary>A process's command line (null when it cannot be read).</summary>
+    public static string? CommandLineOf(int pid) =>
+        Ps.IsUsed ? Ps.Read().FirstOrDefault(p => p.Pid == pid).Command is { Length: > 0 } command ? command : null : CommandLine(pid)?.TrimEnd();
+
     static string? CommandLine(int pid)
     {
         try
