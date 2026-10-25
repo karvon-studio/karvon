@@ -53,14 +53,17 @@ sealed class FakeLanguageClient : LspClient
     {
     }
 
-    public override string LanguageIdFor(string path) => path.EndsWith(".fake", StringComparison.Ordinal) ? "fake" : "plaintext";
+    public override string LanguageIdFor(string path) =>
+        path.EndsWith(".fake", StringComparison.Ordinal) || path.EndsWith(".hint", StringComparison.Ordinal) ? "fake" : "plaintext";
 
     public static Task<LspClient> StartAsync(LanguageServerStart start) => StartAsync(start, null);
 
     /// <param name="word">A linter's: the word it warns of (else TODO).</param>
-    public static async Task<LspClient> StartAsync(LanguageServerStart start, string? word)
+    /// <param name="flags">The server's own (--hints).</param>
+    public static async Task<LspClient> StartAsync(LanguageServerStart start, string? word, params string[] flags)
     {
-        var (process, rpc) = Launch(new ProcessStartInfo(TestTools.Python, ["-I", Path.Combine(AppContext.BaseDirectory, "TestAssets", "FakeLsp", "lsp_server.py"), .. word is null ? Array.Empty<string>() : [word]]));
+        var (process, rpc) = Launch(new ProcessStartInfo(TestTools.Python, ["-I", Path.Combine(AppContext.BaseDirectory, "TestAssets", "FakeLsp", "lsp_server.py"),
+            .. word is null ? Array.Empty<string>() : [word], .. flags]));
         var client = new FakeLanguageClient(process, rpc, start.Workspace);
         await client.InitializeAsync(start.Workspace, null, start.Cancellation);
         return client;

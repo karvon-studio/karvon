@@ -151,6 +151,11 @@
             </Grid>
           </MenuItem.Header>
         </MenuItem>
+        <Separator />
+        <MenuItem Header="Inlay _Hints" ToggleType="CheckBox" IsChecked="{Binding InlayHints}" />
+        <MenuItem Header="Code_Lens" ToggleType="CheckBox" IsChecked="{Binding CodeLens}" />
+        <MenuItem Header="_Sticky Scroll" ToggleType="CheckBox" IsChecked="{Binding StickyScroll}" />
+        <MenuItem Header="_Minimap" ToggleType="CheckBox" IsChecked="{Binding Minimap}" />
       </MenuItem>
       <MenuItem Header="_Build">
         <MenuItem Header="_Build Solution" InputGesture="Ctrl+Shift+B" Command="{Binding BuildSolutionCommand}" />

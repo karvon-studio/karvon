@@ -1,12 +1,15 @@
 """A language server for the tests, over stdio: it pushes a warning for each TODO in a file it is given (when it opens
 and on each change), and answers completion and hover. What it does not serve it refuses, as a real server would.
-Given a word (lsp_server.py FIXME), it is a linter's: it warns of that word instead."""
+Given a word (lsp_server.py FIXME), it is a linter's: it warns of that word instead. With --hints it also gives inlay hints
+(value: after each "call("), a code lens on each "def " line (resolved: "2 references"), and a Fix All of the TODOs, as
+Roslyn offers one (its client command, then codeAction/resolveFixAll)."""
 import json
 import re
 import sys
 
 documents = {}
-word = sys.argv[1] if len(sys.argv) > 1 else "TODO"
+hints = "--hints" in sys.argv
+word = next((a for a in sys.argv[1:] if not a.startswith("--")), "TODO")
 
 
 def read():
@@ -49,9 +52,10 @@ while True:
     message = read()
     method, params, id = message.get("method"), message.get("params") or {}, message.get("id")
     if method == "initialize":
-        send({"jsonrpc": "2.0", "id": id, "result": {"capabilities": {"textDocumentSync": 2, "hoverProvider": True,
-                                                                      "completionProvider": {"triggerCharacters": ["."]}},
-                                                     "serverInfo": {"name": "fake"}}})
+        capabilities = {"textDocumentSync": 2, "hoverProvider": True, "completionProvider": {"triggerCharacters": ["."]}}
+        if hints:
+            capabilities.update({"inlayHintProvider": True, "codeLensProvider": {"resolveProvider": True}, "codeActionProvider": {"resolveProvider": True}})
+        send({"jsonrpc": "2.0", "id": id, "result": {"capabilities": capabilities, "serverInfo": {"name": "fake"}}})
     elif method == "textDocument/didOpen":
         documents[params["textDocument"]["uri"]] = params["textDocument"]["text"]
         publish(params["textDocument"]["uri"])
@@ -69,6 +73,28 @@ while True:
         send({"jsonrpc": "2.0", "id": id, "result": {"isIncomplete": False, "items": [{"label": "fakeAlpha", "kind": 3}, {"label": "fakeBeta", "kind": 6}]}})
     elif method == "textDocument/hover":
         send({"jsonrpc": "2.0", "id": id, "result": {"contents": {"kind": "markdown", "value": "Fake hover"}}})
+    elif method == "textDocument/inlayHint" and hints:
+        text = documents[params["textDocument"]["uri"]]
+        found = [{"position": {"line": i, "character": m.end()}, "label": "value:", "kind": 2, "paddingRight": True}
+                 for i, line in enumerate(text.split("\n")) for m in re.finditer(re.escape("call("), line)]
+        send({"jsonrpc": "2.0", "id": id, "result": found})
+    elif method == "textDocument/codeLens" and hints:
+        text = documents[params["textDocument"]["uri"]]
+        lenses = [{"range": {"start": {"line": i, "character": 4}, "end": {"line": i, "character": len(line)}}, "data": {"line": i}}
+                  for i, line in enumerate(text.split("\n")) if line.startswith("def ")]
+        send({"jsonrpc": "2.0", "id": id, "result": lenses})
+    elif method == "codeLens/resolve" and hints:
+        params["command"] = {"title": "2 references", "command": "fake.references"}
+        send({"jsonrpc": "2.0", "id": id, "result": params})
+    elif method == "textDocument/codeAction" and hints:
+        send({"jsonrpc": "2.0", "id": id, "result": [{"title": "Fix all TODOs", "kind": "quickfix", "command": {
+            "title": "Fix all", "command": "roslyn.client.fixAllCodeAction",
+            "arguments": [{"UniqueIdentifier": "fix-todo", "FixAllFlavors": ["Document", "Project", "Solution"]}]}}]})
+    elif method == "codeAction/resolveFixAll" and hints:
+        uri, text = next(iter(documents.items()))
+        edits = [{"range": {"start": {"line": i, "character": m.start()}, "end": {"line": i, "character": m.end()}}, "newText": "DONE"}
+                 for i, line in enumerate(text.split("\n")) for m in re.finditer("TODO", line)]
+        send({"jsonrpc": "2.0", "id": id, "result": {"title": params["title"] + " in " + params["scope"], "edit": {"changes": {uri: edits}}}})
     elif method == "shutdown":
         send({"jsonrpc": "2.0", "id": id, "result": None})
     elif method == "exit":

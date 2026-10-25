@@ -90,8 +90,19 @@ public class PortsTests
         quiet.Closed += r => silent.TrySetResult(r);
         Assert.Equal("The connection to the tunnel's server was lost (no answer).", await silent.Task.WaitAsync(TimeSpan.FromSeconds(6)));
 
-        // Closed here: no reason.
-        var closed = await JprqTunnel.OpenAsync("127.0.0.1", server.EventPort, new TunnelRequest("tcp", "", "good", "t"), 1, default);
+        // Closed here: no reason. (The lost one's name is the server's until it sees that connection go: a moment.)
+        JprqTunnel? closed = null;
+        for (var attempt = 0; closed is null; attempt++)
+        {
+            try
+            {
+                closed = await JprqTunnel.OpenAsync("127.0.0.1", server.EventPort, new TunnelRequest("tcp", "", "good", "t"), 1, default);
+            }
+            catch (JprqException ex) when (ex.Message.StartsWith("subdomain is busy", StringComparison.Ordinal) && attempt < 50)
+            {
+                await Task.Delay(100);
+            }
+        }
         var mine = new TaskCompletionSource<string?>();
         closed.Closed += r => mine.TrySetResult(r);
         await closed.DisposeAsync();

@@ -34,8 +34,30 @@ public sealed record LspCodeAction(string Title, string? Kind, bool IsPreferred,
     public LspClient? Server { get; init; }
 
     /// <summary>The server's command it runs (ESLint's fixes: eslint.applySingleFix), its edit coming as workspace/applyEdit.</summary>
-    public bool HasCommand => Raw.ValueKind == JsonValueKind.Object && Raw.TryGetProperty("command", out var command) && command.ValueKind == JsonValueKind.Object;
+    public bool HasCommand => Raw.ValueKind == JsonValueKind.Object && Raw.TryGetProperty("command", out var command) && command.ValueKind == JsonValueKind.Object
+        && !IsFixAll;
+
+    /// <summary>Roslyn's Fix All: its command is the client's, which asks in what scope and resolves it (codeAction/resolveFixAll).</summary>
+    public bool IsFixAll => FixAllData is not null;
+
+    /// <summary>Its Fix All's data (what codeAction/resolveFixAll is given back), with the scopes it offers.</summary>
+    public JsonElement? FixAllData => Raw.ValueKind == JsonValueKind.Object && Raw.TryGetProperty("command", out var command) && command.ValueKind == JsonValueKind.Object
+        && command.TryGetProperty("command", out var name) && name.GetString() == "roslyn.client.fixAllCodeAction"
+        && command.TryGetProperty("arguments", out var args) && args.ValueKind == JsonValueKind.Array && args.GetArrayLength() > 0
+            ? args[0]
+            : null;
+
+    /// <summary>The scopes its Fix All offers (Document, Project, Solution).</summary>
+    public IReadOnlyList<string> FixAllScopes => FixAllData is { } data && data.TryGetProperty("FixAllFlavors", out var flavors) && flavors.ValueKind == JsonValueKind.Array
+        ? [.. flavors.EnumerateArray().Select(f => f.GetString() ?? "").Where(f => f.Length > 0)]
+        : [];
 }
+
+/// <summary>An inlay hint (a parameter's name before its argument, a type after a var): where, what, and its space around.</summary>
+public sealed record LspInlayHint(LspPosition Position, string Label, int? Kind, bool PaddingLeft, bool PaddingRight);
+
+/// <summary>A code lens (Roslyn's "3 references" on a member): its range, and its title once resolved.</summary>
+public sealed record LspCodeLens(LspRange Range, string? Title, JsonElement Raw);
 
 /// <summary>One step of a workspace edit, applied in order: create/rename/delete a file or edit its text.</summary>
 public sealed record LspFileOperation(string Kind, string Path, string? NewPath, IReadOnlyList<LspTextEdit> Edits);

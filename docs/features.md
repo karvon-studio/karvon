@@ -30,6 +30,13 @@ IntelliSense in each language by its language server (C# and Razor by Roslyn), Q
 Ctrl+. quick actions and refactorings (a linter's fixes too: ESLint's), Go To Definition / Implementation, Find All
 References, Rename, Format Document, outlining (Ctrl+M), Find in Files, zoom.
 Markdown files open with a live preview to the right or below (VS 2022's Markdown editor), following the editor's scrolling.
+**Multiple carets** (Visual Studio's): Ctrl+Alt+click adds one, Shift+Alt+. a selection at the next match, Shift+Alt+;
+at every match; typing, Backspace, Delete, Enter, Left, Right, Home and End act at each; Escape leaves one.
+**Inlay hints** (a parameter's name before its argument, a type after a var; Roslyn's and any language server's) and
+**CodeLens** (a member's references after its line, which finds them); **Fix All** in a quick action's menu (Fix all
+occurrences in Document, Project or Solution); **Sticky Scroll** (the lines that open the scopes the view is in stay at
+its top; one clicked goes there); a **Minimap** in place of the vertical scroll bar (VS's map mode). Each is in the
+View menu, kept; the minimap is off at first.
 
 ## Solutions
 
@@ -319,4 +326,4 @@ Keyboard shortcuts follow Visual Studio (Help > Keyboard Shortcuts).
 ## Not yet
 
 Debugging Blazor WebAssembly in the browser,
-Fix All, WinForms / WPF designers.
+WinForms / WPF designers.

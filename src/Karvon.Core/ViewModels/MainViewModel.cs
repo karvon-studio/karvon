@@ -502,6 +502,7 @@ public partial class MainViewModel : ObservableObject
         };
         host.CompareRequested += () => _ = CompareWithUnmodifiedAsync(doc);
         WireBlame(doc);
+        ApplyEditorView(host);
         host.BreakpointEditRequested += (line, logpoint) => EditBreakpoint(doc.FilePath, line, logpoint);
         host.AskClaudeRequested += ShowClaude;
         host.ZoomChanged += () => Settings.EditorZoom = host.Zoom;

@@ -15,6 +15,8 @@ using Karvon.Testing;
 using Karvon.Views;
 
 [assembly: AvaloniaTestApplication(typeof(Karvon.Tests.TestAppBuilder))]
+// One application for every test: a new one per test raced its render loop against the one before (a cleanup failure now and then).
+[assembly: AvaloniaTestIsolation(AvaloniaTestIsolationLevel.PerAssembly)]
 
 namespace Karvon.Tests;
 

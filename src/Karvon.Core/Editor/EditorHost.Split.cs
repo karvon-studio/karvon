@@ -65,6 +65,7 @@ public sealed partial class EditorHost
         Grid.SetRow(_primary, 2);
         _viewGrid.Children.Insert(0, second);
         _viewGrid.Children.Insert(1, _splitter);
+        PlaceMinimaps();
 
         // The new pane opens on what the first one shows.
         second.TextArea.Caret.Position = _primary.TextArea.Caret.Position;
@@ -89,6 +90,7 @@ public sealed partial class EditorHost
         _splitter = null;
         _viewGrid.RowDefinitions = new RowDefinitions("*");
         Grid.SetRow(_primary, 0);
+        PlaceMinimaps();
         if (_secondFolding is not null)
             FoldingManager.Uninstall(_secondFolding);
         _secondFolding = null;

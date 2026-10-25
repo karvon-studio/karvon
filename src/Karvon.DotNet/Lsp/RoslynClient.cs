@@ -71,6 +71,17 @@ public sealed class RoslynClient : LspClient
     public Task OpenProjectsAsync(IEnumerable<string> projects) =>
         Rpc.NotifyAsync("project/open", new { projects = projects.Select(ToUri).ToArray() });
 
+    /// <summary>
+    /// Roslyn's settings Karvon answers (csharp|inlay_hints.*, csharp|code_lens.*): parameter names and types as inlay
+    /// hints (Visual Studio's inline hints), the references' code lens; the rest its defaults.
+    /// </summary>
+    protected override object? ConfigurationFor(string? section) => section?.Split('.').LastOrDefault() switch
+    {
+        "dotnet_enable_inlay_hints_for_parameters" or "csharp_enable_inlay_hints_for_types" or "csharp_enable_inlay_hints_for_implicit_variable_types"
+            or "csharp_enable_inlay_hints_for_lambda_parameter_types" or "dotnet_enable_references_code_lens" => "true",
+        _ => base.ConfigurationFor(section),
+    };
+
     protected override void WireServer()
     {
         // Razor cohosting: the HTML half of .razor files is served by the client.

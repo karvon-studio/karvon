@@ -120,6 +120,15 @@ public sealed class Settings
     /// <summary>The Markdown preview is below the editor instead of to its right.</summary>
     public bool MarkdownPreviewBelow { get; set; }
 
+    /// <summary>The editor's inlay hints (parameter names, types), CodeLens, sticky scroll and minimap (View menu).</summary>
+    public bool InlayHints { get; set; } = true;
+
+    public bool CodeLens { get; set; } = true;
+
+    public bool StickyScroll { get; set; } = true;
+
+    public bool Minimap { get; set; }
+
     /// <summary>The caret line's commit after its text (Git > Show Line Blame).</summary>
     public bool LineBlame { get; set; } = true;
 

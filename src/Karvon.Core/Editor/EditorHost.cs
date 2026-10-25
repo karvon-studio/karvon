@@ -89,6 +89,7 @@ public sealed partial class EditorHost : IDisposable, IDebugLineSource
             ScheduleGitChanges();
             ScheduleBlame();
             LineBlameEdited();
+            ScheduleHints(800);
         };
         Document.UndoStack.PropertyChanged += (_, e) =>
         {
@@ -129,6 +130,9 @@ public sealed partial class EditorHost : IDisposable, IDebugLineSource
 
         textMate = TextMateSupport.Install(editor, FilePath);
         editor.TextArea.TextView.BackgroundRenderers.Add(_diagnostics);
+        InstallHints(editor);
+        InstallStickyScroll(editor);
+        InstallMultiCaret(editor);
 
         // The pane clicked or tabbed into is the one commands, the caret and the status bar follow.
         editor.AddHandler(InputElement.PointerPressedEvent, (_, _) => Activate(editor), RoutingStrategies.Tunnel, handledEventsToo: true);
@@ -144,6 +148,7 @@ public sealed partial class EditorHost : IDisposable, IDebugLineSource
         editor.PointerHoverStopped += (_, _) => ToolTip.SetIsOpen(editor, false);
         editor.AddHandler(InputElement.KeyDownEvent, OnKeyDown, RoutingStrategies.Tunnel);
         editor.AddHandler(InputElement.PointerWheelChangedEvent, OnPointerWheel, RoutingStrategies.Tunnel);
+        editor.TextArea.AddHandler(InputElement.PointerPressedEvent, (_, e) => OnMultiCaretPointer(e), RoutingStrategies.Tunnel);
         editor.TextArea.AddHandler(InputElement.PointerPressedEvent, OnPointerPressed, RoutingStrategies.Tunnel);
         editor.TextArea.RightClickMovesCaret = true;
         editor.ContextMenu = BuildContextMenu();
@@ -436,15 +441,22 @@ public sealed partial class EditorHost : IDisposable, IDebugLineSource
         _lsp = lsp;
         lsp.DiagnosticsPublished += OnDiagnosticsPublished;
         _ = lsp.DidOpenAsync(FilePath, Document.Text);
+        lsp.HintsRefreshRequested += OnHintsRefreshRequested;
         ScheduleDiagnostics(200);
         ScheduleOutlining(300);
         ScheduleSemanticTokens(300);
+        ScheduleHints(500);
     }
+
+    void OnHintsRefreshRequested() => Dispatcher.UIThread.Post(() => ScheduleHints(100));
 
     public void Detach()
     {
         if (_lsp is { } lsp)
+        {
             lsp.DiagnosticsPublished -= OnDiagnosticsPublished;
+            lsp.HintsRefreshRequested -= OnHintsRefreshRequested;
+        }
         _lsp = null;
         if (_linters.Count == 0)
             _pendingChanges.Clear();
@@ -581,6 +593,13 @@ public sealed partial class EditorHost : IDisposable, IDebugLineSource
 
     void OnTextEntering(object? sender, TextInputEventArgs e)
     {
+        // Several carets: what is typed goes in at each.
+        if (_carets.Count > 0 && e.Text is { Length: > 0 } typed)
+        {
+            InsertAtCarets(typed);
+            e.Handled = true;
+            return;
+        }
         if (_completionWindow is null || string.IsNullOrEmpty(e.Text))
             return;
         var c = e.Text[0];
@@ -802,6 +821,11 @@ public sealed partial class EditorHost : IDisposable, IDebugLineSource
 
     void OnKeyDown(object? sender, KeyEventArgs e)
     {
+        if (OnMultiCaretKey(e))
+        {
+            e.Handled = true;
+            return;
+        }
         // The command modifier: Ctrl, Cmd on a Mac.
         var ctrl = Karvon.Views.PlatformKeys.HasCommand(e.KeyModifiers);
         var shift = e.KeyModifiers.HasFlag(KeyModifiers.Shift);
@@ -984,9 +1008,48 @@ public sealed partial class EditorHost : IDisposable, IDebugLineSource
         };
         if (action.Children.Count > 0)
             item.ItemsSource = action.Children.Select(QuickActionItem).ToList();
+        else if (action.IsFixAll)
+        {
+            // Visual Studio's Fix all occurrences in: Document, Project, Solution.
+            item.ItemsSource = action.FixAllScopes.Select(scope =>
+            {
+                var choice = new MenuItem { Header = $"Fix all occurrences in {scope}" };
+                choice.Click += (_, _) => _ = ApplyFixAllAsync(action, scope);
+                return choice;
+            }).ToList();
+        }
         else
             item.Click += (_, _) => _ = ApplyCodeActionAsync(action);
         return item;
+    }
+
+    /// <summary>A Fix All applied in a scope (the files it touches edited, opened or not).</summary>
+    internal async Task ApplyFixAllAsync(LspCodeAction action, string scope)
+    {
+        if ((action.Server ?? _lsp) is not { } lsp)
+            return;
+        FlushChanges();
+        IReadOnlyList<LspFileOperation> ops;
+        try
+        {
+            ops = await lsp.ResolveFixAllAsync(action, scope, CancellationToken.None);
+        }
+        catch (Exception ex) when (ex is LspException or IOException)
+        {
+            StatusMessage?.Invoke(ex.Message);
+            return;
+        }
+        if (ops.Count == 0)
+        {
+            StatusMessage?.Invoke($"Nothing to fix in the {scope.ToLowerInvariant()}.");
+            return;
+        }
+        if (WorkspaceOperationsRequested is not null)
+            await WorkspaceOperationsRequested.Invoke(ops);
+        else
+            foreach (var op in ops.Where(o => o.Kind == "edit" && o.Path == FilePath))
+                ApplyEdits(op.Edits);
+        StatusMessage?.Invoke($"Fixed in the {scope.ToLowerInvariant()} ({ops.Count} file{(ops.Count == 1 ? "" : "s")}): {action.Title}");
     }
 
     internal async Task ApplyCodeActionAsync(LspCodeAction action)

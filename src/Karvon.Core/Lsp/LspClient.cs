@@ -147,6 +147,8 @@ public class LspClient : IAsyncDisposable
             workspaceEdit = new { documentChanges = true },
             diagnostics = new { refreshSupport = true },
             semanticTokens = new { refreshSupport = true },
+            inlayHint = new { refreshSupport = true },
+            codeLens = new { refreshSupport = true },
         },
         textDocument = new
         {
@@ -194,6 +196,8 @@ public class LspClient : IAsyncDisposable
                 multilineTokenSupport = true,
                 overlappingTokenSupport = false,
             },
+            inlayHint = new { },
+            codeLens = new { },
             codeAction = new
             {
                 dataSupport = true,
@@ -213,6 +217,17 @@ public class LspClient : IAsyncDisposable
 
     void Wire()
     {
+        // The server's hints or lenses changed (a project loaded): the editors ask again.
+        Rpc.OnRequest("workspace/inlayHint/refresh", _ =>
+        {
+            HintsRefreshRequested?.Invoke();
+            return Task.FromResult<object?>(null);
+        });
+        Rpc.OnRequest("workspace/codeLens/refresh", _ =>
+        {
+            HintsRefreshRequested?.Invoke();
+            return Task.FromResult<object?>(null);
+        });
         Rpc.OnRequest("workspace/configuration", p =>
             Task.FromResult<object?>(p.GetProperty("items").EnumerateArray()
                 .Select(item => ConfigurationFor(item.TryGetProperty("section", out var section) ? section.GetString() : null)).ToArray()));
@@ -455,6 +470,58 @@ public class LspClient : IAsyncDisposable
     public bool ProvidesCodeActions => Capabilities.ValueKind == JsonValueKind.Object && Capabilities.TryGetProperty("codeActionProvider", out var provider)
         && provider.ValueKind is JsonValueKind.True or JsonValueKind.Object;
 
+    /// <summary>The server asks for its inlay hints and code lenses again (workspace/inlayHint/refresh, workspace/codeLens/refresh).</summary>
+    public event Action? HintsRefreshRequested;
+
+    public bool ProvidesInlayHints => Capabilities.ValueKind == JsonValueKind.Object && Capabilities.TryGetProperty("inlayHintProvider", out var provider)
+        && provider.ValueKind is JsonValueKind.True or JsonValueKind.Object;
+
+    public bool ProvidesCodeLens => Capabilities.ValueKind == JsonValueKind.Object && Capabilities.TryGetProperty("codeLensProvider", out var provider)
+        && provider.ValueKind == JsonValueKind.Object;
+
+    /// <summary>A range's inlay hints (textDocument/inlayHint): parameter names, types.</summary>
+    public async Task<IReadOnlyList<LspInlayHint>> InlayHintsAsync(string path, LspRange range, CancellationToken ct)
+    {
+        var result = await QueryAsync("textDocument/inlayHint", new { textDocument = new { uri = ToUri(path) }, range }, ct);
+        if (result.ValueKind != JsonValueKind.Array)
+            return [];
+        return [.. result.EnumerateArray().Select(h =>
+        {
+            var label = h.GetProperty("label") is { ValueKind: JsonValueKind.String } text ? text.GetString()!
+                : string.Concat(h.GetProperty("label").EnumerateArray().Select(p => p.TryGetProperty("value", out var v) ? v.GetString() : ""));
+            return new LspInlayHint(LspParse.Position(h.GetProperty("position")), label,
+                h.TryGetProperty("kind", out var k) && k.ValueKind == JsonValueKind.Number ? k.GetInt32() : null,
+                h.TryGetProperty("paddingLeft", out var l) && l.ValueKind == JsonValueKind.True,
+                h.TryGetProperty("paddingRight", out var r) && r.ValueKind == JsonValueKind.True);
+        })];
+    }
+
+    /// <summary>A file's code lenses (textDocument/codeLens), each resolved (codeLens/resolve) when it has no title yet.</summary>
+    public async Task<IReadOnlyList<LspCodeLens>> CodeLensesAsync(string path, CancellationToken ct)
+    {
+        var result = await QueryAsync("textDocument/codeLens", new { textDocument = new { uri = ToUri(path) } }, ct);
+        if (result.ValueKind != JsonValueKind.Array)
+            return [];
+        var lenses = new List<LspCodeLens>();
+        foreach (var raw in result.EnumerateArray().Select(l => l.Clone()))
+        {
+            var lens = raw;
+            if (!Title(lens, out _) && Capabilities.TryGetProperty("codeLensProvider", out var provider) && provider.TryGetProperty("resolveProvider", out var resolve)
+                && resolve.ValueKind == JsonValueKind.True)
+                lens = (await QueryAsync("codeLens/resolve", raw, ct)).Clone();
+            if (lens.ValueKind == JsonValueKind.Object && lens.TryGetProperty("range", out var range))
+                lenses.Add(new LspCodeLens(LspParse.Range(range), Title(lens, out var title) ? title : null, lens));
+        }
+        return lenses;
+
+        static bool Title(JsonElement lens, out string title)
+        {
+            title = lens.ValueKind == JsonValueKind.Object && lens.TryGetProperty("command", out var command) && command.ValueKind == JsonValueKind.Object
+                && command.TryGetProperty("title", out var t) ? t.GetString() ?? "" : "";
+            return title.Length > 0;
+        }
+    }
+
     /// <summary>Quick Actions and Refactorings (Ctrl+.) for a range, given the diagnostics it overlaps.</summary>
     public async Task<IReadOnlyList<LspCodeAction>> CodeActionsAsync(string path, LspRange range, IReadOnlyList<LspDiagnostic> diagnostics, CancellationToken ct) =>
         [.. LspParse.CodeActions(await QueryAsync("textDocument/codeAction", new
@@ -481,6 +548,22 @@ public class LspClient : IAsyncDisposable
             ? args.EnumerateArray().Select(a => (object?)a.Clone()).ToArray()
             : [];
         await ExecuteCommandAsync(command.GetProperty("command").GetString()!, arguments, ct);
+    }
+
+    /// <summary>A Fix All's edit in a scope (Roslyn's codeAction/resolveFixAll): every place the fix applies to there.</summary>
+    public async Task<IReadOnlyList<LspFileOperation>> ResolveFixAllAsync(LspCodeAction action, string scope, CancellationToken ct)
+    {
+        if (action.FixAllData is not { } data)
+            return [];
+        var resolved = await QueryAsync("codeAction/resolveFixAll", new
+        {
+            title = data.TryGetProperty("UniqueIdentifier", out var id) ? id.GetString() : action.Title,
+            data,
+            scope,
+        }, ct);
+        return resolved.ValueKind == JsonValueKind.Object && resolved.TryGetProperty("edit", out var edit)
+            ? LspParse.WorkspaceEdit(edit)
+            : [];
     }
 
     /// <summary>Computes the edit for a code action (codeAction/resolve unless the server already sent it).</summary>
