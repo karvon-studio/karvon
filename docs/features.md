@@ -68,6 +68,13 @@ HTTPS development certificate.
 F5 debugs with the language's debugger (see Languages; TypeScript through its source maps): breakpoints that follow
 edits, Step Over / Into / Out, Locals, Watch, Call Stack, data tips, debugging tests, several programs at once
 (launch.json's compounds).
+A breakpoint's **Conditions** and **Actions** (right-click it, or the editor's Breakpoint > Insert Conditional
+Breakpoint / Insert Tracepoint): break only when a condition is true or at a hit count, log a message instead of
+breaking (`{x}` puts in a value), or keep it off; its glyph says which, and the settings go with it as lines move.
+The **Breakpoints** window (Ctrl+Alt+B) lists them all, to turn on and off, edit, go to or delete. **Exception
+Settings** (Ctrl+Alt+E): the exceptions the debugger says it can break on, checked as you like for each debugger
+(kept, and told to a running session at once). The **Immediate** window (Ctrl+Alt+I): an expression evaluated where
+the program stopped (an assignment too: Locals and Watch follow), Up for the ones before.
 
 ## Test Explorer
 
@@ -305,5 +312,5 @@ Keyboard shortcuts follow Visual Studio (Help > Keyboard Shortcuts).
 
 ## Not yet
 
-Conditional breakpoints, exception settings, Immediate window, debugging Blazor WebAssembly in the browser,
+Debugging Blazor WebAssembly in the browser,
 Fix All, WinForms / WPF designers.

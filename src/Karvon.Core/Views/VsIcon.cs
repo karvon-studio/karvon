@@ -41,7 +41,7 @@ public sealed class VsIcon : Control
         "Sparkle", "FileCode", "ChevronUp", "GitCommit", "Repo", "Globe", "ShieldOff", "Remote",
         "Docker", "DockerContainer", "DockerStack", "DockerImage", "DockerVolume", "DockerNetwork", "DockerPlay", "DockerStop", "DockerRestart",
         "DockerPause", "DockerDelete", "DockerMore", "DockerLink", "DockerBack", "DockerTerminal", "DockerLogs", "DockerStats", "DockerInspect",
-        "ToolExplorer", "ToolTests", "ToolGit", "ToolDatabase", "ToolErrors", "ToolOutput", "ToolFind", "ToolLocals", "ToolCallStack", "ToolTerminal",
+        "ToolExplorer", "ToolTests", "ToolGit", "ToolDatabase", "ToolErrors", "ToolOutput", "ToolFind", "ToolLocals", "ToolCallStack", "ToolImmediate", "ToolTerminal",
         "ToolServers", "ToolMcp", "ToolSkills", "ToolJira", "ToolPorts", "ToolPipelines", "ToolPullRequests", "ToolKubernetes", "ToolEndpoints",
         "PullRequest", "PullRequestDraft", "PullRequestMerged", "PullRequestClosed", "Comment",
     ];
@@ -523,6 +523,10 @@ public sealed class VsIcon : Control
                 break;
             case "ToolLocals":
                 Line(dc, "M8 3H7a2 2 0 0 0-2 2v4.5a2 2 0 0 1-2 2.5 2 2 0 0 1 2 2.5V19a2 2 0 0 0 2 2h1 M16 3h1a2 2 0 0 1 2 2v4.5a2 2 0 0 0 2 2.5 2 2 0 0 0-2 2.5V19a2 2 0 0 1-2 2h-1", fg, 1.6);
+                break;
+            case "ToolImmediate":
+                // A prompt and what it answered: the Immediate window.
+                Line(dc, "M4 4.5h16v15H4z M7.5 9.5l3 2.5-3 2.5 M12.5 15h4", fg, 1.6);
                 break;
             case "ToolCallStack":
                 Line(dc, "M4 4.5h16v4H4z M4 10.5h16v4H4z M4 16.5h16v4H4z", fg, 1.6);

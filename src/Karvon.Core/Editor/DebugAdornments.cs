@@ -1,4 +1,5 @@
 using Avalonia;
+using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Media;
 using AvaloniaEdit.Editing;
@@ -13,6 +14,14 @@ public interface IDebugLineSource
     bool? IsBreakpointVerified(int line);
     int? ExecutionLine { get; }
     void ToggleBreakpoint(int line);
+
+    /// <summary>A breakpoint's settings: its glyph says them (a condition's plus, a logpoint's diamond, an off one hollow).</summary>
+    Debugging.BreakpointSettings BreakpointSettingsAt(int line) => Debugging.BreakpointSettings.Default;
+
+    /// <summary>A breakpoint's menu (right-click on it): its conditions and actions, off, deleted.</summary>
+    void ShowBreakpointMenu(int line, Control target)
+    {
+    }
 }
 
 /// <summary>Visual Studio's indicator margin: red breakpoint dots and the yellow current-statement arrow.</summary>
@@ -23,6 +32,7 @@ public sealed class BreakpointMargin(IDebugLineSource source) : AbstractMargin
     static readonly IPen BreakpointPen = new Pen(new SolidColorBrush(Color.Parse("#E51400")), 1.5);
     static readonly IBrush ArrowBrush = new SolidColorBrush(Color.Parse("#FFE400"));
     static readonly IPen ArrowPen = new Pen(new SolidColorBrush(Color.Parse("#5A5000")), 1);
+    static readonly IPen PlusPen = new Pen(Brushes.White, 1.6);
 
     protected override Size MeasureOverride(Size availableSize) => new(18, 0);
 
@@ -54,11 +64,32 @@ public sealed class BreakpointMargin(IDebugLineSource source) : AbstractMargin
             var center = new Point(9, top + height / 2);
             if (breakpoints.Contains(line))
             {
-                // Hollow until the debugger confirms the breakpoint binds to code, like VS.
-                if (source.IsBreakpointVerified(line) == false)
+                var settings = source.BreakpointSettingsAt(line);
+                if (settings.IsLogpoint)
+                {
+                    // A tracepoint's diamond, as in VS: it logs and goes on.
+                    var diamond = new StreamGeometry();
+                    using (var ctx = diamond.Open())
+                    {
+                        ctx.BeginFigure(new Point(center.X, center.Y - 6.5), true);
+                        ctx.LineTo(new Point(center.X + 6.5, center.Y));
+                        ctx.LineTo(new Point(center.X, center.Y + 6.5));
+                        ctx.LineTo(new Point(center.X - 6.5, center.Y));
+                        ctx.EndFigure(true);
+                    }
+                    dc.DrawGeometry(settings.Enabled ? BreakpointBrush : null, settings.Enabled ? null : BreakpointPen, diamond);
+                }
+                // Hollow when off, or until the debugger confirms the breakpoint binds to code, like VS.
+                else if (!settings.Enabled || source.IsBreakpointVerified(line) == false)
                     dc.DrawEllipse(null, BreakpointPen, center, 5.5, 5.5);
                 else
                     dc.DrawEllipse(BreakpointBrush, null, center, 6.5, 6.5);
+                if (settings.HasConditions && settings.Enabled)
+                {
+                    // A condition's white plus on it.
+                    dc.DrawLine(PlusPen, new Point(center.X - 3.5, center.Y), new Point(center.X + 3.5, center.Y));
+                    dc.DrawLine(PlusPen, new Point(center.X, center.Y - 3.5), new Point(center.X, center.Y + 3.5));
+                }
             }
             if (execution == line)
             {
@@ -84,12 +115,21 @@ public sealed class BreakpointMargin(IDebugLineSource source) : AbstractMargin
     {
         base.OnPointerPressed(e);
         var view = TextView;
-        if (view is null || !e.GetCurrentPoint(this).Properties.IsLeftButtonPressed)
+        var point = e.GetCurrentPoint(this).Properties;
+        if (view is null || !point.IsLeftButtonPressed && !point.IsRightButtonPressed)
             return;
         var visual = view.GetVisualLineFromVisualTop(e.GetPosition(this).Y + view.VerticalOffset);
         if (visual is null)
             return;
-        source.ToggleBreakpoint(visual.FirstDocumentLine.LineNumber);
+        var line = visual.FirstDocumentLine.LineNumber;
+        if (point.IsRightButtonPressed)
+        {
+            if (!source.BreakpointLines.Contains(line))
+                return;
+            source.ShowBreakpointMenu(line, this);
+        }
+        else
+            source.ToggleBreakpoint(line);
         e.Handled = true;
     }
 }
@@ -114,7 +154,7 @@ public sealed class DebugLineRenderer(IDebugLineSource source) : IBackgroundRend
         {
             var line = visual.FirstDocumentLine.LineNumber;
             var brush = execution == line ? ExecutionLineBrush
-                : breakpoints.Contains(line) && source.IsBreakpointVerified(line) != false ? BreakpointLineBrush
+                : breakpoints.Contains(line) && source.IsBreakpointVerified(line) != false && source.BreakpointSettingsAt(line) is { Enabled: true, IsLogpoint: false } ? BreakpointLineBrush
                 : null;
             if (brush is null)
                 continue;

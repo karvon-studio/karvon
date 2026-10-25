@@ -392,7 +392,7 @@ public class DebugLaunchTests
         var output = new System.Collections.Concurrent.ConcurrentQueue<string>();
         var ended = new TaskCompletionSource<int?>();
         await using var session = await Karvon.Debugging.DebugSession.StartAsync(adapter, "launch",
-            new System.Text.Json.Nodes.JsonObject { ["type"] = "fake", ["program"] = program, ["cwd"] = dir }, new Dictionary<string, IReadOnlyList<int>>(),
+            new System.Text.Json.Nodes.JsonObject { ["type"] = "fake", ["program"] = program, ["cwd"] = dir }, new Dictionary<string, IReadOnlyList<Karvon.Debugging.SourceBreakpoint>>(),
             (_, _) => { }, s =>
             {
                 s.Output += (_, text) => output.Enqueue(text);

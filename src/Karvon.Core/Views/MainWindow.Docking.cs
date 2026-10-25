@@ -557,7 +557,8 @@ public partial class MainWindow
         string[] right = [ToolWindows.SolutionExplorer, ToolWindows.TestExplorer, ToolWindows.GitChanges,
             .. modules.Where(t => t.Side == DockSide.Right).Select(t => t.Id)];
         string[] left = [.. modules.Where(t => t.Side == DockSide.Left).Select(t => t.Id)];
-        string[] bottom = [ToolWindows.ErrorList, ToolWindows.Output, ToolWindows.FindResults, ToolWindows.Locals, ToolWindows.Watch, ToolWindows.CallStack, ToolWindows.Terminal,
+        string[] bottom = [ToolWindows.ErrorList, ToolWindows.Output, ToolWindows.FindResults, ToolWindows.Locals, ToolWindows.Watch, ToolWindows.CallStack,
+            ToolWindows.Breakpoints, ToolWindows.Immediate, ToolWindows.ExceptionSettings, ToolWindows.Terminal,
             .. modules.Where(t => t.Side == DockSide.Bottom).Select(t => t.Id)];
         foreach (var id in right)
             MoveToolWindow(id, DockSide.Right);

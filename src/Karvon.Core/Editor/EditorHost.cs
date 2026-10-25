@@ -316,6 +316,36 @@ public sealed partial class EditorHost : IDisposable, IDebugLineSource
 
     public void ToggleBreakpoint(int line) => _breakpoints?.Toggle(FilePath, line);
 
+    public BreakpointSettings BreakpointSettingsAt(int line) => _breakpoints?.SettingsOf(FilePath, line) ?? BreakpointSettings.Default;
+
+    /// <summary>A breakpoint's Conditions... or Actions... (true): the workbench shows its settings to edit.</summary>
+    public event Action<int, bool>? BreakpointEditRequested;
+
+    public void ShowBreakpointMenu(int line, Control target)
+    {
+        if (_breakpoints is not { } store)
+            return;
+        var settings = store.SettingsOf(FilePath, line);
+        MenuItem Item(string text, Action action)
+        {
+            var item = new MenuItem { Header = text };
+            item.Click += (_, _) => action();
+            return item;
+        }
+        var menu = new ContextMenu
+        {
+            ItemsSource = new object[]
+            {
+                Item("Conditions...", () => BreakpointEditRequested?.Invoke(line, false)),
+                Item("Actions...", () => BreakpointEditRequested?.Invoke(line, true)),
+                new Separator(),
+                Item(settings.Enabled ? "Disable Breakpoint" : "Enable Breakpoint", () => store.SetEnabled(FilePath, line, !settings.Enabled)),
+                Item("Delete Breakpoint", () => store.Remove(FilePath, line)),
+            },
+        };
+        menu.Open(target);
+    }
+
     /// <summary>Shows (or clears) the yellow current-statement marker and brings it into view.</summary>
     public void SetExecutionLine(int? line)
     {
@@ -1031,6 +1061,15 @@ public sealed partial class EditorHost : IDisposable, IDebugLineSource
                 new Separator(),
                 Item("Format Document", "Ctrl+K, Ctrl+D", () => _ = FormatDocumentAsync()),
                 Item("Toggle Breakpoint", "F9", () => ToggleBreakpoint(Editor.TextArea.Caret.Line)),
+                new MenuItem
+                {
+                    Header = "Breakpoint",
+                    ItemsSource = new object[]
+                    {
+                        Item("Insert Conditional Breakpoint...", "", () => BreakpointEditRequested?.Invoke(Editor.TextArea.Caret.Line, false)),
+                        Item("Insert Tracepoint...", "", () => BreakpointEditRequested?.Invoke(Editor.TextArea.Caret.Line, true)),
+                    },
+                },
                 new MenuItem
                 {
                     Header = "Outlining",

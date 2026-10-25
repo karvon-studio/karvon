@@ -67,6 +67,8 @@ public partial class MainViewModel
     void InitializeDebugging()
     {
         Breakpoints.Changed += (file, fromEditor) => _ = OnBreakpointsChangedAsync(file);
+        Breakpoints.Changed += (_, _) => ShowBreakpoints();
+        Breakpoints.VerificationChanged += _ => ShowBreakpoints();
     }
 
     async Task OnBreakpointsChangedAsync(string file)
@@ -74,15 +76,17 @@ public partial class MainViewModel
         if (Solution is not null && !_restoringState)
         {
             _state.Breakpoints = Breakpoints.Snapshot();
+            _state.BreakpointSettings = Breakpoints.SettingsSnapshot();
             SaveSession();
         }
-        // Breakpoints added or removed while debugging take effect immediately, in every session.
-        var lines = Breakpoints.For(file).ToList();
+        // Breakpoints added, removed or changed while debugging take effect immediately, in every session (those off are not given).
+        var breakpoints = Breakpoints.SourceBreakpoints(file);
+        var lines = breakpoints.Select(b => b.Line).ToList();
         foreach (var session in _sessions.Where(s => !s.HasEnded).ToList())
         {
             try
             {
-                var results = await session.SetBreakpointsAsync(file, lines);
+                var results = await session.SetBreakpointsAsync(file, breakpoints);
                 Breakpoints.SetVerification(file, lines, results);
             }
             catch (Exception ex) when (ex is DapException or IOException)
@@ -94,7 +98,8 @@ public partial class MainViewModel
 
     void LoadDebugState(Services.SolutionState state)
     {
-        Breakpoints.Load(state.Breakpoints);
+        Breakpoints.Load(state.Breakpoints, state.BreakpointSettings);
+        ShowBreakpoints();
         Watches.Clear();
         foreach (var w in state.Watches)
             Watches.Add(new WatchItem(w));
@@ -103,6 +108,7 @@ public partial class MainViewModel
     void SaveDebugState(Services.SolutionState state)
     {
         state.Breakpoints = Breakpoints.Snapshot();
+        state.BreakpointSettings = Breakpoints.SettingsSnapshot();
         state.Watches = Watches.Select(w => w.Expression).ToList();
     }
 
@@ -269,12 +275,12 @@ public partial class MainViewModel
         _serverReady = ServerReadyAction.Of(configuration, DebugOutput.Append);
         if (withSolution)
             StartWithSolution(debugging: !noDebug);
-        var breakpoints = noDebug ? new Dictionary<string, IReadOnlyList<int>>() : Breakpoints.All;
+        var breakpoints = noDebug ? new Dictionary<string, IReadOnlyList<SourceBreakpoint>>() : Breakpoints.AllSource;
         try
         {
             _session = await DebugSession.StartAsync(adapter, launch.Request, configuration, breakpoints,
-                (file, results) => Dispatcher.UIThread.Post(() => Breakpoints.SetVerification(file, breakpoints[file], results)),
-                WireSession, CancellationToken.None);
+                (file, results) => Dispatcher.UIThread.Post(() => Breakpoints.SetVerification(file, [.. breakpoints[file].Select(b => b.Line)], results)),
+                WireSession, CancellationToken.None, noDebug ? _ => [] : capabilities => ExceptionFiltersFor(adapter.Type, capabilities));
         }
         catch (Exception ex)
         {

@@ -34,7 +34,7 @@ public class DebuggerIntegrationTests
                 ["ASPNETCORE_URLS"] = "http://localhost:5281",
                 ["ASPNETCORE_ENVIRONMENT"] = "Development",
             }),
-            new Dictionary<string, IReadOnlyList<int>> { [program] = [2] },
+            new Dictionary<string, IReadOnlyList<SourceBreakpoint>> { [program] = [new SourceBreakpoint(2)] },
             (file, results) => verified[file] = results,
             s =>
             {

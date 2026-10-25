@@ -26,6 +26,9 @@ public sealed class SolutionState
     /// <summary>Tab groups side by side (New Vertical Tab Group) rather than one above the other.</summary>
     public bool DocumentGroupsVertical { get; set; } = true;
     public Dictionary<string, List<int>> Breakpoints { get; set; } = [];
+
+    /// <summary>The breakpoints' own settings (a condition, a hit count, a message, off), by file.</summary>
+    public Dictionary<string, List<Debugging.SavedBreakpoint>> BreakpointSettings { get; set; } = [];
     public List<string> Watches { get; set; } = [];
 
     /// <summary>Solution Explorer nodes that were expanded (paths, or "folder:Name" for solution folders).</summary>

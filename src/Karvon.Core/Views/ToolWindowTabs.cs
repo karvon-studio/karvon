@@ -37,6 +37,9 @@ public static class ToolWindowTabs
         ToolWindows.Locals => "ToolLocals",
         ToolWindows.Watch => "Eye",
         ToolWindows.CallStack => "ToolCallStack",
+        ToolWindows.Breakpoints => "Breakpoint",
+        ToolWindows.Immediate => "ToolImmediate",
+        ToolWindows.ExceptionSettings => "Warning",
         ToolWindows.Terminal => "ToolTerminal",
         _ => "ToolExplorer",
     };

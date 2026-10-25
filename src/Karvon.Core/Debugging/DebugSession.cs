@@ -15,6 +15,28 @@ public sealed record VariableInfo(string Name, string Value, string? Type, int V
 
 public sealed record BreakpointResult(bool Verified, int? Line, string? Message);
 
+/// <summary>An exception filter a debugger offers (DAP's exceptionBreakpointFilters): netcoredbg's "all" and "user-unhandled".</summary>
+public sealed record ExceptionFilter(string Filter, string Label, bool Default, string? Description = null);
+
+/// <summary>What a debugger says it can do: conditions, hit counts and log messages on breakpoints, the exceptions it breaks on.</summary>
+public sealed record DebugCapabilities(bool ConditionalBreakpoints, bool HitConditionalBreakpoints, bool LogPoints, IReadOnlyList<ExceptionFilter> ExceptionFilters)
+{
+    public static readonly DebugCapabilities None = new(false, false, false, []);
+
+    public static DebugCapabilities Of(JsonElement body)
+    {
+        if (body.ValueKind != JsonValueKind.Object)
+            return None;
+        bool Has(string name) => body.TryGetProperty(name, out var v) && v.ValueKind == JsonValueKind.True;
+        var filters = body.TryGetProperty("exceptionBreakpointFilters", out var list) && list.ValueKind == JsonValueKind.Array
+            ? list.EnumerateArray().Select(f => new ExceptionFilter(f.GetProperty("filter").GetString() ?? "",
+                f.TryGetProperty("label", out var l) ? l.GetString() ?? "" : "", f.TryGetProperty("default", out var d) && d.ValueKind == JsonValueKind.True,
+                f.TryGetProperty("description", out var desc) ? desc.GetString() : null)).Where(f => f.Filter.Length > 0).ToList()
+            : [];
+        return new DebugCapabilities(Has("supportsConditionalBreakpoints"), Has("supportsHitConditionalBreakpoints"), Has("supportsLogPoints"), filters);
+    }
+}
+
 public sealed record EvaluateResult(string Value, string? Type, int VariablesReference);
 
 /// <summary>
@@ -30,7 +52,11 @@ public sealed class DebugSession : IAsyncDisposable
     readonly List<DapConnection> _children = [];
     /// <summary>What the adapter asked to run in a terminal (runInTerminal): run here, its output the program's.</summary>
     readonly List<ProcessRunner> _terminals = [];
-    readonly Dictionary<string, IReadOnlyList<int>> _breakpoints = [];
+    readonly Dictionary<string, IReadOnlyList<SourceBreakpoint>> _breakpoints = [];
+    IReadOnlyList<string> _exceptionFilters = [];
+
+    /// <summary>What the debugger said it can do, when it started.</summary>
+    public DebugCapabilities Capabilities { get; private set; } = DebugCapabilities.None;
     readonly Dictionary<(DapConnection, int), (string File, int Line)> _breakpointIds = [];
     DapConnection? _stopped;
     int _ended;
@@ -68,10 +94,11 @@ public sealed class DebugSession : IAsyncDisposable
         DebugAdapter adapter,
         string request,
         JsonObject configuration,
-        IReadOnlyDictionary<string, IReadOnlyList<int>> breakpoints,
+        IReadOnlyDictionary<string, IReadOnlyList<SourceBreakpoint>> breakpoints,
         Action<string, IReadOnlyList<BreakpointResult>> onBreakpointsVerified,
         Action<DebugSession>? beforeConfigurationDone,
-        CancellationToken ct)
+        CancellationToken ct,
+        Func<DebugCapabilities, IReadOnlyList<string>>? exceptionFilters = null)
     {
         DapConnection root;
         try
@@ -90,10 +117,15 @@ public sealed class DebugSession : IAsyncDisposable
         adapter.StartLogging(line => session.Output?.Invoke("console", line + "\n"));
         try
         {
-            await InitializeAsync(root, adapter.Type, request, configuration, async () =>
+            await InitializeAsync(root, adapter.Type, request, configuration, async capabilities =>
             {
+                session.Capabilities = capabilities;
                 foreach (var (file, lines) in breakpoints)
                     onBreakpointsVerified(file, await session.SetBreakpointsAsync(root, file, lines, ct));
+                // The exceptions it breaks on, as the user chose them for this debugger (else its defaults).
+                session._exceptionFilters = exceptionFilters?.Invoke(capabilities) ?? [.. capabilities.ExceptionFilters.Where(f => f.Default).Select(f => f.Filter)];
+                if (capabilities.ExceptionFilters.Count > 0)
+                    await SetExceptionBreakpointsAsync(root, session._exceptionFilters, ct);
             }, ct);
             return session;
         }
@@ -108,7 +140,7 @@ public sealed class DebugSession : IAsyncDisposable
     /// DAP's start of a session: initialize, the launch or attach request, the breakpoints once the adapter is
     /// initialized, configurationDone; and the answer to launch, which some adapters give only after configurationDone.
     /// </summary>
-    static async Task InitializeAsync(DapConnection dap, string adapterId, string request, object configuration, Func<Task> setBreakpoints, CancellationToken ct)
+    static async Task InitializeAsync(DapConnection dap, string adapterId, string request, object configuration, Func<DebugCapabilities, Task> setBreakpoints, CancellationToken ct)
     {
         var initialized = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         dap.EventReceived += (name, _) =>
@@ -117,7 +149,7 @@ public sealed class DebugSession : IAsyncDisposable
                 initialized.TrySetResult();
         };
         dap.Start();
-        await dap.RequestAsync("initialize", new
+        var capabilities = await dap.RequestAsync("initialize", new
         {
             clientID = "karvon",
             clientName = "Karvon",
@@ -136,7 +168,7 @@ public sealed class DebugSession : IAsyncDisposable
         if (startTask.IsFaulted)
             await startTask;
         await initialized.Task.WaitAsync(TimeSpan.FromSeconds(30), ct);
-        await setBreakpoints();
+        await setBreakpoints(DebugCapabilities.Of(capabilities));
         await dap.RequestAsync("configurationDone", null, ct);
         await startTask.WaitAsync(TimeSpan.FromSeconds(30), ct);
     }
@@ -206,14 +238,16 @@ public sealed class DebugSession : IAsyncDisposable
                 lock (_children)
                     _children.Add(child);
                 child.Disconnected += _ => RemoveChild(child);
-                await InitializeAsync(child, _adapter.Type, request, configuration, async () =>
+                await InitializeAsync(child, _adapter.Type, request, configuration, async capabilities =>
                 {
                     foreach (var (file, lines) in Breakpoints())
                     {
                         var results = await SetBreakpointsAsync(child, file, lines, CancellationToken.None);
                         foreach (var (line, result) in lines.Zip(results))
-                            BreakpointChanged?.Invoke(file, line, result.Verified);
+                            BreakpointChanged?.Invoke(file, line.Line, result.Verified);
                     }
+                    if (capabilities.ExceptionFilters.Count > 0)
+                        await SetExceptionBreakpointsAsync(child, _exceptionFilters, CancellationToken.None);
                 }, CancellationToken.None);
             }
             catch (Exception ex) when (ex is IOException or SocketException or DapException or TimeoutException or OperationCanceledException or NotSupportedException)
@@ -232,7 +266,7 @@ public sealed class DebugSession : IAsyncDisposable
             _stopped = null;
     }
 
-    List<KeyValuePair<string, IReadOnlyList<int>>> Breakpoints()
+    List<KeyValuePair<string, IReadOnlyList<SourceBreakpoint>>> Breakpoints()
     {
         lock (_breakpoints)
             return _breakpoints.ToList();
@@ -337,8 +371,21 @@ public sealed class DebugSession : IAsyncDisposable
 
     public bool HasEnded => _ended == 1;
 
+    /// <summary>The exceptions it breaks on now (filters of its <see cref="Capabilities"/>), in each process debugged.</summary>
+    public async Task SetExceptionBreakpointsAsync(IReadOnlyList<string> filters, CancellationToken ct = default)
+    {
+        _exceptionFilters = filters;
+        if (Capabilities.ExceptionFilters.Count == 0)
+            return;
+        foreach (var dap in Debuggees())
+            await SetExceptionBreakpointsAsync(dap, filters, ct);
+    }
+
+    static Task SetExceptionBreakpointsAsync(DapConnection dap, IReadOnlyList<string> filters, CancellationToken ct) =>
+        dap.RequestAsync("setExceptionBreakpoints", new { filters }, ct);
+
     /// <summary>A file's breakpoints now (all of them: the lines replace those it had), in each process debugged.</summary>
-    public async Task<IReadOnlyList<BreakpointResult>> SetBreakpointsAsync(string file, IReadOnlyList<int> lines, CancellationToken ct = default)
+    public async Task<IReadOnlyList<BreakpointResult>> SetBreakpointsAsync(string file, IReadOnlyList<SourceBreakpoint> lines, CancellationToken ct = default)
     {
         lock (_breakpoints)
             _breakpoints[file] = lines;
@@ -351,13 +398,24 @@ public sealed class DebugSession : IAsyncDisposable
         return first ?? [];
     }
 
-    async Task<IReadOnlyList<BreakpointResult>> SetBreakpointsAsync(DapConnection dap, string file, IReadOnlyList<int> lines, CancellationToken ct)
+    async Task<IReadOnlyList<BreakpointResult>> SetBreakpointsAsync(DapConnection dap, string file, IReadOnlyList<SourceBreakpoint> lines, CancellationToken ct)
     {
         var body = await dap.RequestAsync("setBreakpoints", new
         {
             source = new { path = file, name = Path.GetFileName(file) },
-            breakpoints = lines.Select(l => new { line = l }).ToArray(),
-            lines,
+            // A condition, hit count or message only when there is one (and only to a debugger that can: it ignores what it cannot).
+            breakpoints = lines.Select(b =>
+            {
+                var breakpoint = new JsonObject { ["line"] = b.Line };
+                if (b.Condition is { } condition)
+                    breakpoint["condition"] = condition;
+                if (b.HitCondition is { } hit)
+                    breakpoint["hitCondition"] = hit;
+                if (b.LogMessage is { } message)
+                    breakpoint["logMessage"] = message;
+                return breakpoint;
+            }).ToArray(),
+            lines = lines.Select(b => b.Line).ToArray(),
             sourceModified = false,
         }, ct);
         if (body.ValueKind != JsonValueKind.Object || !body.TryGetProperty("breakpoints", out var list))
@@ -370,7 +428,7 @@ public sealed class DebugSession : IAsyncDisposable
             foreach (var b in list.EnumerateArray())
             {
                 if (b.TryGetProperty("id", out var id) && i < lines.Count)
-                    _breakpointIds[(dap, id.GetInt32())] = (file, lines[i]);
+                    _breakpointIds[(dap, id.GetInt32())] = (file, lines[i].Line);
                 i++;
             }
         }

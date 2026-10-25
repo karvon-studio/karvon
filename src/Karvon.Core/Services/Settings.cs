@@ -120,6 +120,12 @@ public sealed class Settings
     /// <summary>The Markdown preview is below the editor instead of to its right.</summary>
     public bool MarkdownPreviewBelow { get; set; }
 
+    /// <summary>Exception Settings: the exceptions each debugger (by its type) breaks on, as chosen.</summary>
+    public Dictionary<string, List<string>> ExceptionBreakpoints { get; set; } = [];
+
+    /// <summary>The exceptions each debugger said it can break on, last time it ran (for Exception Settings before it runs).</summary>
+    public Dictionary<string, List<Debugging.ExceptionFilter>> ExceptionFilters { get; set; } = [];
+
     /// <summary>The Claude Code account (its configuration folder) the panel runs with; null for the CLI's own choice.</summary>
     public string? ClaudeAccount { get; set; }
     /// <summary>

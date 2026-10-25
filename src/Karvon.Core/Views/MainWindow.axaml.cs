@@ -37,6 +37,12 @@ public partial class MainWindow : Window, IDialogService
             if (DataContext is MainViewModel vm)
             {
                 vm.Dialogs = this;
+                // The Immediate window keeps its last answer in view.
+                vm.Immediate.CollectionChanged += (_, _) =>
+                {
+                    if (vm.Immediate.Count > 0)
+                        ImmediateList.ScrollIntoView(vm.Immediate[^1]);
+                };
                 AttachDocumentWell(vm);
                 vm.ToolWindowRequested += OnToolWindowRequested;
                 vm.ToolWindowBesideRequested += OnToolWindowBesideRequested;
@@ -1023,6 +1029,43 @@ public partial class MainWindow : Window, IDialogService
     void OnShowWatch(object? sender, RoutedEventArgs e) => Vm?.ShowToolWindow(ToolWindows.Watch);
 
     void OnShowCallStack(object? sender, RoutedEventArgs e) => Vm?.ShowToolWindow(ToolWindows.CallStack);
+
+    void OnBreakpointDoubleTapped(object? sender, TappedEventArgs e)
+    {
+        if (BreakpointList.SelectedItem is BreakpointItem item && e.Source is Control source && source.FindAncestorOfType<CheckBox>(includeSelf: true) is null
+            && source.FindAncestorOfType<Button>(includeSelf: true) is null)
+            Vm?.GoToBreakpointCommand.Execute(item);
+    }
+
+    void OnImmediateKeyDown(object? sender, KeyEventArgs e)
+    {
+        if (sender is not TextBox box || Vm is not { } vm)
+            return;
+        switch (e.Key)
+        {
+            case Key.Enter when !e.KeyModifiers.HasFlag(KeyModifiers.Shift):
+                var expression = box.Text;
+                box.Text = "";
+                _immediateRecall = -1;
+                _ = vm.EvaluateImmediate(expression);
+                e.Handled = true;
+                break;
+            // Up and Down go through the expressions asked before, as in Visual Studio's Immediate window.
+            case Key.Up or Key.Down when vm.ImmediateHistory.Count > 0:
+                var history = vm.ImmediateHistory;
+                _immediateRecall = e.Key == Key.Up
+                    ? _immediateRecall < 0 ? history.Count - 1 : Math.Max(0, _immediateRecall - 1)
+                    : _immediateRecall < 0 ? -1 : _immediateRecall + 1;
+                box.Text = _immediateRecall >= 0 && _immediateRecall < history.Count ? history[_immediateRecall] : "";
+                if (_immediateRecall >= history.Count)
+                    _immediateRecall = -1;
+                box.CaretIndex = box.Text.Length;
+                e.Handled = true;
+                break;
+        }
+    }
+
+    int _immediateRecall = -1;
 
 
     void OnWatchInputKeyDown(object? sender, KeyEventArgs e)

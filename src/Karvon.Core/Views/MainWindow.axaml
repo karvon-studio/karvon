@@ -28,6 +28,9 @@
     <KeyBinding Gesture="Shift+F11" Command="{Binding StepOutCommand}" />
     <KeyBinding Gesture="Ctrl+Shift+F5" Command="{Binding RestartCommand}" />
     <KeyBinding Gesture="Ctrl+Alt+Pause" Command="{Binding BreakAllCommand}" />
+    <KeyBinding Gesture="Ctrl+Alt+B" Command="{Binding ShowBreakpointsWindowCommand}" />
+    <KeyBinding Gesture="Ctrl+Alt+I" Command="{Binding ShowImmediateWindowCommand}" />
+    <KeyBinding Gesture="Ctrl+Alt+E" Command="{Binding ShowExceptionSettingsCommand}" />
   </Window.KeyBindings>
 
   <DockPanel>
@@ -177,6 +180,9 @@
         <MenuItem Header="_Locals" Click="OnShowLocals" />
         <MenuItem Header="_Watch" Click="OnShowWatch" />
         <MenuItem Header="_Call Stack" Click="OnShowCallStack" />
+        <MenuItem Header="_Breakpoints" InputGesture="Ctrl+Alt+B" Command="{Binding ShowBreakpointsWindowCommand}" />
+        <MenuItem Header="_Immediate" InputGesture="Ctrl+Alt+I" Command="{Binding ShowImmediateWindowCommand}" />
+        <MenuItem Header="E_xception Settings" InputGesture="Ctrl+Alt+E" Command="{Binding ShowExceptionSettingsCommand}" />
       </MenuItem>
       <MenuItem Header="_Test">
         <MenuItem Command="{Binding RunAllTestsCommand}">
@@ -580,6 +586,85 @@
                     </DataTemplate>
                   </ListBox.ItemTemplate>
                 </ListBox>
+              </DockPanel>
+            </TabItem>
+
+            <!-- Breakpoints: each on or off, its settings edited below -->
+            <TabItem Header="Breakpoints" Tag="Breakpoints">
+              <DockPanel>
+                <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Spacing="2" Margin="4,2">
+                  <Button Classes="tb" Command="{Binding EnableAllBreakpointsCommand}" CommandParameter="true" ToolTip.Tip="Enable All Breakpoints"><v:VsIcon Kind="Breakpoint" Width="14" Height="14" /></Button>
+                  <Button Classes="tb" Command="{Binding EnableAllBreakpointsCommand}" CommandParameter="false" ToolTip.Tip="Disable All Breakpoints"><v:VsIcon Kind="Pause" Width="14" Height="14" /></Button>
+                  <Button Classes="tb" Command="{Binding DeleteAllBreakpointsCommand}" ToolTip.Tip="Delete All Breakpoints"><v:VsIcon Kind="Trash" Width="14" Height="14" /></Button>
+                </StackPanel>
+                <Border DockPanel.Dock="Bottom" IsVisible="{Binding HasSelectedBreakpoint}" BorderBrush="#3F3F46" BorderThickness="0,1,0,0" Padding="8,6">
+                  <Grid ColumnDefinitions="Auto,*,Auto" RowDefinitions="Auto,Auto,Auto">
+                    <TextBlock Text="Condition (is true)" VerticalAlignment="Center" Margin="0,2,10,2" Foreground="{StaticResource VsGrayTextBrush}" />
+                    <TextBox Grid.Column="1" Name="BreakpointConditionBox" Text="{Binding BreakpointCondition}" PlaceholderText="total &gt; 100" Margin="0,2"
+                             FontFamily="{StaticResource VsCodeFont}" />
+                    <TextBlock Grid.Row="1" Text="Hit count" VerticalAlignment="Center" Margin="0,2,10,2" Foreground="{StaticResource VsGrayTextBrush}" />
+                    <TextBox Grid.Row="1" Grid.Column="1" Name="BreakpointHitBox" Text="{Binding BreakpointHitCondition}" PlaceholderText="5, &gt;= 5 or % 5, as the debugger takes it" Margin="0,2"
+                             FontFamily="{StaticResource VsCodeFont}" />
+                    <TextBlock Grid.Row="2" Text="Log a message (and go on)" VerticalAlignment="Center" Margin="0,2,10,2" Foreground="{StaticResource VsGrayTextBrush}" />
+                    <TextBox Grid.Row="2" Grid.Column="1" Name="BreakpointLogBox" Text="{Binding BreakpointLogMessage}" PlaceholderText="total is {total}" Margin="0,2"
+                             FontFamily="{StaticResource VsCodeFont}" />
+                    <Button Grid.Column="2" Grid.RowSpan="3" Content="Apply" Command="{Binding ApplyBreakpointSettingsCommand}" Margin="8,0,0,0" VerticalAlignment="Center" Padding="12,3" />
+                  </Grid>
+                </Border>
+                <ListBox Name="BreakpointList" Classes="dense" ItemsSource="{Binding BreakpointItems}" SelectedItem="{Binding SelectedBreakpoint}" DoubleTapped="OnBreakpointDoubleTapped">
+                  <ListBox.ItemTemplate>
+                    <DataTemplate x:DataType="vm:BreakpointItem">
+                      <Grid ColumnDefinitions="26,20,220,*,28">
+                        <CheckBox IsChecked="{Binding IsEnabled}" MinWidth="0" Padding="0" VerticalAlignment="Center" ToolTip.Tip="On or off" />
+                        <TextBlock Grid.Column="1" Text="{Binding Glyph}" Foreground="#E51400" VerticalAlignment="Center" />
+                        <TextBlock Grid.Column="2" Text="{Binding Name}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding File}" />
+                        <TextBlock Grid.Column="3" Text="{Binding Conditions}" Foreground="{StaticResource VsGrayTextBrush}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                        <Button Grid.Column="4" Classes="tb" Padding="3,0" MinHeight="16" ToolTip.Tip="Delete Breakpoint"
+                                Command="{Binding $parent[Window].((vm:MainViewModel)DataContext).DeleteBreakpointCommand}"
+                                CommandParameter="{Binding}"><v:VsIcon Kind="Close" Width="12" Height="12" /></Button>
+                      </Grid>
+                    </DataTemplate>
+                  </ListBox.ItemTemplate>
+                </ListBox>
+              </DockPanel>
+            </TabItem>
+
+            <!-- Immediate: an expression evaluated where the program stopped -->
+            <TabItem Header="Immediate Window" Tag="Immediate">
+              <DockPanel>
+                <TextBox Name="ImmediateInput" DockPanel.Dock="Bottom" Classes="search" Margin="4" FontFamily="{StaticResource VsCodeFont}"
+                         PlaceholderText="An expression, evaluated where the program stopped (Enter; Up for the ones before)" KeyDown="OnImmediateKeyDown" />
+                <Button DockPanel.Dock="Top" Classes="tb" HorizontalAlignment="Left" Margin="4,2" Command="{Binding ClearImmediateCommand}" ToolTip.Tip="Clear All">
+                  <v:VsIcon Kind="ClearAll" Width="14" Height="14" />
+                </Button>
+                <ListBox Name="ImmediateList" Classes="dense" ItemsSource="{Binding Immediate}">
+                  <ListBox.ItemTemplate>
+                    <DataTemplate x:DataType="vm:ImmediateEntry">
+                      <StackPanel>
+                        <TextBlock Text="{Binding Expression, StringFormat='&gt; {0}'}" Foreground="#9CDCFE" FontFamily="{StaticResource VsCodeFont}" />
+                        <SelectableTextBlock Text="{Binding Result}" FontFamily="{StaticResource VsCodeFont}" TextWrapping="Wrap"
+                                             Foreground="{Binding IsError, Converter={x:Static v:DebugConverters.ErrorBrush}}" />
+                      </StackPanel>
+                    </DataTemplate>
+                  </ListBox.ItemTemplate>
+                </ListBox>
+              </DockPanel>
+            </TabItem>
+
+            <!-- Exception Settings: the exceptions the debugger breaks on -->
+            <TabItem Header="Exception Settings" Tag="ExceptionSettings">
+              <DockPanel>
+                <TextBlock DockPanel.Dock="Top" Margin="8,6" Foreground="{StaticResource VsGrayTextBrush}" IsVisible="{Binding HasExceptionFilters}"
+                           Text="{Binding ExceptionDebugger, StringFormat='Break when these are thrown ({0}):'}" />
+                <TextBlock DockPanel.Dock="Top" Margin="8,6" TextWrapping="Wrap" Foreground="{StaticResource VsGrayTextBrush}" IsVisible="{Binding !HasExceptionFilters}"
+                           Text="Start debugging: the debugger says which exceptions it can break on, and they show here to check (kept for the next time)." />
+                <ItemsControl Name="ExceptionFilterList" ItemsSource="{Binding ExceptionFilters}" Margin="8,0">
+                  <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="vm:ExceptionFilterItem">
+                      <CheckBox IsChecked="{Binding IsChecked}" Content="{Binding Label}" ToolTip.Tip="{Binding Description}" Margin="0,1" />
+                    </DataTemplate>
+                  </ItemsControl.ItemTemplate>
+                </ItemsControl>
               </DockPanel>
             </TabItem>
 

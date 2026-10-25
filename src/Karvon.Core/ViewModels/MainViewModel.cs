@@ -25,6 +25,9 @@ public static class ToolWindows
     public const string Locals = "Locals";
     public const string Watch = "Watch";
     public const string CallStack = "CallStack";
+    public const string Breakpoints = "Breakpoints";
+    public const string Immediate = "Immediate";
+    public const string ExceptionSettings = "ExceptionSettings";
     public const string Terminal = "Terminal";
 }
 
@@ -499,6 +502,7 @@ public partial class MainViewModel : ObservableObject
         };
         host.CompareRequested += () => _ = CompareWithUnmodifiedAsync(doc);
         WireBlame(doc);
+        host.BreakpointEditRequested += (line, logpoint) => EditBreakpoint(doc.FilePath, line, logpoint);
         host.AskClaudeRequested += ShowClaude;
         host.ZoomChanged += () => Settings.EditorZoom = host.Zoom;
         host.PromptRequested += initial => Dialogs?.PromptAsync("Rename", "New name:", initial) ?? Task.FromResult<string?>(null);

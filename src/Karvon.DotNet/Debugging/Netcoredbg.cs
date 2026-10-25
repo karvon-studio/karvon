@@ -21,7 +21,7 @@ public static class Netcoredbg
     public static Task<DebugSession> LaunchAsync(
         string adapterPath,
         LaunchRequest launch,
-        IReadOnlyDictionary<string, IReadOnlyList<int>> breakpoints,
+        IReadOnlyDictionary<string, IReadOnlyList<SourceBreakpoint>> breakpoints,
         Action<string, IReadOnlyList<BreakpointResult>> onBreakpointsVerified,
         Action<DebugSession>? beforeConfigurationDone,
         CancellationToken ct) =>
@@ -44,7 +44,7 @@ public static class Netcoredbg
     public static Task<DebugSession> AttachAsync(
         string adapterPath,
         int processId,
-        IReadOnlyDictionary<string, IReadOnlyList<int>> breakpoints,
+        IReadOnlyDictionary<string, IReadOnlyList<SourceBreakpoint>> breakpoints,
         Action<string, IReadOnlyList<BreakpointResult>> onBreakpointsVerified,
         Action<DebugSession>? beforeConfigurationDone,
         CancellationToken ct) =>
