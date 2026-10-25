@@ -1,0 +1,155 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:v="using:Karvon.Views"
+             xmlns:ae="https://github.com/avaloniaui/avaloniaedit"
+             xmlns:kvm="using:Karvon.Kubernetes.ViewModels"
+             x:Class="Karvon.Kubernetes.Views.KubePageView"
+             x:DataType="kvm:KubePageViewModel">
+  <UserControl.Styles>
+    <StyleInclude Source="avares://Karvon.Core/Themes/ExplorerStyles.axaml" />
+    <Style Selector="TextBlock.section">
+      <Setter Property="FontWeight" Value="SemiBold" />
+      <Setter Property="Margin" Value="0,14,0,6" />
+    </Style>
+    <Style Selector="ListBox#PodList ListBoxItem">
+      <Setter Property="Padding" Value="8,3" />
+    </Style>
+  </UserControl.Styles>
+
+  <DockPanel Background="{StaticResource VsToolWindowBrush}">
+    <!-- The object: its state, and what can be done to it -->
+    <Border DockPanel.Dock="Top" Padding="20,14,20,0" BorderBrush="{StaticResource VsBorderBrush}" BorderThickness="0,0,0,1">
+      <StackPanel Spacing="8">
+        <StackPanel Orientation="Horizontal" Spacing="10">
+          <v:VsIcon Kind="{Binding Object.Kind, Converter={x:Static kvm:KubeConverters.KindIcon}}" Width="20" Height="20" VerticalAlignment="Center" />
+          <SelectableTextBlock Name="Heading" Text="{Binding Heading}" FontSize="19" VerticalAlignment="Center" TextWrapping="Wrap" />
+        </StackPanel>
+        <TextBlock Name="Facts" Text="{Binding Facts}" Classes="dkMuted" TextWrapping="Wrap" />
+        <WrapPanel Orientation="Horizontal">
+          <Border Classes="pill" Classes.green="{Binding IsGood}" Classes.red="{Binding IsProblem}" Margin="0,0,8,6"
+                  IsVisible="{Binding Status, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
+            <TextBlock Name="StatusPill" Text="{Binding Status}" />
+          </Border>
+          <TextBlock Text="{Binding Ready}" Classes="dkMuted" VerticalAlignment="Center" Margin="0,0,10,6" IsVisible="{Binding HasReady}" />
+          <Button Classes="dkOutline" Content="Restart" Command="{Binding RestartCommand}" IsVisible="{Binding CanRestart}" Margin="0,0,6,6" />
+          <Button Classes="dkOutline" Content="Scale…" Command="{Binding ScaleCommand}" IsVisible="{Binding CanScale}" Margin="0,0,6,6" />
+          <Button Classes="dkOutline" Content="Roll Back" Command="{Binding UndoCommand}" IsVisible="{Binding CanUndo}" Margin="0,0,6,6" />
+          <Button Classes="dkOutline" Content="Port Forward…" Command="{Binding ForwardCommand}" IsVisible="{Binding CanForward}" Margin="0,0,6,6" />
+          <Button Classes="dkOutline" Content="Run Now" Command="{Binding TriggerCommand}" IsVisible="{Binding IsCronJob}" Margin="0,0,6,6" />
+          <Button Classes="dkOutline" Content="Suspend / Resume" Command="{Binding SuspendCommand}" IsVisible="{Binding IsCronJob}" Margin="0,0,6,6" />
+          <Button Classes="dkPrimary" Content="Sync" Command="{Binding SyncCommand}" IsVisible="{Binding CanSync}" Margin="0,0,6,6" />
+          <Button Classes="dkOutline" Content="Refresh from Git" Command="{Binding RefreshAppCommand}" IsVisible="{Binding IsArgo}" Margin="0,0,6,6" />
+          <Button Classes="dkOutline" Content="Delete" Command="{Binding DeleteCommand}" IsVisible="{Binding CanDelete}" Margin="0,0,6,6" />
+          <Button Classes="dkOutline" Command="{Binding AskClaudeCommand}" Margin="0,0,6,6" ToolTip.Tip="Claude Code looks into it with its Kubernetes tools">
+            <StackPanel Orientation="Horizontal" Spacing="6">
+              <v:VsIcon Kind="Claude" Width="14" Height="14" />
+              <TextBlock Text="Ask Claude" />
+            </StackPanel>
+          </Button>
+          <Button Classes="tbi" Command="{Binding RefreshCommand}" ToolTip.Tip="Refresh" Margin="0,0,6,6"><v:VsIcon Kind="Refresh" /></Button>
+          <ProgressBar IsIndeterminate="True" IsVisible="{Binding IsBusy}" Width="80" Height="3" MinWidth="0" VerticalAlignment="Center" Margin="0,0,0,6" />
+        </WrapPanel>
+        <TextBlock Name="Error" Text="{Binding Error}" Foreground="#F14C4C" TextWrapping="Wrap" IsVisible="{Binding Error, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+        <StackPanel Orientation="Horizontal">
+          <Button Name="OverviewTab" Classes="dkTab" Classes.selected="{Binding IsOverview}" Command="{Binding ShowTabCommand}" CommandParameter="overview" Content="Overview" />
+          <Button Name="LogsTab" Classes="dkTab" Classes.selected="{Binding IsLogs}" Command="{Binding ShowTabCommand}" CommandParameter="logs" Content="Logs" IsVisible="{Binding HasLogs}" />
+          <Button Name="YamlTab" Classes="dkTab" Classes.selected="{Binding IsYaml}" Command="{Binding ShowTabCommand}" CommandParameter="yaml" Content="YAML" />
+          <Button Name="TerminalTab" Classes="dkTab" Classes.selected="{Binding IsTerminal}" Command="{Binding ShowTabCommand}" CommandParameter="terminal" Content="Terminal"
+                  IsVisible="{Binding HasTerminal}" />
+        </StackPanel>
+      </StackPanel>
+    </Border>
+
+    <Panel>
+      <!-- Its facts, containers, conditions, pods and events -->
+      <ScrollViewer IsVisible="{Binding IsOverview}" HorizontalScrollBarVisibility="Disabled">
+        <StackPanel Margin="20,6,20,16">
+          <ItemsControl Name="Info" ItemsSource="{Binding Info}" Margin="0,8,0,0">
+            <ItemsControl.ItemTemplate>
+              <DataTemplate x:DataType="kvm:KubeFact">
+                <Grid ColumnDefinitions="170,*" Margin="0,2">
+                  <TextBlock Text="{Binding Name}" Classes="dkMuted" TextTrimming="CharacterEllipsis" />
+                  <SelectableTextBlock Grid.Column="1" Text="{Binding Value}" TextWrapping="Wrap" />
+                </Grid>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+          <TextBlock Classes="section" Text="Containers" IsVisible="{Binding HasContainers}" />
+          <ItemsControl ItemsSource="{Binding ContainerRows}">
+            <ItemsControl.ItemTemplate>
+              <DataTemplate x:DataType="kvm:KubeContainerRow">
+                <StackPanel Margin="0,2">
+                  <TextBlock Text="{Binding Name}" />
+                  <TextBlock Text="{Binding Detail}" Classes="dkMuted" FontSize="11" TextWrapping="Wrap" />
+                </StackPanel>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+          <TextBlock Classes="section" Text="Pods" IsVisible="{Binding HasPods}" />
+          <ListBox Name="PodList" ItemsSource="{Binding Pods}" Background="Transparent" IsVisible="{Binding HasPods}" DoubleTapped="OnPodDoubleTapped">
+            <ListBox.ItemTemplate>
+              <DataTemplate x:DataType="kvm:KubeRow">
+                <Grid ColumnDefinitions="*,Auto,Auto,Auto">
+                  <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" />
+                  <TextBlock Grid.Column="1" Text="{Binding Status}" Foreground="{Binding IsProblem, Converter={x:Static kvm:KubeConverters.ProblemBrush}}" FontSize="11" Margin="8,0" />
+                  <TextBlock Grid.Column="2" Text="{Binding Ready}" Classes="dkMuted" FontSize="11" Margin="8,0" />
+                  <TextBlock Grid.Column="3" Text="{Binding Age}" Classes="dkMuted" FontSize="11" />
+                </Grid>
+              </DataTemplate>
+            </ListBox.ItemTemplate>
+          </ListBox>
+          <TextBlock Classes="section" Text="Conditions" IsVisible="{Binding HasConditions}" />
+          <ItemsControl ItemsSource="{Binding Conditions}">
+            <ItemsControl.ItemTemplate>
+              <DataTemplate x:DataType="kvm:KubeConditionRow">
+                <Grid ColumnDefinitions="Auto,170,*" Margin="0,2">
+                  <v:VsIcon Kind="{Binding IsTrue, Converter={x:Static kvm:KubeConverters.TrueIcon}}" Width="12" Height="12" Margin="0,0,6,0" />
+                  <TextBlock Grid.Column="1" Text="{Binding Type}" />
+                  <TextBlock Grid.Column="2" Text="{Binding Text}" Classes="dkMuted" TextWrapping="Wrap" />
+                </Grid>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+          <TextBlock Classes="section" Text="Events" IsVisible="{Binding HasEvents}" />
+          <ItemsControl Name="Events" ItemsSource="{Binding Events}">
+            <ItemsControl.ItemTemplate>
+              <DataTemplate x:DataType="kvm:KubeEventRow">
+                <Grid ColumnDefinitions="Auto,*" Margin="0,3">
+                  <v:VsIcon Kind="{Binding IsWarning, Converter={x:Static kvm:KubeConverters.WarningIcon}}" Width="12" Height="12" Margin="0,2,6,0" VerticalAlignment="Top" />
+                  <StackPanel Grid.Column="1">
+                    <TextBlock><Run Text="{Binding Heading}" FontWeight="SemiBold" /><Run Text="  " /><Run Text="{Binding When}" Foreground="#9D9D9D" /></TextBlock>
+                    <TextBlock Text="{Binding Message}" Classes="dkMuted" TextWrapping="Wrap" />
+                  </StackPanel>
+                </Grid>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+        </StackPanel>
+      </ScrollViewer>
+
+      <!-- The logs, following -->
+      <DockPanel IsVisible="{Binding IsLogs}" Margin="16,10">
+        <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Spacing="10" Margin="0,0,0,8">
+          <ComboBox Name="ContainerBox" ItemsSource="{Binding Containers}" SelectedItem="{Binding Container}" MinWidth="160" IsVisible="{Binding HasManyContainers}" />
+          <CheckBox Content="The run before (a crash's)" IsChecked="{Binding Previous}" VerticalAlignment="Center" />
+          <Button Classes="dkLink" Content="Clear" Command="{Binding ClearLogsCommand}" VerticalAlignment="Center" />
+        </StackPanel>
+        <Border BorderBrush="#3F3F46" BorderThickness="1" CornerRadius="6" ClipToBounds="True">
+          <ae:TextEditor Name="LogEditor" FontFamily="{StaticResource VsCodeFont}" FontSize="12" Background="#181818" Foreground="#D4D4D4"
+                         Padding="10,6" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto" WordWrap="False" />
+        </Border>
+      </DockPanel>
+
+      <!-- Its YAML (a secret described) -->
+      <Border IsVisible="{Binding IsYaml}" Margin="16,10" BorderBrush="#3F3F46" BorderThickness="1" CornerRadius="6" ClipToBounds="True">
+        <ae:TextEditor Name="YamlEditor" FontFamily="{StaticResource VsCodeFont}" FontSize="12" Background="#181818" Foreground="#D4D4D4"
+                       Padding="10,6" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto" ShowLineNumbers="True" />
+      </Border>
+
+      <!-- A shell in the pod -->
+      <Border IsVisible="{Binding IsTerminal}" Background="#1E1E1E">
+        <v:ControlPresenter Name="TerminalHost" Control="{Binding Terminal.Control, FallbackValue={x:Null}}" Margin="6,4" />
+      </Border>
+    </Panel>
+  </DockPanel>
+</UserControl>

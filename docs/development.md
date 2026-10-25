@@ -52,6 +52,7 @@ src/Karvon.Jira/        module: Jira Cloud, Server and Data Center sites, their 
 src/Karvon.Ports/       module: Ports (port forwarding through a jprq tunnel service), Claude's tunnel tools
 src/Karvon.Pipelines/   module: Pipelines (GitHub Actions and GitLab CI runs, jobs and logs), Claude's pipeline tools
 src/Karvon.PullRequests/ module: Pull Requests (GitHub's, GitLab's merge requests; uses Karvon.Pipelines), Claude's pull request tools
+src/Karvon.Kubernetes/  module: Kubernetes (kubeconfig's clusters through kubectl), Claude's Kubernetes tools
 src/Karvon.Mcp/         module: MCP Servers
 src/Karvon.Skills/      module: Skills (uses Karvon.Mcp)
 src/Karvon.DotNet/      module: .NET (solutions and projects, Roslyn, netcoredbg, dotnet build, the SDK's templates, NuGet, vstest)

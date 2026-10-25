@@ -42,7 +42,7 @@ public sealed class VsIcon : Control
         "Docker", "DockerContainer", "DockerStack", "DockerImage", "DockerVolume", "DockerNetwork", "DockerPlay", "DockerStop", "DockerRestart",
         "DockerPause", "DockerDelete", "DockerMore", "DockerLink", "DockerBack", "DockerTerminal", "DockerLogs", "DockerStats", "DockerInspect",
         "ToolExplorer", "ToolTests", "ToolGit", "ToolDatabase", "ToolErrors", "ToolOutput", "ToolFind", "ToolLocals", "ToolCallStack", "ToolTerminal",
-        "ToolServers", "ToolMcp", "ToolSkills", "ToolJira", "ToolPorts", "ToolPipelines", "ToolPullRequests",
+        "ToolServers", "ToolMcp", "ToolSkills", "ToolJira", "ToolPorts", "ToolPipelines", "ToolPullRequests", "ToolKubernetes",
         "PullRequest", "PullRequestDraft", "PullRequestMerged", "PullRequestClosed", "Comment",
     ];
 
@@ -533,6 +533,10 @@ public sealed class VsIcon : Control
             case "ToolPipelines":
                 // Jobs in a row, one after another, each a step of the run.
                 Line(dc, "M3.5 9.5h4v5h-4z M10 9.5h4v5h-4z M16.5 9.5h4v5h-4z M7.5 12h2.5 M14 12h2.5 M5.5 9.5v-3.5h13v3.5 M5.5 14.5v3.5h13v-3.5", fg, 1.6);
+                break;
+            case "ToolKubernetes":
+                // A helm's wheel: the clusters' ships.
+                Line(dc, "M12 4a8 8 0 1 0 0 16a8 8 0 1 0 0-16z M12 9.5a2.5 2.5 0 1 0 0 5a2.5 2.5 0 1 0 0-5z M12 2v7.5 M12 14.5V22 M2 12h7.5 M14.5 12H22 M4.9 4.9l5.3 5.3 M13.8 13.8l5.3 5.3 M4.9 19.1l5.3-5.3 M13.8 10.2l5.3-5.3", fg, 1.5);
                 break;
             case "ToolPullRequests":
                 // A branch's change asking to come into another: a pull request.

@@ -1,0 +1,43 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:ui="using:Karvon.Ui"
+             xmlns:kvm="using:Karvon.Kubernetes.ViewModels"
+             x:Class="Karvon.Kubernetes.Views.KubernetesOverlay"
+             x:DataType="kvm:KubernetesViewModel">
+  <UserControl.Styles>
+    <StyleInclude Source="avares://Karvon.Core/Themes/ExplorerStyles.axaml" />
+  </UserControl.Styles>
+
+  <!-- Over the window: the Kubernetes window's dialog. Clicks pass through otherwise. -->
+  <Panel Name="DialogLayer" IsVisible="{Binding HasDialog}" Background="#99000000">
+    <ContentControl Content="{Binding Dialog}" HorizontalAlignment="Center" VerticalAlignment="Center">
+      <ContentControl.DataTemplates>
+        <DataTemplate DataType="kvm:KubeInputDialog">
+          <Border Classes="dkCard" Width="420" Padding="22,18" Background="#2B2B2F">
+            <StackPanel Spacing="8">
+              <TextBlock Text="{Binding Title}" FontSize="16" FontWeight="SemiBold" />
+              <TextBlock Text="{Binding Label}" Classes="dkMuted" />
+              <TextBox Name="ValueBox" Classes="dkField" Text="{Binding Value}" />
+              <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right" Margin="0,6,0,0">
+                <Button Classes="dkOutline" Command="{Binding CancelCommand}" Content="Cancel" IsCancel="True" />
+                <Button Classes="dkPrimary" Command="{Binding ConfirmCommand}" Content="{Binding ConfirmText}" IsEnabled="{Binding CanConfirm}" IsDefault="True" />
+              </StackPanel>
+            </StackPanel>
+          </Border>
+        </DataTemplate>
+        <DataTemplate DataType="ui:ConfirmDialog">
+          <Border Classes="dkCard" Width="460" Padding="22,18" Background="#2B2B2F">
+            <StackPanel Spacing="14">
+              <TextBlock Text="{Binding Title}" FontSize="16" FontWeight="SemiBold" TextWrapping="Wrap" />
+              <TextBlock Text="{Binding Message}" TextWrapping="Wrap" Classes="dkMuted" />
+              <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">
+                <Button Classes="dkOutline" Command="{Binding CancelCommand}" Content="Cancel" IsCancel="True" />
+                <Button Classes="dkPrimary" Classes.dkDanger="{Binding IsDanger}" Command="{Binding ConfirmCommand}" Content="{Binding ConfirmText}" IsDefault="True" />
+              </StackPanel>
+            </StackPanel>
+          </Border>
+        </DataTemplate>
+      </ContentControl.DataTemplates>
+    </ContentControl>
+  </Panel>
+</UserControl>

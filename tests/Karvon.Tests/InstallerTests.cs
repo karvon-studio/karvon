@@ -71,7 +71,7 @@ public class InstallerTests
             // Unchecked again: nothing changes. Another unchecked: off when Karvon Studio starts again.
             kotlin.ToggleCommand.Execute(null);
             Assert.False(installer.HasChanges);
-            Assert.Equal(["Database Explorer", "Docker Explorer", "Servers", "Jira", "Ports", "Pipelines", "Pull Requests", "MCP Servers", "Skills", "Claude Code"], installer.Workloads[1].Items.Select(i => i.Name));
+            Assert.Equal(["Database Explorer", "Docker Explorer", "Servers", "Jira", "Ports", "Pipelines", "Pull Requests", "Kubernetes", "MCP Servers", "Skills", "Claude Code"], installer.Workloads[1].Items.Select(i => i.Name));
             installer.Workloads[1].Items.Single(i => i.Name == "Docker Explorer").IsSelected = false;
             Assert.Equal(["Docker Explorer: turned off when Karvon Studio starts again"], installer.Changes.Select(c => c.Text));
             Snapshot(window, "installer-modify");

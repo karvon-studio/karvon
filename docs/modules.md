@@ -17,6 +17,8 @@ Each module is a project of its own, referencing `Karvon.Core`. The core referen
   Claude's pipeline tools;
 - Pull Requests (`src/Karvon.PullRequests`, which uses the Pipelines' sign-in and APIs): GitHub's pull requests and
   GitLab's merge requests, a page each, a status bar item, and Claude's pull request tools;
+- Kubernetes (`src/Karvon.Kubernetes`): kubeconfig's clusters through the user's kubectl, an object's page with its
+  logs, YAML and a shell, and Claude's Kubernetes tools;
 - MCP Servers (`src/Karvon.Mcp`);
 - Skills (`src/Karvon.Skills`, which uses MCP Servers);
 - TypeScript and JavaScript (`src/Karvon.TypeScript`): a workload, so the example of one: a language server, its

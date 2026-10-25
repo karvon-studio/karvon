@@ -180,6 +180,20 @@ the keyring for a GitLab (the same one).
 Claude gets `pr_list`, `pr_view` and `pr_diff`, and, asking you, `pr_create`, `pr_comment`, `pr_review` and
 `pr_merge`; `gh pr` and `glab mr` in Bash are sent to them.
 
+## Kubernetes (View > Kubernetes)
+
+Your clusters through your own `kubectl` and kubeconfig (its auth plugins and all); Karvon names the context in every
+command, so kubectl's current one never changes. A context's namespaces (or every one), and in them the deployments,
+stateful and daemon sets, jobs, cron jobs, pods, services, ingresses, config maps and secrets (their keys, never their
+values), read again every ten seconds, the failing first and counted; the cluster's Argo CD applications and Flux
+kustomizations and Helm releases, when it has them. An object opens as a page: its facts, containers, conditions,
+events and pods; its logs, following (a container's or all, the run before a crash); its YAML; a shell in a pod.
+Restart, Scale, Roll Back, Delete, Port Forward (listed in the window, to open or stop), a cron job run now or
+suspended, an app synced or refreshed, Ask Claude; each asks first, in red on a production cluster (by its name).
+Nothing is asked of a cluster before the window shows. Claude gets `k8s_contexts`, `k8s_get`, `k8s_describe`,
+`k8s_logs` and `k8s_events`, and, asking you, `k8s_restart`, `k8s_scale` and `k8s_delete_pod`; `kubectl get`,
+`describe`, `logs`, `rollout restart`, `scale` and `delete pod` in Bash are sent to them.
+
 ## MCP Servers (View > MCP Servers)
 
 The MCP servers of every agent's configuration in one tree, this folder's
