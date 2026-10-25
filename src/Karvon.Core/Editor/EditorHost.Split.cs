@@ -51,6 +51,7 @@ public sealed partial class EditorHost
             second.TextArea.TextView.LineTransformers.Add(_semantic);
         AddGitMargin(second);
         AddDebugAdornments(second);
+        AddBlameMargin(second);
         ApplyOutlines(Outlining.Scan(Document, FilePath));
         if (_lsp is not null)
             ScheduleOutlining(0);

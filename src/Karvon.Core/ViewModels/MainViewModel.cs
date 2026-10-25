@@ -497,6 +497,7 @@ public partial class MainViewModel : ObservableObject
             OnWorkspaceFileSaved(doc.FilePath);
         };
         host.CompareRequested += () => _ = CompareWithUnmodifiedAsync(doc);
+        WireBlame(doc);
         host.AskClaudeRequested += ShowClaude;
         host.ZoomChanged += () => Settings.EditorZoom = host.Zoom;
         host.PromptRequested += initial => Dialogs?.PromptAsync("Rename", "New name:", initial) ?? Task.FromResult<string?>(null);

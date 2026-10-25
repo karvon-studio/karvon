@@ -197,6 +197,7 @@ public partial class MainWindow
                 new Separator(),
                 Item("Copy Full Path", () => _ = Clipboard?.SetTextAsync((doc as DocumentViewModel)?.FilePath ?? doc.Key), enabled: doc is DocumentViewModel),
                 Item("Open Containing Folder", () => OpenFolder(Path.GetDirectoryName(((DocumentViewModel)doc).FilePath)!), enabled: doc is DocumentViewModel),
+                Item("View History", () => vm.ShowFileHistory(((DocumentViewModel)doc).FilePath), enabled: doc is DocumentViewModel && vm.HasGit),
                 new Separator(),
                 Item("Float", () => vm.FloatDocument(doc), enabled: group is not { IsFloating: true, Tabs.Count: 1 }),
                 Item("Dock as Tabbed Document", () => vm.DockDocument(doc), enabled: group is { IsFloating: true }),

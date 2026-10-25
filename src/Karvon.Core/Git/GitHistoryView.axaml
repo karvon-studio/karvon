@@ -1,0 +1,146 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:v="using:Karvon.Views"
+             xmlns:g="using:Karvon.Git"
+             x:Class="Karvon.Git.GitHistoryView"
+             x:DataType="g:GitHistoryViewModel">
+  <UserControl.Styles>
+    <StyleInclude Source="avares://Karvon.Core/Themes/ExplorerStyles.axaml" />
+    <Style Selector="ListBox#CommitList ListBoxItem">
+      <Setter Property="Padding" Value="0" />
+      <Setter Property="MinHeight" Value="24" />
+    </Style>
+    <Style Selector="Border.ref">
+      <Setter Property="CornerRadius" Value="3" />
+      <Setter Property="Padding" Value="5,0" />
+      <Setter Property="Margin" Value="0,0,4,0" />
+      <Setter Property="VerticalAlignment" Value="Center" />
+      <Setter Property="Background" Value="#1C2E50" />
+    </Style>
+    <Style Selector="Border.ref TextBlock">
+      <Setter Property="FontSize" Value="11" />
+      <Setter Property="Foreground" Value="#79A6F6" />
+    </Style>
+    <Style Selector="Border.ref.remote">
+      <Setter Property="Background" Value="#2D2D30" />
+    </Style>
+    <Style Selector="Border.ref.remote TextBlock">
+      <Setter Property="Foreground" Value="#B4B4B4" />
+    </Style>
+    <Style Selector="Border.ref.tag">
+      <Setter Property="Background" Value="#3A3015" />
+    </Style>
+    <Style Selector="Border.ref.tag TextBlock">
+      <Setter Property="Foreground" Value="#E8AB53" />
+    </Style>
+    <Style Selector="Border.ref.current">
+      <Setter Property="Background" Value="#1A3A24" />
+    </Style>
+    <Style Selector="Border.ref.current TextBlock">
+      <Setter Property="Foreground" Value="#56D364" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+    </Style>
+  </UserControl.Styles>
+
+  <DockPanel Background="{StaticResource VsToolWindowBrush}">
+    <!-- What it shows: HEAD's or every branch's history, a filter -->
+    <Border DockPanel.Dock="Top" Padding="8,4" BorderBrush="{StaticResource VsBorderBrush}" BorderThickness="0,0,0,1">
+      <DockPanel>
+        <StackPanel Orientation="Horizontal" Spacing="4">
+          <ToggleButton Name="AllBranchesButton" Classes="tb" IsChecked="{Binding AllBranches}" IsVisible="{Binding !IsFileHistory}" Content="All Branches"
+                        ToolTip.Tip="Every branch's, remote's and tag's commits (else the checked-out branch's)" />
+          <Button Classes="tbi" Command="{Binding ReloadCommand}" ToolTip.Tip="Refresh"><v:VsIcon Kind="Refresh" /></Button>
+          <ProgressBar IsIndeterminate="True" IsVisible="{Binding IsBusy}" Width="60" Height="3" MinWidth="0" VerticalAlignment="Center" Margin="6,0" />
+        </StackPanel>
+        <TextBox Name="FilterBox" Classes="dkSearch" Text="{Binding Filter}" Width="280" HorizontalAlignment="Right"
+                 PlaceholderText="Filter by message, author, hash or branch" />
+      </DockPanel>
+    </Border>
+
+    <Grid RowDefinitions="*,4,240">
+      <!-- The commits, with their graph -->
+      <ListBox Name="CommitList" ItemsSource="{Binding Visible}" SelectedItem="{Binding Selected}" Background="Transparent">
+        <ListBox.ContextMenu>
+          <ContextMenu>
+            <MenuItem Header="Copy Commit Hash" Command="{Binding CopyHashCommand}" CommandParameter="{x:Null}" />
+            <Separator />
+            <MenuItem Header="Create Branch Here…" Command="{Binding CreateBranchCommand}" CommandParameter="{x:Null}" />
+            <MenuItem Header="Create Tag Here…" Command="{Binding CreateTagCommand}" CommandParameter="{x:Null}" />
+            <MenuItem Header="Checkout (Detached)" Command="{Binding CheckoutCommand}" CommandParameter="{x:Null}" />
+            <Separator />
+            <MenuItem Header="Cherry-Pick" Command="{Binding CherryPickCommand}" CommandParameter="{x:Null}" />
+            <MenuItem Header="Revert" Command="{Binding RevertCommand}" CommandParameter="{x:Null}" />
+            <MenuItem Header="Reset Current Branch to Here">
+              <MenuItem Header="Soft (keep the changes staged)" Command="{Binding ResetCommand}" CommandParameter="soft" />
+              <MenuItem Header="Mixed (keep the changes)" Command="{Binding ResetCommand}" CommandParameter="mixed" />
+              <MenuItem Header="Hard (lose the changes)" Command="{Binding ResetCommand}" CommandParameter="hard" />
+            </MenuItem>
+          </ContextMenu>
+        </ListBox.ContextMenu>
+        <ListBox.ItemTemplate>
+          <DataTemplate x:DataType="g:GitHistoryRow">
+            <Grid ColumnDefinitions="Auto,*,160,130,80" Height="24">
+              <g:GitGraphCell Row="{Binding Graph}" IsMerge="{Binding IsMerge}" IsHead="{Binding IsHead}"
+                              Width="{Binding $parent[UserControl].((g:GitHistoryViewModel)DataContext).GraphWidth}"
+                              IsVisible="{Binding $parent[UserControl].((g:GitHistoryViewModel)DataContext).ShowsGraph}" />
+              <StackPanel Grid.Column="1" Orientation="Horizontal" Margin="6,0,8,0" ClipToBounds="True">
+                <ItemsControl ItemsSource="{Binding Refs}" IsVisible="{Binding HasRefs}" VerticalAlignment="Center">
+                  <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                      <StackPanel Orientation="Horizontal" />
+                    </ItemsPanelTemplate>
+                  </ItemsControl.ItemsPanel>
+                  <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="g:GitRef">
+                      <Border Classes="ref" Classes.current="{Binding IsCurrent}" Classes.remote="{Binding Kind, Converter={x:Static g:GitHistoryConverters.IsRemote}}"
+                              Classes.tag="{Binding Kind, Converter={x:Static g:GitHistoryConverters.IsTag}}">
+                        <TextBlock Text="{Binding Name}" />
+                      </Border>
+                    </DataTemplate>
+                  </ItemsControl.ItemTemplate>
+                </ItemsControl>
+                <TextBlock Text="{Binding Subject}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+              </StackPanel>
+              <TextBlock Grid.Column="2" Text="{Binding Author}" Classes="dkMuted" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" Margin="0,0,8,0" />
+              <TextBlock Grid.Column="3" Text="{Binding Date}" Classes="dkMuted" VerticalAlignment="Center" />
+              <TextBlock Grid.Column="4" Text="{Binding ShortHash}" Classes="dkMuted" FontFamily="{StaticResource VsCodeFont}" FontSize="11.5" VerticalAlignment="Center" />
+            </Grid>
+          </DataTemplate>
+        </ListBox.ItemTemplate>
+      </ListBox>
+      <GridSplitter Grid.Row="1" Background="{StaticResource VsBorderBrush}" ResizeDirection="Rows" />
+
+      <!-- The selected commit: its message, who, its files -->
+      <Grid Grid.Row="2" ColumnDefinitions="*,4,*" IsVisible="{Binding HasDetails}">
+        <ScrollViewer Margin="12,8">
+          <StackPanel Spacing="4">
+            <SelectableTextBlock Name="Message" Text="{Binding Details.Message, FallbackValue=''}" TextWrapping="Wrap" FontWeight="SemiBold" />
+            <SelectableTextBlock Classes="dkMuted" FontSize="12" TextWrapping="Wrap" Margin="0,6,0,0">
+              <Run Text="{Binding Details.Commit.Hash, FallbackValue=''}" FontFamily="{StaticResource VsCodeFont}" />
+            </SelectableTextBlock>
+            <TextBlock Classes="dkMuted" FontSize="12" TextWrapping="Wrap">
+              <Run Text="Author: " /><Run Text="{Binding Details.Commit.Author, FallbackValue=''}" /><Run Text=" &lt;" /><Run Text="{Binding Details.Commit.Email, FallbackValue=''}" /><Run Text="&gt;, " /><Run Text="{Binding Details.Commit.Date, FallbackValue='', StringFormat='{}{0:yyyy-MM-dd HH:mm}'}" />
+            </TextBlock>
+            <TextBlock Classes="dkMuted" FontSize="12" TextWrapping="Wrap">
+              <Run Text="Committer: " /><Run Text="{Binding Details.Committer, FallbackValue=''}" /><Run Text=", " /><Run Text="{Binding Details.CommitDate, FallbackValue='', StringFormat='{}{0:yyyy-MM-dd HH:mm}'}" />
+            </TextBlock>
+            <TextBlock Classes="dkMuted" FontSize="12"><Run Text="Parents: " /><Run Text="{Binding Parents}" FontFamily="{StaticResource VsCodeFont}" /></TextBlock>
+          </StackPanel>
+        </ScrollViewer>
+        <GridSplitter Grid.Column="1" Background="{StaticResource VsBorderBrush}" ResizeDirection="Columns" />
+        <ListBox Name="FileList" Grid.Column="2" ItemsSource="{Binding Details.Files, FallbackValue={x:Null}}" Background="Transparent" DoubleTapped="OnFileDoubleTapped">
+          <ListBox.ItemTemplate>
+            <DataTemplate x:DataType="g:GitCommitFile">
+              <StackPanel Orientation="Horizontal" Spacing="8" ToolTip.Tip="{Binding Kind}">
+                <TextBlock Text="{Binding Letter}" Width="12" FontFamily="{StaticResource VsCodeFont}"
+                           Foreground="{Binding Letter, Converter={x:Static g:GitHistoryConverters.LetterBrush}}" />
+                <TextBlock Text="{Binding Path}" />
+                <TextBlock Text="{Binding OldPath, StringFormat='← {0}'}" Classes="dkMuted" IsVisible="{Binding OldPath, Converter={x:Static ObjectConverters.IsNotNull}}" />
+              </StackPanel>
+            </DataTemplate>
+          </ListBox.ItemTemplate>
+        </ListBox>
+      </Grid>
+    </Grid>
+  </DockPanel>
+</UserControl>

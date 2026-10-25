@@ -86,6 +86,7 @@ public sealed partial class EditorHost : IDisposable, IDebugLineSource
         {
             SyncBreakpointsFromAnchors();
             ScheduleGitChanges();
+            ScheduleBlame();
         };
         Document.UndoStack.PropertyChanged += (_, e) =>
         {
@@ -993,6 +994,8 @@ public sealed partial class EditorHost : IDisposable, IDebugLineSource
             return item;
         }
         var compare = Item("Compare with Unmodified", "", () => CompareRequested?.Invoke());
+        var blame = Item("Blame (Annotate)", "", () => _ = ToggleBlameAsync());
+        blame.ToggleType = MenuItemToggleType.CheckBox;
         var menu = new ContextMenu
         {
             ItemsSource = new object[]
@@ -1021,13 +1024,19 @@ public sealed partial class EditorHost : IDisposable, IDebugLineSource
                 },
                 new Separator(),
                 compare,
+                blame,
                 new Separator(),
                 Item("Cut", "Ctrl+X", () => Editor.Cut()),
                 Item("Copy", "Ctrl+C", () => Editor.Copy()),
                 Item("Paste", "Ctrl+V", () => Editor.Paste()),
             },
         };
-        menu.Opening += (_, _) => compare.IsEnabled = HasGitBaseline;
+        menu.Opening += (_, _) =>
+        {
+            compare.IsEnabled = HasGitBaseline;
+            blame.IsEnabled = HasGitBaseline && BlameProvider is not null;
+            blame.IsChecked = IsBlameShown;
+        };
         return menu;
     }
 

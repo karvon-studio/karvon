@@ -81,6 +81,14 @@ Every repository of the solution in one Changes window (trees of staged and unst
 commit (a message Claude writes from the diff, if you like), fetch, pull, push, sync, local and remote branches, diff
 with word highlights, change bars in the editor margin, badges in Solution Explorer; follows commits and checkouts
 made in the terminal.
+**History** (Git > View Branch History, or a file's View History in Solution Explorer and on its tab): the commits
+with their graph (HEAD's, or All Branches), branches and tags, author, date and hash, a filter; a commit's message,
+author, committer, parents and files, each opening as a diff against its first parent; and, from a commit's menu,
+Create Branch / Tag, Checkout (detached), Cherry-Pick, Revert and Reset (soft, mixed, hard), the ones that change
+files asking first. A file's history follows its renames; the histories open follow new commits and checkouts.
+**Blame (Annotate)** (Git menu, or the editor's menu): left of the line numbers, the commit each line last changed in
+(date, author, subject; a bar as warm as the commit is new), unsaved lines as not committed yet; it follows edits
+and commits, hovering tells the commit, clicking opens it in the history.
 
 ## Database Explorer (Ctrl+Alt+S)
 
@@ -251,4 +259,4 @@ Keyboard shortcuts follow Visual Studio (Help > Keyboard Shortcuts).
 ## Not yet
 
 Conditional breakpoints, exception settings, Immediate window, debugging Blazor WebAssembly in the browser,
-Fix All, history / blame, merge conflict editor, WinForms / WPF designers.
+Fix All, merge conflict editor, WinForms / WPF designers.

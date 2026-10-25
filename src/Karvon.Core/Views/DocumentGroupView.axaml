@@ -3,6 +3,7 @@
              xmlns:vm="using:Karvon.ViewModels"
              xmlns:v="using:Karvon.Views"
              xmlns:pkg="using:Karvon.Packages"
+             xmlns:git="using:Karvon.Git"
              x:Class="Karvon.Views.DocumentGroupView"
              x:DataType="vm:DocumentGroup">
   <UserControl.Styles>
@@ -69,6 +70,11 @@
       <DataTemplate DataType="vm:DiffViewModel" x:DataType="vm:DiffViewModel">
         <Border Classes="docframe" BorderBrush="#007ACC" BorderThickness="0,2,0,0">
           <v:ControlPresenter Control="{Binding View}" />
+        </Border>
+      </DataTemplate>
+      <DataTemplate DataType="git:GitHistoryViewModel" x:DataType="git:GitHistoryViewModel">
+        <Border Classes="docframe" BorderBrush="#007ACC" BorderThickness="0,2,0,0">
+          <git:GitHistoryView />
         </Border>
       </DataTemplate>
       <DataTemplate DataType="pkg:PackagesViewModel" x:DataType="pkg:PackagesViewModel">

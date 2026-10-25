@@ -255,6 +255,82 @@ public sealed class GitRepository
         return result.Success ? result.Output : null;
     }
 
+    /// <summary>A file's content at a revision (a commit's hash, "HEAD~1"), or null when it is not there.</summary>
+    public async Task<string?> ShowAtAsync(string revision, string relativePath)
+    {
+        var result = await RunAsync(Root, ["show", $"{revision}:{relativePath.Replace('\\', '/')}"], optionalLocks: false);
+        return result.Success ? result.Output : null;
+    }
+
+    /// <summary>
+    /// The history, newest first in topological order (children before their parents, as the graph draws them): of HEAD
+    /// or of every branch, remote and tag; of one file (followed through renames) when given.
+    /// </summary>
+    public async Task<IReadOnlyList<GitCommit>> LogAsync(int skip, int count, bool allRefs, string? path = null)
+    {
+        List<string> args = ["log", "--topo-order", GitLog.Format, $"--skip={skip}", $"-n{count}"];
+        if (allRefs && path is null)
+            args.AddRange(["--branches", "--remotes", "--tags", "HEAD"]);
+        if (path is not null)
+            args.AddRange(["--follow", "--", Relative(path)]);
+        var result = await RunAsync(Root, args, optionalLocks: false);
+        return result.Success ? GitLog.Parse(result.Output) : [];
+    }
+
+    /// <summary>A commit whole: its message and committer, and the files it changed against its first parent (all of them for the first commit).</summary>
+    public async Task<GitCommitDetails?> CommitDetailsAsync(GitCommit commit)
+    {
+        var message = await RunAsync(Root, ["show", "-s", "--format=%B%x1f%cn <%ce>%x1f%ct", commit.Hash], optionalLocks: false);
+        if (!message.Success || message.Output.Split('\u001f') is not [var body, var committer, var at])
+            return null;
+        // A merge's changes against its first parent (diff-tree's -m would list them against each), the first commit's all.
+        var files = await RunAsync(Root, commit.Parents.Count > 0
+            ? ["diff-tree", "--no-commit-id", "-r", "-M", "--name-status", commit.Parents[0], commit.Hash]
+            : ["diff-tree", "--no-commit-id", "-r", "-M", "--name-status", "--root", commit.Hash], optionalLocks: false);
+        var date = long.TryParse(at.Trim(), out var seconds) ? DateTimeOffset.FromUnixTimeSeconds(seconds).ToLocalTime() : commit.Date;
+        return new GitCommitDetails(commit, body.TrimEnd(), committer, date, files.Success ? GitLog.Files(files.Output) : []);
+    }
+
+    /// <summary>Where HEAD and every ref point: the same until one moves (a commit, a fetch, a checkout, a tag).</summary>
+    public async Task<string> RefsSignatureAsync()
+    {
+        var head = await RunAsync(Root, ["rev-parse", "HEAD"], optionalLocks: false);
+        var refs = await RunAsync(Root, ["for-each-ref", "--format=%(objectname) %(refname)"], optionalLocks: false);
+        return head.Output.Trim() + "\n" + refs.Output;
+    }
+
+    /// <summary>A branch made at a commit (not switched to).</summary>
+    public Task<GitResult> BranchAtAsync(string name, string commit) => RunAsync(Root, ["branch", name, commit]);
+
+    /// <summary>The commit checked out by itself (a detached HEAD).</summary>
+    public Task<GitResult> CheckoutDetachedAsync(string commit) => RunAsync(Root, ["switch", "--detach", commit]);
+
+    public Task<GitResult> CherryPickAsync(string commit) => RunAsync(Root, ["cherry-pick", commit]);
+
+    /// <summary>A commit undone by a new one (a merge's against its first parent).</summary>
+    public Task<GitResult> RevertAsync(GitCommit commit) =>
+        RunAsync(Root, commit.IsMerge ? ["revert", "--no-edit", "-m", "1", commit.Hash] : ["revert", "--no-edit", commit.Hash]);
+
+    /// <summary>The branch reset to a commit: soft (its changes staged), mixed (unstaged) or hard (gone).</summary>
+    public Task<GitResult> ResetAsync(string commit, string mode) => RunAsync(Root, ["reset", "--" + mode, commit]);
+
+    /// <summary>A tag at a commit.</summary>
+    public Task<GitResult> TagAsync(string name, string commit) => RunAsync(Root, ["tag", name, commit]);
+
+    /// <summary>
+    /// The commit each line of a file last changed in; of the text given (the editor's, unsaved edits included: those
+    /// lines are not committed yet) or else the file on disk. Null when the file is not tracked.
+    /// </summary>
+    public async Task<IReadOnlyList<GitBlameCommit>?> BlameAsync(string path, string? contents = null)
+    {
+        List<string> args = ["blame", "--porcelain"];
+        if (contents is not null)
+            args.AddRange(["--contents", "-"]);
+        args.AddRange(["--", Relative(path)]);
+        var result = await RunAsync(Root, args, optionalLocks: false, input: contents);
+        return result.Success ? GitBlame.Parse(result.Output) : null;
+    }
+
     /// <summary>The file's staged content (the index), or null when it is not in the index.</summary>
     public async Task<string?> ShowIndexAsync(string path)
     {
@@ -273,12 +349,14 @@ public sealed class GitRepository
         return result.Output;
     }
 
-    static async Task<GitResult> RunAsync(string directory, IReadOnlyList<string> args, bool optionalLocks = true, Action<string>? output = null)
+    static async Task<GitResult> RunAsync(string directory, IReadOnlyList<string> args, bool optionalLocks = true, Action<string>? output = null,
+        string? input = null)
     {
         var psi = new ProcessStartInfo("git")
         {
             RedirectStandardOutput = true,
             RedirectStandardError = true,
+            RedirectStandardInput = input is not null,
             UseShellExecute = false,
             WorkingDirectory = directory,
             StandardOutputEncoding = Encoding.UTF8,
@@ -291,6 +369,20 @@ public sealed class GitRepository
         if (!optionalLocks)
             psi.Environment["GIT_OPTIONAL_LOCKS"] = "0";
         using var process = Process.Start(psi) ?? throw new InvalidOperationException("git could not be started.");
+        if (input is not null)
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    // UTF-8 without a byte order mark, as the file is.
+                    await process.StandardInput.BaseStream.WriteAsync(new UTF8Encoding(false).GetBytes(input));
+                    process.StandardInput.Close();
+                }
+                catch (IOException)
+                {
+                    // git exited before reading it all (an untracked file): its exit code says so.
+                }
+            });
         var stdout = new StringBuilder();
         var stderrTask = Task.Run(async () =>
         {

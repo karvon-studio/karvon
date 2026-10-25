@@ -688,6 +688,7 @@ public partial class MainWindow : Window, IDialogService
                     if (vm.OpenDocument(path) is { } doc)
                         _ = vm.CompareWithUnmodifiedAsync(doc);
                 }, enabled: vm.HasGit));
+                items.Add(Item("View History", () => vm.ShowFileHistory(path), enabled: vm.HasGit));
                 items.Add(new Separator());
                 items.Add(Item("Rename", () => vm.BeginRename(node), "F2"));
                 if (node.IsSolutionItem)

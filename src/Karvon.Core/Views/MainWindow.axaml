@@ -219,6 +219,8 @@
       <MenuItem Header="_Git" IsEnabled="{Binding HasGit}">
         <MenuItem Header="_Commit or Stash..." Command="{Binding ShowGitChangesCommand}" />
         <MenuItem Header="Compare with _Unmodified" Command="{Binding CompareActiveWithUnmodifiedCommand}" />
+        <MenuItem Header="View Branch _History" Command="{Binding ShowHistoryCommand}" />
+        <MenuItem Header="_Blame (Annotate)" Command="{Binding ToggleBlameCommand}" />
         <Separator />
         <MenuItem Header="_Fetch" Command="{Binding FetchCommand}" />
         <MenuItem Header="_Pull" Command="{Binding PullCommand}" />
@@ -754,6 +756,7 @@
                     <Button Classes="tbi" Command="{Binding PullCommand}" ToolTip.Tip="Pull"><v:VsIcon Kind="Pull" /></Button>
                     <Button Classes="tbi" Command="{Binding PushCommand}" ToolTip.Tip="Push"><v:VsIcon Kind="Push" /></Button>
                     <Button Classes="tbi" Command="{Binding SyncCommand}" ToolTip.Tip="Sync (Pull then Push)"><v:VsIcon Kind="GitSync" /></Button>
+                    <Button Classes="tbi" Command="{Binding ShowHistoryCommand}" ToolTip.Tip="View Branch History"><v:VsIcon Kind="History" /></Button>
                     <Button Classes="tbi" Click="OnGitRefreshClick" ToolTip.Tip="Refresh"><v:VsIcon Kind="Refresh" /></Button>
                   </StackPanel>
                 </Grid>

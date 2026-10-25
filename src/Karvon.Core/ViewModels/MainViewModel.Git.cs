@@ -92,7 +92,7 @@ public partial class MainViewModel
     public bool HasNoGitChanges => HasGit && StagedChanges.Count == 0 && UnstagedChanges.Count == 0;
 
     [ObservableProperty]
-    [NotifyCanExecuteChangedFor(nameof(CommitCommand), nameof(FetchCommand), nameof(PullCommand), nameof(PushCommand), nameof(SyncCommand), nameof(NewBranchCommand))]
+    [NotifyCanExecuteChangedFor(nameof(CommitCommand), nameof(FetchCommand), nameof(PullCommand), nameof(PushCommand), nameof(SyncCommand), nameof(NewBranchCommand), nameof(ShowHistoryCommand))]
     public partial bool HasGit { get; set; }
 
     [ObservableProperty]
@@ -295,6 +295,7 @@ public partial class MainViewModel
         GitSyncText = primary?.Status?.Branch.Upstream is null ? "" : $"↑{primary.Ahead} ↓{primary.Behind}";
         ShowGitScope();
         GitChanged?.Invoke();
+        FollowHistories();
 
         // Working-tree status wins over the index for the badge, matching what the editor shows.
         _gitBadges = GitRepositories.SelectMany(r => r.Changes).OrderBy(c => c.Staged ? 0 : 1).GroupBy(c => c.Path)
@@ -384,6 +385,8 @@ public partial class MainViewModel
         var head = await repository.Repository.ShowHeadAsync(doc.FilePath);
         var tracked = repository.Changes.Any(c => c.Path == doc.FilePath && c.Kind == GitChangeKind.Untracked) != true;
         doc.Host.SetGitBaseline(head ?? (tracked ? null : ""));
+        if (doc.Host.IsBlameShown)
+            await doc.Host.RefreshBlameAsync();
     }
 
     async Task RefreshAllGitBaselinesAsync()
