@@ -208,12 +208,19 @@ public sealed class Settings
         return new Settings();
     }
 
+    /// <summary>Settings Sync on this machine: null when it is off.</summary>
+    public SettingsSyncState? Sync { get; set; }
+
+    /// <summary>Saved (written, or not when in memory): Settings Sync sends what changed.</summary>
+    public event Action? Saved;
+
     /// <summary>Kept in memory only: <see cref="Save"/> does not write it (a test's own settings, beside those the others share).</summary>
     [System.Text.Json.Serialization.JsonIgnore]
     public bool InMemory { get; set; }
 
     public void Save()
     {
+        Saved?.Invoke();
         if (InMemory)
             return;
         try

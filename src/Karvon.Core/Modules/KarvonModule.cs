@@ -264,6 +264,9 @@ public abstract partial class KarvonModule : ObservableObject, IDisposable, IAsy
     /// <summary>The debuggers it brings: F5 starts the one of a launch configuration's type.</summary>
     public virtual IReadOnlyList<DebuggerInfo> Debuggers => [];
 
+    /// <summary>Where Settings Sync can keep the settings besides a folder (the Pipelines module's: a secret GitHub gist).</summary>
+    public virtual IReadOnlyList<Services.SettingsSyncTarget> SettingsSyncTargets => [];
+
     /// <summary>The workspace's machine when it is a copy of a folder there (its tasks, builds and terminal run there); null when it is here.</summary>
     public virtual RemoteWorkspace? RemoteWorkspaceOf(string workspace) => null;
 

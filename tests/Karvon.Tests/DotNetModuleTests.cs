@@ -136,7 +136,7 @@ public class DotNetModuleTests
         Assert.Equal(["Class", "Interface", "Record", "Struct", "Enum", "Razor Component", "Code File", "JSON File", "Text File"], vm.NewItemTemplates.Take(9).Select(t => t.Name));
         // Tools > NuGet Package Manager first, as in Visual Studio.
         var tools = window.MainMenu.Items.OfType<MenuItem>().Single(m => (string?)m.Header == "_Tools");
-        Assert.Equal(["_NuGet Package Manager", "-", "_Restart Language Server", "_Trust ASP.NET Core Development Certificate", "_ESLint in This Folder...", "-", "_Get Tools and Features..."],
+        Assert.Equal(["_NuGet Package Manager", "-", "_Restart Language Server", "_Trust ASP.NET Core Development Certificate", "_ESLint in This Folder...", "_Settings Sync", "-", "_Get Tools and Features..."],
             Lines(tools.Items.OfType<object>()));
         Assert.Equal(["Manage NuGet Packages for _Solution..."], Lines(((MenuItem)tools.Items[0]!).Items.OfType<object>()));
         Assert.Contains(vm.OutputChannels, c => c.Name == "Package Manager");
@@ -309,7 +309,7 @@ public class DotNetModuleTests
         Assert.Empty(vm.ModuleLanguageServers);
         Assert.Equal("", vm.ServerStatus);
         var tools = window.MainMenu.Items.OfType<MenuItem>().Single(m => (string?)m.Header == "_Tools");
-        Assert.Equal(["_Restart Language Server", "_ESLint in This Folder...", "-", "_Get Tools and Features..."], Lines(tools.Items.OfType<object>()));
+        Assert.Equal(["_Restart Language Server", "_ESLint in This Folder...", "_Settings Sync", "-", "_Get Tools and Features..."], Lines(tools.Items.OfType<object>()));
         Assert.True(await vm.CloseSolutionCoreAsync());
         // The tests' settings are shared: the module is on again for the next.
         vm.Settings.DisabledModules = [];

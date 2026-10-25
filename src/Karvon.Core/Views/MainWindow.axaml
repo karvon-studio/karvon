@@ -253,6 +253,11 @@
       </MenuItem>
       <MenuItem Header="_Tools">
         <MenuItem Header="_Restart Language Server" Command="{Binding RestartLanguageServerCommand}" />
+        <MenuItem Header="_Settings Sync">
+          <MenuItem Header="_Turn On..." Command="{Binding TurnOnSettingsSyncCommand}" IsVisible="{Binding !IsSettingsSyncOn}" />
+          <MenuItem Header="_Sync Now" Command="{Binding SyncSettingsNowCommand}" IsVisible="{Binding IsSettingsSyncOn}" />
+          <MenuItem Header="Turn _Off" Command="{Binding TurnOffSettingsSyncCommand}" IsVisible="{Binding IsSettingsSyncOn}" />
+        </MenuItem>
         <Separator />
         <MenuItem Header="_Get Tools and Features..." Click="OnGetToolsAndFeatures" />
       </MenuItem>

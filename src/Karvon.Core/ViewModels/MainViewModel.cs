@@ -93,6 +93,7 @@ public partial class MainViewModel : ObservableObject
         DebugOutput = new OutputChannel("Debug");
         WatchListening();
         WatchUsage();
+        WatchSettingsSync();
         ServerOutput = new OutputChannel("Language Server");
         OutputChannels = [BuildOutput, DebugOutput, ServerOutput, GitOutput];
         SelectedOutput = BuildOutput;

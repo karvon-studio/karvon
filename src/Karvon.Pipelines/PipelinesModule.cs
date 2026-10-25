@@ -42,6 +42,14 @@ public sealed partial class PipelinesModule : KarvonModule, IPipelinesHost
     /// <summary>The branch's latest run: made with the window's view model, which starts with Karvon (it never asks for anything).</summary>
     public override ModuleStatusItem? StatusItem => EnsurePipelines().StatusItem;
 
+    /// <summary>Settings Sync's GitHub: a secret gist, through the signed-in gh (the tests' own API instead).</summary>
+    public override IReadOnlyList<Services.SettingsSyncTarget> SettingsSyncTargets =>
+        [new("github", "GitHub (a secret gist)", "A secret gist of your GitHub account, through gh signed in as it is.",
+            state => new GistSettingsStore(SettingsSyncGitHub ?? GistSettingsStore.Gh(Providers.GhCliApi.Find), state))];
+
+    /// <summary>How Settings Sync reaches GitHub (the tests'): gh otherwise.</summary>
+    internal Func<CancellationToken, Task<Providers.IGitHubApi>>? SettingsSyncGitHub { get; set; }
+
     [ObservableProperty]
     public partial PipelinesViewModel? Pipelines { get; private set; }
 

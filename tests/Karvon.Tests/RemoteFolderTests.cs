@@ -166,6 +166,19 @@ public class RemoteFolderTests
         Assert.Equal(["-tt", "-p", "2222", "tester@10.0.0.5", "uptime"], SshCommand.Running(host, "uptime"));
     }
 
+    /// <summary>A file's text, or none while it is being written (its writer holds it).</summary>
+    static string Read(string file)
+    {
+        try
+        {
+            return File.ReadAllText(file);
+        }
+        catch (IOException)
+        {
+            return "";
+        }
+    }
+
     [AvaloniaFact]
     public async Task A_remote_folder_opens_as_the_workspace_and_its_commands_run_there()
     {
@@ -194,7 +207,7 @@ public class RemoteFolderTests
         var doc = vm.OpenDocument(Path.Combine(dir, "src", "app.js"))!;
         doc.Host.Document.Text = "console.log('edited in Karvon');\n";
         doc.Host.Save();
-        await WaitUntil(() => File.ReadAllText(server.Real("/srv/my app/src/app.js")).Contains("edited in Karvon"), TimeSpan.FromSeconds(10));
+        await WaitUntil(() => Read(server.Real("/srv/my app/src/app.js")).Contains("edited in Karvon"), TimeSpan.FromSeconds(10));
         File.WriteAllText(Path.Combine(dir, "new.txt"), "new\n");
         await remote.FlushAsync();
         Assert.Equal("new\n", File.ReadAllText(server.Real("/srv/my app/new.txt")));
@@ -202,7 +215,7 @@ public class RemoteFolderTests
         // Pull (the status item): what changed there comes here.
         server.Write("/srv/my app/README.md", "# changed there\n");
         servers.StatusItem.Click!();
-        await WaitUntil(() => File.ReadAllText(Path.Combine(dir, "README.md")) == "# changed there\n", TimeSpan.FromSeconds(10));
+        await WaitUntil(() => Read(Path.Combine(dir, "README.md")) == "# changed there\n", TimeSpan.FromSeconds(10));
 
         // Closed: what is left goes there, and the workspace is here again.
         File.WriteAllText(Path.Combine(dir, "last.txt"), "last\n");

@@ -333,6 +333,16 @@ file and folder, the macOS app by its bundle, the Windows installer silently, th
 exited. Help > Check for Updates checks now; the settings are on the installer's page. A build of the sources does not
 update itself.
 
+## Settings Sync (Tools > Settings Sync)
+
+The preferences go with you to your other machines, as VS Code's Settings Sync takes them: the editor's (inlay hints,
+CodeLens, sticky scroll, the minimap, line blame, zoom, Markdown preview), Claude's, the updates', the modules on and
+off, the Skills' sources and the exceptions to break on; not this machine's paths, window, recent lists, installs or
+account. They are kept in a folder another tool syncs (Dropbox, Syncthing, OneDrive, a share) or in a secret gist of
+your GitHub account (through gh, signed in as it is). Synced when Karvon starts, a moment after one of them changes,
+and with Sync Now; two machines' changes merge by setting (what changed here since the last sync stays here's). The
+first time, when both sides have settings, you choose whose.
+
 ## Layout
 
 Tool windows at the sides as VS Code's activity bar (an icon each, Git Changes with a badge; click the
