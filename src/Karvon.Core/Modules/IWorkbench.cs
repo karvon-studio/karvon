@@ -23,6 +23,9 @@ public interface IWorkbench
     /// <summary>The open solution (or folder) and its projects, or null.</summary>
     SolutionInfo? Solution { get; }
 
+    /// <summary>A folder or a workspace file opened in place of the one open (as File > Open does).</summary>
+    Task OpenWorkspaceAsync(string path);
+
     /// <summary>The solution read again (its projects changed: a package added), Solution Explorer keeping what is expanded.</summary>
     Task ReloadSolutionAsync();
 

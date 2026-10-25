@@ -150,9 +150,11 @@ public partial class MainViewModel : IWorkbench
 
     Task IWorkbench.RestartLanguageServersAsync() => RestartLanguageServer();
 
+    Task IWorkbench.OpenWorkspaceAsync(string path) => OpenSolutionAsync(path);
+
     async Task<int> IWorkbench.RunAsync(WorkspaceTask task, Action<string> output, CancellationToken ct)
     {
-        using var runner = StartTask(task, output);
+        using var runner = await StartTaskAsync(task, output);
         return await runner.WaitAsync(ct);
     }
 

@@ -344,10 +344,11 @@ public partial class MainViewModel : ObservableObject
 
         SetStatus("Ready", StatusKind.Ready);
         await OpenGitAsync(solution);
-        // New shells start in the solution folder, like VS's Developer terminal.
+        await OnModulesWorkspaceChangedAsync();
+        // New shells start in the solution folder, like VS's Developer terminal (on its machine, a remote folder's).
+        await FollowRemoteTerminalAsync();
         if (_terminal is { } terminal)
             terminal.WorkingDirectory = solution.Directory;
-        await OnModulesWorkspaceChangedAsync();
         await StartWorkspaceLanguageServersAsync();
     }
 
@@ -571,8 +572,11 @@ public partial class MainViewModel : ObservableObject
     /// <summary>Starts a new terminal in the given folder (Solution Explorer > Open in Terminal).</summary>
     public async Task OpenTerminalAtAsync(string folder)
     {
+        // On a remote folder's machine: a shell of its own, in that folder there.
+        if (Remote is not null)
+            await ReplaceTerminalAsync(folder);
         Terminal.WorkingDirectory = folder;
-        ShowTerminal();
+        await ShowTerminal();
         await Terminal.RestartAsync();
     }
 
@@ -891,13 +895,21 @@ public partial class MainViewModel : ObservableObject
         int exitCode;
         try
         {
-            using var runner = ProcessRunner.Start(command.Program, command.Arguments, solution.Directory, line =>
+            // On the workspace's machine when it has one (what changed here sent there first).
+            var (program, arguments) = (command.Program, command.Arguments);
+            if (Remote is { } remote)
+            {
+                await remote.FlushAsync();
+                var there = remote.Run(new Karvon.Modules.WorkspaceTask(title, Karvon.Modules.WorkspaceTaskKind.Build, program, arguments, solution.Directory));
+                (program, arguments) = (there.Program, there.Arguments);
+            }
+            using var runner = ProcessRunner.Start(program, arguments, solution.Directory, line =>
             {
                 BuildOutput.Append(line);
                 if (command.ProjectBuilt?.Invoke(line) == true)
                     Interlocked.Increment(ref succeeded);
                 if (command.Problems(line) is { } d)
-                    Dispatcher.UIThread.Post(() => AddBuildError(d));
+                    Dispatcher.UIThread.Post(() => AddBuildError(d with { File = d.File is null ? null : LocalPathOf(d.File) }));
             });
             exitCode = await runner.WaitAsync(cts.Token);
         }

@@ -29,6 +29,9 @@ public interface IServersHost
 
     /// <summary>A line in the status bar (an upload, a download).</summary>
     void Status(string text);
+
+    /// <summary>A folder of a machine copied here and opened as the workspace (its tasks, builds and terminal run there).</summary>
+    Task OpenRemoteFolderAsync(ServerHost host, string path);
 }
 
 public enum ServerStatus
@@ -98,6 +101,9 @@ public sealed partial class ServerNode(ServersExplorerViewModel explorer, Server
 
     [RelayCommand]
     void OpenTab(string tab) => explorer.Open(this, tab);
+
+    [RelayCommand]
+    Task OpenRemoteFolder() => explorer.OpenRemoteFolderAsync(this);
 
     [RelayCommand]
     Task Connect() => explorer.ConnectAsync(this);
@@ -334,6 +340,24 @@ public sealed partial class ServersExplorerViewModel : ObservableObject, IServer
             if (Dialog == dialog)
                 Dialog = null;
         }
+    }
+
+    /// <summary>
+    /// Open Remote Folder: a folder of the machine (its home when none is given, ~/ in front of one under it) copied here
+    /// and opened as the workspace.
+    /// </summary>
+    internal async Task OpenRemoteFolderAsync(ServerNode node)
+    {
+        if (await ShowAsync(new InputDialog($"Open a folder of {node.Name}", "Folder", "/srv/app, or ~/projects/api (empty: the home folder)", "Open")) is not { } dialog
+            || !await ConnectAsync(node))
+            return;
+        var path = dialog.Text.Trim();
+        if (path.Length == 0 || path == "~" || path.StartsWith("~/", StringComparison.Ordinal) || !path.StartsWith('/'))
+        {
+            var home = (await Connections.SftpAsync(node.Host)).WorkingDirectory.TrimEnd('/');
+            path = path is "" or "~" ? home : home + "/" + (path.StartsWith("~/", StringComparison.Ordinal) ? path[2..] : path);
+        }
+        await Host.OpenRemoteFolderAsync(node.Host, path);
     }
 
     internal async Task<bool> ConfirmAsync(string title, string message, string confirm, bool danger = false) =>

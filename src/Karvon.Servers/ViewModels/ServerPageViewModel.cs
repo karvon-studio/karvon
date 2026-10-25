@@ -189,26 +189,7 @@ public sealed partial class ServerPageViewModel : ObservableObject, IDisposable
     public partial TerminalSession? Terminal { get; set; }
 
     /// <summary>ssh's arguments: the alias for a ~/.ssh/config host (its config applies), else user@host with its port and key.</summary>
-    public IReadOnlyList<string> SshArguments
-    {
-        get
-        {
-            var args = new List<string>();
-            if (Host.FromSshConfig)
-            {
-                if (Environment.GetEnvironmentVariable("KARVON_SSH_HOME") is { Length: > 0 })
-                    args.AddRange(["-F", SshConfig.ConfigFile]);
-                args.Add(Host.Name);
-                return args;
-            }
-            if (Host.Port != 22)
-                args.AddRange(["-p", Host.Port.ToString(System.Globalization.CultureInfo.InvariantCulture)]);
-            if (Host.IdentityFiles.FirstOrDefault() is { } key)
-                args.AddRange(["-i", key]);
-            args.Add($"{Host.User}@{Host.Address}");
-            return args;
-        }
-    }
+    public IReadOnlyList<string> SshArguments => SshCommand.Arguments(Host);
 
     void OpenTerminal() => Terminal ??= new TerminalSession("ssh", SshArguments) { RestartHint = "Press Enter to connect again." };
 
@@ -233,6 +214,10 @@ public sealed partial class ServerPageViewModel : ObservableObject, IDisposable
 
     [RelayCommand]
     Task Go() => GoAsync(PathText.Trim().Length > 0 ? PathText.Trim() : ".");
+
+    /// <summary>The folder shown, copied here and opened as the workspace: what changes here goes there; tasks, builds and the terminal run there.</summary>
+    [RelayCommand]
+    Task OpenInKarvon() => CurrentPath.Length > 0 ? _explorer.Host.OpenRemoteFolderAsync(Host, CurrentPath) : Task.CompletedTask;
 
     [RelayCommand]
     Task Up() => GoAsync(CurrentPath == "/" ? "/" : Parent(CurrentPath));

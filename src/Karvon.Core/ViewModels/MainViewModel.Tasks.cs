@@ -270,15 +270,34 @@ public partial class MainViewModel
         string.Join(Path.PathSeparator, Modules.SelectMany(m => m.ToolDirectories).Distinct().Append(Environment.GetEnvironmentVariable("PATH") ?? ""));
 
     /// <summary>Starts a task (the variables of the editor's file put in, its program found in the tasks' PATH).</summary>
+    /// <summary>
+    /// The workspace's machine, when the workspace is a copy of a folder there (Servers > a machine > Files > Open in
+    /// Karvon): its tasks, builds and terminal run there.
+    /// </summary>
+    public RemoteWorkspace? Remote => Solution is { } solution ? Modules.Select(m => m.RemoteWorkspaceOf(solution.Directory)).FirstOrDefault(r => r is not null) : null;
+
+    /// <summary>A task started: on the workspace's machine when it has one, what changed here sent there first.</summary>
+    async Task<ProcessRunner> StartTaskAsync(WorkspaceTask task, Action<string> output)
+    {
+        if (Remote is { } remote)
+            await remote.FlushAsync();
+        return StartTask(task, output);
+    }
+
     ProcessRunner StartTask(WorkspaceTask task, Action<string> output)
     {
         task = TaskVariables.ForFile(task, Solution?.Directory ?? task.WorkingDirectory, ActiveEditor?.FilePath);
+        if (Remote is { } remote)
+            task = remote.Run(task);
         var path = task.Environment?.GetValueOrDefault("PATH") ?? TaskPath();
         var program = TaskVariables.Find(task.Program, path, task.WorkingDirectory)
             ?? throw new InvalidOperationException($"'{task.Program}' was not found on the PATH.");
         var environment = new Dictionary<string, string>(task.Environment ?? new Dictionary<string, string>(), StringComparer.Ordinal) { ["PATH"] = path };
         return ProcessRunner.Start(program, task.Arguments, task.WorkingDirectory, output, environment);
     }
+
+    /// <summary>A path a command printed, as the workspace's copy has it when it ran on the workspace's machine.</summary>
+    string LocalPathOf(string path) => Remote is { } remote ? remote.LocalPath(path) : path;
 
     static bool IsStartFailure(Exception ex) => ex is InvalidOperationException or System.ComponentModel.Win32Exception or IOException;
 
@@ -447,11 +466,11 @@ public partial class MainViewModel
             // tsc writes file(line,col): error CODE: message, as MSBuild does, relative to where it ran (a module's task may
             // read its own form). npm first echoes the script's command ("> tsc -p ."), which is no error even when it reads like one.
             var problems = task.ProblemReader?.Invoke() ?? task.Problems ?? BuildOutputParser.Parse;
-            using var runner = StartTask(task, line =>
+            using var runner = await StartTaskAsync(task, line =>
             {
                 BuildOutput.Append(line);
                 if (!line.StartsWith("> ", StringComparison.Ordinal) && problems(line) is { } d)
-                    Dispatcher.UIThread.Post(() => AddBuildError(d with { File = d.File is null ? null : Path.GetFullPath(d.File, task.WorkingDirectory) }));
+                    Dispatcher.UIThread.Post(() => AddBuildError(d with { File = d.File is null ? null : LocalPathOf(Path.GetFullPath(d.File, task.WorkingDirectory)) }));
             });
             exitCode = await runner.WaitAsync(cts.Token);
         }
@@ -499,7 +518,7 @@ public partial class MainViewModel
         ProcessRunner runner;
         try
         {
-            runner = StartTask(task, line =>
+            runner = await StartTaskAsync(task, line =>
             {
                 DebugOutput.Append(line);
                 if (ready?.Match(line) is { } url)
@@ -550,7 +569,7 @@ public partial class MainViewModel
         var cts = _testCts = new CancellationTokenSource();
         try
         {
-            using var runner = StartTask(task, TestsOutput.Append);
+            using var runner = await StartTaskAsync(task, TestsOutput.Append);
             exit = await runner.WaitAsync(cts.Token);
         }
         catch (OperationCanceledException)
@@ -600,7 +619,7 @@ public partial class MainViewModel
         ProcessRunner runner;
         try
         {
-            runner = StartTask(task, TasksOutput.Append);
+            runner = await StartTaskAsync(task, TasksOutput.Append);
         }
         catch (Exception ex) when (IsStartFailure(ex))
         {

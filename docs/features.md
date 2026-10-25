@@ -156,6 +156,13 @@ the editor and saving puts it back, asking when it changed there), its systemd s
 its logs (the journal, a unit's or a file's, followed as they come, secrets hidden), Ask Claude about them. A new
 host key is shown to compare before it is trusted; passwords and passphrases are asked once and can go to the system
 keyring; a production machine asks before every change, yours and Claude's.
+**Remote folders** (a machine's Open Remote Folder, or Open in Karvon on its Files tab), as VS Code's Remote SSH without
+a server of its own there: the folder is copied here (only what changed, when it was before; not .git, node_modules,
+bin, obj, target, .venv and the like, nor files over 5 MB) and opened as the workspace, `SSH: machine` in the status
+bar. What changes in the copy (saved in the editor, written by Claude, a tool or a checkout) goes there half a second
+after; the tasks, the build and the terminal run there (your ssh, in the folder there, a login shell), the paths they
+print read as the copy's; what changed there comes when it opens and when the status bar item is clicked. A file
+changed on both sides is asked about. The language servers and the debugger run here, on the copy.
 
 ## Jira (View > Jira)
 

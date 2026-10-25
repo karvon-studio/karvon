@@ -158,6 +158,8 @@
           </StackPanel>
           <TextBox Name="PathBox" Grid.Column="1" Classes="dkField" Text="{Binding PathText}" Margin="8,0" KeyDown="OnPathKeyDown" FontFamily="{StaticResource VsCodeFont}" />
           <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="6">
+            <Button Classes="dkOutline" Command="{Binding OpenInKarvonCommand}" Content="Open in Karvon"
+                    ToolTip.Tip="This folder copied here and opened as the workspace: what changes here goes there; tasks, builds and the terminal run there." />
             <Button Classes="dkOutline" Command="{Binding NewFolderCommand}" Content="New folder" />
             <Button Classes="dkPrimary" Command="{Binding UploadCommand}">
               <StackPanel Orientation="Horizontal" Spacing="6">

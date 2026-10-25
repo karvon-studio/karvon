@@ -99,6 +99,7 @@
                   <MenuItem Header="Files" Command="{Binding OpenTabCommand}" CommandParameter="files" />
                   <MenuItem Header="Services" Command="{Binding OpenTabCommand}" CommandParameter="services" />
                   <MenuItem Header="Logs" Command="{Binding OpenTabCommand}" CommandParameter="logs" />
+                  <MenuItem Header="Open Remote Folder…" Command="{Binding OpenRemoteFolderCommand}" />
                   <Separator />
                   <MenuItem Header="Connect" Command="{Binding ConnectCommand}" IsVisible="{Binding !IsConnected}" />
                   <MenuItem Header="Connect Again" Command="{Binding ConnectAgainCommand}" IsVisible="{Binding IsConnected}" />

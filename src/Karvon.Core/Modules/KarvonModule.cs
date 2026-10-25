@@ -264,6 +264,9 @@ public abstract partial class KarvonModule : ObservableObject, IDisposable, IAsy
     /// <summary>The debuggers it brings: F5 starts the one of a launch configuration's type.</summary>
     public virtual IReadOnlyList<DebuggerInfo> Debuggers => [];
 
+    /// <summary>The workspace's machine when it is a copy of a folder there (its tasks, builds and terminal run there); null when it is here.</summary>
+    public virtual RemoteWorkspace? RemoteWorkspaceOf(string workspace) => null;
+
     /// <summary>What the module finds out about a process of the program running (Diagnostic Tools: a memory snapshot, a CPU profile).</summary>
     public virtual IReadOnlyList<Diagnostics.ProcessDiagnostic> ProcessDiagnostics => [];
 

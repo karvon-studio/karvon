@@ -51,6 +51,14 @@ sealed class TestServersHost : IServersHost
     public void AskClaude(string prompt) => Prompts.Add(prompt);
 
     public void Status(string text) => Statuses.Add(text);
+
+    public List<(ServerHost Host, string Path)> RemoteFolders { get; } = [];
+
+    public Task OpenRemoteFolderAsync(ServerHost host, string path)
+    {
+        RemoteFolders.Add((host, path));
+        return Task.CompletedTask;
+    }
 }
 
 /// <summary>The Servers explorer: ~/.ssh/config as OpenSSH reads it, known host keys, what the machines print, the tree and pages, Claude's tools.</summary>

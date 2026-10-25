@@ -142,4 +142,100 @@ public sealed partial class ServersModule : KarvonModule, IServersHost
     void IServersHost.AskClaude(string prompt) => _claude?.Ask(prompt);
 
     void IServersHost.Status(string text) => Workbench.Status(text);
+
+    // ---- Remote folders -----------------------------------------------------------------------------------------
+
+    /// <summary>Where the machines' folders are copied: &lt;config&gt;/remote-folders.</summary>
+    internal static string RemoteFoldersRoot => Path.Combine(Services.Settings.ConfigDirectory, "remote-folders");
+
+    /// <summary>The remote folder open as the workspace.</summary>
+    RemoteFolderSession? _remote;
+
+    /// <summary>The remote folder being opened: its machine, and how it reads the files there (SFTP, the tests' own).</summary>
+    (string LocalRoot, ServerHost Host, IRemoteFiles Files)? _opening;
+
+    readonly ModuleStatusItem _remoteStatus = new() { Icon = "ToolServers" };
+
+    /// <summary>"SSH: web-1" while a remote folder is the workspace; a click pulls what changed there.</summary>
+    public override ModuleStatusItem? StatusItem => _remoteStatus;
+
+    public override RemoteWorkspace? RemoteWorkspaceOf(string workspace) =>
+        _remote is { } open && open.Folder.LocalRoot == Path.GetFullPath(workspace).TrimEnd(Path.DirectorySeparatorChar) ? open.Workspace : null;
+
+    /// <summary>The remote folder open, if any (the tests').</summary>
+    internal RemoteFolderSession? OpenRemoteFolder => _remote;
+
+    Task IServersHost.OpenRemoteFolderAsync(ServerHost host, string path) => OpenRemoteFolderAsync(host, path, null);
+
+    /// <summary>
+    /// A machine's folder copied here (only what changed since, when it was before) and opened as the workspace; its
+    /// files read over the Servers' SFTP connection, or <paramref name="files"/>.
+    /// </summary>
+    internal async Task OpenRemoteFolderAsync(ServerHost host, string path, IRemoteFiles? files)
+    {
+        var folder = RemoteFolder.For(RemoteFoldersRoot, host.Name, path);
+        Workbench.Status($"Copying {host.Name}:{path}...");
+        try
+        {
+            files ??= new SftpRemoteFiles(await EnsureExplorer().Connections.SftpAsync(host));
+            var pulled = await folder.PullAsync(files, CancellationToken.None);
+            if (!Directory.EnumerateFileSystemEntries(folder.LocalRoot).Any())
+            {
+                Workbench.Status($"{host.Name}:{path} has no files to open" + (pulled.Left.Count > 0 ? $" (left there: {string.Join(", ", pulled.Left.Take(3))})." : "."));
+                return;
+            }
+        }
+        catch (Exception ex) when (ex is ServerException or Renci.SshNet.Common.SshException or IOException or UnauthorizedAccessException or System.Net.Sockets.SocketException)
+        {
+            Workbench.Status($"{host.Name}:{path} could not be copied: {ex.Message}");
+            return;
+        }
+        _opening = (folder.LocalRoot, host, files);
+        await Workbench.OpenWorkspaceAsync(folder.LocalRoot);
+    }
+
+    /// <summary>
+    /// The workspace changed: a remote folder that was open sends what is left and closes; one opened (now, or from the
+    /// recent list) is watched, and what changed there since is pulled when it was not just copied.
+    /// </summary>
+    public override async Task WorkspaceChangedAsync()
+    {
+        var dir = Workbench.Solution?.Directory is { } d ? Path.GetFullPath(d).TrimEnd(Path.DirectorySeparatorChar) : null;
+        if (_remote is { } open && open.Folder.LocalRoot != dir)
+        {
+            open.Dispose();
+            _remote = null;
+            _remoteStatus.IsVisible = false;
+        }
+        // The one being opened, once it is the workspace (the modules may hear of a change before it is).
+        var opening = _opening is { } o && o.LocalRoot == dir ? o : ((string LocalRoot, ServerHost Host, IRemoteFiles Files)?)null;
+        if (opening is not null)
+            _opening = null;
+        if (dir is null || _remote is not null || RemoteFolder.Of(dir) is not { } folder)
+            return;
+        if ((opening?.Host ?? EnsureExplorer().Find(folder.Server)?.Host) is not { } host)
+        {
+            Workbench.Status($"{Path.GetFileName(dir)} is a copy of a folder of {folder.Server}, which is no longer one of the Servers: it is opened as a folder here.");
+            return;
+        }
+        Func<CancellationToken, Task<IRemoteFiles>> files = opening is { } given
+            ? _ => Task.FromResult(given.Files)
+            : async ct => new SftpRemoteFiles(await EnsureExplorer().Connections.SftpAsync(host, ct));
+        _remote = new RemoteFolderSession(folder, host, files, Workbench.Status, (title, message, confirm) => EnsureExplorer().ConfirmAsync(title, message, confirm, danger: true));
+        _remote.Watch();
+        _remoteStatus.Text = $"SSH: {host.Name}";
+        _remoteStatus.ToolTip = $"A copy of {host.Name}:{folder.RemoteRoot}: what changes here goes there; tasks, builds and the terminal run there. Click to pull what changed there.";
+        _remoteStatus.Click = () => _ = _remote?.PullAsync();
+        _remoteStatus.IsVisible = true;
+        if (opening is null)
+            await _remote.PullAsync();
+    }
+
+    /// <summary>The workspace closes: what changed in a remote folder's copy goes to its machine first.</summary>
+    public override async Task<bool> CloseWorkspaceAsync()
+    {
+        if (_remote is { } open)
+            await open.PushAsync();
+        return true;
+    }
 }
