@@ -81,6 +81,42 @@ public class EditorFeaturesTests
     }
 
     [AvaloniaFact]
+    public async Task Quick_info_shows_a_long_diagnostic_whole()
+    {
+        var (vm, window, file) = await OpenFolderAsync("drive.py", "from google.auth.transport.requests import Request\n");
+        var view = vm.OpenDocument(file)!.Host.PrimaryView;
+        var text = "Import \"google.auth.transport.requests\" could not be resolved from the source of the virtual environment's site-packages";
+        var diagnostic = new Karvon.Lsp.LspDiagnostic(new(new(0, 5), new(0, 37)), Karvon.Lsp.DiagnosticSeverity.Error, "reportMissingImports", text, false);
+
+        // The editor's tooltips may be as wide as Quick Info (the theme's stop at 320 pixels).
+        Assert.Equal(Karvon.Editor.QuickInfo.MaxWidth, view.Resources["ToolTipContentMaxWidth"]);
+
+        // Quick Info in a tooltip as the theme has it and as the editor has it: the message wrapped in it, never cut off.
+        (ToolTip Tip, Control Info) Tip(bool editors)
+        {
+            var info = Karvon.Editor.QuickInfo.Build(null, [diagnostic]);
+            var host = new Border { Child = new ToolTip { Content = info, HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Left } };
+            if (editors)
+                host.Resources["ToolTipContentMaxWidth"] = Karvon.Editor.QuickInfo.MaxWidth;
+            return ((ToolTip)host.Child, info);
+        }
+        var (theme, editor) = (Tip(false), Tip(true));
+        var tips = new Window { Width = 1200, Height = 500, Content = new StackPanel { Spacing = 20, Children = { (Control)theme.Tip.Parent!, (Control)editor.Tip.Parent! } } };
+        tips.Show();
+        Dispatcher.UIThread.RunJobs();
+        foreach (var (_, info) in new[] { theme, editor })
+        {
+            var message = Avalonia.LogicalTree.LogicalExtensions.GetLogicalDescendants(info).OfType<TextBlock>().Single(t => t.Text == text);
+            Assert.True(message.Bounds.Right <= ((Control)message.Parent!).Bounds.Width + 0.5, $"the message ends at {message.Bounds.Right}, its row at {((Control)message.Parent!).Bounds.Width}");
+            Assert.True(message.Bounds.Height > message.FontSize * 1.8, "the message wraps");
+        }
+        Assert.True(theme.Info.Bounds.Width <= 320, $"the theme's is {theme.Info.Bounds.Width} wide");
+        Assert.True(editor.Info.Bounds.Width > 400, $"the editor's is {editor.Info.Bounds.Width} wide");
+        tips.Close();
+        window.Close();
+    }
+
+    [AvaloniaFact]
     public async Task Sticky_scroll_keeps_the_scopes_lines_and_the_minimap_shows_the_file()
     {
         var body = string.Join("\n", Enumerable.Range(1, 60).Select(i => $"      step{i}();"));

@@ -146,6 +146,8 @@ public sealed partial class EditorHost : IDisposable, IDebugLineSource
         };
         editor.PointerHover += OnPointerHover;
         editor.PointerHoverStopped += (_, _) => ToolTip.SetIsOpen(editor, false);
+        // Quick Info as wide as Visual Studio's: the theme's tooltips stop at 320 pixels.
+        editor.Resources["ToolTipContentMaxWidth"] = QuickInfo.MaxWidth;
         editor.AddHandler(InputElement.KeyDownEvent, OnKeyDown, RoutingStrategies.Tunnel);
         editor.AddHandler(InputElement.PointerWheelChangedEvent, OnPointerWheel, RoutingStrategies.Tunnel);
         editor.TextArea.AddHandler(InputElement.PointerPressedEvent, (_, e) => OnMultiCaretPointer(e), RoutingStrategies.Tunnel);
@@ -1406,9 +1408,12 @@ public sealed partial class EditorHost : IDisposable, IDebugLineSource
 /// <summary>Builds the Quick Info tooltip (hover text + diagnostics) in VS style.</summary>
 public static class QuickInfo
 {
+    /// <summary>How wide it grows before its lines wrap.</summary>
+    public const double MaxWidth = 720;
+
     public static Control Build(string? markdown, IReadOnlyList<LspDiagnostic> diagnostics, string? dataTip = null)
     {
-        var panel = new StackPanel { Spacing = 6, MaxWidth = 720 };
+        var panel = new StackPanel { Spacing = 6, MaxWidth = MaxWidth };
         if (dataTip is not null)
             panel.Children.Add(new SelectableTextBlock
             {
@@ -1453,14 +1458,17 @@ public static class QuickInfo
                 DiagnosticSeverity.Warning => "#4CC24C",
                 _ => "#3794FF",
             };
-            panel.Children.Add(new StackPanel
+            // The code, then the message wrapped in the width left (a row of a stack panel never wraps: it was cut off).
+            var message = new TextBlock { Text = d.Message, TextWrapping = TextWrapping.Wrap };
+            Grid.SetColumn(message, 1);
+            panel.Children.Add(new Grid
             {
-                Orientation = Orientation.Horizontal,
-                Spacing = 6,
+                ColumnDefinitions = new ColumnDefinitions("Auto,*"),
+                ColumnSpacing = 6,
                 Children =
                 {
                     new TextBlock { Text = d.Code, Foreground = new SolidColorBrush(Color.Parse(color)), FontWeight = FontWeight.SemiBold },
-                    new TextBlock { Text = d.Message, TextWrapping = TextWrapping.Wrap, MaxWidth = 640 },
+                    message,
                 },
             });
         }
