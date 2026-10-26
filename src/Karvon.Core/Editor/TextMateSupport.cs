@@ -11,13 +11,26 @@ using TextMateSharp.Themes;
 
 namespace Karvon.Editor;
 
+/// <summary>
+/// A language's TextMate grammar that a module brings (one TextMateSharp does not have: Kotlin's): its scope, the file
+/// extensions it colors (".kt"), and its JSON.
+/// </summary>
+public sealed record SyntaxGrammar(string ScopeName, IReadOnlyList<string> Extensions, Func<Stream> Open);
+
 /// <summary>Shared TextMate registry: VS Code's "Visual Studio Dark" theme plus Karvon's Visual Studio overrides.</summary>
 public static class TextMateSupport
 {
     static readonly Lazy<RegistryOptions> _registry = new(() => new RegistryOptions(ThemeName.VisualStudioDark));
     static readonly Lazy<KarvonRegistryOptions> _karvonRegistry = new(() => new KarvonRegistryOptions(_registry.Value));
+    static readonly System.Collections.Concurrent.ConcurrentDictionary<string, SyntaxGrammar> _grammars = new(StringComparer.Ordinal);
 
     public static RegistryOptions Registry => _registry.Value;
+
+    /// <summary>A module's grammar, for the files of its extensions (over the stock one of the same extension).</summary>
+    public static void Add(SyntaxGrammar grammar) => _grammars[grammar.ScopeName] = grammar;
+
+    /// <summary>A grammar as the editor loads it (the tests tokenize lines with it).</summary>
+    internal static TextMateSharp.Grammars.IGrammar? LoadGrammar(string scopeName) => new TextMateSharp.Registry.Registry(_karvonRegistry.Value).LoadGrammar(scopeName);
 
     /// <summary>Token colors layered on top of the stock theme so editors look like Visual Studio, not VS Code.</summary>
     static readonly (string Scope, string Foreground, string FontStyle)[] Overrides =
@@ -66,6 +79,8 @@ public static class TextMateSupport
         };
         if (Path.GetFileName(filePath).Equals("Dockerfile", StringComparison.OrdinalIgnoreCase) || filePath.EndsWith(".Dockerfile", StringComparison.OrdinalIgnoreCase))
             ext = ".dockerfile";
+        if (_grammars.Values.FirstOrDefault(g => g.Extensions.Contains(ext, StringComparer.OrdinalIgnoreCase)) is { } added)
+            return added.ScopeName;
         var language = Registry.GetLanguageByExtension(ext);
         return language is null ? null : Registry.GetScopeByLanguageId(language.Id);
     }
@@ -90,14 +105,20 @@ public static class TextMateSupport
         return ThemeReader.ReadThemeSync(reader);
     }
 
-    /// <summary>Delegates grammars to the stock registry but serves our patched theme.</summary>
+    /// <summary>Delegates grammars to the stock registry (the modules' first) but serves our patched theme.</summary>
     sealed class KarvonRegistryOptions(RegistryOptions inner) : IRegistryOptions
     {
         readonly Lazy<IRawTheme> _theme = new(BuildTheme);
 
         public IRawTheme GetTheme(string scopeName) => inner.GetTheme(scopeName);
 
-        public IRawGrammar GetGrammar(string scopeName) => inner.GetGrammar(scopeName);
+        public IRawGrammar GetGrammar(string scopeName)
+        {
+            if (!_grammars.TryGetValue(scopeName, out var grammar))
+                return inner.GetGrammar(scopeName);
+            using var reader = new StreamReader(grammar.Open());
+            return GrammarReader.ReadGrammarSync(reader);
+        }
 
         public ICollection<string> GetInjections(string scopeName) => inner.GetInjections(scopeName);
 

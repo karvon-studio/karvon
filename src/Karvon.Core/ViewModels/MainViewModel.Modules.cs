@@ -30,7 +30,11 @@ public partial class MainViewModel : IWorkbench
         AllModules = _givenModules ?? ModuleCatalog.Create();
         Modules = [.. AllModules.Where(m => !Settings.DisabledModules.Contains(m.Id))];
         foreach (var module in Modules)
+        {
             module.Start(this);
+            foreach (var grammar in module.Grammars)
+                Editor.TextMateSupport.Add(grammar);
+        }
         StatusItems = [.. Modules.Select(m => m.StatusItem).OfType<ModuleStatusItem>()];
         RegisterModuleLanguageServers();
     }

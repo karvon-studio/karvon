@@ -16,4 +16,9 @@
   <ItemGroup>
     <EmbeddedResource Include="GradleWrapper\*" LogicalName="GradleWrapper/%(Filename)%(Extension)" />
   </ItemGroup>
+
+  <!-- Kotlin's TextMate grammar (MIT, vscode-kotlin's; see Grammars/SOURCE.txt): what the editor colors before the server. -->
+  <ItemGroup>
+    <EmbeddedResource Include="Grammars\kotlin.tmLanguage.json" LogicalName="Grammars/kotlin.tmLanguage.json" />
+  </ItemGroup>
 </Project>

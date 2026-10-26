@@ -175,6 +175,9 @@ public abstract partial class KarvonModule : ObservableObject, IDisposable, IAsy
     /// <summary>The language servers it brings: one starts when a file it serves opens in the editor.</summary>
     public virtual IReadOnlyList<LanguageServerInfo> LanguageServers => [];
 
+    /// <summary>The TextMate grammars of the languages it brings that the editor has none for (Kotlin's).</summary>
+    public virtual IReadOnlyList<Editor.SyntaxGrammar> Grammars => [];
+
     /// <summary>
     /// The tasks it finds in a folder (its package.json scripts...): read when the folder opens and when one of
     /// <see cref="WorkspaceTaskFiles"/> is saved. Quick and without side effects: it reads files, it runs nothing.

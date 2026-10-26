@@ -29,6 +29,10 @@ public sealed class KotlinModule : KarvonModule
     public override IReadOnlyList<LanguageServerInfo> LanguageServers =>
         [new("kotlin-lsp", "Kotlin language server (kotlin-lsp)", KotlinServer.Serves, async start => await ServerAsync(start))];
 
+    /// <summary>Kotlin's grammar (vscode-kotlin's): its keywords, comments and strings colored before, and beside, the server.</summary>
+    public override IReadOnlyList<Editor.SyntaxGrammar> Grammars =>
+        [new("source.kotlin", [".kt", ".kts"], () => typeof(KotlinModule).Assembly.GetManifestResourceStream("Grammars/kotlin.tmLanguage.json")!)];
+
     public override IReadOnlyList<DebuggerInfo> Debuggers =>
     [
         new("kotlin-lsp", $"the Kotlin debugger (kotlin-lsp {KotlinLspLocator.Version})", ["intellij_gradle", "intellij_jvm"], async start =>
