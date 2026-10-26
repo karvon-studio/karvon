@@ -294,6 +294,18 @@ package manager, from Solution Explorer's menu of its folder or its manifest:
 - Java: Maven Central, a pom.xml's dependencies by their scopes or a build.gradle's (.kts) by their configurations;
   Maven and Gradle have no command that adds one, so Karvon edits the file as it is written.
 
+**A folder whose packages are not installed** (its language server cannot resolve their imports): the first time its
+server starts in a session, Karvon asks to install them, and Ctrl+. on such an import offers it too. It runs in Output
+(Package Manager), then IntelliSense starts again with the packages. A no is kept with the folder.
+
+- Python: a uv project is synced (`uv sync`). A requirements.txt folder gets a virtual environment (`python3 -m venv`,
+  named as its .gitignore leaves one out, else `.venv`) with `pip install -r requirements.txt` into it. A folder that
+  already has one gets requirements.txt installed into it (Pyright's `reportMissingImports`).
+- JavaScript and TypeScript: a package.json with dependencies and no node_modules is installed by its npm, pnpm, yarn
+  or bun (`install`; TypeScript's "Cannot find module", TS2307).
+- .NET, Rust, Go, Java and Kotlin need nothing: Roslyn asks for its restore, and cargo, go, Gradle and Maven download
+  what the build needs.
+
 ## Claude Code (Ctrl+Esc)
 
 Drives your installed `claude` CLI, so your login, settings and MCP servers apply.

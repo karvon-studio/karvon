@@ -70,6 +70,20 @@ public sealed class PythonModule : KarvonModule
     public override IReadOnlyList<DebuggerInfo> Debuggers =>
         [new("debugpy", $"debugpy {DebugpyLocator.Version}", PythonDebugger.Types, PythonDebugger.StartAsync)];
 
+    /// <summary>
+    /// A folder whose packages are nowhere (Pyright cannot resolve its imports): a uv project synced, else a virtual
+    /// environment made with requirements.txt installed into it (or requirements.txt into the one it has).
+    /// </summary>
+    public override PackageRestore? PackageRestoreIn(string folder) => PythonEnvironmentSetup.Offer(folder) is { } title
+        ? new(title, PythonEnvironmentSetup.IsMissing(folder), PythonEnvironmentSetup.Steps(folder, Environment.GetEnvironmentVariable("PATH") ?? ""))
+        {
+            Problem = "Python was not found: install Python 3, then try again.",
+        }
+        : null;
+
+    /// <summary>Pyright's import it cannot resolve (its module, or its source beside the stubs).</summary>
+    public override bool IsUnresolvedImport(Lsp.LspDiagnostic diagnostic) => diagnostic.Code is "reportMissingImports" or "reportMissingModuleSource";
+
     async Task<Lsp.LspClient> StartAsync(LanguageServerStart start)
     {
         var installing = PyrightLocator.Find() is null;

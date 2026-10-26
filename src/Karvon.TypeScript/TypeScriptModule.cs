@@ -42,6 +42,19 @@ public sealed class TypeScriptModule : KarvonModule
     /// <summary>A package.json folder's Dependencies in Solution Explorer.</summary>
     public override Packages.PackageSource? PackagesIn(string folder) => File.Exists(Path.Combine(folder, "package.json")) ? new NpmPackages(folder) : null;
 
+    /// <summary>A package.json's packages installed by the folder's package manager (npm, pnpm, yarn or bun install); missing with no node_modules.</summary>
+    public override PackageRestore? PackageRestoreIn(string folder)
+    {
+        if (!File.Exists(Path.Combine(folder, "package.json")) || new NpmPackages(folder).Dependencies().Count == 0)
+            return null;
+        var manager = PackageScripts.ManagerOf(folder);
+        return new($"Install the packages ({manager} install)", !Directory.Exists(Path.Combine(folder, "node_modules")),
+            [new($"{manager}: install", WorkspaceTaskKind.Other, manager, ["install"], folder) { Source = PackageScripts.Source }]);
+    }
+
+    /// <summary>TypeScript's "Cannot find module" (TS2307): a package not installed.</summary>
+    public override bool IsUnresolvedImport(Lsp.LspDiagnostic diagnostic) => diagnostic.Code == "2307";
+
     public override IReadOnlyList<ModuleMenuItem> ExplorerMenu(Workspace.ExplorerNode node) =>
         FolderWith(node, "package.json") is { } dir
             ? [new($"Manage {PackageScripts.ManagerOf(dir)} Packages...", () => Workbench.ManagePackagesAsync(new NpmPackages(dir))) { After = "Add" }]

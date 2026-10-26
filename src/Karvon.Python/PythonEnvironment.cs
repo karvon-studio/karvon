@@ -14,6 +14,9 @@ public static class PythonEnvironment
 
     static string Executable => OperatingSystem.IsWindows() ? "python.exe" : "python";
 
+    /// <summary>A virtual environment's interpreter, the folder of one being given (made or not yet).</summary>
+    public static string InterpreterIn(string venv) => Path.Combine(venv, BinFolder, Executable);
+
     /// <summary>The virtual environment's bin folder in the workspace, or null.</summary>
     public static string? VirtualEnvironmentBin(string workspace) => Folders
         .Select(folder => Path.Combine(workspace, folder, BinFolder))

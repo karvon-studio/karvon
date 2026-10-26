@@ -179,6 +179,15 @@ public abstract partial class KarvonModule : ObservableObject, IDisposable, IAsy
     public virtual IReadOnlyList<Editor.SyntaxGrammar> Grammars => [];
 
     /// <summary>
+    /// How a folder's packages of its language get installed, or null: none of its there, or its tools install them
+    /// themselves (Roslyn asks for a restore, cargo and Gradle download what the build needs).
+    /// </summary>
+    public virtual PackageRestore? PackageRestoreIn(string folder) => null;
+
+    /// <summary>Whether a problem its language server reports is an import it cannot resolve (Ctrl+. offers its package restore).</summary>
+    public virtual bool IsUnresolvedImport(Lsp.LspDiagnostic diagnostic) => false;
+
+    /// <summary>
     /// The tasks it finds in a folder (its package.json scripts...): read when the folder opens and when one of
     /// <see cref="WorkspaceTaskFiles"/> is saved. Quick and without side effects: it reads files, it runs nothing.
     /// </summary>

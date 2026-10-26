@@ -209,6 +209,9 @@ public sealed partial class EditorHost : IDisposable, IDebugLineSource
     /// <summary>Applies a code action's edit, which may touch other files or create/rename them.</summary>
     public event Func<IReadOnlyList<LspFileOperation>, Task>? WorkspaceOperationsRequested;
 
+    /// <summary>The modules' own Quick Actions for the file's problems at the caret (shown before the server's).</summary>
+    public Func<string, IReadOnlyList<LspDiagnostic>, IReadOnlyList<EditorQuickAction>>? ModuleQuickActions { get; set; }
+
     // ---- Zoom (Ctrl+wheel, Ctrl+Shift+. / Ctrl+Shift+,) ------------------------------------------------------
 
     public double Zoom => _primary.FontSize / BaseFontSize;
@@ -933,6 +936,19 @@ public sealed partial class EditorHost : IDisposable, IDebugLineSource
 
     // ---- Quick Actions (Ctrl+.) ---------------------------------------------------------------------------
 
+    /// <summary>The problems Quick Actions are for: the one under the caret, else those on its line.</summary>
+    List<LspDiagnostic> CaretDiagnostics()
+    {
+        var caret = Editor.CaretOffset;
+        var line = Document.GetLineByOffset(caret).LineNumber - 1;
+        var diagnostics = _diagnostics.At(caret).ToList();
+        return diagnostics.Count > 0 ? diagnostics : Diagnostics.Where(d => d.Range.Start.Line <= line && d.Range.End.Line >= line).ToList();
+    }
+
+    /// <summary>The modules' Quick Actions for the problems at the caret.</summary>
+    internal IReadOnlyList<EditorQuickAction> GetModuleQuickActions() =>
+        ModuleQuickActions is { } provider && CaretDiagnostics() is { Count: > 0 } diagnostics ? provider(FilePath, diagnostics) : [];
+
     /// <summary>Code actions for the selection, or for the diagnostic under (or on the line of) the caret.</summary>
     internal async Task<IReadOnlyList<LspCodeAction>> GetQuickActionsAsync()
     {
@@ -941,10 +957,7 @@ public sealed partial class EditorHost : IDisposable, IDebugLineSource
             return [];
         FlushChanges();
         var caret = Editor.CaretOffset;
-        var line = Document.GetLineByOffset(caret).LineNumber - 1;
-        var diagnostics = _diagnostics.At(caret).ToList();
-        if (diagnostics.Count == 0)
-            diagnostics = Diagnostics.Where(d => d.Range.Start.Line <= line && d.Range.End.Line >= line).ToList();
+        var diagnostics = CaretDiagnostics();
         LspRange range;
         var selection = Editor.TextArea.Selection;
         if (!selection.IsEmpty)
@@ -979,13 +992,14 @@ public sealed partial class EditorHost : IDisposable, IDebugLineSource
     /// <summary>Opens the Quick Actions menu at the caret; returns it (null when there is nothing to offer).</summary>
     internal async Task<ContextMenu?> ShowQuickActionsAsync()
     {
+        var own = GetModuleQuickActions();
         var actions = await GetQuickActionsAsync();
-        if (actions.Count == 0)
+        if (actions.Count == 0 && own.Count == 0)
         {
             StatusMessage?.Invoke("No quick actions available here.");
             return null;
         }
-        var menu = new ContextMenu { ItemsSource = actions.Select(QuickActionItem).ToList() };
+        var menu = new ContextMenu { ItemsSource = own.Select(ModuleActionItem).Concat(actions.Select(QuickActionItem)).ToList() };
         var view = Editor.TextArea.TextView;
         var caret = Editor.TextArea.Caret.CalculateCaretRectangle();
         var anchor = view.TranslatePoint(new Point(caret.X - view.HorizontalOffset, caret.Y - view.VerticalOffset), Editor) ?? default;
@@ -999,6 +1013,17 @@ public sealed partial class EditorHost : IDisposable, IDebugLineSource
         menu.Closed += (_, _) => Editor.TextArea.Focus();
         menu.Open(Editor);
         return menu;
+    }
+
+    static MenuItem ModuleActionItem(EditorQuickAction action)
+    {
+        var item = new MenuItem
+        {
+            Header = action.Title,
+            Icon = new TextBlock { Text = "💡", FontSize = 11, VerticalAlignment = VerticalAlignment.Center },
+        };
+        item.Click += (_, _) => _ = action.RunAsync();
+        return item;
     }
 
     MenuItem QuickActionItem(LspCodeAction action)

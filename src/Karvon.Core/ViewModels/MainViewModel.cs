@@ -499,6 +499,7 @@ public partial class MainViewModel : ObservableObject
         host.ReferencesFound += (symbol, refs) => ShowFindResults($"'{symbol}' references", refs);
         host.WorkspaceEditRequested += ApplyWorkspaceEditAsync;
         host.WorkspaceOperationsRequested += ApplyWorkspaceOperationsAsync;
+        host.ModuleQuickActions = PackageQuickActions;
         host.Saved += () => _ = RefreshGitAsync();
         host.Saved += () =>
         {

@@ -99,6 +99,9 @@ public partial class MainViewModel
         }
         if (Solution != solution)
             return null;
+        // A folder whose packages are not there yet: its module's package restore offered (once a session).
+        if (!info.Lints && Modules.FirstOrDefault(m => m.LanguageServers.Any(s => s.Id == info.Id)) is { } owner)
+            _ = OfferPackageRestoreAsync(owner, solution.Directory);
         ServerOutput.Append($"Starting {info.Name}...");
         // A workspace's server says how it is doing on the status bar, as Visual Studio's IntelliSense does.
         var workspace = info.ForWorkspace is not null;
