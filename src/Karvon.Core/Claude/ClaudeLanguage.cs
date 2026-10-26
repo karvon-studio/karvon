@@ -147,6 +147,7 @@ public sealed class ClaudeLanguage : INotifyPropertyChanged
         ["Keep planning"] = "Rejalashtirishni davom ettirish",
         ["Copy"] = "Nusxa",
         ["Jump to bottom"] = "Pastga o‘tish",
+        ["Show earlier messages"] = "Oldingi xabarlarni ko‘rsatish",
         ["Show more"] = "Ko‘proq ko‘rsatish",
         ["Show less"] = "Kamroq ko‘rsatish",
         ["The summary that replaced the earlier messages"] = "Oldingi xabarlar o‘rnini olgan xulosa",

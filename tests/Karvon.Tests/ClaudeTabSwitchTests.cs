@@ -44,17 +44,18 @@ public class ClaudeTabSwitchTests
         };
         var items = window.GetVisualDescendants().OfType<ClaudeView>().Single().FindControl<ItemsControl>("ChatItems")!;
 
-        // Only the messages in view are made, at the end of the conversation.
-        var made = items.GetRealizedContainers().Count();
-        Assert.InRange(made, 1, 60);
+        // Only the conversation's last messages are made (the earlier ones a click away), at its end.
+        var view = window.GetVisualDescendants().OfType<ClaudeView>().Single();
+        Assert.Equal(ClaudeView.ShownStep, items.GetRealizedContainers().Count());
         Assert.Contains(items.GetRealizedContainers(), c => c.DataContext == ClaudeOf(vm).Claude.Items[^1]);
+        Assert.True(view.FindControl<Button>("ShowEarlierButton")!.IsVisible);
 
         // Away and back: still at the end, without laying out every message again.
         Time(() => vm.ShowToolWindow(ToolWindows.SolutionExplorer));
         scrolls = 0;
         Time(() => vm.ShowToolWindow(Karvon.Claude.ClaudeModule.ToolWindowId));
         Assert.InRange(scrolls, 0, 10);
-        Assert.InRange(items.GetRealizedContainers().Count(), 1, 60);
+        Assert.Equal(ClaudeView.ShownStep, items.GetRealizedContainers().Count());
         await WaitUntil(() => scroll.Offset.Y >= scroll.Extent.Height - scroll.Viewport.Height - 2, TimeSpan.FromSeconds(2));
         Assert.True(scroll.Offset.Y >= scroll.Extent.Height - scroll.Viewport.Height - 2, $"{scroll.Offset.Y} of {scroll.Extent.Height - scroll.Viewport.Height}");
         window.Close();

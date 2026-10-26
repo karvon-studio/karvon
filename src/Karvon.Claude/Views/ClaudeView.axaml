@@ -612,13 +612,12 @@
     <Panel>
       <!-- ===== Conversation ===== -->
       <ScrollViewer Name="ChatScroll" HorizontalScrollBarVisibility="Disabled">
-        <ItemsControl Name="ChatItems" ItemsSource="{Binding Items}" Margin="14,6,14,28">
-          <!-- Only the messages in view are made: a long conversation opens (and comes back from another tab) at once. -->
-          <ItemsControl.ItemsPanel>
-            <ItemsPanelTemplate>
-              <VirtualizingStackPanel />
-            </ItemsPanelTemplate>
-          </ItemsControl.ItemsPanel>
+        <StackPanel>
+        <!-- The conversation's earlier messages, a click away (only its last ones are made: see ClaudeView's ShownItems) -->
+        <Button Name="ShowEarlierButton" Classes="link" IsVisible="False" Click="OnShowEarlier" Content="{v:L 'Show earlier messages'}"
+                HorizontalAlignment="Center" Margin="0,8,0,0" />
+        <!-- Its items laid out whole, in a plain stack panel (ClaudeView sets ItemsSource to the messages shown). -->
+        <ItemsControl Name="ChatItems" Margin="14,6,14,28">
           <ItemsControl.DataTemplates>
             <DataTemplate DataType="vm:UserChatItem" x:DataType="vm:UserChatItem">
               <Border Classes="user" Margin="0,12,0,4">
@@ -895,6 +894,7 @@
             </DataTemplate>
           </ItemsControl.DataTemplates>
         </ItemsControl>
+        </StackPanel>
       </ScrollViewer>
 
       <!-- Back to the last message, once the user scrolled up -->
