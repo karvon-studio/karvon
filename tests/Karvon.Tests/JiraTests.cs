@@ -2,6 +2,7 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using Avalonia.Controls;
 using Avalonia.Headless.XUnit;
+using Avalonia.VisualTree;
 using Karvon.Claude;
 using Karvon.Jira;
 using Karvon.Jira.ViewModels;
@@ -197,6 +198,10 @@ public class JiraTests
             // Add Jira Site: Server's personal access token, tested, then kept in the keyring (never in jira.json).
             var adding = vm.AddSiteCommand.ExecuteAsync(null);
             var form = Assert.IsType<JiraSiteDialog>(vm.Dialog);
+            Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+            // The Add button follows the form: off until it is filled in.
+            var add = window.GetVisualDescendants().OfType<Button>().Single(b => b.Content as string == "Add");
+            Assert.False(add.IsEnabled);
             (form.Name, form.Url, form.AuthIndex) = ("Work", "https://jira.example.invalid/", 1);
             Assert.False(form.CanConfirm);
             Assert.Equal(("Personal access token", false), (form.SecretLabel, form.NeedsUser));
@@ -214,7 +219,8 @@ public class JiraTests
             Assert.True(form.TestFailed);
             form.AuthIndex = 1;
             Snapshot(window, "jira-add-site");
-            form.Confirm();
+            Assert.True(add.IsEnabled);
+            add.Command!.Execute(null);
             await adding;
             var saved = File.ReadAllText(Path.Combine(host.ConfigDirectory, "jira.json"));
             Assert.Contains("\"Url\": \"https://jira.example.invalid\"", saved);

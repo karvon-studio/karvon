@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 
@@ -31,6 +32,14 @@ public abstract partial class OverlayDialog : ObservableObject
     public void Cancel() => _result.TrySetResult(false);
 
     public virtual bool CanConfirm => true;
+
+    /// <summary>Whether it can be confirmed follows what is filled in: any change says it again (its button is bound to it).</summary>
+    protected override void OnPropertyChanged(PropertyChangedEventArgs e)
+    {
+        base.OnPropertyChanged(e);
+        if (e.PropertyName != nameof(CanConfirm))
+            base.OnPropertyChanged(new PropertyChangedEventArgs(nameof(CanConfirm)));
+    }
 }
 
 /// <summary>"Delete web-1?": what happens, and the button that does it (red when it cannot be undone).</summary>
