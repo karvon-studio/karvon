@@ -53,7 +53,7 @@ public sealed partial class PipelinesModule : KarvonModule, IPipelinesHost
     [ObservableProperty]
     public partial PipelinesViewModel? Pipelines { get; private set; }
 
-    internal ICredentialStore? Keyring { get; set; } = CredentialStores.System;
+    internal ICredentialStore? Keyring { get; set; } = Karvon.Services.Keyring.System;
 
     public PipelinesViewModel EnsurePipelines()
     {

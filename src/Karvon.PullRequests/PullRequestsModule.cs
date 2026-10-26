@@ -49,7 +49,7 @@ public sealed partial class PullRequestsModule : KarvonModule, IPullRequestsHost
     [ObservableProperty]
     public partial PullRequestsViewModel? Window { get; private set; }
 
-    internal ICredentialStore? Keyring { get; set; } = CredentialStores.System;
+    internal ICredentialStore? Keyring { get; set; } = Karvon.Services.Keyring.System;
 
     /// <summary>How GitHub's gh is found (the tests' fake one).</summary>
     internal Func<string?> Gh { get; set; } = GhCliApi.Find;

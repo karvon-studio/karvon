@@ -43,7 +43,7 @@ public sealed partial class PortsModule : KarvonModule, IPortsHost
     /// <summary>How the window resolves the service (the tests' fake server).</summary>
     internal Func<string, CancellationToken, Task<JprqEndpoint>>? Resolve { get; set; }
 
-    internal ICredentialStore? Keyring { get; set; } = CredentialStores.System;
+    internal ICredentialStore? Keyring { get; set; } = Karvon.Services.Keyring.System;
 
     public PortsViewModel EnsurePorts()
     {

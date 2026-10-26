@@ -22,6 +22,8 @@
     <PackageReference Include="Markdig" Version="0.37.0" />
     <PackageReference Include="Exclr8.Terminal" Version="1.0.9" />
     <PackageReference Include="Exclr8.Terminal.Pty" Version="1.0.4" />
+    <!-- The keyring's D-Bus (Services/Keyring.cs): the version Avalonia 12 brings, not bengine's older one. -->
+    <PackageReference Include="Tmds.DBus.Protocol" Version="0.94.1" />
   </ItemGroup>
   <ItemGroup>
     <!-- The keyring and the data sources' profiles (the bengine repository, a submodule). -->

@@ -131,7 +131,7 @@ public sealed partial class McpModule : KarvonModule, IMcpHost
     Task<string> IMcpHost.SignInWithClaudeAsync(string name) =>
         _claude?.AuthenticateMcpAsync(name) ?? Task.FromResult("Claude Code is not available.");
 
-    Bengine.Introspection.Servers.ICredentialStore? IMcpHost.Keyring => Bengine.Introspection.Servers.CredentialStores.System;
+    Bengine.Introspection.Servers.ICredentialStore? IMcpHost.Keyring => Karvon.Services.Keyring.System;
 
     void IMcpHost.Status(string text) => Workbench.Status(text);
 }

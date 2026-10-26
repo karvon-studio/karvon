@@ -82,7 +82,7 @@ public sealed class DatabaseModule : KarvonModule, IDatabaseService, IDatabaseTo
 
     /// <summary>The open solution's data sources (with no solution: Studio's list; BENGINE_SERVERS_FILE points it elsewhere).</summary>
     public ServerStore Servers => _servers ??= Directory is { } directory
-        ? new ServerStore(Path.Combine(directory, "servers.json"), CredentialStores.System)
+        ? new ServerStore(Path.Combine(directory, "servers.json"), Karvon.Services.Keyring.System)
         : new ServerStore();
 
     /// <summary>The folder of the open solution's Database Explorer (beside its state.json); null with no solution open.</summary>

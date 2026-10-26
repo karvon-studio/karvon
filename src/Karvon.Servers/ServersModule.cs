@@ -48,7 +48,7 @@ public sealed partial class ServersModule : KarvonModule, IServersHost
     public ServersExplorerViewModel EnsureExplorer()
     {
         if (Explorer is null)
-            Overlay = Explorer = new ServersExplorerViewModel(this, CredentialStores.System);
+            Overlay = Explorer = new ServersExplorerViewModel(this, Karvon.Services.Keyring.System);
         return Explorer;
     }
 

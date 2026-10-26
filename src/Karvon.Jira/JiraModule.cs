@@ -52,7 +52,7 @@ public sealed partial class JiraModule : KarvonModule, IJiraHost
     /// <summary>How the explorer makes a site's client (the tests' fake site).</summary>
     internal Func<JiraSite, string, JiraClient>? Clients { get; set; }
 
-    internal ICredentialStore? Keyring { get; set; } = CredentialStores.System;
+    internal ICredentialStore? Keyring { get; set; } = Karvon.Services.Keyring.System;
 
     public JiraExplorerViewModel EnsureExplorer()
     {
