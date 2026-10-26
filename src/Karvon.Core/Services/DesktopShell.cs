@@ -16,7 +16,7 @@ public static class DesktopShell
         {
             var start = OperatingSystem.IsWindows()
                 ? new ProcessStartInfo(target) { UseShellExecute = true }
-                : new ProcessStartInfo(OperatingSystem.IsMacOS() ? "open" : "xdg-open", [target]) { UseShellExecute = false };
+                : new ProcessStartInfo(OperatingSystem.IsMacOS() ? "open" : "xdg-open", [target]) { UseShellExecute = false, CreateNoWindow = true };
             using var process = Process.Start(start);
             return true;
         }
@@ -40,6 +40,7 @@ public static class DesktopShell
                 RedirectStandardError = true,
                 RedirectStandardOutput = true,
                 UseShellExecute = false,
+                CreateNoWindow = true,
             });
             if (gio is null)
                 return false;

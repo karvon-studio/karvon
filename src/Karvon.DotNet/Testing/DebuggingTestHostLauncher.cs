@@ -43,6 +43,7 @@ public sealed class DebuggingTestHostLauncher(Func<int, Task> attachDebugger, Ac
         {
             WorkingDirectory = info.WorkingDirectory ?? Environment.CurrentDirectory,
             UseShellExecute = false,
+            CreateNoWindow = true,
             RedirectStandardOutput = true,
             RedirectStandardError = true,
         };

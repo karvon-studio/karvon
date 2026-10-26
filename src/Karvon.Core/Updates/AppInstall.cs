@@ -114,6 +114,8 @@ public sealed record AppInstall(Distribution Distribution, string Version, strin
                 : new ProcessStartInfo(process, arguments);
         }
         start.UseShellExecute = false;
+        // A build of the sources starts again by dotnet, a console program: no console window with it.
+        start.CreateNoWindow = true;
         Process.Start(start)?.Dispose();
     }
 

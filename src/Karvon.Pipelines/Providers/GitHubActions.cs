@@ -87,6 +87,7 @@ public sealed class GhCliApi(string gh, string host) : IGitHubApi
             RedirectStandardError = true,
             RedirectStandardInput = input is not null,
             UseShellExecute = false,
+            CreateNoWindow = true,
             StandardOutputEncoding = Encoding.UTF8,
             StandardErrorEncoding = Encoding.UTF8,
             WorkingDirectory = Path.GetTempPath(),

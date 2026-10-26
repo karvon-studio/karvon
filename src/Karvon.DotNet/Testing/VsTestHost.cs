@@ -65,6 +65,7 @@ public sealed class VsTestHost : IDisposable
         {
             RedirectStandardOutput = true,
             RedirectStandardError = true,
+            CreateNoWindow = true,
             WorkingDirectory = solutionDirectory,
         };
         DotnetCli.ApplyEnvironment(psi);

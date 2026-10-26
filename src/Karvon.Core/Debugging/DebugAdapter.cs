@@ -81,6 +81,8 @@ public sealed partial class DebugAdapter : IAsyncDisposable
         program.RedirectStandardOutput = true;
         program.RedirectStandardError = true;
         program.UseShellExecute = false;
+        // No console window of its own on Windows: the adapter's and the program's output come to Karvon.
+        program.CreateNoWindow = true;
     }
 
     /// <summary>

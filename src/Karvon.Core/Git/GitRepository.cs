@@ -525,6 +525,7 @@ public sealed class GitRepository
             RedirectStandardError = true,
             RedirectStandardInput = input is not null,
             UseShellExecute = false,
+            CreateNoWindow = true,
             WorkingDirectory = directory,
             StandardOutputEncoding = Encoding.UTF8,
         };

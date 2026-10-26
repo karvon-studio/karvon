@@ -77,11 +77,22 @@ public class PackageRestoreTests
         Assert.Contains("the Fake restore language server cannot resolve their imports.\n\nInstall the fake packages?", Assert.Single(dialogs.Confirmations));
         Assert.Contains("> dotnet --version", output.Document.Text);
 
-        // Ctrl+. on the problem: the install first, then the server's own actions.
+        // Ctrl+. on the problem: the install first, then the server's own actions (once the server, started again after
+        // the install, is back on the editor).
         await WaitUntil(() => host.Diagnostics.Count > 0, TimeSpan.FromSeconds(20));
         host.Editor.CaretOffset = host.Document.Text.IndexOf("TODO", StringComparison.Ordinal) + 1;
-        var menu = (await host.ShowQuickActionsAsync())!;
-        var items = menu.Items.OfType<MenuItem>().Select(i => i.Header as string).ToList();
+        ContextMenu menu;
+        List<string?> items;
+        var until = DateTime.UtcNow.AddSeconds(20);
+        while (true)
+        {
+            menu = (await host.ShowQuickActionsAsync())!;
+            items = [.. menu.Items.OfType<MenuItem>().Select(i => i.Header as string)];
+            if (items.Count == 2 || DateTime.UtcNow > until)
+                break;
+            menu.Close();
+            await WaitUntil(() => false, TimeSpan.FromMilliseconds(200));
+        }
         Assert.Equal(["Install the fake packages", "Fix all TODOs"], items);
         menu.Close();
         menu.Items.OfType<MenuItem>().First().RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));

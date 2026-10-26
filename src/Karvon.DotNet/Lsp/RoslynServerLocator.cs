@@ -52,6 +52,7 @@ public static class RoslynServerLocator
         {
             RedirectStandardOutput = true,
             RedirectStandardError = true,
+            CreateNoWindow = true,
             // Run outside any project so a repo's NuGet.Config cannot redirect the package source.
             WorkingDirectory = InstallRoot,
         };

@@ -56,6 +56,7 @@ static class DiagnosticsTools
             // dotnet-trace ends early on a key: it gets none.
             RedirectStandardInput = true,
             UseShellExecute = false,
+            CreateNoWindow = true,
             WorkingDirectory = directory,
         };
         foreach (var a in args)

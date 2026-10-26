@@ -30,6 +30,9 @@ public sealed class ProcessRunner : IDisposable
             RedirectStandardError = true,
             RedirectStandardInput = true,
             UseShellExecute = false,
+            // On Windows a console program Karvon (a windowed app) starts gets a console window of its own, empty, as
+            // its output comes here: none.
+            CreateNoWindow = true,
             WorkingDirectory = workingDirectory,
         };
         List<string> list = [.. args];

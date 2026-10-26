@@ -98,6 +98,8 @@ public class LspClient : IAsyncDisposable
         psi.RedirectStandardOutput = true;
         psi.RedirectStandardError = true;
         psi.UseShellExecute = false;
+        // No console window of its own on Windows (it would stay there, empty, while the server runs).
+        psi.CreateNoWindow = true;
         var process = System.Diagnostics.Process.Start(psi) ?? throw new InvalidOperationException($"Failed to start {Path.GetFileName(psi.FileName)}.");
         return (process, new JsonRpcConnection(process.StandardOutput.BaseStream, process.StandardInput.BaseStream));
     }

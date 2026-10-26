@@ -131,6 +131,7 @@ public static partial class ProcessTree
                     RedirectStandardOutput = true,
                     RedirectStandardError = true,
                     UseShellExecute = false,
+                    CreateNoWindow = true,
                     Environment = { ["LC_ALL"] = "C" },
                 });
                 if (ps is null)
