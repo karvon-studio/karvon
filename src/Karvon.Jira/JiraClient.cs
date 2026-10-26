@@ -280,14 +280,15 @@ public sealed class JiraClient : IDisposable
             : [];
     }
 
-    /// <summary>A board's columns, each with the statuses it holds.</summary>
-    public async Task<IReadOnlyList<JiraBoardColumn>> ColumnsAsync(int board, CancellationToken ct)
+    /// <summary>A board's columns, each with the statuses it holds, and a kanban board's sub-filter (its JQL, when it has one).</summary>
+    public async Task<(IReadOnlyList<JiraBoardColumn> Columns, string? SubQuery)> ColumnsAsync(int board, CancellationToken ct)
     {
         using var doc = await SendAsync(HttpMethod.Get, $"rest/agile/1.0/board/{board}/configuration", null, ct);
         if (doc is null || !Obj(doc.RootElement, "columnConfig").TryGetProperty("columns", out var columns))
-            return [];
-        return [.. columns.EnumerateArray().Select(c => new JiraBoardColumn(Str(c, "name") ?? "",
-            c.TryGetProperty("statuses", out var ss) ? [.. ss.EnumerateArray().Select(s => Str(s, "id") ?? "")] : []))];
+            return ([], null);
+        return ([.. columns.EnumerateArray().Select(c => new JiraBoardColumn(Str(c, "name") ?? "",
+                c.TryGetProperty("statuses", out var ss) ? [.. ss.EnumerateArray().Select(s => Str(s, "id") ?? "")] : []))],
+            Str(Obj(doc.RootElement, "subQuery"), "query") is { Length: > 0 } sub ? sub : null);
     }
 
     /// <summary>A scrum board's active and future sprints.</summary>
@@ -307,13 +308,23 @@ public sealed class JiraClient : IDisposable
         }
     }
 
-    /// <summary>A board's issues (of its sprint, when one is named), each with its status's id (its column).</summary>
-    public async Task<IReadOnlyList<(JiraIssueSummary Issue, string StatusId)>> BoardIssuesAsync(int board, int? sprint, CancellationToken ct)
+    /// <summary>
+    /// A board column's issues (of its sprint, when one is named), each column read by itself: the board's first issues
+    /// are its oldest, mostly done ones, which would leave the other columns empty. Those in the column's statuses and the
+    /// board's sub-filter, the first <paramref name="max"/> in the board's order (the latest updated first, as Jira's board
+    /// shows its done ones), and how many there are.
+    /// </summary>
+    public async Task<(IReadOnlyList<JiraIssueSummary> Issues, int Total)> ColumnIssuesAsync(int board, int? sprint, JiraBoardColumn column, string? subQuery,
+        bool latestFirst, int max, CancellationToken ct)
     {
+        if (column.StatusIds.Count == 0)
+            return ([], 0);
+        var jql = (subQuery is null ? "" : $"({subQuery}) AND ") + $"status in ({string.Join(',', column.StatusIds)})" + (latestFirst ? " ORDER BY updated DESC" : "");
         var path = sprint is { } s ? $"rest/agile/1.0/board/{board}/sprint/{s}/issue" : $"rest/agile/1.0/board/{board}/issue";
-        using var doc = await SendAsync(HttpMethod.Get, $"{path}?maxResults=200&fields={string.Join(',', RowFields)}", null, ct);
-        return doc is not null && doc.RootElement.TryGetProperty("issues", out var issues)
-            ? [.. issues.EnumerateArray().Select(i => (RowOf(i), Str(Obj(Obj(i, "fields"), "status"), "id") ?? ""))]
-            : [];
+        using var doc = await SendAsync(HttpMethod.Get, $"{path}?jql={Uri.EscapeDataString(jql)}&maxResults={max}&fields={string.Join(',', RowFields)}", null, ct);
+        if (doc is null || !doc.RootElement.TryGetProperty("issues", out var issues))
+            return ([], 0);
+        IReadOnlyList<JiraIssueSummary> rows = [.. issues.EnumerateArray().Select(RowOf)];
+        return (rows, doc.RootElement.TryGetProperty("total", out var total) && total.TryGetInt32(out var n) ? Math.Max(n, rows.Count) : rows.Count);
     }
 }

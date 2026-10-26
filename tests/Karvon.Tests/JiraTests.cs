@@ -88,12 +88,17 @@ public class JiraTests
         var type = await Assert.ThrowsAsync<JiraException>(() => jira.CreateAsync("SHOP", "Epic", "x", null, null, null, ct));
         Assert.Equal("SHOP has no issue type \"Epic\"; it has: Задача, Bug.", type.Message);
 
-        // Its filters and boards: a board's columns and its sprint's issues.
+        // Its filters and boards: a board's columns and a column's issues in its sprint (the first of them, and how many).
         Assert.Equal(["Shop bugs: project = SHOP AND issuetype = Bug"], (await jira.FavouriteFiltersAsync(ct)).Select(f => $"{f.Name}: {f.Jql}"));
         var board = Assert.Single(await jira.BoardsAsync(null, ct));
-        Assert.Equal(["To Do", "In Progress", "Done"], (await jira.ColumnsAsync(board.Id, ct)).Select(c => c.Name));
+        var (columns, subQuery) = await jira.ColumnsAsync(board.Id, ct);
+        Assert.Equal(["To Do", "In Progress", "Done"], columns.Select(c => c.Name));
+        Assert.Null(subQuery);
         Assert.Equal("Sprint 3", Assert.Single(await jira.SprintsAsync(board.Id, ct)).Name);
-        Assert.Equal(4, (await jira.BoardIssuesAsync(board.Id, 3, ct)).Count);
+        var todo = await jira.ColumnIssuesAsync(board.Id, 3, columns[0], subQuery, latestFirst: false, 2, ct);
+        Assert.Equal(["SHOP-2", "SHOP-3"], todo.Issues.Select(i => i.Key));
+        Assert.Equal(3, todo.Total);
+        Assert.Equal(["SHOP-1"], (await jira.ColumnIssuesAsync(board.Id, 3, columns[1], subQuery, latestFirst: false, 2, ct)).Issues.Select(i => i.Key));
 
         // Every request signed in with the bearer token; bodies as UTF-8 JSON.
         Assert.All(fake.Requests, r => Assert.Equal("Bearer " + Secret, r.Authorization));
@@ -155,6 +160,28 @@ public class JiraTests
     }
 
     /// <summary>The window's side of the explorer, the test's own.</summary>
+    [AvaloniaFact]
+    public async Task A_board_shows_each_columns_issues_however_many_are_done()
+    {
+        // 250 done issues first in the board's order (as a board's old ones are), then one to do and one in progress.
+        var fake = new FakeJira(cloud: false) { SubQuery = "fixVersion is EMPTY" }.WithDone(250).Seed();
+        var keyring = new TestKeyring();
+        keyring.Secrets["karvon-jira/" + Server.Id] = Secret;
+        var explorer = new JiraExplorerViewModel(new TestJiraHost(), keyring, (site, secret) => new JiraClient(site, secret, fake));
+        var board = new JiraBoardPageViewModel(explorer, Server, new JiraBoard(7, "SHOP board", "kanban"));
+
+        await board.RefreshAsync();
+        Assert.Null(board.Error);
+        // The done ones leave the other columns theirs; the done column shows its latest first, and how many it has.
+        Assert.Equal(["To Do  1", "In Progress  1", $"Done  {JiraBoardPageViewModel.CardsPerColumn} of 250"], board.Columns.Select(c => c.Header));
+        Assert.Equal(["Add a wish list"], board.Columns[0].Cards.Select(c => c.Summary));
+        Assert.Equal(["Done task 250", "Done task 249"], board.Columns[2].Cards.Take(2).Select(c => c.Summary));
+        // Each column read through the board's sub-filter.
+        var reads = fake.Requests.Where(r => r.Path.Contains("/issue?", StringComparison.Ordinal)).Select(r => Uri.UnescapeDataString(r.Path)).ToList();
+        Assert.Equal(3, reads.Count);
+        Assert.All(reads, r => Assert.Contains("jql=(fixVersion is EMPTY) AND status in (", r));
+    }
+
     sealed class TestJiraHost : IJiraHost
     {
         public string ConfigDirectory { get; } = Directory.CreateTempSubdirectory("karvon-jira-").FullName;

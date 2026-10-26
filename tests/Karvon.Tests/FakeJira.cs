@@ -25,6 +25,9 @@ sealed class FakeJira(bool cloud, string secret = "the-secret", string user = "m
 
     public bool Down { get; set; }
 
+    /// <summary>The board's kanban sub-filter (its configuration's subQuery), when set.</summary>
+    public string? SubQuery { get; set; }
+
     readonly string _me = cloud ? "acc-1" : "dev";
 
     static readonly (string Id, string Name, string Category)[] Statuses =
@@ -49,6 +52,17 @@ sealed class FakeJira(bool cloud, string secret = "the-secret", string user = "m
         {
             ["comments"] = new JsonArray(new JsonObject { ["author"] = User(), ["created"] = "2026-10-20T10:00:00.000+0500", ["body"] = Body("Seen on staging.") }),
         };
+        return this;
+    }
+
+    /// <summary>Done issues, each updated a minute after the one before (the first the oldest): before Seed's, they come first in the board's order, as a board's old done ones do.</summary>
+    public FakeJira WithDone(int count)
+    {
+        for (var i = 0; i < count; i++)
+        {
+            Add("SHOP", $"Done task {i + 1}", "5", "Задача", "<p>Done.</p>", "Done.");
+            Issues[$"SHOP-{_next - 1}"]["fields"]!["updated"] = new DateTime(2026, 10, 1).AddMinutes(i).ToString("yyyy-MM-dd'T'HH:mm:ss'.000+0500'");
+        }
         return this;
     }
 
@@ -200,11 +214,20 @@ sealed class FakeJira(bool cloud, string secret = "the-secret", string user = "m
                             new JsonObject { ["name"] = "In Progress", ["statuses"] = new JsonArray(new JsonObject { ["id"] = "3" }, new JsonObject { ["id"] = "10" }) },
                             new JsonObject { ["name"] = "Done", ["statuses"] = new JsonArray(new JsonObject { ["id"] = "5" }) }),
                     },
+                    ["subQuery"] = SubQuery is null ? null : new JsonObject { ["query"] = SubQuery },
                 });
             case "GET" when rest == "rest/agile/1.0/board/7/sprint":
                 return Json(HttpStatusCode.OK, new JsonObject { ["values"] = new JsonArray(new JsonObject { ["id"] = 3, ["name"] = "Sprint 3", ["state"] = "active" }) });
             case "GET" when rest is "rest/agile/1.0/board/7/sprint/3/issue" or "rest/agile/1.0/board/7/issue":
-                return Json(HttpStatusCode.OK, new JsonObject { ["issues"] = new JsonArray([.. Issues.Values.Select(Row)]) });
+            {
+                // As Jira: the board's order (its rank: here the keys'), the jql's ORDER BY over it, the first maxResults of them and how many.
+                var jql = query["jql"] ?? "";
+                var found = Issues.Values.Where(i => Matches(i, jql)).OrderBy(i => int.Parse(i["key"]!.GetValue<string>().Split('-')[1])).ToList();
+                if (Regex.IsMatch(jql, @"ORDER\s+BY\s+updated\s+DESC", RegexOptions.IgnoreCase))
+                    found = [.. found.OrderByDescending(i => i["fields"]!["updated"]!.GetValue<string>(), StringComparer.Ordinal)];
+                var max = int.TryParse(query["maxResults"], out var n) ? n : 50;
+                return Json(HttpStatusCode.OK, new JsonObject { ["total"] = found.Count, ["issues"] = new JsonArray([.. found.Take(max).Select(Row)]) });
+            }
         }
         return Json(HttpStatusCode.NotFound, new JsonObject { ["errorMessages"] = new JsonArray($"No such route: {method} {route}") });
     }
@@ -230,12 +253,18 @@ sealed class FakeJira(bool cloud, string secret = "the-secret", string user = "m
 
     static JsonNode Row(JsonObject issue) => new JsonObject { ["key"] = issue["key"]!.DeepClone(), ["fields"] = issue["fields"]!.DeepClone() };
 
-    /// <summary>The JQL the tests ask: assignee = currentUser(), project = X, key = X, issuetype = X, joined by AND; ORDER BY ignored.</summary>
+    /// <summary>The JQL the tests ask: assignee = currentUser(), project = X, key = X, issuetype = X, status in (ids), joined by AND; ORDER BY ignored.</summary>
     bool Matches(JsonObject issue, string jql)
     {
         var where = Regex.Split(jql, @"\s+ORDER\s+BY\s+", RegexOptions.IgnoreCase)[0];
         foreach (var clause in Regex.Split(where, @"\s+AND\s+", RegexOptions.IgnoreCase).Where(c => c.Trim().Length > 0))
         {
+            if (Regex.Match(clause.Trim(), @"^status\s+in\s+\(([^)]*)\)$", RegexOptions.IgnoreCase) is { Success: true } statuses)
+            {
+                if (!statuses.Groups[1].Value.Split(',', StringSplitOptions.TrimEntries).Contains(issue["fields"]!["status"]!["id"]!.GetValue<string>()))
+                    return false;
+                continue;
+            }
             var parts = clause.Split('=', 2, StringSplitOptions.TrimEntries);
             if (parts.Length != 2)
                 continue;

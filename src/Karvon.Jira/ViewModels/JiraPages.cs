@@ -166,16 +166,21 @@ public sealed partial class JiraSearchPageViewModel(JiraExplorerViewModel explor
     }
 }
 
-/// <summary>A board's column: its name and its issues.</summary>
+/// <summary>A board's column: its name and its issues (the first of them, when it has more).</summary>
 public sealed class JiraColumn(JiraBoardColumn column)
 {
+    public JiraBoardColumn Column => column;
+
     public string Name => column.Name;
 
     public IReadOnlyList<string> StatusIds => column.StatusIds;
 
     public ObservableCollection<JiraIssueSummary> Cards { get; } = [];
 
-    public string Header => $"{Name}  {Cards.Count}";
+    /// <summary>How many issues the column has, those not shown too.</summary>
+    public int Total { get; set; }
+
+    public string Header => Total > Cards.Count ? $"{Name}  {Cards.Count} of {Total}" : $"{Name}  {Cards.Count}";
 }
 
 /// <summary>
@@ -220,7 +225,7 @@ public sealed partial class JiraBoardPageViewModel(JiraExplorerViewModel explore
         try
         {
             var client = await explorer.ClientAsync(site);
-            var columns = await client.ColumnsAsync(board.Id, default);
+            (var columns, _subQuery) = await client.ColumnsAsync(board.Id, default);
             var sprints = await client.SprintsAsync(board.Id, default);
             _loading = true;
             Columns.Clear();
@@ -245,17 +250,28 @@ public sealed partial class JiraBoardPageViewModel(JiraExplorerViewModel explore
         }
     }
 
+    /// <summary>The cards a column shows at most (its header says how many more it has).</summary>
+    public const int CardsPerColumn = 100;
+
+    string? _subQuery;
+
     async Task LoadCardsAsync()
     {
         try
         {
-            var issues = await (await explorer.ClientAsync(site)).BoardIssuesAsync(board.Id, Sprint?.Id, default);
-            foreach (var column in Columns)
-                column.Cards.Clear();
-            foreach (var (issue, status) in issues)
-                Columns.FirstOrDefault(c => c.StatusIds.Contains(status))?.Cards.Add(issue);
-            // The headers' counts.
+            // Each column by itself; the last (done) one's latest first, as Jira's board shows them.
+            var client = await explorer.ClientAsync(site);
             var columns = Columns.ToList();
+            var read = await Task.WhenAll(columns.Select((c, i) =>
+                client.ColumnIssuesAsync(board.Id, Sprint?.Id, c.Column, _subQuery, latestFirst: i == columns.Count - 1, CardsPerColumn, default)));
+            for (var i = 0; i < columns.Count; i++)
+            {
+                columns[i].Cards.Clear();
+                foreach (var issue in read[i].Issues)
+                    columns[i].Cards.Add(issue);
+                columns[i].Total = read[i].Total;
+            }
+            // The headers' counts.
             Columns.Clear();
             foreach (var column in columns)
                 Columns.Add(column);
