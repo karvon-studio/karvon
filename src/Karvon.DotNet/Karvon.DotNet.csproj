@@ -17,5 +17,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Karvon.Core\Karvon.Core.csproj" />
+    <!-- Beside Karvon's assemblies: the startup hook a console app debugged in its own console starts with. -->
+    <ProjectReference Include="..\Karvon.DotNet.DebugWait\Karvon.DotNet.DebugWait.csproj" />
   </ItemGroup>
 </Project>

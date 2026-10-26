@@ -57,6 +57,12 @@ public sealed record WorkspaceTask(string Name, WorkspaceTaskKind Kind, string P
     /// <summary>A task that only runs its dependencies (tasks.json's task with dependsOn and no command).</summary>
     public bool IsCompound => Program.Length == 0;
 
+    /// <summary>
+    /// A run that is a console program (a console app's Ctrl+F5): it runs in a console of its own in the Terminal window,
+    /// as Visual Studio's console window, its output there and the keyboard its input; not in Output.
+    /// </summary>
+    public bool RunsInConsole { get; init; }
+
     /// <summary>A run's serverReadyAction, as a launch configuration has it: the browser opens once its output says it listens.</summary>
     public System.Text.Json.Nodes.JsonObject? ServerReadyAction { get; init; }
 
@@ -94,3 +100,6 @@ public sealed record DebugLaunch(string Name, JsonObject Configuration)
 
     public override string ToString() => Name;
 }
+
+/// <summary>A program running in a console of its own (<see cref="IWorkbench.StartInConsoleAsync"/>): its process, and its exit code once it exits.</summary>
+public sealed record ProgramConsole(int ProcessId, Task<int> Exited);

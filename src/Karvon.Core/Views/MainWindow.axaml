@@ -695,11 +695,14 @@
                 <Border DockPanel.Dock="Top" Background="{StaticResource VsEnvironmentBrush}" Padding="6,2">
                   <StackPanel Orientation="Horizontal" Spacing="6">
                     <TextBlock Text="{Binding TerminalTitle}" VerticalAlignment="Center" />
+                    <!-- A program's console (a console app run or debugged) beside the shell: one of them shown -->
+                    <Button Name="SwitchTerminalButton" Classes="tb" Command="{Binding SwitchTerminalCommand}" IsVisible="{Binding HasProgramConsole}"
+                            ToolTip.Tip="Switch between the program's console and the shell"><v:VsIcon Kind="Sync" Width="14" Height="14" /></Button>
                     <Button Classes="tb" Command="{Binding NewTerminalCommand}" ToolTip.Tip="New Terminal (starts in the solution folder)"><v:VsIcon Kind="Plus" Width="14" Height="14" /></Button>
                     <Button Classes="tb" Command="{Binding KillTerminalCommand}" ToolTip.Tip="Kill Terminal"><v:VsIcon Kind="Trash" Width="14" Height="14" /></Button>
                   </StackPanel>
                 </Border>
-                <ContentControl Content="{Binding Terminal.Control}" />
+                <ContentControl Content="{Binding ShownTerminal.Control}" />
               </DockPanel>
             </TabItem>
           </TabControl>

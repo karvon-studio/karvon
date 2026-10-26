@@ -1,0 +1,9 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- The startup hook a console app debugged in its own console starts with (see StartupHook.cs): netstandard2.0, so
+       that it loads in every .NET (Core 3.0 on) a project may target. -->
+  <PropertyGroup>
+    <TargetFramework>netstandard2.0</TargetFramework>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <Nullable>disable</Nullable>
+  </PropertyGroup>
+</Project>

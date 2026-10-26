@@ -286,14 +286,51 @@ public partial class MainViewModel
 
     ProcessRunner StartTask(WorkspaceTask task, Action<string> output)
     {
+        var (prepared, program, environment) = PrepareTask(task);
+        return ProcessRunner.Start(program, prepared.Arguments, prepared.WorkingDirectory, output, environment);
+    }
+
+    /// <summary>A task as it runs: its variables put in, on the workspace's machine, its program found on the tasks' PATH.</summary>
+    (WorkspaceTask Task, string Program, Dictionary<string, string> Environment) PrepareTask(WorkspaceTask task)
+    {
         task = TaskVariables.ForFile(task, Solution?.Directory ?? task.WorkingDirectory, ActiveEditor?.FilePath);
         if (Remote is { } remote)
             task = remote.Run(task);
         var path = task.Environment?.GetValueOrDefault("PATH") ?? TaskPath();
         var program = TaskVariables.Find(task.Program, path, task.WorkingDirectory)
             ?? throw new InvalidOperationException($"'{task.Program}' was not found on the PATH.");
-        var environment = new Dictionary<string, string>(task.Environment ?? new Dictionary<string, string>(), StringComparer.Ordinal) { ["PATH"] = path };
-        return ProcessRunner.Start(program, task.Arguments, task.WorkingDirectory, output, environment);
+        return (task, program, new Dictionary<string, string>(task.Environment ?? new Dictionary<string, string>(), StringComparer.Ordinal) { ["PATH"] = path });
+    }
+
+    /// <summary>A console program's run in its own console (the Terminal window's), until it exits.</summary>
+    async Task RunInConsoleAsync(WorkspaceTask task, bool withSolution)
+    {
+        if (Remote is { } remote)
+            await remote.FlushAsync();
+        Task<int> exited;
+        try
+        {
+            var (prepared, program, environment) = PrepareTask(task);
+            (_, exited) = await OpenProgramConsoleAsync(task.Name, program, prepared.Arguments, prepared.WorkingDirectory, environment);
+        }
+        catch (Exception ex) when (IsStartFailure(ex))
+        {
+            DebugOutput.Append($"{task.Name} could not start: {ex.Message}");
+            SetStatus($"{task.Name} could not start: {ex.Message}");
+            return;
+        }
+        DebugOutput.Append($"{task.Name} runs in its console (the Terminal window).");
+        if (withSolution)
+            StartWithSolution();
+        IsRunning = true;
+        SetStatus($"Running {task.Name}", StatusKind.Running);
+        var exit = await exited;
+        DebugOutput.Append($"The program '{task.Name}' has exited with code {exit} (0x{exit:x}).");
+        _lastExitCode = exit;
+        if (withSolution)
+            StopStartedWithSolution();
+        IsRunning = false;
+        SetStatus("Ready", Solution is null ? StatusKind.NoSolution : StatusKind.Ready);
     }
 
     /// <summary>A path a command printed, as the workspace's copy has it when it ran on the workspace's machine.</summary>
@@ -513,6 +550,11 @@ public partial class MainViewModel
             return;
         DebugOutput.Append("> " + task.CommandLine);
         _lastExitCode = null;
+        if (task.RunsInConsole)
+        {
+            await RunInConsoleAsync(task, withSolution);
+            return;
+        }
         // A run that opens the browser once it listens (a web project's launch profile).
         var ready = task.ServerReadyAction is { } action ? Debugging.ServerReadyAction.From(action, DebugOutput.Append) : null;
         ProcessRunner runner;

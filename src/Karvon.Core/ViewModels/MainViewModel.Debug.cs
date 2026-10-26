@@ -278,13 +278,18 @@ public partial class MainViewModel
         var breakpoints = noDebug ? new Dictionary<string, IReadOnlyList<SourceBreakpoint>>() : Breakpoints.AllSource;
         try
         {
-            _session = await DebugSession.StartAsync(adapter, launch.Request, configuration, breakpoints,
+            // The debugger may have made a launch an attach (a .NET console app: to its program, started in its console).
+            var request = configuration["request"]?.GetValue<string>() ?? launch.Request;
+            _session = await DebugSession.StartAsync(adapter, request, configuration, breakpoints,
                 (file, results) => Dispatcher.UIThread.Post(() => Breakpoints.SetVerification(file, [.. breakpoints[file].Select(b => b.Line)], results)),
                 WireSession, CancellationToken.None, noDebug ? _ => [] : capabilities => ExceptionFiltersFor(adapter.Type, capabilities));
         }
         catch (Exception ex)
         {
             DebugOutput.Append("Failed to start debugging: " + StartFailure(ex));
+            // A program waiting in its console for this debugger does not run on without it.
+            if (configuration["processId"] is not null && configuration["request"]?.GetValue<string>() == "attach" && launch.Request == "launch")
+                KillProgramConsole();
             _session = _sessions.LastOrDefault();
             if (_sessions.Count == 0)
             {
@@ -456,6 +461,8 @@ public partial class MainViewModel
     async Task Stop()
     {
         _runProcess?.Kill();
+        if (IsRunning)
+            KillProgramConsole();
         foreach (var session in _sessions.ToList())
             await session.TerminateAsync();
     }

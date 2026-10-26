@@ -156,6 +156,13 @@ public partial class MainViewModel : IWorkbench
 
     Task IWorkbench.OpenWorkspaceAsync(string path) => OpenSolutionAsync(path);
 
+    async Task<ProgramConsole> IWorkbench.StartInConsoleAsync(WorkspaceTask task)
+    {
+        var (prepared, program, environment) = PrepareTask(task);
+        var (console, exited) = await OpenProgramConsoleAsync(task.Name, program, prepared.Arguments, prepared.WorkingDirectory, environment);
+        return new ProgramConsole(console.ProcessId!.Value, exited);
+    }
+
     async Task<int> IWorkbench.RunAsync(WorkspaceTask task, Action<string> output, CancellationToken ct)
     {
         using var runner = await StartTaskAsync(task, output);

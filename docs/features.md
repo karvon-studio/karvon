@@ -70,6 +70,13 @@ server beside the startup project, as VS's multiple startup projects do.
 Build / Rebuild / Clean, Error List, launch profiles, Ctrl+F5; offers to trust the ASP.NET Core
 HTTPS development certificate.
 
+A **console app** runs in a console of its own, as in Visual Studio's console window: Ctrl+F5 and F5 start it in the
+Terminal window (in place of the shell, which the window's switch button brings back), its output there and the
+keyboard its input; after it exits, Enter closes the console. Under F5 the program waits before `Main` until the
+debugger has attached (a startup hook of Karvon's), so a breakpoint on its first line is hit. A web app, a worker or
+a window's app keeps its output in Output. A launch.json's `"console"` says otherwise: `internalConsole` for Output,
+`integratedTerminal` or `externalTerminal` for the console.
+
 ## Debug
 
 F5 debugs with the language's debugger (see Languages; TypeScript through its source maps): breakpoints that follow
@@ -277,7 +284,7 @@ licensed to run through Agensi, so "Use in Claude Code" gives Claude Code its MC
 
 ## Terminal
 
-Your `$SHELL` in a real pty, in the solution folder.
+Your `$SHELL` in a real pty, in the solution folder; a console app's own console while it runs (see Build and run).
 
 ## Packages
 

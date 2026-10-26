@@ -16,6 +16,7 @@
     <Project Path="src/Karvon.Http/Karvon.Http.csproj" />
     <Project Path="src/Karvon.Skills/Karvon.Skills.csproj" />
     <Project Path="src/Karvon.DotNet/Karvon.DotNet.csproj" />
+    <Project Path="src/Karvon.DotNet.DebugWait/Karvon.DotNet.DebugWait.csproj" />
     <Project Path="src/Karvon.TypeScript/Karvon.TypeScript.csproj" />
     <Project Path="src/Karvon.Python/Karvon.Python.csproj" />
     <Project Path="src/Karvon.Go/Karvon.Go.csproj" />

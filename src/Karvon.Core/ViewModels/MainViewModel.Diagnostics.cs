@@ -80,7 +80,7 @@ public partial class MainViewModel
     IEnumerable<ProcessDiagnostic> ProcessDiagnosticsOf() => Modules.SelectMany(m => m.ProcessDiagnostics);
 
     /// <summary>The process Karvon runs the program in: the one it started, else the debugger's.</summary>
-    int? ProgramProcessId => _runProcess?.Id ?? _session?.ProcessId;
+    int? ProgramProcessId => _runProcess?.Id ?? _session?.ProcessId ?? (IsRunning ? ProgramConsole?.ProcessId : null);
 
     [RelayCommand]
     void ShowDiagnosticTools() => ShowToolWindow(ToolWindows.DiagnosticTools);

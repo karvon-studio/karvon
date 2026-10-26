@@ -21,13 +21,17 @@ public sealed class TerminalSession : IAsyncDisposable
     (int Cols, int Rows)? _size;
     bool _starting;
     bool _exited;
+    TaskCompletionSource _started = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
     /// <summary>The user's shell, or <paramref name="program"/> (a shell in a container: docker exec -it ...).</summary>
     public TerminalSession(string? program = null, IReadOnlyList<string>? arguments = null)
     {
+        // Windows's console starts a program by its file: one on the PATH by its full path.
+        if (OperatingSystem.IsWindows() && program is not null && !Path.IsPathRooted(program)
+            && Workspace.TaskVariables.Find(program, System.Environment.GetEnvironmentVariable("PATH") ?? "", System.Environment.CurrentDirectory) is { } found)
+            program = found;
         _program = program;
         _arguments = arguments ?? [];
-        Title = DefaultTitle;
         Control = new TerminalControl
         {
             FontFamily = "avares://Karvon.Core/Assets/Fonts#Cascadia Mono, DejaVu Sans Mono, monospace",
@@ -47,11 +51,17 @@ public sealed class TerminalSession : IAsyncDisposable
             Title = string.IsNullOrWhiteSpace(title) ? DefaultTitle : title;
             StateChanged?.Invoke();
         });
-        // After the shell exits, Enter starts a new one (like VS / Windows Terminal).
+        // After the shell exits, Enter starts a new one (like VS / Windows Terminal), or does what EnterAfterExit says.
         Control.Input += (_, data) =>
         {
             if (_exited && data.Span.IndexOf((byte)'\r') >= 0)
-                Dispatcher.UIThread.Post(() => _ = RestartAsync());
+                Dispatcher.UIThread.Post(() =>
+                {
+                    if (EnterAfterExit is { } enter)
+                        enter();
+                    else
+                        _ = RestartAsync();
+                });
         };
     }
 
@@ -74,12 +84,30 @@ public sealed class TerminalSession : IAsyncDisposable
         return File.Exists(powershell) ? powershell : Environment.GetEnvironmentVariable("COMSPEC") ?? "cmd.exe";
     }
 
-    string DefaultTitle => Path.GetFileName(_program ?? Shell);
+    string DefaultTitle => Name ?? Path.GetFileName(_program ?? Shell);
 
-    public string Title { get; private set; }
+    /// <summary>What its title says while the program sets none (a program's console: the project's name).</summary>
+    public string? Name { get; init; }
+
+    string? _title;
+
+    public string Title
+    {
+        get => _title ?? DefaultTitle;
+        private set => _title = value;
+    }
 
     /// <summary>What the line shown after the program exits says Enter does.</summary>
     public string RestartHint { get; init; } = "Press Enter to start a new terminal.";
+
+    /// <summary>What Enter does after the program exited, instead of starting it again (a program's console closes).</summary>
+    public Action? EnterAfterExit { get; init; }
+
+    /// <summary>Variables the program gets beside Karvon's own (a launch profile's), or without (a null value).</summary>
+    public IReadOnlyDictionary<string, string?> Variables { get; init; } = new Dictionary<string, string?>();
+
+    /// <summary>The program exited (on the UI thread), with its exit code.</summary>
+    public event Action<int>? Exited;
 
     public bool IsAlive => _adapter.IsAlive;
 
@@ -99,6 +127,7 @@ public sealed class TerminalSession : IAsyncDisposable
             Control.Write(Encoding.UTF8.GetBytes($"\r\n\x1b[90m[Process exited with code {e.ExitCode}. {RestartHint}]\x1b[0m\r\n"));
             Title = DefaultTitle;
             StateChanged?.Invoke();
+            Exited?.Invoke(e.ExitCode);
         });
         return adapter;
     }
@@ -109,11 +138,16 @@ public sealed class TerminalSession : IAsyncDisposable
         try
         {
             var env = new Dictionary<string, string>();
-            foreach (DictionaryEntry e in Environment.GetEnvironmentVariables())
+            foreach (DictionaryEntry e in System.Environment.GetEnvironmentVariables())
                 env[(string)e.Key] = e.Value?.ToString() ?? "";
             env["TERM"] = "xterm-256color";
             env["COLORTERM"] = "truecolor";
             env["TERM_PROGRAM"] = "Karvon";
+            foreach (var (name, value) in Variables)
+                if (value is null)
+                    env.Remove(name);
+                else
+                    env[name] = value;
             await _adapter.StartAsync(new PtyOptions
             {
                 Name = "xterm-256color",
@@ -121,7 +155,7 @@ public sealed class TerminalSession : IAsyncDisposable
                 // "staircase" because LF is not turned into CR LF. Reset the line discipline, then become the shell.
                 // Windows's console (ConPTY) has none of that: the program starts as it is.
                 App = OperatingSystem.IsWindows() ? _program ?? Shell : "/bin/sh",
-                Cwd = Directory.Exists(WorkingDirectory) ? WorkingDirectory : Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+                Cwd = Directory.Exists(WorkingDirectory) ? WorkingDirectory : System.Environment.GetFolderPath(System.Environment.SpecialFolder.UserProfile),
                 Cols = cols,
                 Rows = rows,
                 CommandLine = OperatingSystem.IsWindows()
@@ -141,8 +175,22 @@ public sealed class TerminalSession : IAsyncDisposable
         finally
         {
             _starting = false;
+            _started.TrySetResult();
             StateChanged?.Invoke();
         }
+    }
+
+    /// <summary>
+    /// Started, when it is not yet (it starts when it is first laid out): a moment for that, then at a terminal's usual
+    /// size. A program's console needs it at once, its process id given to a debugger.
+    /// </summary>
+    public async Task EnsureStartedAsync()
+    {
+        if (_adapter.IsAlive || _exited)
+            return;
+        await Task.WhenAny(_started.Task, Task.Delay(TimeSpan.FromSeconds(2)));
+        if (!_adapter.IsAlive && !_starting && !_exited)
+            await StartAsync(_size?.Cols ?? 120, _size?.Rows ?? 30);
     }
 
     /// <summary>

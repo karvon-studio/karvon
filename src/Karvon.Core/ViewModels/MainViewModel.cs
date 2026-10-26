@@ -382,6 +382,7 @@ public partial class MainViewModel : ObservableObject
         _runProcess?.Kill();
         foreach (var debugSession in _sessions.ToList())
             await debugSession.TerminateAsync();
+        await CloseProgramConsoleAsync();
         _buildCts?.Cancel();
         StopWorkspaceTasks();
         // Every tab goes; those that follow something (the Docker Explorer's engine streams) stop following it.

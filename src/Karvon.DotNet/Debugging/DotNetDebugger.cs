@@ -19,9 +19,13 @@ static class DotNetDebugger
     public static DebuggerInfo Info(IWorkbench workbench, Func<LaunchProfile?, Task> offerTrust) =>
         new("netcoredbg", $"netcoredbg {NetcoredbgLocator.Version}", ["coreclr", "dotnet"], async start =>
         {
+            var console = UsesConsole(start.Configuration, IsDotnet(start.Configuration) ? ProjectOf(start.Configuration, workbench) : null);
             if (IsDotnet(start.Configuration))
                 await ResolveAsync(start.Configuration, workbench, start.Log);
-            return Netcoredbg.Adapter(await NetcoredbgLocator.EnsureInstalledAsync(start.Log, start.Cancellation));
+            var adapter = Netcoredbg.Adapter(await NetcoredbgLocator.EnsureInstalledAsync(start.Log, start.Cancellation));
+            if (console && IsLaunch(start.Configuration))
+                await StartInConsoleAsync(start.Configuration, workbench, start.Log);
+            return adapter;
         })
         {
             // Visual Studio asks on the first HTTPS run, with or without the debugger.
@@ -31,8 +35,102 @@ static class DotNetDebugger
                     await offerTrust(ProfileOf(launch.Configuration, project));
                 return true;
             },
-            RunWithoutDebuggingAsync = configuration => Task.FromResult(IsDotnet(configuration) ? Run(configuration, workbench) : null),
+            RunWithoutDebuggingAsync = configuration => Task.FromResult(IsDotnet(configuration) ? Run(configuration, workbench)
+                : IsLaunch(configuration) && UsesConsole(configuration, null) ? ConsoleRunOf(configuration) : null),
         };
+
+    static bool IsLaunch(JsonObject configuration) => (configuration["request"]?.GetValue<string>() ?? "launch") == "launch";
+
+    /// <summary>A console app: an Exe of the plain .NET SDK (not a web app's, a worker's or a window's).</summary>
+    internal static bool IsConsoleApp(ProjectInfo project) =>
+        string.Equals(project.OutputType, "Exe", StringComparison.OrdinalIgnoreCase) && string.Equals(project.Sdk, "Microsoft.NET.Sdk", StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// Whether the program runs in a console of its own, as Visual Studio runs a console app in its console window: as the
+    /// configuration's "console" says (VS Code's integratedTerminal and externalTerminal both are Karvon's console), else
+    /// for a console app. Its output in Output instead, and no keyboard, with "internalConsole".
+    /// </summary>
+    internal static bool UsesConsole(JsonObject configuration, ProjectInfo? project) => configuration["console"]?.GetValue<string>() switch
+    {
+        "internalConsole" => false,
+        "integratedTerminal" or "externalTerminal" => true,
+        _ => project is not null && IsConsoleApp(project),
+    };
+
+    /// <summary>Ctrl+F5 of a "coreclr" launch in its console: its program as it is.</summary>
+    static WorkspaceTask ConsoleRunOf(JsonObject configuration) =>
+        new(Path.GetFileNameWithoutExtension(ConsoleArgs(configuration).FirstOrDefault() ?? configuration["program"]?.GetValue<string>() ?? "program"),
+            WorkspaceTaskKind.Run, configuration["program"]?.GetValue<string>() ?? throw new InvalidOperationException("The configuration has no \"program\"."),
+            ConsoleArgs(configuration), configuration["cwd"]?.GetValue<string>() ?? Environment.CurrentDirectory)
+        {
+            Environment = ConsoleEnvironment(configuration),
+            RunsInConsole = true,
+        };
+
+    static IReadOnlyList<string> ConsoleArgs(JsonObject configuration) =>
+        configuration["args"] is JsonArray args ? [.. args.Select(a => a?.GetValue<string>() ?? "")] : [];
+
+    static Dictionary<string, string> ConsoleEnvironment(JsonObject configuration) =>
+        configuration["env"] is JsonObject env
+            ? env.Where(v => v.Value is not null).ToDictionary(v => v.Key, v => v.Value!.GetValue<string>(), StringComparer.Ordinal)
+            : new Dictionary<string, string>(StringComparer.Ordinal);
+
+    /// <summary>The startup hook beside Karvon's assemblies (Karvon.DotNet.DebugWait): it holds the program before Main until the debugger is there.</summary>
+    static string HookPath => Path.Combine(AppContext.BaseDirectory, "Karvon.DotNet.DebugWait.dll");
+
+    /// <summary>
+    /// F5 of a console app, in its console: netcoredbg runs a program with its output its own (its "console" aside), so
+    /// the program starts in the console here, held before Main by a startup hook that says so in a file, and the launch
+    /// becomes an attach to it (its breakpoints set before Main runs). Without the hook (its file gone), it stays a launch.
+    /// </summary>
+    static async Task StartInConsoleAsync(JsonObject configuration, IWorkbench workbench, Action<string> log)
+    {
+        if (!File.Exists(HookPath))
+        {
+            log($"{Path.GetFileName(HookPath)} is not beside Karvon: the program's output goes to Output.");
+            return;
+        }
+        var marker = Path.Combine(Path.GetTempPath(), $"karvon-debug-{Guid.NewGuid():N}.pid");
+        var environment = ConsoleEnvironment(configuration);
+        environment["DOTNET_STARTUP_HOOKS"] = Environment.GetEnvironmentVariable("DOTNET_STARTUP_HOOKS") is { Length: > 0 } hooks
+            ? hooks + Path.PathSeparator + HookPath
+            : HookPath;
+        environment["KARVON_DEBUGGER_WAIT"] = marker;
+        var program = configuration["program"]?.GetValue<string>() ?? throw new InvalidOperationException("The configuration has no \"program\".");
+        var args = ConsoleArgs(configuration);
+        var name = Path.GetFileNameWithoutExtension(args.FirstOrDefault(a => a.EndsWith(".dll", StringComparison.OrdinalIgnoreCase)) ?? program);
+        var console = await workbench.StartInConsoleAsync(new WorkspaceTask(name, WorkspaceTaskKind.Run, program, args,
+            configuration["cwd"]?.GetValue<string>() ?? Environment.CurrentDirectory) { Environment = environment });
+        var processId = console.ProcessId;
+        try
+        {
+            // The hook's file once the runtime is up (the program is held there), with the program's process id (the
+            // console's may be a shell's that became it); its exit, if it never gets there.
+            var until = DateTime.UtcNow.AddSeconds(30);
+            while (!File.Exists(marker) && !console.Exited.IsCompleted && DateTime.UtcNow < until)
+                await Task.Delay(25);
+            if (File.Exists(marker) && int.TryParse((await File.ReadAllTextAsync(marker)).Trim(), out var id))
+                processId = id;
+        }
+        catch (IOException)
+        {
+        }
+        finally
+        {
+            try
+            {
+                File.Delete(marker);
+            }
+            catch (IOException)
+            {
+            }
+        }
+        log($"{name} runs in its console (the Terminal window); the debugger attaches to it.");
+        configuration["request"] = "attach";
+        configuration["processId"] = processId;
+        foreach (var launchOnly in new[] { "program", "args", "cwd", "env", "console", "stopAtEntry" })
+            configuration.Remove(launchOnly);
+    }
 
     static bool IsDotnet(System.Text.Json.Nodes.JsonObject configuration) => configuration["type"]?.GetValue<string>() == "dotnet";
 
@@ -72,6 +170,7 @@ static class DotNetDebugger
         {
             Environment = OutputEnvironment,
             ServerReadyAction = profile is { LaunchBrowser: true } ? BrowserAt(profile) : null,
+            RunsInConsole = UsesConsole(configuration, project),
         };
     }
 

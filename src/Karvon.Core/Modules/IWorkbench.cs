@@ -51,6 +51,12 @@ public interface IWorkbench
     Task<int> RunAsync(WorkspaceTask task, Action<string> output, CancellationToken ct);
 
     /// <summary>
+    /// A program started in a console of its own, as the tasks run (in the Terminal window, instead of the shell: a console
+    /// app that F5 debugs, the debugger attached to it): its process, and its exit.
+    /// </summary>
+    Task<ProgramConsole> StartInConsoleAsync(WorkspaceTask task);
+
+    /// <summary>
     /// The Package Manager of one of the module's projects (npm's of a package.json folder), as Visual Studio's NuGet
     /// Package Manager is: the one open, else a new one.
     /// </summary>
