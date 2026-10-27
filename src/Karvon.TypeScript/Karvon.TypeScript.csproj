@@ -11,4 +11,9 @@
   <ItemGroup>
     <ProjectReference Include="..\Karvon.Core\Karvon.Core.csproj" />
   </ItemGroup>
+
+  <!-- Node.js's Hot Reload agent, beside Karvon's assemblies -->
+  <ItemGroup>
+    <None Include="HotReload\node-hot-reload.js" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+  </ItemGroup>
 </Project>

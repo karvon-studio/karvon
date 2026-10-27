@@ -108,11 +108,18 @@ public static class PackageScripts
         {
             var (kind, background) = KindOf(script.Name);
             var name = isRoot ? $"{manager}: {script.Name}" : $"{manager}: {script.Name} - {relative}";
+            // The app: Hot Reload by the agent, unless it reloads by itself (a dev server, a watcher); bun is no Node.js.
+            var app = kind == WorkspaceTaskKind.Run && !background;
+            var reloadsItself = app && script.Value.ValueKind == JsonValueKind.String && NodeHotReload.ReloadsItself(script.Value.GetString()!);
             tasks.Add(new WorkspaceTask(name, kind, manager, ["run", script.Name], dir)
             {
                 Source = Source,
                 // The app and the tests are debugged as they run (F5 on the toolbar's choice).
-                Debug = kind is WorkspaceTaskKind.Run or WorkspaceTaskKind.Test && !background ? JsDebugger.ForScript(name, manager, script.Name, dir) : null,
+                Debug = kind is WorkspaceTaskKind.Run or WorkspaceTaskKind.Test && !background ? JsDebugger.ForScript(name, manager, script.Name, dir, reloadsItself) : null,
+                HotReloads = reloadsItself,
+                HotReloadEnvironment = app && !reloadsItself && manager != "bun"
+                    ? NodeHotReload.Environment(workspace, Environment.GetEnvironmentVariable("NODE_OPTIONS"))
+                    : null,
                 // The folder's own build, test and app are the ones Build, Run All Tests and Start run.
                 IsDefault = isRoot && (script.Name is "build" or "test" || script.Name == run),
                 IsBackground = background,

@@ -372,8 +372,16 @@ public class WorkspaceTaskTests
         Assert.Equal(["pnpm: test", "pnpm: start", "pnpm: dev"], tasks.Where(t => t.Debug is not null).Select(t => t.Name));
         var dev = tasks.Single(t => t.Name == "pnpm: dev").Debug!;
         Assert.Equal(("pwa-node", "launch", PackageScripts.Source), (dev.Type, dev.Request, dev.Source));
-        Assert.Equal("""{"type":"pwa-node","request":"launch","name":"pnpm: dev","runtimeExecutable":"pnpm","runtimeArgs":["run","dev"],"cwd":"DIR","outputCapture":"std","skipFiles":["<node_internals>/**","**/node_modules/**"],"resolveSourceMapLocations":["${workspaceFolder}/**","!**/node_modules/**"]}""",
+        Assert.Equal("""{"__karvonReloadsItself":true,"type":"pwa-node","request":"launch","name":"pnpm: dev","runtimeExecutable":"pnpm","runtimeArgs":["run","dev"],"cwd":"DIR","outputCapture":"std","skipFiles":["<node_internals>/**","**/node_modules/**"],"resolveSourceMapLocations":["${workspaceFolder}/**","!**/node_modules/**"]}""",
             dev.Configuration.ToJsonString(new System.Text.Json.JsonSerializerOptions { Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping }).Replace(System.Text.Json.JsonEncodedText.Encode(dir).ToString(), "DIR"));
+        // Hot Reload: the app by the agent in node; a dev server (Vite) by itself, which Karvon restarts nothing for.
+        var start = tasks.Single(t => t.Name == "pnpm: start");
+        Assert.False(start.HotReloads);
+        Assert.EndsWith("node-hot-reload.js\"", start.HotReloadEnvironment!["NODE_OPTIONS"]);
+        Assert.Equal(dir, start.HotReloadEnvironment["KARVON_HOT_RELOAD_ROOT"]);
+        Assert.True(tasks.Single(t => t.Name == "pnpm: dev").HotReloads);
+        Assert.Null(tasks.Single(t => t.Name == "pnpm: dev").HotReloadEnvironment);
+        Assert.Null(tasks.Single(t => t.Name == "pnpm: test").HotReloadEnvironment);
         File.WriteAllText(Path.Combine(dir, "bun.lock"), "");
         File.Delete(Path.Combine(dir, "pnpm-lock.yaml"));
         Assert.All(PackageScripts.Read(dir).Where(t => t.Program == "bun"), t => Assert.Null(t.Debug));

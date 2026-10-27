@@ -78,6 +78,12 @@ public sealed record WorkspaceTask(string Name, WorkspaceTaskKind Kind, string P
     /// </summary>
     public Func<Func<string, RunNews?>>? OutputReader { get; init; }
 
+    /// <summary>
+    /// Variables that put a Hot Reload agent in the program (Node.js's), set when Debug > Enable Hot Reload is on and the
+    /// run is on this machine; what it tells Karvon comes in its output (<see cref="Debugging.HotReloadMessages"/>).
+    /// </summary>
+    public IReadOnlyDictionary<string, string>? HotReloadEnvironment { get; init; }
+
     /// <summary>The command as the Output window shows it: the program by its name, an argument with a space quoted.</summary>
     public string CommandLine => IsCompound ? "dependsOn: " + string.Join(", ", DependsOn) :
         string.Join(' ', [Path.IsPathRooted(Program) ? Path.GetFileName(Program) : Program, .. Arguments.Select(a => a.Length == 0 || a.Any(char.IsWhiteSpace) ? $"\"{a}\"" : a)]);
@@ -117,7 +123,14 @@ public sealed record DebugLaunch(string Name, JsonObject Configuration)
 /// What a line of a run's output says (<see cref="WorkspaceTask.OutputReader"/>): a status for the status bar, and that
 /// the program ended with an exit code though the command goes on (dotnet watch then waits for changes), which ends the run.
 /// </summary>
-public sealed record RunNews(string? Status, int? Ended = null);
+public sealed record RunNews(string? Status, int? Ended = null)
+{
+    /// <summary>A file the program applies changes to itself (a Hot Reload agent's): saving it restarts nothing.</summary>
+    public string? Live { get; init; }
+
+    /// <summary>A file whose change the program cannot apply: the run restarts with it.</summary>
+    public string? Restart { get; init; }
+}
 
 /// <summary>A program running in a console of its own (<see cref="IWorkbench.StartInConsoleAsync"/>): its process, and its exit code once it exits.</summary>
 public sealed record ProgramConsole(int ProcessId, Task<int> Exited);

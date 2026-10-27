@@ -16,9 +16,13 @@ public static class JsDebugger
     /// <summary>The launch.json types it debugs: VS Code's names and js-debug's own.</summary>
     public static readonly IReadOnlyList<string> Types = ["node", "pwa-node", "chrome", "pwa-chrome", "msedge", "pwa-msedge"];
 
-    /// <summary>A package.json script under the debugger: its package manager runs it (bun is no Node.js, so it has none).</summary>
-    public static DebugLaunch? ForScript(string name, string manager, string script, string directory) => manager == "bun" ? null : new(name, new JsonObject
+    /// <summary>
+    /// A package.json script under the debugger: its package manager runs it (bun is no Node.js, so it has none); one
+    /// that reloads by itself (a dev server) gets no Hot Reload agent.
+    /// </summary>
+    public static DebugLaunch? ForScript(string name, string manager, string script, string directory, bool reloadsItself = false) => manager == "bun" ? null : new(name, new JsonObject
     {
+        [ReloadsItselfKey] = reloadsItself,
         ["type"] = "pwa-node",
         ["request"] = "launch",
         ["name"] = name,
@@ -33,12 +37,19 @@ public static class JsDebugger
     })
     { Source = PackageScripts.Source };
 
-    public static async Task<DebugAdapter> StartAsync(DebuggerStart start)
+    /// <summary>A package.json script's configuration says it reloads by itself (a key js-debug leaves alone, as its own __workspaceFolder).</summary>
+    const string ReloadsItselfKey = "__karvonReloadsItself";
+
+    /// <param name="hotReload">Debug > Enable Hot Reload: a Node.js program it launches gets the Hot Reload agent.</param>
+    public static async Task<DebugAdapter> StartAsync(DebuggerStart start, bool hotReload = false)
     {
         var node = TaskVariables.Find(OperatingSystem.IsWindows() ? "node.exe" : "node", start.Path, start.Workspace)
             ?? throw new InvalidOperationException("Node.js was not found: the JavaScript debugger runs on it (install it from nodejs.org, or with nvm).");
         var server = await JsDebugLocator.EnsureInstalledAsync(start.Log, start.Cancellation);
+        var reloadsItself = start.Configuration[ReloadsItselfKey]?.GetValue<bool>() == true;
         Complete(start.Configuration, start.Workspace);
+        if (hotReload && !reloadsItself)
+            AddHotReload(start.Configuration, start.Workspace);
         var program = new ProcessStartInfo(node) { WorkingDirectory = start.Workspace };
         program.ArgumentList.Add(server);
         // Any free port, on this machine only.
@@ -54,8 +65,26 @@ public static class JsDebugger
     /// defaults are relative to (cwd, outFiles, webRoot: ${workspaceFolder}, which VS Code would give it), and the Output
     /// window as the console (Karvon has no terminal to give it).
     /// </summary>
+    /// <summary>
+    /// The Hot Reload agent in a Node.js program it launches (not one it attaches to, nor a browser's page): in its env's
+    /// NODE_OPTIONS, which js-debug adds its own to.
+    /// </summary>
+    internal static void AddHotReload(JsonObject configuration, string workspace)
+    {
+        if (configuration["type"]?.GetValue<string>() != "pwa-node" || (configuration["request"]?.GetValue<string>() ?? "launch") != "launch")
+            return;
+        var env = configuration["env"] as JsonObject ?? new JsonObject();
+        var options = env["NODE_OPTIONS"]?.GetValue<string>() ?? Environment.GetEnvironmentVariable("NODE_OPTIONS");
+        if (NodeHotReload.Environment(workspace, options) is not { } variables)
+            return;
+        foreach (var (name, value) in variables)
+            env[name] = value;
+        configuration["env"] = env;
+    }
+
     internal static void Complete(JsonObject configuration, string workspace)
     {
+        configuration.Remove(ReloadsItselfKey);
         var type = configuration["type"]?.GetValue<string>();
         if (type is "node" or "chrome" or "msedge")
             configuration["type"] = "pwa-" + type;

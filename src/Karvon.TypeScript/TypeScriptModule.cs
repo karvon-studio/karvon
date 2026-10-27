@@ -191,7 +191,7 @@ public sealed class TypeScriptModule : KarvonModule
         var installing = JsDebugLocator.Find() is null;
         if (installing)
             Workbench.Status($"Installing the JavaScript debugger (js-debug {JsDebugLocator.Version})...");
-        var adapter = await JsDebugger.StartAsync(start);
+        var adapter = await JsDebugger.StartAsync(start, Workbench.Settings.HotReload);
         if (installing)
             Workbench.Status($"js-debug {JsDebugLocator.Version} installed.");
         return adapter;

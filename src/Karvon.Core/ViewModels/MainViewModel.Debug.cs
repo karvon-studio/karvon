@@ -386,6 +386,13 @@ public partial class MainViewModel
             Breakpoints.SetVerification(file, [line], [new BreakpointResult(verified, line, null)]));
         session.Output += (category, text) =>
         {
+            // A Hot Reload agent's messages (Node.js's), which are not the program's output.
+            List<Modules.RunNews> agent = [];
+            text = HotReloadMessages.Take(text, agent);
+            foreach (var said in agent)
+                Dispatcher.UIThread.Post(() => OnRunNews(said, _ => { }));
+            if (agent.Count > 0 && text.Length == 0)
+                return;
             if (category == "console")
             {
                 // Adapter chatter: one message per line, minus the Just-My-Code notices about framework assemblies.
@@ -728,6 +735,7 @@ public partial class MainViewModel
             : $"The program '{_debuggedProject}' has exited.");
         Mode = DebugMode.Design;
         SetStatus("Ready", Solution is null ? StatusKind.NoSolution : StatusKind.Ready);
+        RunEnded(_debuggedProject ?? "The program", exitCode);
         _ = session.DisposeAsync().AsTask();
         if (_postDebugTask is { } after)
         {

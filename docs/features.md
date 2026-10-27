@@ -86,6 +86,15 @@ by itself, the run ends with its exit code. On Linux it polls for changes (a use
 `dotnet watch` takes one for each folder). A console app runs without it: `dotnet watch` reads the keyboard itself, so
 the app would get none of it.
 
+**Hot Reload for Node.js** (JavaScript, and TypeScript as Node.js runs it): a program Karvon runs, with Ctrl+F5 or F5
+(a `package.json` script, a launch.json's `node` configuration), gets Karvon's agent first (`NODE_OPTIONS --require`).
+A saved change inside a function of a file it loaded applies in place, the program going on with its state (V8's
+LiveEdit, through the inspector of the process: no port is opened); code that does not compile is said in the status
+bar, and applied once fixed. A change outside the file's functions (code that ran as it loaded), or to a file it reads
+(a JSON, a template), restarts the run. Code a loader made (tsx, a bundler) restarts too. A dev server or a watcher that
+reloads by itself (Vite, Next.js, Nuxt, Angular's, webpack's, nodemon, `tsx watch`, `--watch`) has its own hot module
+replacement for the browser's code, and Karvon restarts nothing for it.
+
 **Restart on Save**, for a run without the debugger that has no Hot Reload (a Go, Python, Rust, Java, Kotlin or C++
 program, a Node.js script, a .NET console app): once a file of the workspace is saved (not a Markdown one), the run
 stops and starts again as Ctrl+F5 started it, built first; Alt+F10 restarts it at once. When the restart's build

@@ -301,7 +301,12 @@ public partial class MainViewModel
         var path = task.Environment?.GetValueOrDefault("PATH") ?? TaskPath();
         var program = TaskVariables.Find(task.Program, path, task.WorkingDirectory)
             ?? throw new InvalidOperationException($"'{task.Program}' was not found on the PATH.");
-        return (task, program, new Dictionary<string, string>(task.Environment ?? new Dictionary<string, string>(), StringComparer.Ordinal) { ["PATH"] = path });
+        var environment = new Dictionary<string, string>(task.Environment ?? new Dictionary<string, string>(), StringComparer.Ordinal) { ["PATH"] = path };
+        // The agent is a file of this machine's: not for a run on another one.
+        if (Settings.HotReload && Remote is null && task.HotReloadEnvironment is { } hotReload)
+            foreach (var (name, value) in hotReload)
+                environment[name] = value;
+        return (task, program, environment);
     }
 
     /// <summary>A console program's run in its own console (the Terminal window's), until it exits.</summary>
@@ -333,6 +338,7 @@ public partial class MainViewModel
             StopStartedWithSolution();
         IsRunning = false;
         SetStatus("Ready", Solution is null ? StatusKind.NoSolution : StatusKind.Ready);
+        RunEnded(task.Name, exit);
     }
 
     /// <summary>A path a command printed, as the workspace's copy has it when it ran on the workspace's machine.</summary>
@@ -565,17 +571,25 @@ public partial class MainViewModel
         int? ended = null;
         try
         {
+            void End(int code)
+            {
+                ended = code;
+                (runner ?? _runProcess)?.Kill();
+            }
             runner = await StartTaskAsync(task, line =>
             {
-                DebugOutput.Append(line);
-                if (ready?.Match(line) is { } url)
+                List<RunNews> agent = [];
+                var text = Debugging.HotReloadMessages.Take(line, agent);
+                foreach (var said in agent)
+                    Dispatcher.UIThread.Post(() => OnRunNews(said, End));
+                // A line that was only the agent's messages is not the program's.
+                if (agent.Count > 0 && text.Length == 0)
+                    return;
+                DebugOutput.Append(text);
+                if (ready?.Match(text) is { } url)
                     Dispatcher.UIThread.Post(() => OpenBrowser(url));
-                if (read?.Invoke(line) is { } news)
-                    Dispatcher.UIThread.Post(() => OnRunNews(news, code =>
-                    {
-                        ended = code;
-                        (runner ?? _runProcess)?.Kill();
-                    }));
+                if (read?.Invoke(text) is { } news)
+                    Dispatcher.UIThread.Post(() => OnRunNews(news, End));
             });
         }
         catch (Exception ex) when (IsStartFailure(ex))
@@ -603,13 +617,21 @@ public partial class MainViewModel
         IsHotReloading = false;
         IsRunning = false;
         SetStatus("Ready", Solution is null ? StatusKind.NoSolution : StatusKind.Ready);
+        RunEnded(task.Name, exit);
     }
 
-    /// <summary>What a run's output said beside the program's own: a status (Hot Reload's results), or that the program ended.</summary>
+    /// <summary>
+    /// What a run's output said beside the program's own: a status (Hot Reload's results), a file the program applies
+    /// changes to itself, a change it cannot apply (the run restarts), or that the program ended.
+    /// </summary>
     void OnRunNews(RunNews news, Action<int> end)
     {
         if (news.Status is { } status)
             SetStatus(status, StatusKind.Running);
+        if (news.Live is { } live)
+            _liveFiles.Add(Path.GetFullPath(live));
+        if (news.Restart is { } restart)
+            _ = RestartRunAsync(restart);
         if (news.Ended is { } code)
             end(code);
     }
