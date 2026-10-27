@@ -66,6 +66,18 @@ public sealed record WorkspaceTask(string Name, WorkspaceTaskKind Kind, string P
     /// <summary>A run's serverReadyAction, as a launch configuration has it: the browser opens once its output says it listens.</summary>
     public System.Text.Json.Nodes.JsonObject? ServerReadyAction { get; init; }
 
+    /// <summary>
+    /// A run whose code changes apply while it runs, as they are saved (Hot Reload: dotnet watch's): Debug > Hot Reload
+    /// (Alt+F10) saves them.
+    /// </summary>
+    public bool HotReloads { get; init; }
+
+    /// <summary>
+    /// Reads a run's output in Output, line by line, for what the command says beside the program's own output (Hot
+    /// Reload's results); it makes a new reader for each run.
+    /// </summary>
+    public Func<Func<string, RunNews?>>? OutputReader { get; init; }
+
     /// <summary>The command as the Output window shows it: the program by its name, an argument with a space quoted.</summary>
     public string CommandLine => IsCompound ? "dependsOn: " + string.Join(", ", DependsOn) :
         string.Join(' ', [Path.IsPathRooted(Program) ? Path.GetFileName(Program) : Program, .. Arguments.Select(a => a.Length == 0 || a.Any(char.IsWhiteSpace) ? $"\"{a}\"" : a)]);
@@ -100,6 +112,12 @@ public sealed record DebugLaunch(string Name, JsonObject Configuration)
 
     public override string ToString() => Name;
 }
+
+/// <summary>
+/// What a line of a run's output says (<see cref="WorkspaceTask.OutputReader"/>): a status for the status bar, and that
+/// the program ended with an exit code though the command goes on (dotnet watch then waits for changes), which ends the run.
+/// </summary>
+public sealed record RunNews(string? Status, int? Ended = null);
 
 /// <summary>A program running in a console of its own (<see cref="IWorkbench.StartInConsoleAsync"/>): its process, and its exit code once it exits.</summary>
 public sealed record ProgramConsole(int ProcessId, Task<int> Exited);

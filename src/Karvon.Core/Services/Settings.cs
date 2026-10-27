@@ -124,6 +124,12 @@ public sealed class Settings
     /// <summary>The Markdown preview is below the editor instead of to its right.</summary>
     public bool MarkdownPreviewBelow { get; set; }
 
+    /// <summary>
+    /// Debug > Enable Hot Reload: a run whose language applies code changes while it runs does so (Ctrl+F5 of a .NET
+    /// project runs under dotnet watch).
+    /// </summary>
+    public bool HotReload { get; set; } = true;
+
     /// <summary>The editor's inlay hints (parameter names, types), CodeLens, sticky scroll and minimap (View menu).</summary>
     public bool InlayHints { get; set; } = true;
 

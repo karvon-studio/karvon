@@ -157,20 +157,26 @@ static class DotNetDebugger
 
     /// <summary>
     /// Ctrl+F5 of a "dotnet" configuration, as Visual Studio runs a project without the debugger: dotnet run of what the
-    /// build made, with its launch profile (its environment, URLs and arguments), the browser opening where it listens.
+    /// build made, with its launch profile (its environment, URLs and arguments), the browser opening where it listens;
+    /// with Hot Reload on, dotnet watch of it (see <see cref="DotNetWatch"/>), unless it runs in its console.
     /// </summary>
     static WorkspaceTask Run(JsonObject configuration, IWorkbench workbench)
     {
         var project = ProjectOf(configuration, workbench)
             ?? throw new InvalidOperationException($"{configuration["projectPath"]?.GetValue<string>() ?? "its projectPath"} was not found.");
         var profile = ProfileOf(configuration, project);
-        List<string> args = ["run", "--project", project.FilePath, "-c", configuration["configuration"]?.GetValue<string>() ?? workbench.Configuration, "--no-build"];
+        var console = UsesConsole(configuration, project);
+        var hotReload = workbench.Settings.HotReload && !console;
+        var build = configuration["configuration"]?.GetValue<string>() ?? workbench.Configuration;
+        List<string> args = hotReload ? DotNetWatch.Arguments(project.FilePath, build) : ["run", "--project", project.FilePath, "-c", build, "--no-build"];
         args.AddRange(profile is not null ? ["--launch-profile", profile.Name] : ["--no-launch-profile"]);
         return new WorkspaceTask(project.Name, WorkspaceTaskKind.Run, DotnetCli.Executable, args, project.Directory)
         {
-            Environment = OutputEnvironment,
+            Environment = hotReload ? DotNetWatch.Environment : OutputEnvironment,
             ServerReadyAction = profile is { LaunchBrowser: true } ? BrowserAt(profile) : null,
-            RunsInConsole = UsesConsole(configuration, project),
+            RunsInConsole = console,
+            HotReloads = hotReload,
+            OutputReader = hotReload ? DotNetWatch.Reader : null,
         };
     }
 

@@ -557,7 +557,10 @@ public partial class MainViewModel
         }
         // A run that opens the browser once it listens (a web project's launch profile).
         var ready = task.ServerReadyAction is { } action ? Debugging.ServerReadyAction.From(action, DebugOutput.Append) : null;
-        ProcessRunner runner;
+        var read = task.OutputReader?.Invoke();
+        ProcessRunner? runner = null;
+        // The program's exit code, when the command that ran it goes on after it (dotnet watch waits for changes).
+        int? ended = null;
         try
         {
             runner = await StartTaskAsync(task, line =>
@@ -565,6 +568,12 @@ public partial class MainViewModel
                 DebugOutput.Append(line);
                 if (ready?.Match(line) is { } url)
                     Dispatcher.UIThread.Post(() => OpenBrowser(url));
+                if (read?.Invoke(line) is { } news)
+                    Dispatcher.UIThread.Post(() => OnRunNews(news, code =>
+                    {
+                        ended = code;
+                        (runner ?? _runProcess)?.Kill();
+                    }));
             });
         }
         catch (Exception ex) when (IsStartFailure(ex))
@@ -576,9 +585,12 @@ public partial class MainViewModel
         if (withSolution)
             StartWithSolution();
         IsRunning = true;
+        IsHotReloading = task.HotReloads;
         SetStatus($"Running {task.Name}", StatusKind.Running);
         _runProcess = runner;
         var exit = await runner.WaitAsync();
+        await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
+        exit = ended ?? exit;
         DebugOutput.Append($"The program '{task.Name}' has exited with code {exit} (0x{exit:x}).");
         _lastExitCode = exit;
         if (_runProcess == runner)
@@ -586,8 +598,18 @@ public partial class MainViewModel
         runner.Dispose();
         if (withSolution)
             StopStartedWithSolution();
+        IsHotReloading = false;
         IsRunning = false;
         SetStatus("Ready", Solution is null ? StatusKind.NoSolution : StatusKind.Ready);
+    }
+
+    /// <summary>What a run's output said beside the program's own: a status (Hot Reload's results), or that the program ended.</summary>
+    void OnRunNews(RunNews news, Action<int> end)
+    {
+        if (news.Status is { } status)
+            SetStatus(status, StatusKind.Running);
+        if (news.Ended is { } code)
+            end(code);
     }
 
     /// <summary>A folder's Run All Tests: its test task, in Output (Tests); passed when it exits with 0.</summary>

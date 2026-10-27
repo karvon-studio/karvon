@@ -22,6 +22,7 @@
     <KeyBinding Gesture="Ctrl+F5" Command="{Binding StartWithoutDebuggingCommand}" />
     <KeyBinding Gesture="F5" Command="{Binding StartDebuggingCommand}" />
     <KeyBinding Gesture="Shift+F5" Command="{Binding StopCommand}" />
+    <KeyBinding Gesture="Alt+F10" Command="{Binding ApplyHotReloadCommand}" />
     <KeyBinding Gesture="Ctrl+F4" Command="{Binding CloseDocumentCommand}" />
     <KeyBinding Gesture="Ctrl+Shift+O" Command="{Binding OpenSolutionCommand}" />
     <KeyBinding Gesture="Ctrl+Pause" Command="{Binding CancelBuildCommand}" />
@@ -176,6 +177,10 @@
         <MenuItem Header="Start _Without Debugging" InputGesture="Ctrl+F5" Command="{Binding StartWithoutDebuggingCommand}" />
         <MenuItem Header="Stop _Debugging" InputGesture="Shift+F5" Command="{Binding StopCommand}" />
         <MenuItem Header="_Restart" InputGesture="Ctrl+Shift+F5" Command="{Binding RestartCommand}" />
+        <MenuItem Header="_Hot Reload" InputGesture="Alt+F10" Command="{Binding ApplyHotReloadCommand}">
+          <MenuItem.Icon><v:VsIcon Kind="HotReload" /></MenuItem.Icon>
+        </MenuItem>
+        <MenuItem Header="Enable Hot Reload" ToggleType="CheckBox" IsChecked="{Binding HotReload}" />
         <MenuItem Header="Brea_k All" InputGesture="Ctrl+Alt+Pause" Command="{Binding BreakAllCommand}" />
         <Separator />
         <MenuItem Header="Step _Into" InputGesture="F11" Command="{Binding StepIntoCommand}" />
@@ -310,6 +315,8 @@
         </Button>
         <Button Classes="tbi" Width="16" Padding="0" Click="OnLaunchProfilesClick" ToolTip.Tip="Launch profiles"><v:VsIcon Kind="Chevron" Width="12" Height="12" /></Button>
         <Button Classes="tbi" Command="{Binding StartWithoutDebuggingCommand}" ToolTip.Tip="Start Without Debugging (Ctrl+F5)"><v:VsIcon Kind="StartNoDebug" /></Button>
+        <Button Name="HotReloadButton" Classes="tbi" Command="{Binding ApplyHotReloadCommand}" IsVisible="{Binding HotReload}"
+                ToolTip.Tip="Hot Reload (Alt+F10): saves your changes, which the running app applies without restarting"><v:VsIcon Kind="HotReload" /></Button>
         <StackPanel Orientation="Horizontal" Spacing="1" IsVisible="{Binding IsDebugging}">
           <Border Classes="tbsep" />
           <Button Classes="tbi" Command="{Binding BreakAllCommand}" ToolTip.Tip="Break All (Ctrl+Alt+Break)"><v:VsIcon Kind="Pause" /></Button>

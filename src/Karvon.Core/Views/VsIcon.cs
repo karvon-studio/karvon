@@ -38,7 +38,7 @@ public sealed class VsIcon : Control
         "Dependencies", "Package", "Framework", "cs", "razor", "css", "js", "json", "xml", "html", "sql", "md", "proto",
         "yaml", "image", "binary", "file", "CloneRepository", "OpenProject", "NewProject", "FsProject", "VbProject", "ArrowRight",
         "Claude", "History", "Send", "Copy", "Eye", "EyeOff", "Attach", "Hand", "CodeBrackets", "PlanDoc", "Bolt", "Gauge", "Plug", "Check",
-        "Sparkle", "FileCode", "ChevronUp", "GitCommit", "Repo", "Globe", "ShieldOff", "Remote",
+        "Sparkle", "FileCode", "ChevronUp", "GitCommit", "Repo", "Globe", "ShieldOff", "Remote", "HotReload",
         "Docker", "DockerContainer", "DockerStack", "DockerImage", "DockerVolume", "DockerNetwork", "DockerPlay", "DockerStop", "DockerRestart",
         "DockerPause", "DockerDelete", "DockerMore", "DockerLink", "DockerBack", "DockerTerminal", "DockerLogs", "DockerStats", "DockerInspect",
         "ToolExplorer", "ToolTests", "ToolGit", "ToolDatabase", "ToolErrors", "ToolOutput", "ToolFind", "ToolLocals", "ToolCallStack", "ToolImmediate", "ToolCoverage", "ToolTerminal",
@@ -476,6 +476,11 @@ public sealed class VsIcon : Control
                 break;
             case "ChevronUp":
                 Stroke(dc, "M4.5,9.5 L8,6 L11.5,9.5", fg, 1.3);
+                break;
+            case "HotReload":
+                // Visual Studio's flame: Hot Reload.
+                Fill(dc, "M8,1.2 C8.4,3.8 11.8,5.6 11.8,9.8 A3.8,3.8 0 0 1 4.2,9.8 C4.2,7.8 5.3,6.6 6.2,5.4 C6.4,6.9 7,7.6 7.7,7.9 C7.3,5.6 7.2,3.4 8,1.2 Z", Color.Parse("#E8602C"));
+                Fill(dc, "M8.1,8.6 C8.9,9.6 9.8,10.4 9.8,11.7 A1.8,1.8 0 0 1 6.2,11.7 C6.2,10.5 7.3,9.7 8.1,8.6 Z", Color.Parse("#F9C440"));
                 break;
             case "GitCommit":
                 Line(dc, "M12 9a3 3 0 1 0 0 6a3 3 0 1 0 0-6z M3 12h6 M15 12h6", fg, 1.9);

@@ -77,6 +77,15 @@ debugger has attached (a startup hook of Karvon's), so a breakpoint on its first
 a window's app keeps its output in Output. A launch.json's `"console"` says otherwise: `internalConsole` for Output,
 `integratedTerminal` or `externalTerminal` for the console.
 
+**Hot Reload** (Debug > Enable Hot Reload, on by default): Ctrl+F5 of an app with its output in Output (a web app, a
+worker, a window's app) runs it under `dotnet watch`. A code change applies as it is saved, the app going on with
+its state; the flame on the toolbar (Debug > Hot Reload, Alt+F10) saves the documents to apply theirs now. The status
+bar says what it did: the changes applied, the code that does not compile, or a change it cannot apply (a rude edit),
+for which the app restarts by itself. A web app's pages refresh, and its CSS changes apply in place. Once the app exits
+by itself, the run ends with its exit code. On Linux it polls for changes (a user has 128 inotify instances, and
+`dotnet watch` takes one for each folder). A console app runs without it: `dotnet watch` reads the keyboard itself, so
+the app would get none of it.
+
 ## Debug
 
 F5 debugs with the language's debugger (see Languages; TypeScript through its source maps): breakpoints that follow

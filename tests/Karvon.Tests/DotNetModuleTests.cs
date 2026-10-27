@@ -236,12 +236,31 @@ public class DotNetModuleTests
         var ready = Karvon.Debugging.ServerReadyAction.Of(config, log.Add)!;
         Assert.Equal("https://localhost:7001/swagger", ready.Match("info: Microsoft.Hosting.Lifetime[14]\n      Now listening on: https://localhost:7001\n"));
 
-        // Ctrl+F5: dotnet run of what the build made, with the launch profile, the browser opening where it listens.
+        // Ctrl+F5 of a console app: dotnet run of what the build made in its console, with the launch profile, the
+        // browser opening where it listens. No Hot Reload: dotnet watch would take its keyboard.
         var debugger = vm.Module<DotNetModule>()!.Debuggers.Single();
         var run = (await debugger.RunWithoutDebuggingAsync!(Config("https")))!;
         Assert.Equal(("Shop", DotnetCli.Executable, dir), (run.Name, run.Program, run.WorkingDirectory));
         Assert.Equal(["run", "--project", project, "-c", "Debug", "--no-build", "--launch-profile", "https"], run.Arguments);
         Assert.Equal("%s/swagger", run.ServerReadyAction!["uriFormat"]!.GetValue<string>());
+        Assert.True(run.RunsInConsole);
+        Assert.False(run.HotReloads);
+        // Its output in Output: dotnet watch of the project (Hot Reload).
+        var internalConsole = Config("https");
+        internalConsole["console"] = "internalConsole";
+        run = (await debugger.RunWithoutDebuggingAsync!(internalConsole))!;
+        Assert.Equal(["watch", "--project", project, "--non-interactive", "-c", "Debug", "-v", "q", "--launch-profile", "https"], run.Arguments);
+        Assert.True(run.HotReloads);
+        Assert.NotNull(run.OutputReader);
+        Assert.Equal("1", run.Environment!["DOTNET_WATCH_SUPPRESS_LAUNCH_BROWSER"]);
+        Assert.Equal("%s/swagger", run.ServerReadyAction!["uriFormat"]!.GetValue<string>());
+        // Without Hot Reload: dotnet run.
+        vm.Settings.HotReload = false;
+        run = (await debugger.RunWithoutDebuggingAsync!(internalConsole))!;
+        Assert.Equal(["run", "--project", project, "-c", "Debug", "--no-build", "--launch-profile", "https"], run.Arguments);
+        Assert.False(run.HotReloads);
+        Assert.Null(run.OutputReader);
+        vm.Settings.HotReload = true;
         Assert.Null(await debugger.RunWithoutDebuggingAsync!(new JsonObject { ["type"] = "coreclr", ["program"] = "app.dll" }));
 
         // A profile the project does not have: it starts without one, and says so.
