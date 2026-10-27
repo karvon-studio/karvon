@@ -12,7 +12,8 @@ namespace Karvon.Views;
 /// menu) to move it between the three tool groups, or onto a tab strip (an activity bar, the bottom tabs) to put it
 /// there, between two tabs. Empty groups collapse; the layout, the tabs' order, the groups' sizes and the tabs in
 /// front are remembered. The side groups show their tool windows as VS Code's activity bar, an icon each; clicking the
-/// icon in front folds the group to its bar, and any icon opens it again.
+/// icon in front folds the group to its bar, and any icon opens it again. The bottom group minimizes to its tabs (see
+/// MainWindow.BottomDock.cs).
 /// </summary>
 public partial class MainWindow
 {
@@ -76,11 +77,14 @@ public partial class MainWindow
     /// <summary>The side group a tool window's tab is in (left or right), or null.</summary>
     DockSide? SideGroupOf(TabItem item) => LeftTabs.Items.Contains(item) ? DockSide.Left : RightTabs.Items.Contains(item) ? DockSide.Right : null;
 
+    /// <summary>The docked group a tool window's tab is in, or null while it floats.</summary>
+    DockSide? DockedGroupOf(TabItem item) => SideGroupOf(item) ?? (BottomTabs.Items.Contains(item) ? DockSide.Bottom : null);
+
     public bool IsCollapsed(DockSide side) => side switch
     {
         DockSide.Left => _leftCollapsed,
         DockSide.Right => _rightCollapsed,
-        _ => false,
+        _ => _bottomCollapsed,
     };
 
     /// <summary>A tool window's tab as its group shows them: an activity bar icon at the sides, a named tab at the bottom or in its own window.</summary>
@@ -91,11 +95,19 @@ public partial class MainWindow
         item.Classes.Set("right", side == DockSide.Right);
     }
 
-    /// <summary>Folds a side group to its activity bar (VS Code's side bar hidden), or opens it again at the width it had.</summary>
+    /// <summary>
+    /// Folds a side group to its activity bar (VS Code's side bar hidden), or the bottom group to its tabs, or opens it
+    /// again at the size it had (on Auto Hide, the bottom group over the documents).
+    /// </summary>
     public void SetCollapsed(DockSide side, bool collapsed, bool remember = true)
     {
-        if (side == DockSide.Bottom || IsCollapsed(side) == collapsed)
+        if (IsCollapsed(side) == collapsed)
             return;
+        if (side == DockSide.Bottom)
+        {
+            SetBottomCollapsed(collapsed, remember);
+            return;
+        }
         var column = MainGrid.ColumnDefinitions[side == DockSide.Left ? 0 : 4];
         if (collapsed && column.Width.IsAbsolute && column.Width.Value > ActivityBarWidth)
         {
@@ -123,6 +135,7 @@ public partial class MainWindow
     {
         foreach (var item in ToolTabs.ToList())
             AttachToolTab(item);
+        InitializeBottomDock();
         UpdateDockLayout();
     }
 
@@ -181,6 +194,10 @@ public partial class MainWindow
             SetCollapsed(DockSide.Left, true, remember: false);
         if (layout.RightCollapsed && RightTabs.ItemCount > 0)
             SetCollapsed(DockSide.Right, true, remember: false);
+        if (layout.BottomAutoHide && BottomTabs.ItemCount > 0)
+            SetAutoHide(DockSide.Bottom, true, remember: false);
+        else if (layout.BottomCollapsed && BottomTabs.ItemCount > 0)
+            SetCollapsed(DockSide.Bottom, true, remember: false);
         if (layout.Width is > 0 and var width && layout.Height is > 0 and var height)
         {
             Width = width;
@@ -203,8 +220,11 @@ public partial class MainWindow
             layout.RightWidth = _rightCollapsed ? _rightWidth : Size(columns[4].Width, columns[4].ActualWidth);
         layout.LeftCollapsed = _leftCollapsed && LeftTabs.ItemCount > 0;
         layout.RightCollapsed = _rightCollapsed && RightTabs.ItemCount > 0;
+        // Minimized or shown over the documents, the bottom group keeps the height it docks open at.
         if (BottomTabs.ItemCount > 0)
-            layout.BottomHeight = Size(LeftGrid.RowDefinitions[2].Height, LeftGrid.RowDefinitions[2].ActualHeight);
+            layout.BottomHeight = _bottomRowDocked ? Size(LeftGrid.RowDefinitions[2].Height, LeftGrid.RowDefinitions[2].ActualHeight) : _bottomHeight;
+        layout.BottomCollapsed = _bottomCollapsed && !_bottomAutoHide && BottomTabs.ItemCount > 0;
+        layout.BottomAutoHide = _bottomAutoHide && BottomTabs.ItemCount > 0;
         foreach (var side in Enum.GetValues<DockSide>())
             if (GroupOf(side).SelectedItem is TabItem { Tag: string id })
                 layout.SelectedTools[side.ToString()] = id;
@@ -235,7 +255,7 @@ public partial class MainWindow
         {
             SelectInSet(id);
             group.SelectedItem = item;
-            if (SideGroupOf(item) is { } side)
+            if (DockedGroupOf(item) is { } side)
                 SetCollapsed(side, false);
             FloatingWindowOf(id)?.Activate();
         }
@@ -243,13 +263,14 @@ public partial class MainWindow
 
     /// <summary>
     /// A tool window shown beside what the user is looking at: not when its group has <paramref name="keep"/> in front (the
-    /// Claude conversation, which stays in view), nor when the group is folded to its bar.
+    /// Claude conversation, which stays in view), nor when the group is folded to its bar (the bottom group: minimized,
+    /// or on Auto Hide).
     /// </summary>
     void OnToolWindowBesideRequested(string id, string keep)
     {
         if (DockedTab(id) is not { } item || ToolGroups.FirstOrDefault(g => g.Items.Contains(item)) is not { } group)
             return;
-        if (FrontOf(group) == keep || SideGroupOf(item) is { } side && IsCollapsed(side))
+        if (FrontOf(group) == keep || DockedGroupOf(item) is { } side && IsCollapsed(side))
             return;
         OnToolWindowRequested(id, []);
     }
@@ -339,7 +360,7 @@ public partial class MainWindow
         to.Items.Insert(Math.Clamp(index ?? to.Items.Count, 0, to.Items.Count), item);
         ApplyToolTabTheme(item);
         to.SelectedItem = front;
-        if (side != DockSide.Bottom && from != to)
+        if (from != to)
             SetCollapsed(side, false, remember);
         if (from.SelectedItem is null && from.ItemCount > 0)
             from.SelectedIndex = 0;
@@ -381,10 +402,8 @@ public partial class MainWindow
     void UpdateDockLayout()
     {
         var columns = MainGrid.ColumnDefinitions;
-        var rows = LeftGrid.RowDefinitions;
         var left = LeftTabs.ItemCount > 0;
         var right = RightTabs.ItemCount > 0;
-        var bottom = BottomTabs.ItemCount > 0;
 
         // A folded group is its activity bar only, with no splitter.
         columns[0].Width = !left ? new GridLength(0) : _leftCollapsed ? new GridLength(ActivityBarWidth)
@@ -401,9 +420,7 @@ public partial class MainWindow
         RightSplitter.IsVisible = right && !_rightCollapsed;
         RightTabs.Classes.Set("collapsed", _rightCollapsed);
 
-        rows[2].Height = bottom ? (rows[2].Height.Value > 0 ? rows[2].Height : new GridLength(DefaultBottomHeight)) : new GridLength(0);
-        rows[1].Height = new GridLength(bottom ? 4 : 0);
-        BottomDock.IsVisible = BottomSplitter.IsVisible = bottom;
+        UpdateBottomDock(BottomTabs.ItemCount > 0);
     }
 
     void OnToolTabPressed(object? sender, PointerPressedEventArgs e)
@@ -452,6 +469,9 @@ public partial class MainWindow
         {
             if (_dragItem is { } clicked && SideGroupOf(clicked) is { } group)
                 SetCollapsed(group, _pressedInFront && !IsCollapsed(group));
+            // A tab of the minimized bottom group opens it (on Auto Hide, over the documents).
+            else if (_dragItem is { } tab && BottomTabs.Items.Contains(tab))
+                SetCollapsed(DockSide.Bottom, false);
             _dragItem = null;
             return;
         }
@@ -566,8 +586,8 @@ public partial class MainWindow
     /// <summary>Window > Reset Window Layout: every tool window back to its default group and size.</summary>
     public void ResetWindowLayout()
     {
-        _leftCollapsed = _rightCollapsed = false;
-        (_leftWidth, _rightWidth) = (DefaultLeftWidth, DefaultRightWidth);
+        _leftCollapsed = _rightCollapsed = _bottomCollapsed = _bottomAutoHide = false;
+        (_leftWidth, _rightWidth, _bottomHeight) = (DefaultLeftWidth, DefaultRightWidth, DefaultBottomHeight);
         MainGrid.ColumnDefinitions[0].Width = new GridLength(DefaultLeftWidth);
         MainGrid.ColumnDefinitions[4].Width = new GridLength(DefaultRightWidth);
         LeftGrid.RowDefinitions[2].Height = new GridLength(DefaultBottomHeight);

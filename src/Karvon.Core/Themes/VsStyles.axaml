@@ -189,6 +189,11 @@
     <Setter Property="IsVisible" Value="False" />
   </Style>
 
+  <!-- The bottom tool group's tabs leave room at their right for its Auto Hide and Minimize buttons -->
+  <Style Selector="TabControl#BottomTabs /template/ ItemsPresenter#PART_ItemsPresenter">
+    <Setter Property="Margin" Value="0,0,48,0" />
+  </Style>
+
   <Style Selector="TextBlock.toolTitle">
     <Setter Property="FontSize" Value="12" />
     <Setter Property="Foreground" Value="#D0D0D0" />

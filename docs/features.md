@@ -372,7 +372,9 @@ Tool windows at the sides as VS Code's activity bar (an icon each, Git with a ba
 icon in front to fold the side), drag them to another place on the bar, to dock or to float them. **Git** (Git
 Changes, Pull Requests, Pipelines) and **Testing** (Test Explorer, Code Coverage Results) are one icon each, their tool
 windows tabs at its bottom as in Visual Studio's panes; each docks and floats as one, and the tab in front is
-remembered. Tab groups (Window > New Vertical / Horizontal Tab Group),
+remembered. The bottom tool windows have Minimize and Auto Hide (Visual Studio's pin) at the right of their tabs:
+minimized, they are their tabs only and a tab opens them again; on Auto Hide a tab, or a tool window that is asked
+for (Output on a build), shows them over the documents, and a click outside hides them. Tab groups (Window > New Vertical / Horizontal Tab Group),
 Window > Split, floating documents, tabs dragged to reorder; documents, groups, layout and startup project are
 restored per solution.
 Keyboard shortcuts follow Visual Studio (Help > Keyboard Shortcuts).

@@ -252,6 +252,124 @@ public class ActivityBarTests
         window.Close();
     }
 
+    [AvaloniaFact]
+    public async Task The_bottom_group_minimizes_to_its_tabs_and_on_Auto_Hide_shows_over_the_documents()
+    {
+        var vm = NewViewModel();
+        var window = new MainWindow { DataContext = vm, Width = 1400, Height = 900 };
+        window.Show();
+        await WaitUntil(() => false, TimeSpan.FromMilliseconds(200));
+        var grid = window.FindControl<Grid>("LeftGrid")!;
+        var rows = grid.RowDefinitions;
+        var dock = window.FindControl<Border>("BottomDock")!;
+        var minimize = window.FindControl<Button>("BottomMinimizeButton")!;
+        var autoHide = window.FindControl<Button>("BottomAutoHideButton")!;
+        var splitter = window.FindControl<GridSplitter>("BottomSplitter")!;
+        async Task Layout() => await WaitUntil(() => false, TimeSpan.FromMilliseconds(100));
+        vm.ShowToolWindow(ToolWindows.Output);
+        await Layout();
+        Assert.Equal(250, rows[2].Height.Value);
+        Assert.Equal("Minimize", ToolTip.GetTip(minimize));
+        // The buttons sit at the right of the tabs, on their row.
+        var output = Tab(window, ToolWindows.Output);
+        Assert.InRange(minimize.TranslatePoint(default, dock)!.Value.Y - output.TranslatePoint(default, dock)!.Value.Y, -4, 4);
+
+        // Minimized: its tabs only, the documents taller; a tab opens it again at its height.
+        Click(window, minimize);
+        await Layout();
+        Assert.True(window.IsCollapsed(DockSide.Bottom));
+        Assert.InRange(dock.Bounds.Height, 15, 40);
+        Assert.False(splitter.IsVisible);
+        Assert.False(window.IsToolWindowShowing(ToolWindows.Output));
+        Assert.Equal("Restore", ToolTip.GetTip(minimize));
+        Assert.True(vm.Settings.Layout.BottomCollapsed);
+        Snapshot(window, "bottom-minimized");
+        var errors = Tab(window, ToolWindows.ErrorList);
+        Click(window, errors);
+        await Layout();
+        Assert.False(window.IsCollapsed(DockSide.Bottom));
+        Assert.True(window.IsToolWindowShowing(ToolWindows.ErrorList));
+        Assert.Equal(250, rows[2].Height.Value);
+
+        // Minimized, a tool window asked for opens it; one shown beside Claude's conversation does not.
+        Click(window, minimize);
+        ((IWorkbench)vm).ShowToolWindowBesideClaude(ToolWindows.FindResults);
+        Assert.True(window.IsCollapsed(DockSide.Bottom));
+        vm.ShowToolWindow(ToolWindows.Output);
+        Assert.False(window.IsCollapsed(DockSide.Bottom));
+        Click(window, minimize);
+        Click(window, minimize);
+        Assert.False(window.IsCollapsed(DockSide.Bottom));
+
+        // Auto Hide: it hides at once, and its pin lies on its side.
+        Click(window, autoHide);
+        await Layout();
+        Assert.True(window.IsAutoHide(DockSide.Bottom));
+        Assert.True(window.IsCollapsed(DockSide.Bottom));
+        Assert.NotNull(window.FindControl<VsIcon>("BottomAutoHideIcon")!.RenderTransform);
+        var documentsHeight = grid.Bounds.Height - dock.Bounds.Height;
+        var tabs = dock.Bounds.Height;
+
+        // A tab shows it over the documents, from its tabs up, at its height: the documents keep theirs.
+        var terminal = Tab(window, ToolWindows.Terminal);
+        Click(window, terminal);
+        await Layout();
+        Assert.False(window.IsCollapsed(DockSide.Bottom));
+        Assert.True(window.IsToolWindowShowing(ToolWindows.Terminal));
+        Assert.Equal(0, Grid.GetRow(dock));
+        Assert.Equal(250, dock.Bounds.Height);
+        Assert.Equal(grid.Bounds.Height, dock.Bounds.Bottom, 1);
+        Assert.Equal(tabs, rows[2].ActualHeight, 1);
+        Assert.Equal(documentsHeight, grid.Bounds.Height - rows[2].ActualHeight, 1);
+        Snapshot(window, "bottom-auto-hide");
+
+        // A click in it keeps it; a click outside, in the documents, hides it.
+        Click(window, terminal);
+        Assert.False(window.IsCollapsed(DockSide.Bottom));
+        var outside = grid.TranslatePoint(new Point(grid.Bounds.Width - 20, 20), window)!.Value;
+        window.MouseDown(outside, MouseButton.Left);
+        window.MouseUp(outside, MouseButton.Left);
+        Assert.True(window.IsCollapsed(DockSide.Bottom));
+        await Layout();
+        Assert.Equal(2, Grid.GetRow(dock));
+
+        // A tool window asked for shows over the documents too, and the focus going elsewhere hides it.
+        vm.ShowToolWindow(ToolWindows.Output);
+        await Layout();
+        Assert.True(window.IsToolWindowShowing(ToolWindows.Output));
+        Assert.Equal("Hide", ToolTip.GetTip(minimize));
+        var box = window.GetVisualDescendants().OfType<TextBox>().First(t => t.IsEffectivelyVisible && !dock.IsVisualAncestorOf(t));
+        Assert.True(box.Focus());
+        Assert.True(window.IsCollapsed(DockSide.Bottom));
+
+        // Remembered: on Auto Hide it starts hidden, with the height it shows at.
+        window.Close();
+        await WaitUntil(() => !window.IsVisible, TimeSpan.FromSeconds(10));
+        Assert.True(vm.Settings.Layout.BottomAutoHide);
+        Assert.Equal(250, vm.Settings.Layout.BottomHeight);
+        var second = new MainWindow { DataContext = vm, Width = 1400, Height = 900 };
+        second.Show();
+        await Layout();
+        Assert.True(second.IsAutoHide(DockSide.Bottom));
+        Assert.True(second.IsCollapsed(DockSide.Bottom));
+
+        // Unpinned again, it is docked open at its height.
+        Click(second, second.FindControl<Button>("BottomAutoHideButton")!);
+        await Layout();
+        Assert.False(second.IsAutoHide(DockSide.Bottom));
+        Assert.False(second.IsCollapsed(DockSide.Bottom));
+        Assert.Equal(250, second.FindControl<Grid>("LeftGrid")!.RowDefinitions[2].Height.Value);
+        Assert.True(second.FindControl<GridSplitter>("BottomSplitter")!.IsVisible);
+        Assert.False(vm.Settings.Layout.BottomAutoHide);
+
+        // Reset Window Layout docks it open.
+        Click(second, second.FindControl<Button>("BottomAutoHideButton")!);
+        second.ResetWindowLayout();
+        Assert.False(second.IsAutoHide(DockSide.Bottom));
+        Assert.False(second.IsCollapsed(DockSide.Bottom));
+        second.Close();
+    }
+
     static string ThemeKey(Window window, TabItem item) =>
         ReferenceEquals(item.Theme, window.FindResource("VsActivityTab")) ? "VsActivityTab" : ReferenceEquals(item.Theme, window.FindResource("VsToolTab")) ? "VsToolTab" : "?";
 }

@@ -24,6 +24,10 @@ public sealed class Settings
         public bool LeftCollapsed { get; set; }
         public bool RightCollapsed { get; set; }
 
+        /// <summary>The bottom group minimized to its tabs, and on Auto Hide (shown over the documents only when asked for).</summary>
+        public bool BottomCollapsed { get; set; }
+        public bool BottomAutoHide { get; set; }
+
         /// <summary>Dock side ("Left", "Right", "Bottom") → the tool window in front.</summary>
         public Dictionary<string, string> SelectedTools { get; set; } = [];
 
