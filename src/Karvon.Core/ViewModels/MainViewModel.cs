@@ -31,6 +31,12 @@ public static class ToolWindows
     public const string CoverageResults = "CoverageResults";
     public const string DiagnosticTools = "DiagnosticTools";
     public const string Terminal = "Terminal";
+
+    /// <summary>The Git set: Git Changes, and the modules' Pull Requests and Pipelines, as one tool window with a tab each.</summary>
+    public const string Git = "Git";
+
+    /// <summary>The Testing set: Test Explorer and Code Coverage Results, as one tool window with a tab each.</summary>
+    public const string Testing = "Testing";
 }
 
 public enum StatusKind

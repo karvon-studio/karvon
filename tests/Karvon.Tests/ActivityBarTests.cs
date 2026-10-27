@@ -3,6 +3,7 @@ using Avalonia.Controls;
 using Avalonia.Headless;
 using Avalonia.Headless.XUnit;
 using Avalonia.Input;
+using Avalonia.LogicalTree;
 using Avalonia.VisualTree;
 using Karvon.Modules;
 using Karvon.ViewModels;
@@ -35,7 +36,7 @@ public class ActivityBarTests
 
         // One column of icons at the right edge, however many tool windows: the names are tooltips.
         var solution = Tab(window, ToolWindows.SolutionExplorer);
-        var git = Tab(window, ToolWindows.GitChanges);
+        var git = Tab(window, ToolWindows.Git);
         var docker = Tab(window, Karvon.Docker.DockerModule.ToolWindowId);
         Assert.Equal(Dock.Right, rightTabs.TabStripPlacement);
         Assert.All(rightTabs.Items.OfType<TabItem>(), t => Assert.Equal(44, t.Bounds.Width));
@@ -156,9 +157,95 @@ public class ActivityBarTests
 
         // Reset Window Layout: every tab back in its place, in the first order.
         window.ResetWindowLayout();
-        Assert.Equal([ToolWindows.SolutionExplorer, ToolWindows.TestExplorer, ToolWindows.GitChanges, ToolWindows.CoverageResults, ToolWindows.DiagnosticTools, Karvon.Database.DatabaseModule.ToolWindowId, Karvon.Docker.DockerModule.ToolWindowId, Karvon.Servers.ServersModule.ToolWindowId, Karvon.Jira.JiraModule.ToolWindowId, Karvon.Pipelines.PipelinesModule.ToolWindowId, Karvon.PullRequests.PullRequestsModule.ToolWindowId, Karvon.Kubernetes.KubernetesModule.ToolWindowId, Karvon.Http.HttpModule.ToolWindowId, Karvon.Mcp.McpModule.ToolWindowId, Karvon.Skills.SkillsModule.ToolWindowId, Karvon.Claude.ClaudeModule.ToolWindowId],
+        Assert.Equal([ToolWindows.SolutionExplorer, ToolWindows.Testing, ToolWindows.Git, ToolWindows.DiagnosticTools, Karvon.Database.DatabaseModule.ToolWindowId, Karvon.Docker.DockerModule.ToolWindowId, Karvon.Servers.ServersModule.ToolWindowId, Karvon.Jira.JiraModule.ToolWindowId, Karvon.Kubernetes.KubernetesModule.ToolWindowId, Karvon.Http.HttpModule.ToolWindowId, Karvon.Mcp.McpModule.ToolWindowId, Karvon.Skills.SkillsModule.ToolWindowId, Karvon.Claude.ClaudeModule.ToolWindowId],
             Order(rightTabs));
         Assert.Empty(vm.Settings.Layout.ToolOrder);
+        window.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task Git_and_Testing_are_sets_of_tool_windows_with_a_tab_each_at_their_bottom()
+    {
+        var vm = NewViewModel();
+        var window = new MainWindow { DataContext = vm, Width = 1400, Height = 900 };
+        window.Show();
+        await WaitUntil(() => false, TimeSpan.FromMilliseconds(200));
+        var rightTabs = window.FindControl<TabControl>("RightTabs")!;
+        const string pullRequests = Karvon.PullRequests.PullRequestsModule.ToolWindowId, pipelines = Karvon.Pipelines.PipelinesModule.ToolWindowId;
+
+        // One icon each, where the first of their tool windows was; in each, its tool windows as named tabs at the bottom.
+        Assert.Equal([ToolWindows.SolutionExplorer, ToolWindows.Testing, ToolWindows.Git, ToolWindows.DiagnosticTools, Karvon.Database.DatabaseModule.ToolWindowId, Karvon.Docker.DockerModule.ToolWindowId, Karvon.Servers.ServersModule.ToolWindowId, Karvon.Jira.JiraModule.ToolWindowId, Karvon.Kubernetes.KubernetesModule.ToolWindowId, Karvon.Http.HttpModule.ToolWindowId, Karvon.Mcp.McpModule.ToolWindowId, Karvon.Skills.SkillsModule.ToolWindowId, Karvon.Claude.ClaudeModule.ToolWindowId],
+            Order(rightTabs));
+        var git = Tab(window, ToolWindows.Git);
+        var gitTabs = (TabControl)git.Content!;
+        Assert.Equal(Dock.Bottom, gitTabs.TabStripPlacement);
+        Assert.Equal([ToolWindows.GitChanges, pullRequests, pipelines], Order(gitTabs));
+        Assert.Equal([ToolWindows.TestExplorer, ToolWindows.CoverageResults], Order((TabControl)Tab(window, ToolWindows.Testing).Content!));
+        Assert.All(gitTabs.Items.OfType<TabItem>(), t => Assert.Equal("VsToolTab", ThemeKey(window, t)));
+        Assert.Equal("ToolGit", ToolWindowTabs.IconOf(ToolWindows.Git));
+        Assert.Equal("ToolTests", ToolWindowTabs.IconOf(ToolWindows.Testing));
+
+        // Its icon counts Git Changes' changes.
+        vm.GitChangeCount = 4;
+        await WaitUntil(() => false, TimeSpan.FromMilliseconds(100));
+        Assert.Equal(4, ToolWindowTabs.GetBadge(git));
+
+        // A tool window asked for: its set in front, it in front in the set; a module's view made only then.
+        Assert.Empty(window.GetLogicalDescendants().OfType<Karvon.Pipelines.Views.PipelinesView>());
+        vm.ShowToolWindow(pullRequests);
+        Assert.True(git.IsSelected);
+        Assert.True(window.IsToolWindowShowing(pullRequests));
+        Assert.True(window.IsToolWindowShowing(ToolWindows.Git));
+        Assert.False(window.IsToolWindowShowing(ToolWindows.GitChanges));
+        // (The tab's view is the tab's and its tab control's, a logical child of each.)
+        Assert.Single(window.GetLogicalDescendants().OfType<Karvon.PullRequests.Views.PullRequestsView>().Distinct());
+        Assert.Empty(window.GetLogicalDescendants().OfType<Karvon.Pipelines.Views.PipelinesView>());
+        await WaitUntil(() => false, TimeSpan.FromMilliseconds(150));
+        Snapshot(window, "tool-set-git");
+        gitTabs.SelectedItem = gitTabs.Items.OfType<TabItem>().Single(t => (string?)t.Tag == pipelines);
+        Assert.Single(window.GetLogicalDescendants().OfType<Karvon.Pipelines.Views.PipelinesView>().Distinct());
+        vm.ShowToolWindow(ToolWindows.CoverageResults);
+        Assert.True(window.IsToolWindowShowing(ToolWindows.CoverageResults));
+        Assert.True(Tab(window, ToolWindows.Testing).IsSelected);
+        await WaitUntil(() => false, TimeSpan.FromMilliseconds(150));
+        Snapshot(window, "tool-set-testing");
+
+        // It docks as one: moved by any of its tool windows, all of them go.
+        window.MoveToolWindow(ToolWindows.TestExplorer, DockSide.Bottom);
+        Assert.Equal(DockSide.Bottom, window.SideOf(ToolWindows.CoverageResults));
+        Assert.Equal(DockSide.Bottom, window.SideOf(ToolWindows.Testing));
+        Assert.Equal("VsToolTab", ThemeKey(window, Tab(window, ToolWindows.Testing)));
+
+        // The tab in front of each set is remembered.
+        vm.ShowToolWindow(pullRequests);
+        window.Close();
+        await WaitUntil(() => !window.IsVisible, TimeSpan.FromSeconds(10));
+        Assert.Equal(ToolWindows.Git, vm.Settings.Layout.SelectedTools["Right"]);
+        Assert.Equal(pullRequests, vm.Settings.Layout.SelectedTools[ToolWindows.Git]);
+        var second = new MainWindow { DataContext = vm, Width = 1400, Height = 900 };
+        second.Show();
+        Assert.True(second.IsToolWindowShowing(pullRequests));
+        Assert.Equal(DockSide.Bottom, second.SideOf(ToolWindows.TestExplorer));
+
+        // Reset Window Layout: the sets back where they were, their first tabs in front.
+        second.ResetWindowLayout();
+        Assert.Equal(DockSide.Right, second.SideOf(ToolWindows.Testing));
+        Assert.Equal(ToolWindows.Testing, Order(second.FindControl<TabControl>("RightTabs")!)[1]);
+        vm.ShowToolWindow(ToolWindows.Git);
+        Assert.True(second.IsToolWindowShowing(ToolWindows.GitChanges));
+        second.Close();
+    }
+
+    [AvaloniaFact]
+    public void A_set_with_one_of_its_tool_windows_is_not_made()
+    {
+        var vm = NewViewModel(s => s.DisabledModules = ["pull-requests", "pipelines"]);
+        var window = new MainWindow { DataContext = vm, Width = 1400, Height = 900 };
+        window.Show();
+        var order = Order(window.FindControl<TabControl>("RightTabs")!);
+        Assert.Contains(ToolWindows.GitChanges, order);
+        Assert.DoesNotContain(ToolWindows.Git, order);
+        Assert.Contains(ToolWindows.Testing, order);
         window.Close();
     }
 

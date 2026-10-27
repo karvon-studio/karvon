@@ -33,7 +33,7 @@ public sealed partial class PipelinesModule : KarvonModule, IPipelinesHost
         + "keyring), as they go and in the status bar; a run's jobs, steps and logs; re-run and cancel; Claude Code's pipeline tools.";
 
     public override IReadOnlyList<ToolWindowInfo> ToolWindows =>
-        [new(ToolWindowId, "Pipelines", "P_ipelines", "ToolPipelines", DockSide.Right, () => new PipelinesView { DataContext = EnsurePipelines() })];
+        [new(ToolWindowId, "Pipelines", "P_ipelines", "ToolPipelines", DockSide.Right, () => new PipelinesView { DataContext = EnsurePipelines() }) { Set = Karvon.ViewModels.ToolWindows.Git }];
 
     public override IReadOnlyList<IDataTemplate> DocumentTemplates => [Document<PipelineDocument>(document => new PipelinePageView { DataContext = document.Page })];
 

@@ -53,21 +53,25 @@ public partial class MainWindow
     /// <summary>The side the tool window is docked on; null while it floats.</summary>
     public DockSide? SideOf(string toolWindow)
     {
+        var docked = DockedId(toolWindow);
         foreach (var side in Enum.GetValues<DockSide>())
-            if (GroupOf(side).Items.OfType<TabItem>().Any(t => (string?)t.Tag == toolWindow))
+            if (GroupOf(side).Items.OfType<TabItem>().Any(t => (string?)t.Tag == docked))
                 return side;
         return null;
     }
 
-    public bool IsFloating(string toolWindow) => _floatingTools.Any(w => w.Tabs.Items.OfType<TabItem>().Any(t => (string?)t.Tag == toolWindow));
+    public bool IsFloating(string toolWindow) => FloatingWindowOf(toolWindow) is not null;
 
-    /// <summary>The floating window a tool window is in.</summary>
-    public FloatingToolWindow? FloatingWindowOf(string toolWindow) =>
-        _floatingTools.FirstOrDefault(w => w.Tabs.Items.OfType<TabItem>().Any(t => (string?)t.Tag == toolWindow));
+    /// <summary>The floating window a tool window (or its set) is in.</summary>
+    public FloatingToolWindow? FloatingWindowOf(string toolWindow)
+    {
+        var docked = DockedId(toolWindow);
+        return _floatingTools.FirstOrDefault(w => w.Tabs.Items.OfType<TabItem>().Any(t => (string?)t.Tag == docked));
+    }
 
-    /// <summary>True when the tool window is the front tab of its group.</summary>
+    /// <summary>True when the tool window is the front tab of its group (a set's: of its set, in front of its group).</summary>
     public bool IsToolWindowShowing(string toolWindow) =>
-        ToolGroups.Any(g => g.IsVisible && !g.Classes.Contains("collapsed") && g.SelectedItem is TabItem { Tag: string id } && id == toolWindow);
+        ToolGroups.Any(g => g.IsVisible && !g.Classes.Contains("collapsed") && g.SelectedItem is TabItem { Tag: string id } && (id == toolWindow || FrontOf(g) == toolWindow));
 
     /// <summary>The side group a tool window's tab is in (left or right), or null.</summary>
     DockSide? SideGroupOf(TabItem item) => LeftTabs.Items.Contains(item) ? DockSide.Left : RightTabs.Items.Contains(item) ? DockSide.Right : null;
@@ -155,10 +159,17 @@ public partial class MainWindow
         foreach (var (sideName, order) in layout.ToolOrder)
             if (Enum.TryParse<DockSide>(sideName, out var side))
                 Arrange(GroupOf(side), order);
+        foreach (var setId in _toolSets.Keys)
+            if (layout.SelectedTools.TryGetValue(setId, out var member))
+                SelectInSet(member);
         foreach (var side in Enum.GetValues<DockSide>())
             if (layout.SelectedTools.TryGetValue(side.ToString(), out var id)
-                && GroupOf(side).Items.OfType<TabItem>().FirstOrDefault(t => (string?)t.Tag == id) is { } tab)
+                && GroupOf(side).Items.OfType<TabItem>().FirstOrDefault(t => (string?)t.Tag == DockedId(id)) is { } tab)
+            {
+                // A tool window now in a set (a layout saved before there were sets): the set, with it in front.
+                SelectInSet(id);
                 GroupOf(side).SelectedItem = tab;
+            }
         var columns = MainGrid.ColumnDefinitions;
         if (LeftTabs.ItemCount > 0 && layout.LeftWidth is { } left)
             columns[0].Width = new GridLength(Math.Max(left, 80));
@@ -199,6 +210,9 @@ public partial class MainWindow
                 layout.SelectedTools[side.ToString()] = id;
             else
                 layout.SelectedTools.Remove(side.ToString());
+        foreach (var (setId, set) in _toolSets)
+            if (set.Members.SelectedItem is TabItem { Tag: string member })
+                layout.SelectedTools[setId] = member;
         foreach (var window in _floatingTools)
             foreach (var item in window.Tabs.Items.OfType<TabItem>())
                 if (item.Tag is string id)
@@ -215,10 +229,11 @@ public partial class MainWindow
 
     void OnToolWindowRequested(string id, string[] unlessShowing)
     {
-        if (ToolGroups.Any(g => g.SelectedItem is TabItem { Tag: string selected } && unlessShowing.Contains(selected)))
+        if (ToolGroups.Any(g => g.SelectedItem is TabItem { Tag: string selected } && (unlessShowing.Contains(selected) || FrontOf(g) is { } front && unlessShowing.Contains(front))))
             return;
-        if (ToolTabs.FirstOrDefault(t => (string?)t.Tag == id) is { } item && ToolGroups.FirstOrDefault(g => g.Items.Contains(item)) is { } group)
+        if (DockedTab(id) is { } item && ToolGroups.FirstOrDefault(g => g.Items.Contains(item)) is { } group)
         {
+            SelectInSet(id);
             group.SelectedItem = item;
             if (SideGroupOf(item) is { } side)
                 SetCollapsed(side, false);
@@ -232,9 +247,9 @@ public partial class MainWindow
     /// </summary>
     void OnToolWindowBesideRequested(string id, string keep)
     {
-        if (ToolTabs.FirstOrDefault(t => (string?)t.Tag == id) is not { } item || ToolGroups.FirstOrDefault(g => g.Items.Contains(item)) is not { } group)
+        if (DockedTab(id) is not { } item || ToolGroups.FirstOrDefault(g => g.Items.Contains(item)) is not { } group)
             return;
-        if (group.SelectedItem is TabItem { Tag: string front } && front == keep || SideGroupOf(item) is { } side && IsCollapsed(side))
+        if (FrontOf(group) == keep || SideGroupOf(item) is { } side && IsCollapsed(side))
             return;
         OnToolWindowRequested(id, []);
     }
@@ -251,7 +266,7 @@ public partial class MainWindow
     /// <summary>Window > Float for a tool window: its tab in a window of its own (at a point of the screen, or near this window).</summary>
     public void FloatToolWindow(string id)
     {
-        if (ToolTabs.FirstOrDefault(t => (string?)t.Tag == id) is { } item)
+        if (DockedTab(id) is { } item)
             FloatToolWindow(item, null, null, remember: true);
     }
 
@@ -305,7 +320,7 @@ public partial class MainWindow
     /// <summary>Moves a tool window to another group and selects it there.</summary>
     public void MoveToolWindow(string id, DockSide side)
     {
-        if (ToolTabs.FirstOrDefault(t => (string?)t.Tag == id) is { } item)
+        if (DockedTab(id) is { } item)
             MoveToolWindow(item, side, remember: true);
     }
 
@@ -340,12 +355,16 @@ public partial class MainWindow
         }
     }
 
-    /// <summary>Puts a group's tabs in an order (those it does not name after, as they were), the one in front staying so.</summary>
-    static void Arrange(TabControl group, IReadOnlyList<string> order)
+    /// <summary>
+    /// Puts a group's tabs in an order (those it does not name after, as they were), the one in front staying so; a set
+    /// where it or the first of its tool windows is named.
+    /// </summary>
+    void Arrange(TabControl group, IReadOnlyList<string> order)
     {
         var tabs = group.Items.OfType<TabItem>().ToList();
         var rank = order.Distinct().Select((id, i) => (id, i)).ToDictionary(x => x.id, x => x.i);
-        var arranged = tabs.OrderBy(t => t.Tag is string id && rank.TryGetValue(id, out var i) ? i : int.MaxValue).ThenBy(tabs.IndexOf).ToList();
+        var arranged = tabs.OrderBy(t => IdsOf(t).Select(id => rank.TryGetValue(id, out var i) ? i : int.MaxValue).DefaultIfEmpty(int.MaxValue).Min())
+            .ThenBy(tabs.IndexOf).ToList();
         if (arranged.SequenceEqual(tabs))
             return;
         var front = group.SelectedItem;
@@ -554,12 +573,16 @@ public partial class MainWindow
         LeftGrid.RowDefinitions[2].Height = new GridLength(DefaultBottomHeight);
         // The modules' tool windows where they come by default: at their side after the core's, in the modules' order.
         var modules = Vm?.Modules.SelectMany(m => m.ToolWindows).ToList() ?? [];
-        string[] right = [ToolWindows.SolutionExplorer, ToolWindows.TestExplorer, ToolWindows.GitChanges, ToolWindows.CoverageResults, ToolWindows.DiagnosticTools,
-            .. modules.Where(t => t.Side == DockSide.Right).Select(t => t.Id)];
-        string[] left = [.. modules.Where(t => t.Side == DockSide.Left).Select(t => t.Id)];
-        string[] bottom = [ToolWindows.ErrorList, ToolWindows.Output, ToolWindows.FindResults, ToolWindows.Locals, ToolWindows.Watch, ToolWindows.CallStack,
+        // A set where its first tool window is; in it, its first in front.
+        string[] Docked(IEnumerable<string> ids) => [.. ids.Select(DockedId).Distinct()];
+        string[] right = Docked([ToolWindows.SolutionExplorer, ToolWindows.TestExplorer, ToolWindows.GitChanges, ToolWindows.CoverageResults, ToolWindows.DiagnosticTools,
+            .. modules.Where(t => t.Side == DockSide.Right).Select(t => t.Id)]);
+        string[] left = Docked(modules.Where(t => t.Side == DockSide.Left).Select(t => t.Id));
+        string[] bottom = Docked([ToolWindows.ErrorList, ToolWindows.Output, ToolWindows.FindResults, ToolWindows.Locals, ToolWindows.Watch, ToolWindows.CallStack,
             ToolWindows.Breakpoints, ToolWindows.Immediate, ToolWindows.ExceptionSettings, ToolWindows.Terminal,
-            .. modules.Where(t => t.Side == DockSide.Bottom).Select(t => t.Id)];
+            .. modules.Where(t => t.Side == DockSide.Bottom).Select(t => t.Id)]);
+        foreach (var (_, set) in _toolSets)
+            set.Members.SelectedIndex = 0;
         foreach (var id in right)
             MoveToolWindow(id, DockSide.Right);
         foreach (var id in left)

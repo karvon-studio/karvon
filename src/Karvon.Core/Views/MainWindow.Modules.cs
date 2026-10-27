@@ -147,7 +147,7 @@ public partial class MainWindow
     /// <summary>A module's tool window that shows gets its view, when it has none and the module has one to give.</summary>
     void FillModuleToolWindow(string id)
     {
-        if (_moduleTools.TryGetValue(id, out var tool) && tool.Item.IsSelected && tool.Host.Content is null && !_closing)
+        if (_moduleTools.TryGetValue(id, out var tool) && IsInFront(tool.Item) && tool.Host.Content is null && !_closing)
             tool.Host.Content = tool.Tool.CreateView();
     }
 

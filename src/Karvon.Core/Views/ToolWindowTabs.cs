@@ -43,6 +43,8 @@ public static class ToolWindowTabs
         ToolWindows.CoverageResults => "ToolCoverage",
         ToolWindows.DiagnosticTools => "Gauge",
         ToolWindows.Terminal => "ToolTerminal",
+        ToolWindows.Git => "ToolGit",
+        ToolWindows.Testing => "ToolTests",
         _ => "ToolExplorer",
     };
 

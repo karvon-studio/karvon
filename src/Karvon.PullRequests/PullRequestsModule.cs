@@ -37,7 +37,7 @@ public sealed partial class PullRequestsModule : KarvonModule, IPullRequestsHost
         + "pull request tools. Signed in by your gh or a token in the system keyring, as the Pipelines are.";
 
     public override IReadOnlyList<ToolWindowInfo> ToolWindows =>
-        [new(ToolWindowId, "Pull Requests", "Pull _Requests", "ToolPullRequests", DockSide.Right, () => new PullRequestsView { DataContext = EnsureWindow() })];
+        [new(ToolWindowId, "Pull Requests", "Pull _Requests", "ToolPullRequests", DockSide.Right, () => new PullRequestsView { DataContext = EnsureWindow() }) { Set = Karvon.ViewModels.ToolWindows.Git }];
 
     public override IReadOnlyList<IDataTemplate> DocumentTemplates => [Document<PullRequestDocument>(document => new PullRequestPageView { DataContext = document.Page })];
 

@@ -1559,7 +1559,8 @@ public class UiTests
 
         var layout = vm.Settings.Layout;
         Assert.Equal((650.0, 320.0), (layout.RightWidth, layout.BottomHeight));
-        Assert.Equal(ToolWindows.GitChanges, layout.SelectedTools["Right"]);
+        Assert.Equal(ToolWindows.Git, layout.SelectedTools["Right"]);
+        Assert.Equal(ToolWindows.GitChanges, layout.SelectedTools[ToolWindows.Git]);
         Assert.Equal(ToolWindows.Output, layout.SelectedTools["Bottom"]);
         Assert.Equal((1400.0, 900.0), (layout.Width, layout.Height));
 
@@ -1568,7 +1569,8 @@ public class UiTests
         Assert.Equal((1400.0, 900.0), (second.Width, second.Height));
         Assert.Equal(650, Grid(second, "MainGrid").ColumnDefinitions[4].Width.Value);
         Assert.Equal(320, Grid(second, "LeftGrid").RowDefinitions[2].Height.Value);
-        Assert.Equal(ToolWindows.GitChanges, (Tabs(second, "RightTabs").SelectedItem as Avalonia.Controls.TabItem)?.Tag);
+        Assert.Equal(ToolWindows.Git, (Tabs(second, "RightTabs").SelectedItem as Avalonia.Controls.TabItem)?.Tag);
+        Assert.True(second.IsToolWindowShowing(ToolWindows.GitChanges));
         Assert.Equal(ToolWindows.Output, (Tabs(second, "BottomTabs").SelectedItem as Avalonia.Controls.TabItem)?.Tag);
 
         // Reset Window Layout forgets the sizes too.

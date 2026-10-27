@@ -33,6 +33,9 @@ public sealed record ToolWindowInfo(string Id, string Title, string MenuHeader, 
 
     /// <summary>What its menu item and key do, when more than putting it in front (Claude Code: the prompt gets the focus).</summary>
     public Action? Show { get; init; }
+
+    /// <summary>The set it is a tab of (<see cref="ViewModels.ToolWindows.Git"/>), rather than a tool window of its own; null for none.</summary>
+    public string? Set { get; init; }
 }
 
 /// <summary>A workload's language server: the files it serves, and how it starts for a folder.</summary>

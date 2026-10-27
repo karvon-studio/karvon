@@ -47,6 +47,7 @@ public partial class MainWindow : Window, IDialogService
                 vm.ToolWindowRequested += OnToolWindowRequested;
                 vm.ToolWindowBesideRequested += OnToolWindowBesideRequested;
                 AttachModules(vm);
+                BuildToolSets(vm);
                 ApplySavedDockLayout(vm);
                 vm.BreakModeEntered += () =>
                 {
