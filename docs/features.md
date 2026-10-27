@@ -37,6 +37,8 @@ at every match; typing, Backspace, Delete, Enter, Left, Right, Home and End act 
 occurrences in Document, Project or Solution); **Sticky Scroll** (the lines that open the scopes the view is in stay at
 its top; one clicked goes there); a **Minimap** in place of the vertical scroll bar (VS's map mode). Each is in the
 View menu, kept; the minimap is off at first.
+**Inline completions** (as Visual Studio's Copilot): a moment after typing stops, an AI's suggestion in gray after the
+caret, its further lines under it, pushing the code down; see [Inline Completions](#inline-completions-tools--inline-completions).
 
 ## Solutions
 
@@ -336,6 +338,22 @@ server starts in a session, Karvon asks to install them, and Ctrl+. on such an i
   or bun (`install`; TypeScript's "Cannot find module", TS2307).
 - .NET, Rust, Go, Java and Kotlin need nothing: Roslyn asks for its restore, and cargo, go, Gradle and Maven download
   what the build needs.
+
+## Inline Completions (Tools > Inline Completions)
+
+As you type, a moment after you stop (at a line's end, or before only what closes it: brackets, quotes, a semicolon), a
+suggestion in gray after the caret: the rest of the line, or the next lines when the caret starts a block or a blank
+line, those under the caret's line and the code after them moved down. **Tab** takes it (one undo step), **Ctrl+Right**
+its next word, **Escape** dismisses it, as do moving the caret and typing something else; typing what it says keeps the
+rest of it. **Alt+\\** asks for one at once. None while IntelliSense's list is open, with several carets or a selection.
+The suggestions come from **Claude** through Anthropic's API (Claude Opus 5.5 by default, or Sonnet 5.5, or Haiku 5.5,
+which answers fastest and costs least; your API key, kept in the system keyring, else ANTHROPIC_API_KEY's), asked with
+little thinking and the API's own fallback model when the one asked declines; or from a **local model through Ollama**
+(one that fills in the middle: `ollama pull qwen2.5-coder:1.5b`), so the code stays on the machine. What goes is the
+code around the caret: up to 8,000 characters before it and 2,000 after, with the file's path in the folder. The status
+bar says where they come from (and why none came, as Output (Inline Completions) does); clicking it, or Tools > Inline
+Completions, changes that, turns them off, or forgets the key. The settings are in `completions.json` beside Karvon's,
+never the key.
 
 ## Claude Code (Ctrl+Esc)
 

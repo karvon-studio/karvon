@@ -26,6 +26,7 @@
     <ProjectReference Include="..\Karvon.Http\Karvon.Http.csproj" />
     <ProjectReference Include="..\Karvon.Mcp\Karvon.Mcp.csproj" />
     <ProjectReference Include="..\Karvon.Skills\Karvon.Skills.csproj" />
+    <ProjectReference Include="..\Karvon.Completions\Karvon.Completions.csproj" />
     <ProjectReference Include="..\Karvon.DotNet\Karvon.DotNet.csproj" />
     <ProjectReference Include="..\Karvon.TypeScript\Karvon.TypeScript.csproj" />
     <ProjectReference Include="..\Karvon.Python\Karvon.Python.csproj" />

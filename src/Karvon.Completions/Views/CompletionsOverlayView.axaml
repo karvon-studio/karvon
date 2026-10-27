@@ -1,0 +1,61 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:cvm="using:Karvon.Completions.ViewModels"
+             x:Class="Karvon.Completions.Views.CompletionsOverlayView"
+             x:DataType="cvm:CompletionsOverlay">
+  <UserControl.Styles>
+    <StyleInclude Source="avares://Karvon.Core/Themes/ExplorerStyles.axaml" />
+  </UserControl.Styles>
+
+  <!-- Over the window: Inline Completions' settings. Clicks pass through otherwise. -->
+  <Panel Name="DialogLayer" IsVisible="{Binding HasDialog}" Background="#99000000">
+    <ContentControl Content="{Binding Dialog}" HorizontalAlignment="Center" VerticalAlignment="Center">
+      <ContentControl.DataTemplates>
+        <DataTemplate DataType="cvm:CompletionsSettingsDialog">
+          <Border Classes="dkCard" Width="540" Padding="22,18" Background="#2B2B2F">
+            <StackPanel Spacing="8">
+              <TextBlock Text="{Binding Title}" FontSize="16" FontWeight="SemiBold" />
+              <CheckBox Name="EnabledBox" Content="Suggest code as I type (Tab takes it, Esc dismisses it)" IsChecked="{Binding Enabled}" />
+              <TextBlock Text="From" Classes="dkMuted" />
+              <ComboBox Name="ProviderBox" ItemsSource="{x:Static cvm:CompletionsSettingsDialog.Providers}" SelectedIndex="{Binding ProviderIndex}" HorizontalAlignment="Stretch" />
+
+              <StackPanel Spacing="8" IsVisible="{Binding IsClaude}">
+                <TextBlock Text="Model" Classes="dkMuted" />
+                <ComboBox Name="ClaudeModelBox" ItemsSource="{Binding ClaudeModels}" SelectedItem="{Binding ClaudeModel}" HorizontalAlignment="Stretch" />
+                <TextBlock Classes="dkMuted" FontSize="11" TextWrapping="Wrap"
+                           Text="Claude Haiku 5.5 answers fastest and costs least; Opus 5.5 writes the best code and costs the most." />
+                <TextBlock Text="API key" Classes="dkMuted" />
+                <TextBox Name="KeyBox" Classes="dkField" PasswordChar="•" RevealPassword="False" Text="{Binding Key}" PlaceholderText="{Binding KeyPlaceholder}" />
+                <Button Classes="dkLink" Command="{Binding ShowSiteCommand}" HorizontalAlignment="Left">
+                  <TextBlock><Run Text="Get a key: " /><Run Text="{x:Static cvm:CompletionsSettingsDialog.ConsoleSite}" /></TextBlock>
+                </Button>
+                <CheckBox Content="Keep it in the system keyring" IsChecked="{Binding Keep}" IsVisible="{Binding CanKeep}" />
+                <TextBlock Text="Without a keyring, it is kept until Karvon Studio closes." Classes="dkMuted" FontSize="11" IsVisible="{Binding !CanKeep}" />
+                <TextBlock Classes="dkMuted" FontSize="11" TextWrapping="Wrap"
+                           Text="As you type, the code around the caret (up to 8,000 characters before it and 2,000 after) goes to Anthropic's API, billed to the key's account." />
+              </StackPanel>
+
+              <StackPanel Spacing="8" IsVisible="{Binding IsOllama}">
+                <TextBlock Text="Ollama's address" Classes="dkMuted" />
+                <TextBox Name="OllamaUrlBox" Classes="dkField" Text="{Binding OllamaUrl}" PlaceholderText="http://localhost:11434" />
+                <TextBlock Text="Model" Classes="dkMuted" />
+                <TextBox Name="OllamaModelBox" Classes="dkField" Text="{Binding OllamaModel}" PlaceholderText="qwen2.5-coder:1.5b" />
+                <TextBlock Classes="dkMuted" FontSize="11" TextWrapping="Wrap"
+                           Text="A model that fills in the middle (Qwen2.5-Coder, StarCoder2, CodeGemma), pulled first: ollama pull qwen2.5-coder:1.5b. The code stays on the machine Ollama runs on." />
+              </StackPanel>
+
+              <TextBlock Name="Problem" Text="{Binding Problem}" Foreground="#F14C4C" TextWrapping="Wrap" IsVisible="{Binding Problem, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+              <Grid ColumnDefinitions="Auto,*,Auto" Margin="0,6,0,0">
+                <Button Classes="dkOutline" Command="{Binding ForgetKeyCommand}" Content="Forget Key" IsVisible="{Binding HasKey}" />
+                <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8">
+                  <Button Classes="dkOutline" Command="{Binding CancelCommand}" Content="Cancel" IsCancel="True" />
+                  <Button Classes="dkPrimary" Command="{Binding ConfirmCommand}" Content="{Binding ConfirmText}" IsEnabled="{Binding CanConfirm}" IsDefault="True" />
+                </StackPanel>
+              </Grid>
+            </StackPanel>
+          </Border>
+        </DataTemplate>
+      </ContentControl.DataTemplates>
+    </ContentControl>
+  </Panel>
+</UserControl>

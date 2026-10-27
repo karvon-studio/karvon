@@ -295,6 +295,12 @@ public abstract partial class KarvonModule : ObservableObject, IDisposable, IAsy
     /// </summary>
     public virtual Editor.EditorPane? EditorPane(Editor.EditorHost host) => null;
 
+    /// <summary>
+    /// Inline completions (an AI's suggestion in gray after the caret as the user types; Tab puts it in): the text to put in
+    /// at the caret of a request, or null for none. The first module's that gives them serves every editor; null for none.
+    /// </summary>
+    public virtual Func<Editor.InlineCompletionRequest, CancellationToken, Task<string?>>? InlineCompletions => null;
+
     public virtual IEnumerable<IClaudeTool> ClaudeTools() => [];
 
     /// <summary>The shell commands its tools do: Claude is sent to the tools instead (see <see cref="ClaudeShellRule"/>).</summary>

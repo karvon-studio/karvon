@@ -99,6 +99,7 @@ public sealed partial class EditorHost : IDisposable, IDebugLineSource
         InitializeOutlining();
         InitializeSemanticColors();
         InitializeViewState();
+        InitializeInlineCompletion();
     }
 
     /// <summary>A pane on the document, with everything the editor does: the first one, and the second after Window > Split.</summary>
@@ -131,6 +132,7 @@ public sealed partial class EditorHost : IDisposable, IDebugLineSource
         textMate = TextMateSupport.Install(editor, FilePath);
         editor.TextArea.TextView.BackgroundRenderers.Add(_diagnostics);
         InstallHints(editor);
+        InstallInlineCompletion(editor);
         InstallStickyScroll(editor);
         InstallMultiCaret(editor);
 
@@ -620,7 +622,10 @@ public sealed partial class EditorHost : IDisposable, IDebugLineSource
 
     void OnTextEntered(object? sender, TextInputEventArgs e)
     {
-        if (_lsp is null || string.IsNullOrEmpty(e.Text))
+        if (string.IsNullOrEmpty(e.Text))
+            return;
+        ScheduleInlineCompletion();
+        if (_lsp is null)
             return;
         var c = e.Text[^1];
         if (c == '.' || (IsRazor && (c == '<' || c == '@')))
@@ -681,6 +686,7 @@ public sealed partial class EditorHost : IDisposable, IDebugLineSource
     void ShowCompletion(LspCompletionList list, int start)
     {
         _completionWindow?.Close();
+        DismissInlineSuggestion();
         var window = new CompletionWindow(Editor.TextArea)
         {
             StartOffset = start,
@@ -826,7 +832,7 @@ public sealed partial class EditorHost : IDisposable, IDebugLineSource
 
     void OnKeyDown(object? sender, KeyEventArgs e)
     {
-        if (OnMultiCaretKey(e))
+        if (OnSuggestionKey(e) || OnMultiCaretKey(e))
         {
             e.Handled = true;
             return;
@@ -1400,6 +1406,8 @@ public sealed partial class EditorHost : IDisposable, IDebugLineSource
     public void Dispose()
     {
         DisposeOutlining();
+        _suggestionTimer?.Stop();
+        _suggestionCts?.Cancel();
         _diagnosticsCts?.Cancel();
         _completionCts?.Cancel();
         _hoverCts?.Cancel();

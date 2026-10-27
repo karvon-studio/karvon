@@ -36,6 +36,8 @@ lists them). Karvon Studio updates itself: it checks once a day and installs the
 ## What it does
 
 - **Editor**: IntelliSense, quick actions, refactorings, Go To Definition, Find All References, Rename, outlining.
+- **Inline completions**: an AI's suggestion in gray after the caret as you type (Tab takes it), from Claude or from a local
+  model through Ollama.
 - **Solutions and folders**: `.sln`, `.slnx`, a project, or any folder with its `tasks.json`, `launch.json` and
   `package.json` scripts.
 - **Build, run, debug and test** each language, with the Error List and Test Explorer.
