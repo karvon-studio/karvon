@@ -56,6 +56,7 @@ src/Karvon.Kubernetes/  module: Kubernetes (kubeconfig's clusters through kubect
 src/Karvon.Http/        module: HTTP Client (.http files, Endpoints Explorer), Claude's HTTP tools
 src/Karvon.Mcp/         module: MCP Servers
 src/Karvon.Skills/      module: Skills (uses Karvon.Mcp)
+src/Karvon.Completions/ module: Inline Completions (Claude through Anthropic's C# SDK, or a local model through Ollama)
 src/Karvon.DotNet/      module: .NET (solutions and projects, Roslyn, netcoredbg, dotnet build, the SDK's templates, NuGet, vstest)
 src/Karvon.TypeScript/  module: TypeScript and JavaScript (TypeScript 7's language server, package.json scripts, js-debug, Vitest, Jest; HTML, CSS, JSON; ESLint)
 src/Karvon.Python/      module: Python (Pyright's language server, debugpy, pytest, the workspace's .venv)

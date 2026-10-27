@@ -3,7 +3,8 @@
 Karvon Studio is MIT ([LICENSE](../LICENSE)). What it ships with or uses, and their licenses:
 
 Cascadia Mono font (SIL OFL 1.1); Avalonia, AvaloniaEdit, TextMateSharp,
-Exclr8.Terminal and Porta.Pty (MIT); Markdig (BSD 2-Clause); roslyn-language-server, netcoredbg, js-debug, Pyright, debugpy, Delve and CodeLLDB (MIT), gopls (BSD-3-Clause) and
+Exclr8.Terminal and Porta.Pty (MIT); Markdig (BSD 2-Clause); the Anthropic C# SDK (Apache-2.0), which Inline Completions
+ask Claude with; roslyn-language-server, netcoredbg, js-debug, Pyright, debugpy, Delve and CodeLLDB (MIT), gopls (BSD-3-Clause) and
 rust-analyzer (MIT or Apache-2.0), clangd (Apache-2.0 with LLVM exceptions), jdtls (EPL-2.0) and java-debug (EPL-1.0),
 JetBrains' kotlin-lsp (IntelliJ's Apache-2.0 sources and proprietary parts of JetBrains Air and Fleet, under JetBrains' terms),
 downloaded or built at runtime;

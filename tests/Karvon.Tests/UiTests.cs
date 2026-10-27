@@ -66,6 +66,13 @@ public class UiTests
         // Other tests may be building in parallel: never shut down the shared build servers.
         if (vm.Module<Karvon.DotNet.DotNetModule>() is { } dotnet)
             dotnet.ShutdownBuildServers = () => Task.CompletedTask;
+        // Inline completions never reach Anthropic or Ollama from a test, whatever the user's own settings and key.
+        if (vm.Module<Karvon.Completions.CompletionsModule>() is { } completions)
+        {
+            completions.SettingsFile = Path.Combine(Path.GetTempPath(), "karvon-completions-" + Guid.NewGuid().ToString("N") + ".json");
+            completions.Keyring = null;
+            completions.EnvironmentKey = () => null;
+        }
         vm.Settings.Solutions.Clear();
         vm.Settings.Layout = new();
         // The Claude panel's language is shared by every window: each test starts in English.

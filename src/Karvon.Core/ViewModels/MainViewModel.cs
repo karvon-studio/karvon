@@ -508,6 +508,7 @@ public partial class MainViewModel : ObservableObject
         host.WorkspaceEditRequested += ApplyWorkspaceEditAsync;
         host.WorkspaceOperationsRequested += ApplyWorkspaceOperationsAsync;
         host.ModuleQuickActions = PackageQuickActions;
+        host.InlineCompletions = Modules.Select(m => m.InlineCompletions).FirstOrDefault(c => c is not null);
         host.Saved += () => _ = RefreshGitAsync();
         host.Saved += () =>
         {
