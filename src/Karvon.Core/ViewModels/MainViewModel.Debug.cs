@@ -52,7 +52,8 @@ public partial class MainViewModel
     [NotifyPropertyChangedFor(nameof(IsDebugging), nameof(IsInBreakMode), nameof(StartButtonText))]
     [NotifyCanExecuteChangedFor(nameof(StartDebuggingCommand), nameof(StartWithoutDebuggingCommand), nameof(StopCommand),
         nameof(RestartCommand), nameof(StepOverCommand), nameof(StepIntoCommand), nameof(StepOutCommand), nameof(BreakAllCommand),
-        nameof(RunAllTestsCommand), nameof(RunFailedTestsCommand), nameof(RunSelectedTestsCommand), nameof(RepeatLastTestRunCommand), nameof(RefreshTestsCommand), nameof(DebugAllTestsCommand), nameof(DebugSelectedTestsCommand), nameof(AnalyzeCodeCoverageCommand))]
+        nameof(RunAllTestsCommand), nameof(RunFailedTestsCommand), nameof(RunSelectedTestsCommand), nameof(RepeatLastTestRunCommand), nameof(RefreshTestsCommand), nameof(DebugAllTestsCommand), nameof(DebugSelectedTestsCommand), nameof(AnalyzeCodeCoverageCommand),
+        nameof(ApplyHotReloadCommand))]
     public partial DebugMode Mode { get; set; }
 
     [ObservableProperty]
@@ -131,6 +132,7 @@ public partial class MainViewModel
             }
             return;
         }
+        StartedRun(null);
         await LaunchDebuggerAsync();
     }
 
@@ -208,6 +210,8 @@ public partial class MainViewModel
     {
         if (Solution is not { } solution || (Mode != DebugMode.Design && !beside) || IsRunning)
             return;
+        if (!noDebug && !beside)
+            StartedRun(null);
         SaveAll();
         if (!beside)
             DebugOutput.Clear();
@@ -455,10 +459,17 @@ public partial class MainViewModel
 
     bool IsRunningUnderDebugger => Mode == DebugMode.Running;
 
-    bool CanStop => IsRunning || Mode != DebugMode.Design;
+    bool CanStop => IsRunning || Mode != DebugMode.Design || _restartFailed;
 
+    /// <summary>Debug > Stop: the run ends, and with it Restart on Save.</summary>
     [RelayCommand(CanExecute = nameof(CanStop))]
     async Task Stop()
+    {
+        StartedRun(null);
+        await StopCore();
+    }
+
+    async Task StopCore()
     {
         _runProcess?.Kill();
         if (IsRunning)

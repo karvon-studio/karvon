@@ -78,6 +78,7 @@ public class UiTests
         vm.Settings.EditorZoom = 1.0;
         vm.Settings.MarkdownPreview = true;
         vm.Settings.MarkdownPreviewBelow = false;
+        vm.Settings.HotReload = true;
         Karvon.Editor.EditorHost.DefaultZoom = 1.0;
         return vm;
     }

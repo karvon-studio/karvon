@@ -86,6 +86,11 @@ by itself, the run ends with its exit code. On Linux it polls for changes (a use
 `dotnet watch` takes one for each folder). A console app runs without it: `dotnet watch` reads the keyboard itself, so
 the app would get none of it.
 
+**Restart on Save**, for a run without the debugger that has no Hot Reload (a Go, Python, Rust, Java, Kotlin or C++
+program, a Node.js script, a .NET console app): once a file of the workspace is saved (not a Markdown one), the run
+stops and starts again as Ctrl+F5 started it, built first; Alt+F10 restarts it at once. When the restart's build
+fails, the run starts again once the fix is saved. Stop ends it; Debug > Enable Hot Reload turns both off.
+
 ## Debug
 
 F5 debugs with the language's debugger (see Languages; TypeScript through its source maps): breakpoints that follow

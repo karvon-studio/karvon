@@ -385,6 +385,7 @@ public partial class MainViewModel : ObservableObject
             if (!await module.CloseWorkspaceAsync())
                 return false;
 
+        StartedRun(null);
         _runProcess?.Kill();
         foreach (var debugSession in _sessions.ToList())
             await debugSession.TerminateAsync();
@@ -970,6 +971,7 @@ public partial class MainViewModel : ObservableObject
     [RelayCommand(CanExecute = nameof(CanStart))]
     async Task StartWithoutDebugging()
     {
+        StartedRun(StartWithoutDebugging);
         // A folder runs what is chosen on the toolbar: a run task, or a launch configuration without the debugger.
         if (IsFolderWorkspace)
         {

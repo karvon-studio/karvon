@@ -169,6 +169,7 @@ public partial class MainViewModel
         if (Solution is not null && (path == VsCodeTasks.FileOf(Solution.Directory) || path == VsCodeLaunch.FileOf(Solution.Directory)
             || Modules.Any(m => m.WorkspaceTaskFiles.Contains(name))))
             RefreshWorkspaceTasks();
+        RestartOnSave(path);
     }
 
     /// <summary>The workspace closes: what its tasks started stops.</summary>
@@ -199,6 +200,7 @@ public partial class MainViewModel
             case { Kind: WorkspaceTaskKind.Run, IsBackground: false } when !IsRunning:
                 if (StartupItems.FirstOrDefault(i => i.Task == task) is { } item)
                     StartupItem = item;
+                StartedRun(() => RunTask(task));
                 await RunProgramTaskAsync(task);
                 return;
             case { Kind: WorkspaceTaskKind.Test, IsBackground: false }:
