@@ -30,6 +30,7 @@ public static class IdeClaudeTools
         new OpenDocumentTool(vm),
         new CodeDiagnosticsTool(vm),
         new FindInFilesTool(vm),
+        .. CodeClaudeTools.Create(vm),
     ];
 
     /// <summary>The shell's build, tests and run of the workspace, which Karvon's own do (and show).</summary>

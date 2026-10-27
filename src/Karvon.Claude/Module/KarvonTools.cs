@@ -2,14 +2,15 @@
 namespace Karvon.Claude;
 
 /// <summary>
-/// The tools Karvon gives Claude Code: the core's (the build, the tests, the debugger and the editor) and those of the modules
+/// The tools Karvon gives Claude Code: the core's (the build, the tests, the debugger, the editor and code navigation) and those of the modules
 /// that are on (the Database Explorer's data sources, the Docker engine's containers, the SSH servers, the Jira sites, the
 /// forwarded ports, the repository's CI and its pull requests, the user's Kubernetes clusters, the solution's HTTP endpoints).
 /// </summary>
 public static class KarvonTools
 {
     const string Instructions =
-        "Tools from Karvon, the IDE the user works in. They use Karvon's own build, Test Explorer, debugger and editor, the user's Database "
+        "Tools from Karvon, the IDE the user works in. They use Karvon's own build, Test Explorer, debugger, editor and language servers (code_ tools: "
+        + "declarations, their source, references and implementations, by what the code means, not its text), the user's Database "
         + "Explorer data sources, Docker engine, SSH servers, Jira sites, tunnel service (Ports), the repository's CI (GitHub Actions, GitLab CI) its pull requests (GitHub's, GitLab's merge requests) and Kubernetes clusters (their kubectl), so you need no credentials, "
         + "and they hide secrets. Prefer them to the shell (dotnet build, dotnet test, dotnet run, npm run build, npm test, psql, docker, ssh, curl to Jira's API, jprq, "
         + "ngrok or cloudflared, gh run, glab ci, gh pr, glab mr, kubectl get, logs or describe) for what they cover: the user sees "
@@ -29,7 +30,9 @@ public static class KarvonTools
     public const string SystemPrompt =
         "You run inside Karvon Studio, the IDE the user works in, which gives you its tools as mcp__karvon__*. Use them, not "
         + "Bash, for what they do: building, testing, running and debugging the workspace (run_build, run_tests, app_control, "
-        + "debug_control), its databases (db_query and the other db_ tools), Docker (container_ tools), the user's SSH servers "
+        + "debug_control), finding and reading its code by what it means rather than grep, sed and cat on source files (code_symbols "
+        + "for where something is declared, code_read_symbol for its source, code_references for its uses, code_definition, "
+        + "code_implementations, code_outline), its databases (db_query and the other db_ tools), Docker (container_ tools), the user's SSH servers "
         + "(server_exec, server_logs), Jira (jira_ tools), a local port at a public address (tunnel_open), the repository's CI "
         + "runs and their logs (pipeline_ tools) its pull requests (pr_ tools), the user's Kubernetes clusters (k8s_ tools) and HTTP requests to the app (http_send, http_endpoints). They sign in with the "
         + "user's own saved connections, so you need no "

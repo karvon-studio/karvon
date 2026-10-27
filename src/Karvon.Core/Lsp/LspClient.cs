@@ -151,6 +151,7 @@ public class LspClient : IAsyncDisposable
             semanticTokens = new { refreshSupport = true },
             inlayHint = new { refreshSupport = true },
             codeLens = new { refreshSupport = true },
+            symbol = new { },
         },
         textDocument = new
         {
@@ -179,6 +180,8 @@ public class LspClient : IAsyncDisposable
             diagnostic = new { dynamicRegistration = true },
             definition = new { },
             references = new { },
+            // Claude's code_outline and code_read_symbol: each declaration's whole range, and those in it.
+            documentSymbol = new { hierarchicalDocumentSymbolSupport = true },
             implementation = new { },
             formatting = new { },
             foldingRange = new { lineFoldingOnly = false, foldingRange = new { collapsedText = true } },
@@ -399,6 +402,18 @@ public class LspClient : IAsyncDisposable
             position = pos,
             context = new { includeDeclaration = true },
         }, ct));
+
+    /// <summary>The workspace's declarations whose names match a query (workspace/symbol), as the server matches them.</summary>
+    public async Task<IReadOnlyList<LspSymbol>> WorkspaceSymbolsAsync(string query, CancellationToken ct) =>
+        ProvidesWorkspaceSymbols ? LspParse.Symbols(await QueryAsync("workspace/symbol", new { query }, ct)) : [];
+
+    /// <summary>A file's declarations, as a tree (textDocument/documentSymbol).</summary>
+    public async Task<IReadOnlyList<LspDocumentSymbol>> DocumentSymbolsAsync(string path, CancellationToken ct) =>
+        LspParse.DocumentSymbols(await QueryAsync("textDocument/documentSymbol", new { textDocument = new { uri = ToUri(path) } }, ct));
+
+    /// <summary>Whether it finds the workspace's declarations by name (workspace/symbol).</summary>
+    public bool ProvidesWorkspaceSymbols => Capabilities.ValueKind == JsonValueKind.Object && Capabilities.TryGetProperty("workspaceSymbolProvider", out var provider)
+        && provider.ValueKind is JsonValueKind.True or JsonValueKind.Object;
 
     /// <summary>A file's diagnostics: those the server pushed for it, else pulled (textDocument/diagnostic).</summary>
     public async Task<IReadOnlyList<LspDiagnostic>> DiagnosticsAsync(string path, CancellationToken ct)

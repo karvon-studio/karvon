@@ -86,6 +86,19 @@ public sealed record LspSignatureHelp(IReadOnlyList<LspSignature> Signatures, in
 
 public sealed record LspSignature(string Label, string? Documentation, IReadOnlyList<string> Parameters);
 
+/// <summary>What a symbol is (LSP's SymbolKind).</summary>
+public enum LspSymbolKind
+{
+    File = 1, Module, Namespace, Package, Class, Method, Property, Field, Constructor, Enum, Interface, Function, Variable,
+    Constant, String, Number, Boolean, Array, Object, Key, Null, EnumMember, Struct, Event, Operator, TypeParameter,
+}
+
+/// <summary>workspace/symbol's: a declaration of the workspace, where its name is (or the whole of it: servers differ), and what it is in.</summary>
+public sealed record LspSymbol(string Name, LspSymbolKind Kind, string? Container, LspLocation Location);
+
+/// <summary>textDocument/documentSymbol's: a declaration of a file, all of it and its name, and the declarations in it.</summary>
+public sealed record LspDocumentSymbol(string Name, string? Detail, LspSymbolKind Kind, LspRange Range, LspRange SelectionRange, IReadOnlyList<LspDocumentSymbol> Children);
+
 /// <summary>Parsing helpers for the loosely-typed LSP payloads Roslyn returns.</summary>
 public static class LspParse
 {
@@ -123,6 +136,46 @@ public static class LspParse
             list.Add(new LspLocation(uri.GetString()!, Range(e.GetProperty("range"))));
         else if (e.TryGetProperty("targetUri", out var target))
             list.Add(new LspLocation(target.GetString()!, Range(e.GetProperty("targetSelectionRange"))));
+    }
+
+    /// <summary>workspace/symbol's answer: SymbolInformation[] or WorkspaceSymbol[] (whose location may have no range).</summary>
+    public static IReadOnlyList<LspSymbol> Symbols(JsonElement e)
+    {
+        if (e.ValueKind != JsonValueKind.Array)
+            return [];
+        var list = new List<LspSymbol>();
+        foreach (var s in e.EnumerateArray())
+        {
+            if (!s.TryGetProperty("location", out var location) || !location.TryGetProperty("uri", out var uri) || uri.GetString() is not { } u)
+                continue;
+            var range = location.TryGetProperty("range", out var r) ? Range(r) : default;
+            list.Add(new LspSymbol(s.GetProperty("name").GetString() ?? "", (LspSymbolKind)s.GetProperty("kind").GetInt32(),
+                s.TryGetProperty("containerName", out var c) ? c.GetString() : null, new LspLocation(u, range)));
+        }
+        return list;
+    }
+
+    /// <summary>textDocument/documentSymbol's answer: DocumentSymbol[] (a tree), or SymbolInformation[] (flat: each its own range).</summary>
+    public static IReadOnlyList<LspDocumentSymbol> DocumentSymbols(JsonElement e)
+    {
+        if (e.ValueKind != JsonValueKind.Array)
+            return [];
+        var list = new List<LspDocumentSymbol>();
+        foreach (var s in e.EnumerateArray())
+        {
+            var kind = (LspSymbolKind)s.GetProperty("kind").GetInt32();
+            var name = s.GetProperty("name").GetString() ?? "";
+            if (s.TryGetProperty("location", out var location))
+            {
+                var range = Range(location.GetProperty("range"));
+                list.Add(new LspDocumentSymbol(name, null, kind, range, range, []));
+                continue;
+            }
+            list.Add(new LspDocumentSymbol(name, s.TryGetProperty("detail", out var d) ? d.GetString() : null, kind,
+                Range(s.GetProperty("range")), Range(s.GetProperty("selectionRange")),
+                s.TryGetProperty("children", out var children) ? DocumentSymbols(children) : []));
+        }
+        return list;
     }
 
     public static IReadOnlyList<LspDiagnostic> Diagnostics(JsonElement items)

@@ -8,7 +8,7 @@ namespace Karvon.ViewModels;
 
 /// <summary>
 /// What Claude does with the core's tools, shown where the user would have done it: the build in Output and the Error List,
-/// the tests in Test Explorer, a search in Find Results, a file in the editor. The side group Claude is in is left as it
+/// the tests in Test Explorer, a search (references, implementations) in Find Results, a file (a declaration read) in the editor. The side group Claude is in is left as it
 /// is, so the conversation stays in view.
 /// </summary>
 public partial class MainViewModel
@@ -58,14 +58,32 @@ public partial class MainViewModel
                 OpenClaudeFile(Str(input, "path"), Int(input, "startLine", 0, 0, int.MaxValue), Int(input, "endLine", 0, 0, int.MaxValue));
                 break;
             case "find_in_files" when output.Detail is IReadOnlyList<FoundText> found:
-                FindResults.Clear();
-                foreach (var hit in found)
-                    FindResults.Add(new FindResultItem(hit.Path, hit.Line, hit.Column, hit.Text,
-                        new Lsp.LspRange(new Lsp.LspPosition(hit.Line - 1, hit.Column - 1), new Lsp.LspPosition(hit.Line - 1, hit.Column - 1))));
-                FindResultsTitle = $"Claude: '{Str(input, "query")}' ({found.Count})";
-                ShowToolWindow(ToolWindows.FindResults);
+                ShowClaudeFindResults($"Claude: '{Str(input, "query")}'", found);
+                break;
+            case "code_symbols" when output.Detail is IReadOnlyList<FoundText> found:
+                ShowClaudeFindResults($"Claude: symbols '{Str(input, "query")}'", found);
+                break;
+            case "code_references" when output.Detail is IReadOnlyList<FoundText> found:
+                ShowClaudeFindResults($"Claude: references to {Str(input, "symbol")}", found);
+                break;
+            case "code_implementations" when output.Detail is IReadOnlyList<FoundText> found:
+                ShowClaudeFindResults($"Claude: implementations of {Str(input, "symbol")}", found);
+                break;
+            case "code_read_symbol" or "code_definition" when output.Detail is FoundCode code:
+                OpenClaudeFile(code.Path, code.StartLine, code.EndLine);
                 break;
         }
+    }
+
+    /// <summary>What a search of Claude's found, in Find Results.</summary>
+    void ShowClaudeFindResults(string title, IReadOnlyList<FoundText> found)
+    {
+        FindResults.Clear();
+        foreach (var hit in found)
+            FindResults.Add(new FindResultItem(hit.Path, hit.Line, hit.Column, hit.Text,
+                new Lsp.LspRange(new Lsp.LspPosition(hit.Line - 1, hit.Column - 1), new Lsp.LspPosition(hit.Line - 1, hit.Column - 1))));
+        FindResultsTitle = $"{title} ({found.Count})";
+        ShowToolWindow(ToolWindows.FindResults);
     }
 
     /// <summary>A file of the solution in the editor, its lines (when given) selected.</summary>

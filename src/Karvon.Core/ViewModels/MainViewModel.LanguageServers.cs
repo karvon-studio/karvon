@@ -35,6 +35,34 @@ public partial class MainViewModel
 
     bool IsLinter(string id) => Modules.SelectMany(m => m.LanguageServers).Any(s => s.Id == id && s.Lints);
 
+    /// <summary>
+    /// The server of a file for Claude's code_ tools: the running one, else started as opening one of its files would (one
+    /// that is for a kind of workspace only with it); null when none serves the file.
+    /// </summary>
+    internal async Task<LspClient?> StartLanguageServerForClaudeAsync(string path)
+    {
+        if (Solution is not { } solution
+            || Modules.SelectMany(m => m.LanguageServers).FirstOrDefault(s => !s.Lints && s.Serves(path)) is not { } info)
+            return null;
+        if (!_moduleServers.TryGetValue(info.Id, out var starting))
+        {
+            if (info.ForWorkspace is not null)
+                return null;
+            _moduleServers[info.Id] = starting = StartModuleLanguageServerAsync(info, solution, path);
+        }
+        return await starting;
+    }
+
+    /// <summary>The servers running or starting for the workspace, not linters (Claude's code_symbols asks each).</summary>
+    internal async Task<IReadOnlyList<LspClient>> LanguageServersForClaudeAsync()
+    {
+        var servers = new List<LspClient>();
+        foreach (var (id, starting) in _moduleServers.ToList())
+            if (!IsLinter(id) && await starting is { } lsp)
+                servers.Add(lsp);
+        return servers;
+    }
+
     /// <summary>A server on an editor: as its file's server, or as one of its linters.</summary>
     static void AttachTo(DocumentViewModel doc, LanguageServerInfo info, LspClient lsp)
     {

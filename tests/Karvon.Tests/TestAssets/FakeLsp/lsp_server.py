@@ -2,13 +2,15 @@
 and on each change), and answers completion and hover. What it does not serve it refuses, as a real server would.
 Given a word (lsp_server.py FIXME), it is a linter's: it warns of that word instead. With --hints it also gives inlay hints
 (value: after each "call("), a code lens on each "def " line (resolved: "2 references"), and a Fix All of the TODOs, as
-Roslyn offers one (its client command, then codeAction/resolveFixAll)."""
+Roslyn offers one (its client command, then codeAction/resolveFixAll). With --symbols it outlines a file (a function for
+each "def name" line), only an open one, as TypeScript's server does."""
 import json
 import re
 import sys
 
 documents = {}
 hints = "--hints" in sys.argv
+symbols = "--symbols" in sys.argv
 word = next((a for a in sys.argv[1:] if not a.startswith("--")), "TODO")
 
 
@@ -59,6 +61,21 @@ while True:
     elif method == "textDocument/didOpen":
         documents[params["textDocument"]["uri"]] = params["textDocument"]["text"]
         publish(params["textDocument"]["uri"])
+    elif method == "textDocument/didClose":
+        documents.pop(params["textDocument"]["uri"], None)
+    elif method == "textDocument/documentSymbol" and symbols:
+        text = documents.get(params["textDocument"]["uri"])
+        if text is None:
+            send({"jsonrpc": "2.0", "id": id, "error": {"code": -32602, "message": "No project: the file is not open"}})
+            continue
+        found = []
+        for i, line in enumerate(text.split("\n")):
+            if line.startswith("def "):
+                name = line[4:].strip()
+                found.append({"name": name, "kind": 12, "children": [],
+                              "range": {"start": {"line": i, "character": 0}, "end": {"line": i, "character": len(line)}},
+                              "selectionRange": {"start": {"line": i, "character": 4}, "end": {"line": i, "character": 4 + len(name)}}})
+        send({"jsonrpc": "2.0", "id": id, "result": found})
     elif method == "textDocument/didChange":
         uri = params["textDocument"]["uri"]
         for change in params["contentChanges"]:
