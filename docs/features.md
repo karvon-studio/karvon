@@ -250,7 +250,8 @@ its own; to localhost at once, elsewhere asking you).
 Your clusters through your own `kubectl` and kubeconfig (its auth plugins and all); Karvon names the context in every
 command, so kubectl's current one never changes. A context's namespaces (or every one), and in them the deployments,
 stateful and daemon sets, jobs, cron jobs, pods, services, ingresses, config maps and secrets (their keys, never their
-values), read again every ten seconds, the failing first and counted; the cluster's Argo CD applications and Flux
+values), the failing first and counted, read again every ten seconds while the window shows (**Auto Refresh**, on by
+default and remembered; off, only Refresh reads them; shown again, at once); the cluster's Argo CD applications and Flux
 kustomizations and Helm releases, when it has them. An object opens as a page: its facts, containers, conditions,
 events and pods; its logs, following (a container's or all, the run before a crash); its YAML; a shell in a pod.
 Restart, Scale, Roll Back, Delete, Port Forward (listed in the window, to open or stop), a cron job run now or

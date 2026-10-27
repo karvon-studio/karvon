@@ -109,6 +109,8 @@ public sealed partial class KubernetesModule : KarvonModule, IKubernetesHost
 
     IEnumerable<DocumentTab> IKubernetesHost.Documents => Workbench.Documents;
 
+    bool IKubernetesHost.IsShown => Workbench.IsToolWindowShowing(ToolWindowId);
+
     void IKubernetesHost.ShowDocument(DocumentTab document) => Workbench.ShowDocument(document);
 
     void IKubernetesHost.OpenUrl(string url) => Workbench.OpenUrl(url);

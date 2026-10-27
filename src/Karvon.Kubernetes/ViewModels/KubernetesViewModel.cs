@@ -12,8 +12,11 @@ namespace Karvon.Kubernetes.ViewModels;
 /// <summary>What the Kubernetes window needs of Karvon.</summary>
 public interface IKubernetesHost
 {
-    /// <summary>Where the window keeps the context and namespace last chosen.</summary>
+    /// <summary>Where the window keeps the context and namespace last chosen, and whether it refreshes itself.</summary>
     string ConfigDirectory { get; }
+
+    /// <summary>Whether the window shows (in front where it is docked, its group open): it reads the cluster again only then.</summary>
+    bool IsShown { get; }
 
     IEnumerable<DocumentTab> Documents { get; }
 
@@ -124,8 +127,9 @@ public sealed record NamespaceChoice(string? Name)
 /// <summary>
 /// The Kubernetes window: kubeconfig's contexts (through the user's own kubectl, never switching its current context), a
 /// context's namespaces, and in them the workloads (deployments, stateful and daemon sets, jobs, cron jobs), pods,
-/// services, ingresses, config maps and secrets (their keys only), read again every ten seconds; the cluster's GitOps
-/// apps (Argo CD's, Flux's) when it has them. An object opens as a page; the port forwards it made are listed here.
+/// services, ingresses, config maps and secrets (their keys only), read again every ten seconds while the window shows
+/// and Auto Refresh is on (shown again after a while, at once); the cluster's GitOps apps (Argo CD's, Flux's) when it
+/// has them. An object opens as a page; the port forwards it made are listed here.
 /// </summary>
 public sealed partial class KubernetesViewModel : ObservableObject, IDisposable
 {
@@ -145,6 +149,7 @@ public sealed partial class KubernetesViewModel : ObservableObject, IDisposable
             Groups.Add(new KubeGroup(kind) { IsExpanded = kind is KubeKind.Deployment or KubeKind.Pod });
         _timer.Tick += (_, _) => Tick();
         _timer.Start();
+        AutoRefresh = SavedAutoRefresh();
         _ = LoadAsync();
     }
 
@@ -223,29 +228,55 @@ public sealed partial class KubernetesViewModel : ObservableObject, IDisposable
 
     (string? Context, string? Namespace) Saved()
     {
+        var json = Read();
         try
         {
-            var json = JsonNode.Parse(File.ReadAllText(SettingsFile));
             return (json?["context"]?.GetValue<string>(), json?["namespace"]?.GetValue<string>());
         }
-        catch (Exception ex) when (ex is IOException or JsonException or UnauthorizedAccessException or InvalidOperationException)
+        catch (InvalidOperationException)
         {
             return (null, null);
         }
     }
 
-    void Save()
+    bool SavedAutoRefresh() => Read()?["autoRefresh"] is not JsonValue value || !value.TryGetValue<bool>(out var on) || on;
+
+    JsonObject? Read()
     {
-        if (_loading || Context is null)
-            return;
+        try
+        {
+            return JsonNode.Parse(File.ReadAllText(SettingsFile)) as JsonObject;
+        }
+        catch (Exception ex) when (ex is IOException or JsonException or UnauthorizedAccessException)
+        {
+            return null;
+        }
+    }
+
+    /// <summary>The window's settings changed as given, the others kept.</summary>
+    void Write(Action<JsonObject> change)
+    {
+        var json = Read() ?? [];
+        change(json);
         try
         {
             Directory.CreateDirectory(Host.ConfigDirectory);
-            File.WriteAllText(SettingsFile, new JsonObject { ["context"] = Context.Name, ["namespace"] = NamespaceName ?? "*" }.ToJsonString());
+            File.WriteAllText(SettingsFile, json.ToJsonString());
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
         }
+    }
+
+    void Save()
+    {
+        if (_loading || Context is not { } context)
+            return;
+        Write(json =>
+        {
+            json["context"] = context.Name;
+            json["namespace"] = NamespaceName ?? "*";
+        });
     }
 
     /// <summary>kubeconfig's contexts, and the one chosen last (else kubectl's current one).</summary>
@@ -342,8 +373,26 @@ public sealed partial class KubernetesViewModel : ObservableObject, IDisposable
 
     void Tick()
     {
-        if (DateTimeOffset.Now >= _next && !_reading)
+        if (AutoRefresh && Host.IsShown && DateTimeOffset.Now >= _next && !_reading)
             _ = RefreshAsync();
+    }
+
+    /// <summary>
+    /// Whether the window reads the cluster again by itself (every ten seconds while it shows); off, only Refresh does.
+    /// Remembered.
+    /// </summary>
+    [ObservableProperty]
+    public partial bool AutoRefresh { get; set; }
+
+    partial void OnAutoRefreshChanged(bool value)
+    {
+        // As remembered: the window starting.
+        if (SavedAutoRefresh() == value)
+            return;
+        Write(json => json["autoRefresh"] = value);
+        // On again: read at once (on the next tick, if the window shows).
+        if (value)
+            _next = DateTimeOffset.Now;
     }
 
     /// <summary>The namespace's objects (and the cluster's GitOps apps) read again.</summary>

@@ -199,6 +199,9 @@ public class ActivityBarTests
         Assert.False(window.IsToolWindowShowing(ToolWindows.GitChanges));
         // (The tab's view is the tab's and its tab control's, a logical child of each.)
         Assert.Single(window.GetLogicalDescendants().OfType<Karvon.PullRequests.Views.PullRequestsView>().Distinct());
+        // A module asks whether its tool window shows (the Kubernetes window reads only then).
+        Assert.True(((IWorkbench)vm).IsToolWindowShowing(pullRequests));
+        Assert.False(((IWorkbench)vm).IsToolWindowShowing(Karvon.Kubernetes.KubernetesModule.ToolWindowId));
         Assert.Empty(window.GetLogicalDescendants().OfType<Karvon.Pipelines.Views.PipelinesView>());
         await WaitUntil(() => false, TimeSpan.FromMilliseconds(150));
         Snapshot(window, "tool-set-git");

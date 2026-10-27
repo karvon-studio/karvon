@@ -45,6 +45,7 @@ public partial class MainWindow : Window, IDialogService
                 };
                 AttachDocumentWell(vm);
                 vm.ToolWindowRequested += OnToolWindowRequested;
+                vm.ToolWindowShowing = IsToolWindowShowing;
                 vm.ToolWindowBesideRequested += OnToolWindowBesideRequested;
                 AttachModules(vm);
                 BuildToolSets(vm);

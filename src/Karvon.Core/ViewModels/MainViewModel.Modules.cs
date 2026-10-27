@@ -260,6 +260,11 @@ public partial class MainViewModel : IWorkbench
 
     void IWorkbench.ShowToolWindow(string id) => ShowToolWindow(id);
 
+    /// <summary>Whether a tool window shows, as the window has it (set by the window).</summary>
+    public Func<string, bool>? ToolWindowShowing { get; set; }
+
+    bool IWorkbench.IsToolWindowShowing(string id) => ToolWindowShowing?.Invoke(id) == true;
+
     void IWorkbench.ShowToolWindowBesideClaude(string id) => ShowToolWindowBeside(id);
 
     public event Action<string>? FileSaved;

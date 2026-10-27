@@ -137,6 +137,9 @@ public interface IWorkbench
 
     void ShowToolWindow(string id);
 
+    /// <summary>Whether a tool window shows: in front where it is docked, its group not folded (one that reads only while it shows asks).</summary>
+    bool IsToolWindowShowing(string id);
+
     /// <summary>A tool window shown without hiding Claude Code: in Claude Code's own group it is only put in front of the others.</summary>
     void ShowToolWindowBesideClaude(string id);
 

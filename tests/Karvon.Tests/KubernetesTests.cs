@@ -41,6 +41,8 @@ sealed class TestKubernetesHost : IKubernetesHost
 
     public IEnumerable<DocumentTab> Documents => Open;
 
+    public bool IsShown { get; set; } = true;
+
     public void ShowDocument(DocumentTab document)
     {
         if (!Open.Contains(document))
@@ -168,6 +170,59 @@ public class KubernetesTests
         var contexts = KubeParse.Contexts(JsonSerializer.SerializeToElement(cluster["config"]));
         Assert.Equal([("dev", true, false), ("prod-eu", false, true)], contexts.Select(c => (c.Name, c.IsCurrent, c.IsProduction)));
         Assert.Equal(KubeKind.Deployment, KubeKinds.Parse("deploy"));
+    }
+
+    [AvaloniaFact]
+    public async Task The_window_reads_the_cluster_again_only_while_it_shows_and_Auto_Refresh_is_on()
+    {
+        var interval = KubernetesViewModel.Interval;
+        KubernetesViewModel.Interval = TimeSpan.FromMilliseconds(200);
+        try
+        {
+            var kubectl = new FakeKubectl(Cluster());
+            var host = new TestKubernetesHost();
+            int Reads() => kubectl.Calls.Count(c => c.Contains(" get deployments", StringComparison.Ordinal));
+            using (var k8s = new KubernetesViewModel(host, new Kubectl(kubectl.Command)))
+            {
+                Assert.True(k8s.AutoRefresh);
+                await WaitUntil(() => Reads() >= 2, TimeSpan.FromSeconds(15));
+                Assert.True(Reads() >= 2, string.Join("\n", kubectl.Calls));
+
+                // Hidden (another tab in front, its group folded): nothing is read.
+                host.IsShown = false;
+                await WaitUntil(() => false, TimeSpan.FromMilliseconds(1500));
+                var hidden = Reads();
+                await WaitUntil(() => false, TimeSpan.FromMilliseconds(2500));
+                Assert.Equal(hidden, Reads());
+                // Shown again: read at once.
+                host.IsShown = true;
+                await WaitUntil(() => Reads() > hidden, TimeSpan.FromSeconds(3));
+                Assert.True(Reads() > hidden);
+
+                // Auto Refresh off: only Refresh reads; remembered.
+                k8s.AutoRefresh = false;
+                await WaitUntil(() => false, TimeSpan.FromMilliseconds(1500));
+                var off = Reads();
+                await WaitUntil(() => false, TimeSpan.FromMilliseconds(2500));
+                Assert.Equal(off, Reads());
+                await k8s.RefreshAsync();
+                Assert.Equal(off + 1, Reads());
+            }
+            using (var again = new KubernetesViewModel(host, new Kubectl(kubectl.Command)))
+            {
+                Assert.False(again.AutoRefresh);
+                await WaitUntil(() => again.Groups.Any(g => g.Items.Count > 0), TimeSpan.FromSeconds(15));
+                var before = Reads();
+                // On again: read at once, then every interval.
+                again.AutoRefresh = true;
+                await WaitUntil(() => Reads() > before + 1, TimeSpan.FromSeconds(5));
+                Assert.True(Reads() > before + 1);
+            }
+        }
+        finally
+        {
+            KubernetesViewModel.Interval = interval;
+        }
     }
 
     [AvaloniaFact]
