@@ -1,0 +1,9 @@
+{
+  "id": "T08",
+  "category": "typescript",
+  "fixture": "vite-app",
+  "open": ".",
+  "prompt": "A test fails. Make the tests pass.",
+  "maxTurns": 40,
+  "maxMinutes": 15
+}

@@ -1,0 +1,9 @@
+{
+  "id": "T13",
+  "category": "control",
+  "fixture": "shop",
+  "open": "Shop.sln",
+  "prompt": "Write a CONTRIBUTING.md for this project.",
+  "maxTurns": 40,
+  "maxMinutes": 15
+}

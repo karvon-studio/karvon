@@ -1,0 +1,20 @@
+services:
+  api:
+    build: ./api
+    ports:
+      - "8000:8000"
+    environment:
+      STORE_URL: http://store:9000
+      PORT: "8000"
+    depends_on:
+      - store
+    restart: unless-stopped
+
+  store:
+    build: ./store
+    volumes:
+      - store-data:/data
+    restart: unless-stopped
+
+volumes:
+  store-data:

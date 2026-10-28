@@ -1,0 +1,9 @@
+{
+  "id": "T09",
+  "category": "python",
+  "fixture": "pylib",
+  "open": ".",
+  "prompt": "A test fails. Make the tests pass.",
+  "maxTurns": 40,
+  "maxMinutes": 15
+}

@@ -1,0 +1,10 @@
+{
+  "id": "T05",
+  "category": "runtime",
+  "fixture": "shop",
+  "open": "Shop.sln",
+  "startup": "Shop.Api/Shop.Api.csproj",
+  "prompt": "GET /api/orders/7 returns a wrong total. Find out why and fix it.",
+  "maxTurns": 40,
+  "maxMinutes": 15
+}

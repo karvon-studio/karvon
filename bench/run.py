@@ -52,7 +52,8 @@ def docker_run(task, run_id, arm, model, effort, root, token):
     work.mkdir(parents=True)
     out.mkdir(parents=True)
     name = "karvon-bench-" + run_id.lower().replace("_", "-")
-    command = ["docker", "run", "--rm", "--name", name, "--cpus", "4", "--memory", "8g",
+    # Public resolvers: Docker's fallback DNS is not reachable on every network.
+    command = ["docker", "run", "--rm", "--name", name, "--cpus", "4", "--memory", "8g", "--dns", "1.1.1.1", "--dns", "8.8.8.8",
                "-e", f"TASK={task['id']}", "-e", f"ARM={arm}", "-e", f"MODEL={model}", "-e", "CLAUDE_CODE_OAUTH_TOKEN",
                "-v", f"{work}:/work", "-v", f"{out}:/out"]
     if effort:

@@ -23,4 +23,5 @@ if [ -f fixtures/compose/images.txt ]; then
   done < fixtures/compose/images.txt
 fi
 echo "$(git -C "$repo" rev-parse --short HEAD)" > "$staging/karvon/.bench-commit"
-docker build -t karvon-bench -f Dockerfile .
+# The build reaches the mirrors through the host's resolver: Docker's own fallback DNS is not reachable on every network.
+docker build --network host -t karvon-bench -f Dockerfile .

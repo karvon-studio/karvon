@@ -1,0 +1,14 @@
+@page "/"
+
+<PageTitle>Shop</PageTitle>
+
+<Greeting Name="shopper" />
+
+<p>Coffee beans 1kg: <PriceTag Amount="18.50m" /></p>
+
+<button @onclick="() => count++">Add to cart</button>
+<p>In the cart: @count</p>
+
+@code {
+    private int count;
+}

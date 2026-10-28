@@ -1,0 +1,9 @@
+{
+  "id": "T01",
+  "category": "build",
+  "fixture": "shop",
+  "open": "Shop.sln",
+  "prompt": "The solution does not build. Fix it.",
+  "maxTurns": 40,
+  "maxMinutes": 15
+}

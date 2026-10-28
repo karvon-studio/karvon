@@ -1,0 +1,9 @@
+{
+  "id": "T04",
+  "category": "refactor",
+  "fixture": "shop",
+  "open": "Shop.sln",
+  "prompt": "Add a `currency` parameter to `PriceFormatter.Format` and update every caller.",
+  "maxTurns": 40,
+  "maxMinutes": 15
+}

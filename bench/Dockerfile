@@ -8,9 +8,10 @@ ENV DEBIAN_FRONTEND=noninteractive \
     DISABLE_AUTOUPDATER=1 \
     CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1
 
-RUN apt-get update \
+RUN echo 'Acquire::ForceIPv4 "true";' > /etc/apt/apt.conf.d/99ipv4 \
+    && apt-get update \
     && apt-get install -y --no-install-recommends python3 python3-pytest python3-venv sqlite3 git curl ca-certificates xz-utils \
-       build-essential jq procps docker.io iptables \
+       build-essential jq procps docker.io iptables util-linux \
     && (apt-get install -y --no-install-recommends docker-compose-v2 || apt-get install -y --no-install-recommends docker-compose) \
     && docker compose version \
     && rm -rf /var/lib/apt/lists/*

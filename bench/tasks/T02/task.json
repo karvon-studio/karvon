@@ -1,0 +1,9 @@
+{
+  "id": "T02",
+  "category": "tests",
+  "fixture": "shop",
+  "open": "Shop.sln",
+  "prompt": "Make the tests pass without changing them.",
+  "maxTurns": 40,
+  "maxMinutes": 15
+}

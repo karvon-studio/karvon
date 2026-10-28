@@ -1,0 +1,11 @@
+{
+  "id": "T06",
+  "category": "debugger",
+  "fixture": "shop",
+  "open": "Shop.sln",
+  "startup": "Shop.Cli/Shop.Cli.csproj",
+  "breakpoint": { "file": "Shop.Core/Checkout.cs", "line": 19 },
+  "prompt": "The program is stopped at a breakpoint in `Checkout`. Why is `discount` negative here? Fix it.",
+  "maxTurns": 40,
+  "maxMinutes": 15
+}

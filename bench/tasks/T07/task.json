@@ -1,0 +1,10 @@
+{
+  "id": "T07",
+  "category": "database",
+  "fixture": "sales",
+  "open": ".",
+  "database": {"name": "shop", "file": "shop.db"},
+  "prompt": "Which product sold most in March 2026 by units sold, and how many customers bought it?",
+  "maxTurns": 40,
+  "maxMinutes": 15
+}

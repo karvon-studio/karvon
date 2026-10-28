@@ -1,0 +1,9 @@
+{
+  "id": "T10",
+  "category": "go",
+  "fixture": "gomod",
+  "open": ".",
+  "prompt": "The module does not build. Fix the build.",
+  "maxTurns": 40,
+  "maxMinutes": 15
+}

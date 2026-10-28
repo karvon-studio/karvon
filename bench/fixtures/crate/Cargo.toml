@@ -1,0 +1,8 @@
+[package]
+name = "semver-lite"
+version = "0.2.0"
+edition = "2021"
+description = "Parse, compare and bump semantic versions"
+publish = false
+
+[dependencies]

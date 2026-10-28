@@ -1,0 +1,9 @@
+{
+  "id": "T11",
+  "category": "rust",
+  "fixture": "crate",
+  "open": ".",
+  "prompt": "A test fails. Make the tests pass.",
+  "maxTurns": 40,
+  "maxMinutes": 15
+}

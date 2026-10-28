@@ -1,0 +1,9 @@
+{
+  "id": "T14",
+  "category": "containers",
+  "fixture": "compose",
+  "open": ".",
+  "prompt": "The api container keeps restarting. Find out why and fix it.",
+  "maxTurns": 40,
+  "maxMinutes": 15
+}
