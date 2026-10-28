@@ -1,12 +1,12 @@
-# Benchmark: what Karvon's tools save Claude Code
+# Benchmark: what Karvon's tools save Claude Code in tokens, money and time
 
 Status: plan, not run yet (October 2026). It is the first step of the document tools: their work starts
 only if this benchmark shows that Karvon's tools pay off (see [Decision](#decision)).
 
 ## The question
 
-Does Claude Code finish the same task with fewer tokens, for less money and as often when it has Karvon's
-tools (`mcp__karvon__*` and "Before the shell") as when it has only its own (Bash, Read, Grep, Glob,
+Does Claude Code finish the same task with fewer tokens, for less money, sooner and as often when it has
+Karvon's tools (`mcp__karvon__*` and "Before the shell") as when it has only its own (Bash, Read, Grep, Glob,
 Edit...)? And how does that differ between Claude Opus 5.5, Claude Sonnet 5.5 and Claude Haiku 5.5?
 
 Hypotheses, each checked on its own:
@@ -17,7 +17,10 @@ Hypotheses, each checked on its own:
 - **H2, success.** The tools do not lower the share of tasks done; for runtime and data tasks they raise it.
 - **H3, models.** The saving holds on all three models; a smaller model gains as much or more (fewer wrong
   turns), so Haiku 5.5 with Karvon's tools may get done what Sonnet 5.5 without them does, for less.
-- **H4, time.** Fewer turns: the wall-clock time falls too.
+- **H4, time.** A task is done sooner: fewer turns mean fewer model calls, each on a smaller context, and
+  a tool's answer is read at once rather than pieced together over several shell commands. A Karvon tool
+  takes about as long as the command it replaces (a build is a build), so the time saved is the model's,
+  and the report shows the two apart.
 
 ## What is compared
 
@@ -44,7 +47,8 @@ tools' alone. To save money C runs on one model only (Sonnet 5.5).
 The ids are exact, never aliases (`opus`, `sonnet`), so a model the CLI maps an alias to later does not
 change the benchmark. Prices are Anthropic's list prices as of October 2026 (writing to the cache costs
 1.25 times the input price for 5 minutes; Haiku 5.5's cache read is taken as a tenth of its input price);
-check them on the pricing page on the day of the run and keep them with the results. The cost every comparison uses is the CLI's own `total_cost_usd`.
+check them on the pricing page on the day of the run and keep them with the results. The cost every
+comparison uses is the CLI's own `total_cost_usd`.
 
 **Effort.** Effort changes token use more than anything else, so it is fixed and recorded:
 
@@ -62,7 +66,7 @@ alone to check against the sum of `total_cost_usd`.
 Each task is a folder `bench/tasks/<id>/`:
 
 - `task.yaml`: the prompt (the same in every arm, it never names a tool), the fixture and its commit, the
-  category, at most how many turns and minutes;
+  category, at most how many turns and minutes (40 turns and 15 minutes, 25 minutes for T03 and T12);
 - `setup.sh`: makes the workspace from a clean copy of the fixture (puts the bug in, registers a data
   source, sets a breakpoint...);
 - `check.sh`: after the session, decides pass or fail by itself: the build passes, the tests pass, the
@@ -128,12 +132,25 @@ baseline can query the database too), Docker for T14, a pinned Claude Code CLI, 
 under test, the language servers and debuggers already downloaded (Karvon would download them on first
 use), and every fixture's packages restored.
 
-**Order.** All runs are shuffled together and run two or three at a time. Run in blocks, one arm's runs
+**Order.** All runs are shuffled together and run three at a time. Run in blocks, one arm's runs
 would reuse the prompt cache of the runs just before them (the same system prompt and tool definitions)
 and look cheaper than the other's; shuffled, both arms get the same chance.
 
 **Failures that are not the model's.** A run that ends on an API error (429, 529, a network failure) is an
 infrastructure failure: it is run again, and the count of them is reported.
+
+**Time.** What is timed is what a user waits for, and the same in every arm:
+
+- the clock starts when the prompt is sent and stops at the session's `result` event; the runner stamps
+  every event of the transcript as it comes, so each turn and each tool call has its own time;
+- the workspace is ready before that: the solution open, its language servers ready. That wait is
+  Karvon's whether the arm uses its tools or not (A runs in Karvon too), and a user has it behind them when
+  they ask; it is recorded, and reported apart, but not counted in a run's time;
+- what the session asks is approved at once, so no run waits for a person;
+- each run gets the same share of the machine (4 cores and 8 GB of its own), and as many runs go at a
+  time all through, so a build in one run does not slow another arm's more than its own;
+- the API's speed changes over a day, which shuffling spreads over both arms alike; the report shows each
+  model's output tokens per second as the run went, to see it.
 
 ## What each run records
 
@@ -141,6 +158,10 @@ One JSON line per run in `bench/results/<date>/runs.jsonl`:
 
 - task, arm, model, effort, repetition, CLI version, Karvon commit, start time;
 - `success`, and what `check.sh` said;
+- times: the run's, from the prompt to the `result` event; the model's (`duration_api_ms`) and the rest,
+  local (the tools, the builds and tests they run, the CLI); each tool call's, from its `tool_use` to its
+  `tool_result`; the waits on API retries the transcript shows; and, apart, the workspace's readiness, the
+  setup's and the check's;
 - from the `result` event: `total_cost_usd`, `num_turns`, `duration_ms`, `duration_api_ms`, and `usage`:
   `input_tokens`, `cache_creation_input_tokens`, `cache_read_input_tokens`, `output_tokens`; the use per
   model too (`modelUsage`), since the CLI may call a small model for side work (a title, a compaction);
@@ -150,7 +171,7 @@ One JSON line per run in `bench/results/<date>/runs.jsonl`:
 
 The transcripts stay beside it (`transcripts/<run>.jsonl`), to see why a run cost what it did.
 
-## Repetitions and cost
+## Repetitions, cost and duration
 
 The model's answers vary, so every task runs **5 times** in each arm and model:
 
@@ -173,23 +194,42 @@ So about **$120**, and $10–15 for the pilot. The assumptions can be off by sev
 a large repository, T00 costs almost nothing. The pilot's real numbers replace them before the full sweep
 starts.
 
+How long the sweep takes, with an assumed median run of 6 minutes on Opus 5.5, 4 on Sonnet 5.5 and 2 on
+Haiku 5.5, and a minute more each for the setup, the workspace's readiness and the check:
+
+| Model | One run, with setup and check | Runs | Run one at a time |
+|---|---|---|---|
+| Opus 5.5 | 7 min | 150 | 17.5 h |
+| Sonnet 5.5 | 5 min | 225 | 18.8 h |
+| Haiku 5.5 | 3 min | 150 | 7.5 h |
+
+About 44 hours one at a time, so **about 15 hours three at a time**: one run overnight. The pilot is
+about an hour. The time limits bound it: were every run stopped at its limit (15 minutes, 25 for T03 and
+T12), the sweep would take about 50 hours three at a time. The pilot's real times replace the
+assumptions here too.
+
 ## Analysis
 
 The report (`bench/results/<date>/report.md`, made from `runs.jsonl` by `bench/report`) shows:
 
 1. **For each model and arm:** tasks done (of 75), the medians of tokens by kind, cost, turns and time,
-   and **cost per task done**: all the runs' cost divided by the runs that passed. Runs that failed cost
-   money too, so this counts them.
+   **cost per task done** (all the runs' cost divided by the runs that passed) and **time per task done**
+   (all the runs' time divided by the same). Runs that failed cost money and time too, so these count
+   them.
 2. **B against A, task by task.** For each task and model, the ratio of B's median to A's (cost, tokens,
-   turns). Over the tasks, their geometric mean with a 95% bootstrap interval (resampling tasks, and the
-   runs within them).
+   turns, time). Over the tasks, their geometric mean with a 95% bootstrap interval (resampling tasks, and
+   the runs within them).
 3. **Success:** passes per arm and model with a 95% Wilson interval, and the tasks where one arm passes
    and the other does not.
 4. **Why:** Bash calls, Karvon tool calls, the Bash calls redirected, and the characters of tool results in
    the context, per category. If B saves, this shows where.
-5. **Between models:** the cheapest model and arm per task done, for example whether Haiku 5.5 with
-   Karvon's tools does what Sonnet 5.5 without them does.
-6. **Overhead:** T00 (fixed cost per session) and T13 (a task the tools cannot help with).
+5. **Where the time goes:** the model's time and the local time of A and B side by side, per category;
+   the tools that took longest; the model's time per turn (a smaller context answers sooner). If B is
+   sooner, this shows whether it is fewer turns, smaller turns or quicker tools; if it is slower, which
+   tool.
+6. **Between models:** the cheapest and the quickest model and arm per task done, for example whether
+   Haiku 5.5 with Karvon's tools does what Sonnet 5.5 without them does, for less and sooner.
+7. **Overhead:** T00 (fixed cost and time per session) and T13 (a task the tools cannot help with).
 
 Tokens of different kinds have different prices (a cache read costs a twentieth of an input token on
 Opus 5.5), so a sum of all tokens alone would mislead; cost is the primary measure, and the kinds are
@@ -201,10 +241,14 @@ Agreed before the run, so the results cannot move the line:
 
 - **Go** for the document tools if, on the core suite (T01–T12), B costs at most **0.8** of A per task done
   (at least 20% less) with the 95% interval's upper end below 1.0 on at least **two of the three models**,
-  and B's passes are no more than **5 points** below A's on any model.
+  B's passes are no more than **5 points** below A's on any model, and B's time per task done is at most
+  **1.1** of A's (not more than 10% longer) on any model: in an IDE, money saved by making the user wait
+  is no saving.
 - **No go** if B costs as much as A or more on two models, or passes clearly fewer tasks; then the report
   says why (the overhead of T00? one category?) and that is fixed first.
-- **In between:** the categories where B saves decide which kind of tool is worth building first.
+- **In between:** the categories where B saves decide which kind of tool is worth building first. A B that
+  is sooner (time at most 0.8 of A's on two models) but not cheaper still counts for go: the time a user
+  waits is what they feel.
 
 What carries over to documents: if B's saving comes from tool results that put less in the context (step
 4 of the analysis), document tools that leave Office's XML out of the context should save the same way.
@@ -231,6 +275,6 @@ If the decision is go:
 
 1. The runner, the image, T00–T02 and the report (`bench/`).
 2. The pilot: T00–T02, all three models, A and B, twice each (36 runs). It checks the runner and measures
-   what a run costs, to fix the budget.
+   what a run costs and how long it takes, to fix the budget and the schedule.
 3. The rest of the tasks, then the full sweep (525 runs).
 4. The report, and the decision as above.
