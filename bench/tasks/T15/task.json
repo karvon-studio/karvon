@@ -1,0 +1,9 @@
+{
+  "id": "T15",
+  "category": "large project",
+  "fixture": "karvon",
+  "open": "Karvon.slnx",
+  "prompt": "Some tests in tests/Karvon.Tests fail. Find out why and fix it without changing the tests.",
+  "maxTurns": 40,
+  "maxMinutes": 25
+}
