@@ -35,3 +35,8 @@ as_bench env BENCH_ANSWER=/out/answer.txt bash -c "cd /work && '$task/check.sh'"
 echo $? > /out/check.exit
 check_ms=$(( $(now) - start ))
 times
+
+# What the session changed, as a patch (new files too, the workspace's .gitignore kept); then the workspace goes: a
+# copy of a solution with its build output is gigabytes, and a repository of its own that an editor would find.
+cd /work && as_bench git add -A > /dev/null 2>&1 && as_bench git diff --cached > /out/diff.patch 2>/dev/null
+cd / && find /work -mindepth 1 -maxdepth 1 -exec rm -rf {} +

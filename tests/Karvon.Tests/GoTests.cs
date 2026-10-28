@@ -48,13 +48,16 @@ public class GoTests
         var dir = NewModule();
         var tasks = GoTasks.Read(dir);
         Assert.Equal(["go: build", "go: test", "go: vet", "go: run"], tasks.Select(t => t.Name));
-        Assert.Equal(["build", "./..."], tasks[0].Arguments);
+        // The build compiles the tests too: go vet after go build.
+        Assert.Equal("go build ./... && go vet ./...", tasks[0].Arguments[^1]);
         Assert.Equal(("go", "debug", dir), (tasks[3].Debug!.Type, tasks[3].Debug!.Configuration["mode"]!.GetValue<string>(), tasks[3].Debug!.Configuration["program"]!.GetValue<string>()));
 
         // The compiler's, vet's and a test's form of an error.
         var error = GoTasks.Problem("./main.go:10:2: undefined: sizes")!;
         Assert.Equal(("./main.go", 10, 2, "undefined: sizes"), (error.File, error.Line, error.Column, error.Message));
         Assert.Equal(12, GoTasks.Problem("shapes/shapes_test.go:12: Area(0, 4) = 0, want 1")!.Line);
+        var vet = GoTasks.Problem("vet: stock/stock_test.go:73:19: sample(t).LowStock undefined (type *Store has no field or method LowStock)")!;
+        Assert.Equal(("stock/stock_test.go", 73, 19), (vet.File, vet.Line, vet.Column));
         Assert.Null(GoTasks.Problem("ok  \texample.com/shop/shapes\t0.002s"));
         Assert.Null(GoTasks.Problem("https://example.com:8080: refused"));
 

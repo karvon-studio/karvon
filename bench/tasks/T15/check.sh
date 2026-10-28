@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Passes when the parser's tests and the folder builds' pass again (15 tests), and no test file was changed.
 set -uo pipefail
-expected=e6c8fb4ce4b96d7c968f6bbf4a0f168b0c863b7b5bc766d6ec061b74a50bc677
+expected=8ed0757d8f0f84b3c6f70f857d038a7dbc02d55fa169940b7ccdc208facadc23
 actual=$(find tests/Karvon.Tests -name "*.cs" -not -path "*/bin/*" -not -path "*/obj/*" | LC_ALL=C sort | xargs sha256sum | sha256sum | cut -d' ' -f1)
 if [ "$actual" != "$expected" ]; then echo "a test file was changed"; exit 1; fi
 out=$(BENGINE_KEYRING=off KARVON_GH_PATH=off KARVON_KUBECTL_PATH=off KARVON_DOTNET_DIAGNOSTICS=off \

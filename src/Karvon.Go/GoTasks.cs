@@ -6,7 +6,11 @@ using Karvon.Modules;
 
 namespace Karvon.Go;
 
-/// <summary>A Go module's tasks (a folder with its go.mod): go build, test and vet over its packages, and go run of its main package.</summary>
+/// <summary>
+/// A Go module's tasks (a folder with its go.mod): go build, test and vet over its packages, and go run of its main
+/// package. Its build is go build and go vet, as Visual Studio's Build builds the tests too: go build leaves the _test.go
+/// files out, and a build that passes with a test that no longer compiles says it is done when it is not.
+/// </summary>
 public static partial class GoTasks
 {
     public const string Source = "go";
@@ -15,9 +19,10 @@ public static partial class GoTasks
     {
         if (!File.Exists(Path.Combine(workspace, "go.mod")))
             return [];
+        var (shell, build) = Workspace.TaskVariables.Shell("go build ./... && go vet ./...");
         List<WorkspaceTask> tasks =
         [
-            new("go: build", WorkspaceTaskKind.Build, "go", ["build", "./..."], workspace) { Source = Source, IsDefault = true, Problems = Problem },
+            new("go: build", WorkspaceTaskKind.Build, shell, build, workspace) { Source = Source, IsDefault = true, Problems = Problem },
             new("go: test", WorkspaceTaskKind.Test, "go", ["test", "./..."], workspace) { Source = Source, IsDefault = true, Problems = Problem },
             new("go: vet", WorkspaceTaskKind.Other, "go", ["vet", "./..."], workspace) { Source = Source, Problems = Problem },
         ];
@@ -47,10 +52,10 @@ public static partial class GoTasks
     [GeneratedRegex(@"^package\s+main\b", RegexOptions.Multiline)]
     private static partial Regex PackageMain();
 
-    [GeneratedRegex(@"^(?:# \S+\s*)?(?<file>[^\s:#][^:]*\.go):(?<line>\d+):(?:(?<col>\d+):)?\s*(?<msg>.+)$")]
+    [GeneratedRegex(@"^(?:# \S+\s*)?(?:vet: )?(?<file>[^\s:#][^:]*\.go):(?<line>\d+):(?:(?<col>\d+):)?\s*(?<msg>.+)$")]
     private static partial Regex GoError();
 
-    /// <summary>Go's form of an error (the compiler's, vet's, a test's): "./main.go:12:5: undefined: x".</summary>
+    /// <summary>Go's form of an error (the compiler's, vet's, a test's): "./main.go:12:5: undefined: x", vet's with "vet: " first.</summary>
     public static BuildDiagnostic? Problem(string line) => GoError().Match(line) is { Success: true } m
         ? new BuildDiagnostic(DiagnosticSeverity.Error, "", m.Groups["msg"].Value.Trim(), m.Groups["file"].Value, int.Parse(m.Groups["line"].Value),
             m.Groups["col"].Success ? int.Parse(m.Groups["col"].Value) : 1, null)

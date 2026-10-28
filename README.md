@@ -49,6 +49,21 @@ lists them). Karvon Studio updates itself: it checks once a day and installs the
 The details, language by language, are in [docs/features.md](docs/features.md); how a module plugs in is in
 [docs/modules.md](docs/modules.md).
 
+## Claude Code with Karvon's tools
+
+[The benchmark](docs/benchmark.md) (October 2026): 18 tasks, each run with and without Karvon's tools, 3 times on each of
+Claude Opus 5.5, Sonnet 5.5 and Haiku 5.5, 324 runs in all:
+
+| With Karvon's tools | Opus 5.5 | Sonnet 5.5 | Haiku 5.5 |
+|---|---|---|---|
+| Time per task done | −27% | −36% | −8% |
+| Large projects: cost | −17% | −15% | −27% |
+| Large projects: tokens read | −23% | −28% | −25% |
+| Tasks done (without → with) | 54/54 → 54/54 | 54/54 → 54/54 | 54/54 → 53/54 |
+
+Sonnet 5.5 with Karvon's tools did what Opus 5.5 did without them for 60% less, in half the time. On small tasks the
+cost is about the same or a little more (+3% to +17%).
+
 ## Development
 
 ```bash

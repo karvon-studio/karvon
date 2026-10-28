@@ -1,8 +1,52 @@
 # Benchmark: what Karvon's tools save Claude Code in tokens, money and time
 
-Status: the runner is in [`bench/`](../bench/README.md); the first sweep is Opus 5.5 only (October 2026), Sonnet 5.5
-and Haiku 5.5 follow. It is the first step of the document tools: their work starts only if this benchmark shows that
-Karvon's tools pay off (see [Decision](#decision)).
+Status: run on Claude Opus 5.5, Sonnet 5.5 and Haiku 5.5 (October 2026), arms A and B, every task 3 times:
+[the results](#results). The runner is in [`bench/`](../bench/README.md). It is the first step of the document tools:
+their work starts only if this benchmark shows that Karvon's tools pay off (see [Decision](#decision)).
+
+## Results
+
+October 2026: 18 tasks (T00–T17: the core suite of T01–T12, the calibration T00, the control T13, the containers' T14,
+and three tasks on a large project, Karvon itself: a bug fix T15, a build broken across the solution T16, a feature
+checked by hidden tests T17), arms A and B, 3 times each on each model: 324 runs, none of them the infrastructure's.
+Ratios are B's over A's (below 1.00 is in Karvon's favor); a cost is what the run would cost on the API (the runs were on
+a subscription).
+
+| | Opus 5.5 | Sonnet 5.5 | Haiku 5.5 |
+|---|---|---|---|
+| Tasks done, A → B | 54/54 → 54/54 | 54/54 → 54/54 | 54/54 → 53/54 |
+| Time per task done, A → B | 90 → 66 s | 70 → 45 s | 64 → 59 s |
+| The sessions' time in all, A → B | 81 → 59 min | 63 → 41 min | 58 → 52 min |
+| Cost in all, A → B | $8.16 → $8.15 | $2.99 → $3.26 | $0.32 → $0.30 |
+| Core tasks (T01–T12): cost, tokens read, written | 1.03, 1.21, 0.87 | 1.17, 1.26, 1.16 | 1.03, 1.20, 0.84 |
+| Core tasks: turns, time | 1.28, 0.88 | 1.50, 1.09 | 1.42, 0.96 |
+| Large project (T15–T17): cost | 0.83 | 0.85 | 0.73 (0.49–0.92) |
+| Large project: tokens read, written | 0.77, 0.79 | 0.72, 0.86 | 0.75, 0.77 (0.56–0.95) |
+| T15 (the bug fix): tokens read, cost, time | 264K → 144K, 0.72, 0.62 | 246K → 141K, 0.69, 0.43 | 291K → 184K, 0.60, 0.59 |
+| Tokens read / written in all, A | 7.29M / 87.8K | 5.83M / 59.1K | 9.61M / 153.7K |
+| Tokens read / written in all, B | 8.31M / 80.8K | 6.74M / 61.9K | 10.08M / 132.8K |
+
+The geometric means are over the tasks, with 95% bootstrap intervals in each sweep's report; the two in parentheses are
+the intervals that end below 1.0. What it says:
+
+- **The larger the project, the more Karvon's tools save**, on every model: on a large project about a quarter fewer
+  tokens and 15–27% less money, and on T15 38–57% less time. A tool's answer (a test's failure, a build's errors, a
+  declaration) puts less in the context than a shell command's output, and only the failed tests run again.
+- **On small tasks they save time, not money**: about as many tokens are written, and more are read, as a session makes
+  more, smaller turns (each reads the context again, from the cache).
+- **A smaller model with them does a larger one's work**: Sonnet 5.5 with them did Opus 5.5's tasks (without them) for
+  60% less, in half the time; Haiku 5.5 for 96% less, with one task of 54 missed.
+- Before the second Opus sweep, Karvon's six common tools were made always loaded (Claude Code had deferred them behind
+  its tool search, a turn of its own before the first call: 51 of 314 calls in the first sweep) and its prompt half as
+  long: B's extra cost on the core tasks went from +19% to +3%.
+- Haiku's one miss (T10, Go): Karvon's Go build left the tests out, so the build passed with a test that no longer
+  compiled. Its build is now go build and go vet.
+
+**The decision** (as agreed below): on the core tasks B's cost per task done is 0.98 on Opus, 1.14 on Sonnet and 1.10 on
+Haiku, above 0.80 on every model: not a go by cost. By time it is 0.85, 1.08 and 0.94, not at most 0.80 on two models.
+So it is in between: the large projects' tasks, the code questions and the builds are where the tools pay off; the
+containers (T14), TypeScript (T08) and the small runtime task (T05 on Opus and Sonnet) are where they cost the most.
+The tasks are easy for all three models (one miss in 324 runs), so the success rates cannot tell the arms apart yet.
 
 ## The question
 
@@ -277,6 +321,10 @@ If the decision is go:
    the upstream MCP server as it is, and the forks' tools through Karvon.
 
 ## Steps
+
+Done in October 2026, as [the results](#results) say: the runner, the image, the tasks (and T15–T17 on a large
+project), the pilot, and the sweeps on the three models (arms A and B, 3 times). Left: arm C, 5 repetitions, and harder
+tasks, which the models do not all get right.
 
 1. The runner, the image, T00–T02 and the report (`bench/`).
 2. The pilot: T00–T02, all three models, A and B, twice each (36 runs). It checks the runner and measures
