@@ -1,0 +1,9 @@
+{
+  "id": "T00",
+  "category": "calibration",
+  "fixture": "empty",
+  "open": ".",
+  "prompt": "Reply with OK.",
+  "maxTurns": 40,
+  "maxMinutes": 15
+}

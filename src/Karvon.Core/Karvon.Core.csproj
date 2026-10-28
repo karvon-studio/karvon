@@ -7,6 +7,7 @@
   </PropertyGroup>
   <ItemGroup>
     <InternalsVisibleTo Include="Karvon.Tests" />
+    <InternalsVisibleTo Include="Karvon.Bench" />
     <AvaloniaResource Include="Assets\**" Exclude="Assets\MaterialIcons\**" />
     <!-- Material Icon Theme (MIT): file and folder icons for Solution Explorer, read with GetManifestResourceStream. -->
     <EmbeddedResource Include="Assets\MaterialIcons\icons\*.svg" LogicalName="MaterialIcons/icons/%(Filename)%(Extension)" />

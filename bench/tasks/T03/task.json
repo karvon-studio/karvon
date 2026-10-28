@@ -1,0 +1,9 @@
+{
+  "id": "T03",
+  "category": "code question",
+  "fixture": "karvon",
+  "open": "Karvon.slnx",
+  "prompt": "Where is the Ports API key kept, and which code reads and writes it?",
+  "maxTurns": 40,
+  "maxMinutes": 25
+}

@@ -1,7 +1,8 @@
 # Benchmark: what Karvon's tools save Claude Code in tokens, money and time
 
-Status: plan, not run yet (October 2026). It is the first step of the document tools: their work starts
-only if this benchmark shows that Karvon's tools pay off (see [Decision](#decision)).
+Status: the runner is in [`bench/`](../bench/README.md); the first sweep is Opus 5.5 only (October 2026), Sonnet 5.5
+and Haiku 5.5 follow. It is the first step of the document tools: their work starts only if this benchmark shows that
+Karvon's tools pay off (see [Decision](#decision)).
 
 ## The question
 
@@ -57,16 +58,17 @@ comparison uses is the CLI's own `total_cost_usd`.
 - second sweep, optional: all three at `medium`, set per session as Karvon's effort slider sets it
   (`effortLevel`), to compare the models at the same depth.
 
-**Billing.** The runs use an API key of a Console workspace of their own, not a Claude subscription: a
-subscription's limits would stop long sweeps halfway, and the workspace's spend is then the benchmark's
-alone to check against the sum of `total_cost_usd`.
+**Billing.** The first sweep runs on the user's Claude subscription, with a token of its own made by
+`claude setup-token` (in `~/.config/karvon-bench/oauth-token`; the runs get it in their environment only, never the
+user's login itself, which a run refreshing it could sign out). `total_cost_usd` is then what the runs would cost on
+the API. A run stopped by the subscription's usage limit is the infrastructure's: the sweep waits and runs it again.
 
 ## Tasks
 
 Each task is a folder `bench/tasks/<id>/`:
 
-- `task.yaml`: the prompt (the same in every arm, it never names a tool), the fixture and its commit, the
-  category, at most how many turns and minutes (40 turns and 15 minutes, 25 minutes for T03 and T12);
+- `task.json`: the prompt (the same in every arm, it never names a tool), the fixture, the category, at most
+  how many turns and minutes (40 turns and 15 minutes, 25 minutes for T03 and T12);
 - `setup.sh`: makes the workspace from a clean copy of the fixture (puts the bug in, registers a data
   source, sets a breakpoint...);
 - `check.sh`: after the session, decides pass or fail by itself: the build passes, the tests pass, the
@@ -173,7 +175,10 @@ The transcripts stay beside it (`transcripts/<run>.jsonl`), to see why a run cos
 
 ## Repetitions, cost and duration
 
-The model's answers vary, so every task runs **5 times** in each arm and model:
+**The first sweep** (October 2026): Opus 5.5 only, arms A and B, every task **3 times**: 90 runs, about 3.5 hours
+three at a time and about $38 at API prices. Sonnet 5.5 and Haiku 5.5 follow the same way, and arm C after them.
+
+The full plan: the model's answers vary, so every task runs **5 times** in each arm and model:
 
 | | Runs |
 |---|---|

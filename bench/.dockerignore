@@ -1,0 +1,7 @@
+results/
+Karvon.Bench/bin/
+Karvon.Bench/obj/
+fixtures/*/bin/
+fixtures/*/obj/
+fixtures/*/node_modules/
+fixtures/*/target/

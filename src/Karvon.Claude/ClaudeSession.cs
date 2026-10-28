@@ -76,6 +76,9 @@ public sealed class ClaudeSession : IAsyncDisposable
     /// <summary>Raised on a background thread for everything the CLI reports.</summary>
     public event Action<ClaudeEvent>? Event;
 
+    /// <summary>Raised on a background thread for each JSON line the CLI writes, as it is (the benchmark keeps them).</summary>
+    public event Action<string>? Line;
+
     /// <summary>The initialize response: slash commands, models, account, current permission mode.</summary>
     public JsonElement Initialization { get; private set; }
 
@@ -290,6 +293,7 @@ public sealed class ClaudeSession : IAsyncDisposable
             {
                 if (!line.StartsWith('{'))
                     continue;
+                Line?.Invoke(line);
                 JsonDocument doc;
                 try
                 {

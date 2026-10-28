@@ -8,6 +8,7 @@
   </PropertyGroup>
   <ItemGroup>
     <InternalsVisibleTo Include="Karvon.Tests" />
+    <InternalsVisibleTo Include="Karvon.Bench" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\Karvon.Core\Karvon.Core.csproj" />

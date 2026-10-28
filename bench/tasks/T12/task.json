@@ -1,0 +1,9 @@
+{
+  "id": "T12",
+  "category": "large code question",
+  "fixture": "karvon",
+  "open": "Karvon.slnx",
+  "prompt": "How does a module's Claude tool reach the Claude Code session? List the types it passes through.",
+  "maxTurns": 40,
+  "maxMinutes": 25
+}

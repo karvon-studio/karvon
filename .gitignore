@@ -3,3 +3,7 @@ obj/
 *.user
 .vs/
 .idea/
+# The benchmark's image staging and its runs' results (bench/README.md)
+bench/staging/
+bench/results/
+node_modules/
