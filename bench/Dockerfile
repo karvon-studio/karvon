@@ -35,12 +35,14 @@ COPY --chown=bench:bench staging/images/ /opt/bench-images/
 COPY --chown=bench:bench fixtures/ /bench/fixtures/
 COPY --chown=bench:bench staging/karvon/ /bench/fixtures/karvon/
 COPY --chown=bench:bench tasks/ /bench/tasks/
-COPY entry.sh prepare-fixtures.sh /usr/local/bin/
-RUN chmod +x /usr/local/bin/entry.sh /usr/local/bin/prepare-fixtures.sh /usr/local/bin/claude
+COPY entry.sh prepare-fixtures.sh verify-tasks.sh /usr/local/bin/
+RUN chmod +x /usr/local/bin/entry.sh /usr/local/bin/prepare-fixtures.sh /usr/local/bin/verify-tasks.sh /usr/local/bin/claude
 
 # The fixtures' packages, restored now: a run reaches only Anthropic's API.
 USER bench
 RUN git config --global user.name "Bench" && git config --global user.email "bench@localhost" && git config --global init.defaultBranch main \
     && prepare-fixtures.sh
 USER root
+# What Karvon's headless window draws with (Skia): fontconfig and a font.
+RUN apt-get update && apt-get install -y --no-install-recommends libfontconfig1 fonts-dejavu-core && rm -rf /var/lib/apt/lists/*
 ENTRYPOINT ["/usr/local/bin/entry.sh"]

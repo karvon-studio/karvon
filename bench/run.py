@@ -58,9 +58,10 @@ def docker_run(task, run_id, arm, model, effort, root, token):
                "-v", f"{work}:/work", "-v", f"{out}:/out"]
     if effort:
         command += ["-e", f"EFFORT={effort}"]
-    # T14's compose stack needs a Docker daemon of its own, which needs a privileged container.
+    # T14's compose stack needs a Docker daemon of its own, which needs a privileged container, and its storage on a
+    # volume (overlay on the container's own overlay does not mount).
     if task.get("docker") or task.get("fixture") == "compose":
-        command += ["--privileged", "-e", "BENCH_DOCKER=1"]
+        command += ["--privileged", "-e", "BENCH_DOCKER=1", "-v", "/var/lib/docker"]
     command.append("karvon-bench")
     limit = (task.get("maxMinutes", 15) + 25) * 60
     env = dict(os.environ, CLAUDE_CODE_OAUTH_TOKEN=token)
