@@ -66,6 +66,12 @@ public sealed record ClaudeModeChanged(string Mode) : ClaudeEvent;
 /// <summary>system/bridge_state: how Remote Control's connection to claude.ai is ("connected", "reconnecting", "failed"...).</summary>
 public sealed record ClaudeBridgeState(string State, string? Detail) : ClaudeEvent;
 
+/// <summary>
+/// system/background_tasks_changed: every task Claude runs in the background (a command, an agent) after a change, the
+/// CLI's own housekeeping left out. They run in its CLI, and what they report starts a turn of its own.
+/// </summary>
+public sealed record ClaudeBackgroundTasks(IReadOnlyList<string> Descriptions) : ClaudeEvent;
+
 /// <summary>The end of a turn; <paramref name="ContextTokens"/> is how much context the last model call used.</summary>
 public sealed record ClaudeResult(string Subtype, bool IsError, long DurationMs, double? CostUsd, string? Text, string? SessionId, int? ContextTokens = null)
     : ClaudeEvent;
@@ -115,6 +121,8 @@ public static partial class ClaudeProtocol
                     yield return new ClaudeModeChanged(mode);
                 else if (Str(root, "subtype") is "bridge_state" && Str(root, "state") is { Length: > 0 } state)
                     yield return new ClaudeBridgeState(state, Str(root, "detail"));
+                else if (Str(root, "subtype") is "background_tasks_changed" && root.TryGetProperty("tasks", out var tasks) && tasks.ValueKind == JsonValueKind.Array)
+                    yield return new ClaudeBackgroundTasks([.. tasks.EnumerateArray().Where(t => !Bool(t, "ambient")).Select(t => Str(t, "description") ?? "")]);
                 break;
 
             case "control_cancel_request" when Str(root, "request_id") is { } cancelled:

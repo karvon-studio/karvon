@@ -272,6 +272,7 @@ public sealed partial class ClaudeViewModel : ObservableObject, IAsyncDisposable
             return;
         _resumeId = session.SessionId ?? _resumeId;
         _session = null;
+        _backgroundTasks = 0;
         if (_remoteSession == session)
             ClearRemoteControl();
         await session.DisposeAsync();
@@ -458,6 +459,9 @@ public sealed partial class ClaudeViewModel : ObservableObject, IAsyncDisposable
     /// <summary>Applies one event to the conversation; <paramref name="live"/> is false when replaying a saved transcript.</summary>
     void Apply(ClaudeEvent ev, bool live)
     {
+        // A turn the CLI starts by itself (to take up what a background task reported) is a turn as any other.
+        if (live && !IsRunning && ev is ClaudeBlockStart or ClaudeAssistant { ParentToolUseId: null })
+            BeginTurn();
         switch (ev)
         {
             case ClaudeInit init:
@@ -593,6 +597,10 @@ public sealed partial class ClaudeViewModel : ObservableObject, IAsyncDisposable
                 ApplyRateLimits(limits);
                 break;
 
+            case ClaudeBackgroundTasks tasks when live:
+                _backgroundTasks = tasks.Descriptions.Count;
+                break;
+
             case ClaudeResult result:
                 _resumeId = result.SessionId ?? _resumeId;
                 if (result.ContextTokens is { } contextTokens)
@@ -635,6 +643,7 @@ public sealed partial class ClaudeViewModel : ObservableObject, IAsyncDisposable
 
             case ClaudeExited exited:
                 _session = null;
+                _backgroundTasks = 0;
                 ClearRemoteControl();
                 if (IsRunning || exited.ExitCode != 0)
                 {

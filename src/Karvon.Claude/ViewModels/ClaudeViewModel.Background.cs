@@ -4,18 +4,28 @@ namespace Karvon.ViewModels;
 
 /// <summary>
 /// Conversations left while Claude works on them keep working: opening another conversation (or a new one) moves the
-/// running one to the background with its CLI. What the CLI sends meanwhile waits, in order, and is replayed onto the
-/// conversation as it was left when it is opened again; a question for the user (an approval, a plan) asks for
-/// attention and shows in Past conversations. One that finishes while away lets its CLI go: its transcript then holds
-/// all of it, and opening it again reads that.
+/// running one to the background with its CLI, as it does one whose background tasks (a command, an agent) still run in
+/// its CLI. What the CLI sends meanwhile waits, in order, and is replayed onto the conversation as it was left when it
+/// is opened again; a question for the user (an approval, a plan) asks for attention and shows in Past conversations.
+/// One that finishes while away, with no background task left, lets its CLI go: its transcript then holds all of it,
+/// and opening it again reads that.
 /// </summary>
 public partial class ClaudeViewModel
 {
     readonly List<BackgroundConversation> _background = [];
 
+    /// <summary>How many tasks Claude runs in the background of the conversation shown: they end with its CLI.</summary>
+    int _backgroundTasks;
+
     sealed class BackgroundConversation(ClaudeSession session)
     {
         public ClaudeSession Session { get; } = session;
+
+        /// <summary>Claude was working on it when it was left (else only its background tasks ran).</summary>
+        public bool IsRunning { get; init; }
+
+        /// <summary>How many tasks Claude runs in its background.</summary>
+        public int Tasks { get; set; }
 
         public string? SessionId { get; set; }
 
@@ -50,13 +60,18 @@ public partial class ClaudeViewModel
 
     public bool HasBackground => _background.Count > 0;
 
-    /// <summary>Moves the conversation shown to the background if Claude is working on it; false when it is not.</summary>
+    /// <summary>
+    /// Moves the conversation shown to the background if Claude is working on it or runs tasks in its background; false
+    /// when it does neither.
+    /// </summary>
     bool MoveToBackground()
     {
-        if (_session is not { HasExited: false } session || !IsRunning)
+        if (_session is not { HasExited: false } session || !IsRunning && _backgroundTasks == 0)
             return false;
         _background.Add(new BackgroundConversation(session)
         {
+            IsRunning = IsRunning,
+            Tasks = _backgroundTasks,
             SessionId = session.SessionId ?? _resumeId,
             SessionCwd = _sessionCwd,
             Items = [.. Items],
@@ -70,6 +85,7 @@ public partial class ClaudeViewModel
             RemoteControl = _remoteSession == session ? (RemoteControlState, RemoteControlUrl) : null,
         });
         _session = null;
+        _backgroundTasks = 0;
         if (_remoteSession == session)
             ClearRemoteControl();
         BackgroundChanged();
@@ -85,6 +101,7 @@ public partial class ClaudeViewModel
         _session = conversation.Session;
         _sessionCwd = conversation.SessionCwd;
         _resumeId = conversation.SessionId;
+        _backgroundTasks = conversation.Tasks;
         foreach (var item in conversation.Items)
             Items.Add(item);
         foreach (var (id, tool) in conversation.Tools)
@@ -96,12 +113,15 @@ public partial class ClaudeViewModel
             RemoteControlUrl = url;
             RemoteControlState = state;
         }
-        BeginTurn();
-        _turnStarted = conversation.TurnStarted;
-        _tokens = conversation.Tokens;
-        _thinking = conversation.Thinking;
-        _interrupting = conversation.Interrupting;
-        UpdateStatus();
+        if (conversation.IsRunning)
+        {
+            BeginTurn();
+            _turnStarted = conversation.TurnStarted;
+            _tokens = conversation.Tokens;
+            _thinking = conversation.Thinking;
+            _interrupting = conversation.Interrupting;
+            UpdateStatus();
+        }
         foreach (var ev in conversation.Events)
             Apply(ev, live: true);
         OnPropertyChanged(nameof(SessionId));
@@ -133,6 +153,12 @@ public partial class ClaudeViewModel
             case ClaudeToolResults:
                 // It may have edited files open in the editor.
                 FilesChanged?.Invoke();
+                break;
+            case ClaudeBackgroundTasks tasks:
+                conversation.Tasks = tasks.Descriptions.Count;
+                break;
+            case ClaudeResult when conversation.Tasks > 0:
+                // Done for now, but its background tasks run on in its CLI, and what they report starts a turn of its own.
                 break;
             case ClaudeResult:
                 // Done: its transcript has the whole turn, which is what opening it again shows.

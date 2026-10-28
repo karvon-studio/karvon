@@ -59,4 +59,45 @@ public class ClaudeBackgroundTests
         await vm.DisposeAsync();
         window.Close();
     }
+
+    [AvaloniaFact]
+    public async Task A_conversation_left_while_its_background_task_runs_keeps_it_running()
+    {
+        var (dir, _) = FakeClaude.Workspace();
+        File.WriteAllText(Path.Combine(dir, ".fake-claude-sessions"), "0");
+        var vm = new ClaudeViewModel(new Karvon.Services.Settings(), () => dir, () => null, () => Directory.EnumerateFiles(dir), () => FakeClaude.Executable);
+        await WaitUntil(() => vm.Commands.Count > 0, TimeSpan.FromSeconds(10));
+
+        // Claude's turn is over, but the command it started in the background runs on in its CLI...
+        vm.Prompt = "run the longjob";
+        await vm.SendCommand.ExecuteAsync(null);
+        await WaitUntil(() => !vm.IsRunning && vm.Items.OfType<TextChatItem>().Any(t => t.Text == "It runs in the background."), TimeSpan.FromSeconds(10));
+        var first = vm.SessionId!;
+
+        // ...so opening another conversation leaves that CLI running, in the background.
+        await vm.NewConversationCommand.ExecuteAsync(null);
+        Assert.Equal(1, vm.BackgroundCount);
+        FakeClaude.WriteTranscript(dir, first);
+        vm.ToggleHistoryCommand.Execute(null);
+        await WaitUntil(() => vm.History.Any(h => h.SessionId == first && h.Status == "Working"), TimeSpan.FromSeconds(10));
+
+        // Opened again, it is as it was left: Claude is not working on it.
+        await vm.ResumeConversationCommand.ExecuteAsync(vm.History.Single(h => h.SessionId == first));
+        Assert.Equal(0, vm.BackgroundCount);
+        Assert.False(vm.IsRunning);
+        Assert.Contains(vm.Items.OfType<TextChatItem>(), t => t.Text == "It runs in the background.");
+
+        // The command ends, and Claude takes up what it reported in a turn of its own, which is shown as a turn.
+        File.WriteAllText(Path.Combine(dir, ".fake-claude-job-done"), "");
+        await WaitUntil(() => vm.Items.OfType<TextChatItem>().Any(t => t.Text == "The job finished."), TimeSpan.FromSeconds(10));
+        Assert.True(vm.IsRunning);
+
+        // Left during that turn, it goes on in the background; once it ends, with no task left, its CLI is let go.
+        await vm.NewConversationCommand.ExecuteAsync(null);
+        Assert.Equal(1, vm.BackgroundCount);
+        File.WriteAllText(Path.Combine(dir, ".fake-claude-job-go"), "");
+        await WaitUntil(() => vm.BackgroundCount == 0, TimeSpan.FromSeconds(10));
+        Assert.True(File.Exists(Path.Combine(dir, ".fake-claude-job-finished")));
+        await vm.DisposeAsync();
+    }
 }

@@ -5,12 +5,14 @@ It speaks the same JSON lines as `claude --input-format stream-json --output-for
 control requests, streams text, asks for permission with can_use_tool, and ends turns with a result. Every line
 it receives (and its arguments) is appended to <workspace>.fake-claude.log so tests can check what Karvon sent. What it does
 for a prompt depends on a keyword in it: endpoint (the README screenshot), agent, write, edit, bash, ask, plan,
-background, slow, phone (a prompt then comes from claude.ai, with Remote Control on), bridge (Remote Control drops),
+background, longjob (a command in the background, which ends later), slow, phone (a prompt then comes from claude.ai,
+with Remote Control on), bridge (Remote Control drops),
 karvontools (Karvon's own MCP server: a query, a change, a destructive change); anything else gets a Markdown answer.
 """
 import json
 import os
 import sys
+import threading
 import time
 import uuid
 
@@ -86,9 +88,13 @@ def log(kind, data):
         pass
 
 
+OUT = threading.Lock()
+
+
 def out(obj):
-    sys.stdout.write(json.dumps(obj) + "\n")
-    sys.stdout.flush()
+    with OUT:
+        sys.stdout.write(json.dumps(obj) + "\n")
+        sys.stdout.flush()
 
 
 def read():
@@ -387,6 +393,31 @@ def remote_turn():
     result("ok")
 
 
+def wait_for(name):
+    path = os.path.join(CWD, name)
+    while not os.path.exists(path):
+        time.sleep(0.05)
+
+
+def system(subtype, **fields):
+    out({"type": "system", "subtype": subtype, **fields, "uuid": str(uuid.uuid4()), "session_id": SESSION})
+
+
+JOB = {"task_id": "bjob1", "task_type": "local_bash", "description": "A long job"}
+
+
+def finish_job():
+    """The longjob's command ends once the test lets it (.fake-claude-job-done): Claude Code says so, then takes up its
+    notification in a turn of its own, which ends once the test lets it (.fake-claude-job-go)."""
+    wait_for(".fake-claude-job-done")
+    system("task_notification", task_id=JOB["task_id"], tool_use_id="toolu_job", status="completed", output_file="", summary=JOB["description"])
+    system("background_tasks_changed", tasks=[])
+    stream_text("The job finished.")
+    wait_for(".fake-claude-job-go")
+    result("ok")
+    open(os.path.join(CWD, ".fake-claude-job-finished"), "w").close()
+
+
 def turn(prompt, content, sent=None):
     out({"type": "system", "subtype": "init", "session_id": SESSION, "cwd": CWD, "model": "fake", "permissionMode": "default"})
     if sent is not None and "--replay-user-messages" in ARGS:
@@ -524,6 +555,15 @@ def turn(prompt, content, sent=None):
         result("ok")
         out({"type": "system", "subtype": "bridge_state", "state": "failed", "detail": "The connection to claude.ai was lost",
              "failure_kind": "terminal", "bridge_epoch": 1, "uuid": str(uuid.uuid4()), "session_id": SESSION})
+    elif "longjob" in p:
+        # What Claude Code 2.1.312 says of a command run in the background: the turn ends while it runs.
+        tool_use("toolu_job", "Bash", {"command": "sleep 600", "description": JOB["description"], "run_in_background": True})
+        system("task_started", **JOB, tool_use_id="toolu_job", is_backgrounded=True)
+        system("background_tasks_changed", tasks=[JOB])
+        tool_result("toolu_job", "Command running in background with ID: bjob1")
+        stream_text("It runs in the background.")
+        result("ok")
+        threading.Thread(target=finish_job, daemon=True).start()
     elif "background" in p:
         # Works until the test lets it go on (a .fake-claude-go file), then asks to run a command.
         stream_text("Working on it")
