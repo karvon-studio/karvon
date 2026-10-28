@@ -13,6 +13,8 @@ from pathlib import Path
 
 BENCH = Path(__file__).resolve().parent
 CORE = [f"T{i:02d}" for i in range(1, 13)]
+# The large projects' tasks, reported beside the core ones.
+LARGE = ["T15", "T16", "T17"]
 
 
 def load(root):
@@ -66,7 +68,21 @@ def value(run, key):
         "cacheRead": usage.get("cache_read_input_tokens"),
         "output": usage.get("output_tokens"),
         "resultChars": run.get("resultChars"),
+        # Every token the model read (new, written to the cache, read from it), and what it wrote.
+        "tokensIn": sum(usage.get(k) or 0 for k in ("input_tokens", "cache_creation_input_tokens", "cache_read_input_tokens")) if usage else None,
+        "tokensOut": usage.get("output_tokens"),
     }[key]
+
+
+def tokens(n):
+    """A token count as people say it: 950, 12.3K, 4.56M."""
+    if n is None:
+        return "–"
+    if n >= 1_000_000:
+        return f"{n / 1_000_000:.2f}M"
+    if n >= 1_000:
+        return f"{n / 1_000:.1f}K"
+    return f"{n:.0f}"
 
 
 def median(values):
@@ -144,12 +160,24 @@ def main():
                        f"{fmt(median(value(r, 'output') for r in rs))} | "
                        f"{'$' + fmt(cost / passed, 3) if passed else '–'} | {fmt(secs / passed, 0) if passed else '–'} |")
 
+        out += ["", "### Tokens", "",
+                "What the model read (new input, written to the cache, read from it) and wrote, summed over the arm's runs and per run (median).", "",
+                "| Arm | Runs | Read in all | of it new | cache write | cache read | Written in all | Read per run | Written per run |",
+                "|---|---|---|---|---|---|---|---|---|"]
+        for arm in arms:
+            rs = [r for r in mine if r["arm"] == arm]
+            total = lambda key: sum(value(r, key) or 0 for r in rs)
+            out.append(f"| {arm} | {len(rs)} | {tokens(total('tokensIn'))} | {tokens(total('input'))} | {tokens(total('cacheWrite'))} | "
+                       f"{tokens(total('cacheRead'))} | {tokens(total('tokensOut'))} | {tokens(median(value(r, 'tokensIn') for r in rs))} | "
+                       f"{tokens(median(value(r, 'tokensOut') for r in rs))} |")
+
         by_task = defaultdict(lambda: defaultdict(list))
         for r in mine:
             by_task[r["task"]][r["arm"]].append(r)
         if {"A", "B"} <= set(arms):
             out += ["", "### B against A, task by task (B's median / A's)", "",
-                    "| Task | Category | Passed A | Passed B | Cost | Turns | Time | Tool result chars |", "|---|---|---|---|---|---|---|---|"]
+                    "| Task | Category | Passed A | Passed B | Cost | Turns | Time | Tokens read | Tokens written | Tool result chars | Tokens read A → B (median) |",
+                    "|---|---|---|---|---|---|---|---|---|---|---|"]
             for task in sorted(by_task):
                 a, b = by_task[task]["A"], by_task[task]["B"]
 
@@ -158,12 +186,17 @@ def main():
                     return f"{mb / ma:.2f}" if ma and mb else "–"
                 category = (a or b)[0].get("category")
                 out.append(f"| {task} | {category} | {sum(x['success'] for x in a)}/{len(a)} | {sum(x['success'] for x in b)}/{len(b)} | "
-                           f"{r('cost')} | {r('turns')} | {r('seconds')} | {r('resultChars')} |")
+                           f"{r('cost')} | {r('turns')} | {r('seconds')} | {r('tokensIn')} | {r('tokensOut')} | {r('resultChars')} | "
+                           f"{tokens(median(value(x, 'tokensIn') for x in a))} → {tokens(median(value(x, 'tokensIn') for x in b))} |")
             core = {t: v for t, v in by_task.items() if t in CORE}
-            out += ["", "Over the core tasks (T01–T12), the geometric mean of the ratios, with a 95% bootstrap interval:", ""]
-            for key, label in [("cost", "cost"), ("turns", "turns"), ("seconds", "time"), ("apiSeconds", "model time")]:
-                point, low, high = ratio_ci(core, key)
-                out.append(f"- {label}: {fmt(point)} ({fmt(low)}–{fmt(high)})")
+            large = {t: v for t, v in by_task.items() if t in LARGE}
+            for group, name in [(core, "the core tasks (T01–T12)"), (large, "the large projects' tasks (" + ", ".join(sorted(large)) + ")")]:
+                if not group:
+                    continue
+                out += ["", f"Over {name}, the geometric mean of the ratios, with a 95% bootstrap interval:", ""]
+                for key, label in [("cost", "cost"), ("tokensIn", "tokens read"), ("tokensOut", "tokens written"), ("turns", "turns"), ("seconds", "time"), ("apiSeconds", "model time")]:
+                    point, low, high = ratio_ci(group, key)
+                    out.append(f"- {label}: {fmt(point)} ({fmt(low)}–{fmt(high)})")
 
             def per_done(arm, key):
                 rs = [x for t in core for x in core[t][arm]]

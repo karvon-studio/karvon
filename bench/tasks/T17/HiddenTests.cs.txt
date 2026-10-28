@@ -1,0 +1,33 @@
+using Karvon.Build;
+using Karvon.Lsp;
+
+namespace Karvon.Tests;
+
+/// <summary>The benchmark's check of T17 (not in the workspace during the session).</summary>
+public class BenchHiddenGccTests
+{
+    [Fact]
+    public void Reads_a_gcc_error()
+    {
+        var d = BuildOutputParser.Parse("src/main.c:12:5: error: expected ';' before 'return'")!;
+        Assert.Equal((DiagnosticSeverity.Error, "src/main.c", 12, 5), (d.Severity, d.File, d.Line, d.Column));
+        Assert.Equal("expected ';' before 'return'", d.Message);
+    }
+
+    [Fact]
+    public void Reads_a_clang_warning()
+    {
+        var d = BuildOutputParser.Parse("lib/util.c:3:10: warning: unused variable 'x' [-Wunused-variable]")!;
+        Assert.Equal((DiagnosticSeverity.Warning, "lib/util.c", 3, 10), (d.Severity, d.File, d.Line, d.Column));
+        Assert.StartsWith("unused variable 'x'", d.Message);
+    }
+
+    [Fact]
+    public void Still_reads_msbuild_and_ignores_other_lines()
+    {
+        var d = BuildOutputParser.Parse("/src/App/Program.cs(7,13): error CS1002: ; expected [/src/App/App.csproj]")!;
+        Assert.Equal((DiagnosticSeverity.Error, "CS1002", 7, 13), (d.Severity, d.Code, d.Line, d.Column));
+        Assert.Null(BuildOutputParser.Parse("Build succeeded."));
+        Assert.Null(BuildOutputParser.Parse("  Determining projects to restore..."));
+    }
+}

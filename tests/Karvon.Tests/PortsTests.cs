@@ -85,28 +85,36 @@ public class PortsTests
         Assert.Equal("The tunnel's server closed the connection.", await reason.Task.WaitAsync(TimeSpan.FromSeconds(5)));
 
         // The fake does not ping: quiet past the limit, it is taken as lost.
-        await using var quiet = await JprqTunnel.OpenAsync("127.0.0.1", server.EventPort, new TunnelRequest("tcp", "", "good", "t"), 1, default, silence: TimeSpan.FromSeconds(1.5));
+        await using var quiet = await OpenAgainAsync(server, TimeSpan.FromSeconds(1.5));
         var silent = new TaskCompletionSource<string?>();
         quiet.Closed += r => silent.TrySetResult(r);
         Assert.Equal("The connection to the tunnel's server was lost (no answer).", await silent.Task.WaitAsync(TimeSpan.FromSeconds(6)));
 
-        // Closed here: no reason. (The lost one's name is the server's until it sees that connection go: a moment.)
-        JprqTunnel? closed = null;
-        for (var attempt = 0; closed is null; attempt++)
-        {
-            try
-            {
-                closed = await JprqTunnel.OpenAsync("127.0.0.1", server.EventPort, new TunnelRequest("tcp", "", "good", "t"), 1, default);
-            }
-            catch (JprqException ex) when (ex.Message.StartsWith("subdomain is busy", StringComparison.Ordinal) && attempt < 50)
-            {
-                await Task.Delay(100);
-            }
-        }
+        // Closed here: no reason.
+        var closed = await OpenAgainAsync(server, null);
         var mine = new TaskCompletionSource<string?>();
         closed.Closed += r => mine.TrySetResult(r);
         await closed.DisposeAsync();
         Assert.Null(await mine.Task.WaitAsync(TimeSpan.FromSeconds(5)));
+    }
+
+    /// <summary>
+    /// The same name opened again: the one before is the server's until it sees that connection go, a moment (longer on a
+    /// busy machine), and the server says it is busy until then.
+    /// </summary>
+    static async Task<JprqTunnel> OpenAgainAsync(FakeJprq server, TimeSpan? silence)
+    {
+        for (var attempt = 0; ; attempt++)
+        {
+            try
+            {
+                return await JprqTunnel.OpenAsync("127.0.0.1", server.EventPort, new TunnelRequest("tcp", "", "good", "t"), 1, default, silence: silence);
+            }
+            catch (JprqException ex) when (ex.Message.StartsWith("subdomain is busy", StringComparison.Ordinal) && attempt < 100)
+            {
+                await Task.Delay(100);
+            }
+        }
     }
 
     [AvaloniaFact]

@@ -40,6 +40,10 @@ public class ClaudeIdeToolsTests
         Assert.Equal(66, server.Tools.Count);
         var program = SampleSolution.PathOf(sln, "Web/Program.cs");
 
+        // The tools most sessions use are in the prompt from the start; the rest are behind Claude Code's tool search.
+        var list = (await server.HandleAsync(JsonSerializer.SerializeToElement(new { jsonrpc = "2.0", id = 1, method = "tools/list" }), CancellationToken.None))["result"]!["tools"]!.AsArray();
+        Assert.Equal(KarvonTools.AlwaysLoaded.Order(), list.Where(t => t!["_meta"]?["anthropic/alwaysLoad"]?.GetValue<bool>() == true).Select(t => t!["name"]!.GetValue<string>()).Order());
+
         // The build, as Build > Build Solution, and its errors.
         Assert.Equal("No build has run since Karvon opened the solution; call run_build.", await Text(server, "build_errors", new { }));
         Assert.Matches(@"^Build of BlazorSample\.sln succeeded", await Text(server, "run_build", new { }));

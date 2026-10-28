@@ -13,7 +13,7 @@ namespace Karvon.Claude;
 /// <param name="shellRules">The shell commands these tools do: a session's Bash call of one is sent to them (a hook).</param>
 /// <param name="toolsFirst">Whether the prompt and the rules hold now (a setting, read as each session starts); always by default.</param>
 public sealed class ClaudeToolServer(IReadOnlyList<IClaudeTool> tools, string instructions, string? systemPrompt = null,
-    IReadOnlyList<ClaudeShellRule>? shellRules = null, Func<bool>? toolsFirst = null)
+    IReadOnlyList<ClaudeShellRule>? shellRules = null, Func<bool>? toolsFirst = null, IReadOnlySet<string>? alwaysLoaded = null)
 {
     public const string Name = KarvonToolNames.Server;
 
@@ -75,11 +75,18 @@ public sealed class ClaudeToolServer(IReadOnlyList<IClaudeTool> tools, string in
             case "tools/list":
                 return Result(id, new JsonObject
                 {
-                    ["tools"] = new JsonArray([.. Tools.Select(t => (JsonNode)new JsonObject
+                    ["tools"] = new JsonArray([.. Tools.Select(t =>
                     {
-                        ["name"] = t.Name,
-                        ["description"] = t.Description,
-                        ["inputSchema"] = t.InputSchema.DeepClone(),
+                        var tool = new JsonObject
+                        {
+                            ["name"] = t.Name,
+                            ["description"] = t.Description,
+                            ["inputSchema"] = t.InputSchema.DeepClone(),
+                        };
+                        // In the prompt from the start, not behind Claude Code's tool search (MCP's _meta, as Claude Code reads it).
+                        if (alwaysLoaded?.Contains(t.Name) == true)
+                            tool["_meta"] = new JsonObject { ["anthropic/alwaysLoad"] = true };
+                        return (JsonNode)tool;
                     })]),
                 });
             case "tools/call":

@@ -1,0 +1,9 @@
+{
+  "id": "T17",
+  "category": "large feature",
+  "fixture": "karvon",
+  "open": "Karvon.slnx",
+  "prompt": "The Error List shows nothing for GCC's and Clang's errors and warnings, such as `src/main.c:12:5: error: expected ';' before 'return'` or `lib/util.c:3:10: warning: unused variable 'x' [-Wunused-variable]`. Make `BuildOutputParser.Parse` read them as it reads MSBuild's (severity, file, line, column, message), and add a test for it.",
+  "maxTurns": 40,
+  "maxMinutes": 25
+}

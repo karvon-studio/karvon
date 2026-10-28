@@ -1,0 +1,9 @@
+{
+  "id": "T16",
+  "category": "large build",
+  "fixture": "karvon",
+  "open": "Karvon.slnx",
+  "prompt": "The solution does not build. Fix it.",
+  "maxTurns": 40,
+  "maxMinutes": 25
+}
