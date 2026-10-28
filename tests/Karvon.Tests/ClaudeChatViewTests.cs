@@ -226,4 +226,36 @@ public class ClaudeChatViewTests
         }
         window.Close();
     }
+
+    [AvaloniaFact]
+    public async Task A_compaction_says_so_while_it_runs_and_when_it_fails()
+    {
+        var (dir, _) = FakeClaude.Workspace();
+        var vm = new ClaudeViewModel(new Karvon.Services.Settings(), () => dir, () => null, () => Directory.EnumerateFiles(dir), () => FakeClaude.Executable);
+        await WaitUntil(() => vm.Commands.Count > 0, TimeSpan.FromSeconds(10));
+
+        // While the summary is written, the status line says what Claude is doing (in English and in Uzbek)...
+        var hold = Path.Combine(dir, ".fake-claude-compact-hold");
+        File.WriteAllText(hold, "");
+        await vm.CompactCommand.ExecuteAsync(null);
+        await WaitUntil(() => vm.StatusText.StartsWith("Compacting the conversation... (", StringComparison.Ordinal), TimeSpan.FromSeconds(10));
+        var language = ClaudeLanguage.Instance.Language;
+        ClaudeLanguage.Instance.Language = "uz";
+        Assert.StartsWith("Suhbat ixchamlanmoqda... (", ClaudeLanguage.Instance.Translate(vm.StatusText));
+        ClaudeLanguage.Instance.Language = language;
+
+        // ...and once it is done, the conversation shows where it was compacted.
+        File.Delete(hold);
+        await WaitUntil(() => !vm.IsRunning, TimeSpan.FromSeconds(10));
+        Assert.Contains("the build was fixed", Assert.IsType<CompactChatItem>(vm.Items.Last()).Summary);
+
+        // A compaction that fails says why.
+        vm.Prompt = "/compact fail";
+        await vm.SendCommand.ExecuteAsync(null);
+        await WaitUntil(() => !vm.IsRunning, TimeSpan.FromSeconds(10));
+        var failed = Assert.IsType<NoticeChatItem>(vm.Items.Last());
+        Assert.True(failed.IsError);
+        Assert.Equal("Compacting the conversation failed: Not enough messages to compact.", failed.Text);
+        await vm.DisposeAsync();
+    }
 }

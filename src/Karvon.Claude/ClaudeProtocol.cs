@@ -63,6 +63,12 @@ public sealed record ClaudePermissionCancelled(string RequestId) : ClaudeEvent;
 /// <summary>system/status with a permission mode: the mode changed (from claude.ai, or by an approved plan).</summary>
 public sealed record ClaudeModeChanged(string Mode) : ClaudeEvent;
 
+/// <summary>
+/// system/status of a compaction (/compact, or the CLI's own when the context fills up): <paramref name="Result"/> is null
+/// while it runs, then "success" or "failed" (with <paramref name="Error"/>).
+/// </summary>
+public sealed record ClaudeCompaction(string? Result, string? Error) : ClaudeEvent;
+
 /// <summary>system/bridge_state: how Remote Control's connection to claude.ai is ("connected", "reconnecting", "failed"...).</summary>
 public sealed record ClaudeBridgeState(string State, string? Detail) : ClaudeEvent;
 
@@ -117,8 +123,15 @@ public static partial class ClaudeProtocol
                     yield return new ClaudeNotice("Conversation compacted", IsError: false);
                 else if (Str(root, "subtype") is "thinking_tokens" && root.TryGetProperty("estimated_tokens", out var est) && est.TryGetInt32(out var thinking))
                     yield return new ClaudeTokens(thinking);
-                else if (Str(root, "subtype") is "status" && Str(root, "permissionMode") is { Length: > 0 } mode)
-                    yield return new ClaudeModeChanged(mode);
+                else if (Str(root, "subtype") is "status")
+                {
+                    if (Str(root, "permissionMode") is { Length: > 0 } mode)
+                        yield return new ClaudeModeChanged(mode);
+                    if (Str(root, "compact_result") is { } compacted)
+                        yield return new ClaudeCompaction(compacted, Str(root, "compact_error"));
+                    else if (Str(root, "status") == "compacting")
+                        yield return new ClaudeCompaction(null, null);
+                }
                 else if (Str(root, "subtype") is "bridge_state" && Str(root, "state") is { Length: > 0 } state)
                     yield return new ClaudeBridgeState(state, Str(root, "detail"));
                 else if (Str(root, "subtype") is "background_tasks_changed" && root.TryGetProperty("tasks", out var tasks) && tasks.ValueKind == JsonValueKind.Array)

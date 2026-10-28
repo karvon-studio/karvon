@@ -363,8 +363,14 @@ public sealed class ClaudeLanguage : INotifyPropertyChanged
 
     static readonly (Regex Pattern, Func<Match, string> Replace)[] UzbekPatterns =
     [
-        (new(@"^(Waiting for you|Thinking|Working)\.\.\. \((\d+)s(?: · (.+) tokens)?\)$"), m =>
-            (m.Groups[1].Value switch { "Waiting for you" => "Sizni kutyapti", "Thinking" => "O‘ylayapti", _ => "Ishlayapti" })
+        (new(@"^(Waiting for you|Compacting the conversation|Thinking|Working)\.\.\. \((\d+)s(?: · (.+) tokens)?\)$"), m =>
+            (m.Groups[1].Value switch
+            {
+                "Waiting for you" => "Sizni kutyapti",
+                "Compacting the conversation" => "Suhbat ixchamlanmoqda",
+                "Thinking" => "O‘ylayapti",
+                _ => "Ishlayapti",
+            })
             + $"... ({m.Groups[2].Value}s" + (m.Groups[3].Success ? $" · {m.Groups[3].Value} token)" : ")")),
         (new(@"^Effort \((.+)\)$"), m => $"Fikrlash darajasi ({T(m.Groups[1].Value)})"),
         (new(@"^Read (\d+) lines?$"), m => $"{m.Groups[1].Value} qator o‘qildi"),

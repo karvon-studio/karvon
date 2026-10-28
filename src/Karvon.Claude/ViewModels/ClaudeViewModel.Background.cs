@@ -41,6 +41,8 @@ public partial class ClaudeViewModel
 
         public bool Thinking { get; init; }
 
+        public bool Compacting { get; init; }
+
         public bool Interrupting { get; init; }
 
         public int? ContextTokens { get; init; }
@@ -79,6 +81,7 @@ public partial class ClaudeViewModel
             TurnStarted = _turnStarted,
             Tokens = _tokens,
             Thinking = _thinking,
+            Compacting = _compacting,
             Interrupting = _interrupting,
             ContextTokens = ContextTokens,
             IsWaiting = Items.Any(i => i is PermissionChatItem { IsPending: true } or QuestionChatItem { IsPending: true } or PlanChatItem { IsPending: true }),
@@ -119,6 +122,7 @@ public partial class ClaudeViewModel
             _turnStarted = conversation.TurnStarted;
             _tokens = conversation.Tokens;
             _thinking = conversation.Thinking;
+            _compacting = conversation.Compacting;
             _interrupting = conversation.Interrupting;
             UpdateStatus();
         }

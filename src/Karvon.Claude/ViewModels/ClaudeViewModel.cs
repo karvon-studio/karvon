@@ -41,6 +41,7 @@ public sealed partial class ClaudeViewModel : ObservableObject, IAsyncDisposable
     DateTime _turnStarted;
     int _tokens;
     bool _thinking;
+    bool _compacting;
     bool _interrupting;
     string? _pendingModelCommand;
     bool _changingModeFromCli;
@@ -419,6 +420,7 @@ public sealed partial class ClaudeViewModel : ObservableObject, IAsyncDisposable
         _turnStarted = DateTime.Now;
         _tokens = 0;
         _thinking = false;
+        _compacting = false;
         UpdateStatus();
         _timer.Start();
     }
@@ -426,6 +428,7 @@ public sealed partial class ClaudeViewModel : ObservableObject, IAsyncDisposable
     void EndTurn()
     {
         IsRunning = false;
+        _compacting = false;
         _timer.Stop();
         StatusText = "";
         CompactCommand.NotifyCanExecuteChanged();
@@ -437,7 +440,7 @@ public sealed partial class ClaudeViewModel : ObservableObject, IAsyncDisposable
         if (!IsRunning)
             return;
         var waiting = Items.Any(i => i is PermissionChatItem { IsPending: true } or QuestionChatItem { IsPending: true } or PlanChatItem { IsPending: true });
-        var verb = waiting ? "Waiting for you" : _thinking ? "Thinking" : "Working";
+        var verb = waiting ? "Waiting for you" : _compacting ? "Compacting the conversation" : _thinking ? "Thinking" : "Working";
         var seconds = (int)(DateTime.Now - _turnStarted).TotalSeconds;
         StatusText = _tokens > 0 ? $"{verb}... ({seconds}s · {FormatTokens(_tokens)} tokens)" : $"{verb}... ({seconds}s)";
     }
@@ -460,7 +463,7 @@ public sealed partial class ClaudeViewModel : ObservableObject, IAsyncDisposable
     void Apply(ClaudeEvent ev, bool live)
     {
         // A turn the CLI starts by itself (to take up what a background task reported) is a turn as any other.
-        if (live && !IsRunning && ev is ClaudeBlockStart or ClaudeAssistant { ParentToolUseId: null })
+        if (live && !IsRunning && ev is ClaudeBlockStart or ClaudeAssistant { ParentToolUseId: null } or ClaudeCompaction { Result: null })
             BeginTurn();
         switch (ev)
         {
@@ -516,6 +519,8 @@ public sealed partial class ClaudeViewModel : ObservableObject, IAsyncDisposable
 
             case ClaudeBlockStart start:
                 _thinking = start.BlockType == "thinking";
+                // Claude answers again: a compaction that did not say how it ended is over.
+                _compacting = false;
                 if (start.BlockType == "text")
                     Items.Add(new TextChatItem("") { StreamKey = $"{start.MessageId}:{start.Index}" });
                 UpdateStatus();
@@ -599,6 +604,17 @@ public sealed partial class ClaudeViewModel : ObservableObject, IAsyncDisposable
 
             case ClaudeBackgroundTasks tasks when live:
                 _backgroundTasks = tasks.Descriptions.Count;
+                break;
+
+            case ClaudeCompaction compaction when live:
+                // A compaction writes a summary of the whole conversation, which takes a while: the status line says so
+                // meanwhile, and a failure is shown.
+                _compacting = compaction.Result is null;
+                UpdateStatus();
+                if (compaction.Result == "failed")
+                    Items.Add(new NoticeChatItem(compaction.Error is { Length: > 0 } error
+                        ? "Compacting the conversation failed: " + error
+                        : "Compacting the conversation failed.", isError: true));
                 break;
 
             case ClaudeResult result:

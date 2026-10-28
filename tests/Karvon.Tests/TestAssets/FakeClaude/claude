@@ -337,6 +337,9 @@ def subagent_step(parent, tool_id, name, tool_input, result_text):
 def command(text):
     """Slash commands run locally and answer with a synthetic assistant message, as Claude Code 2.1.300 does."""
     name, _, arg = text[1:].partition(" ")
+    if name == "compact":
+        compact(arg)
+        return
     replies = {
         "effort": f"Set effort level to {arg} (this session only)" if arg else "Usage: /effort <low|medium|high|xhigh|max|auto>",
         "model": f"Set model to {arg}" if arg else "Current model: `Fake`",
@@ -346,6 +349,24 @@ def command(text):
     out({"type": "assistant", "message": {"id": next_id(), "model": "<synthetic>", "role": "assistant", "content": [{"type": "text", "text": reply}]},
          "parent_tool_use_id": None, "session_id": SESSION})
     result(reply)
+
+
+def compact(arg):
+    """/compact as Claude Code 2.1.312 sends it: compacting, then how it ended. A test holds it there while a
+    .fake-claude-compact-hold file is there; "/compact fail" fails."""
+    system("status", status="compacting")
+    hold = os.path.join(CWD, ".fake-claude-compact-hold")
+    while os.path.exists(hold):
+        time.sleep(0.05)
+    if arg == "fail":
+        system("status", status=None, compact_result="failed", compact_error="Not enough messages to compact.")
+        result("")
+        return
+    system("status", status=None, compact_result="success")
+    system("compact_boundary", compact_metadata={"trigger": "manual", "pre_tokens": 25000})
+    out({"type": "user", "message": {"role": "user", "content": "The conversation so far: the build was fixed."},
+         "isCompactSummary": True, "parent_tool_use_id": None, "session_id": SESSION})
+    result("")
 
 
 def demo():

@@ -173,6 +173,9 @@ public class ClaudeRemoteControlTests
         Assert.Equal(new ClaudeBridgeState("failed", "gone"), One("""{"type":"system","subtype":"bridge_state","state":"failed","detail":"gone"}"""));
         using (var doc = JsonDocument.Parse("""{"type":"system","subtype":"status","status":"requesting"}"""))
             Assert.Empty(ClaudeProtocol.Parse(doc.RootElement));
+        Assert.Equal(new ClaudeCompaction(null, null), One("""{"type":"system","subtype":"status","status":"compacting"}"""));
+        Assert.Equal(new ClaudeCompaction("failed", "Too few messages"),
+            One("""{"type":"system","subtype":"status","status":null,"compact_result":"failed","compact_error":"Too few messages"}"""));
 
         // A slash command sent from claude.ai comes back expanded; it shows as typed.
         Assert.Equal("/effort high", ClaudeProtocol.PromptText("<command-name>/effort</command-name>\n<command-message>effort</command-message>\n<command-args>high</command-args>"));
