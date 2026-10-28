@@ -34,13 +34,13 @@ public class InlineCompletionTests
 {
     static async Task<(MainViewModel Vm, Window Window, EditorHost Host)> OpenAsync(string text, FakeCompletionsModule module)
     {
-        EditorHost.InlineCompletionDelay = TimeSpan.FromMilliseconds(50);
         var dir = Path.Combine(Path.GetTempPath(), "karvon-inline-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(dir);
         var file = Path.Combine(dir, "notes.txt");
         File.WriteAllText(file, text);
         // Before Karvon's own, whose suggestions the editor would take first.
         var vm = NewViewModel(modules: [module, .. Karvon.BuiltInModules.Create()]);
+        EditorHost.InlineCompletionDelay = TimeSpan.FromMilliseconds(50);
         var window = new MainWindow { DataContext = vm, Width = 1400, Height = 900 };
         window.Show();
         await vm.OpenSolutionAsync(dir);
@@ -151,6 +151,11 @@ public class InlineCompletionTests
         Assert.Equal("Line(x);", InlineSuggestions.Fit("Console.WriteLine(x);", "    Console.Write", ""));
         Assert.Equal("return x;", InlineSuggestions.Fit("    return x;", "    ", ""));
         Assert.Equal("a, b", InlineSuggestions.Fit("a, b)", "f(", ")"));
+        // Its own end closes what it opened: it stays, before what is after the caret.
+        Assert.Equal("string.Join(\", \", items)", InlineSuggestions.Fit("string.Join(\", \", items)", "Console.WriteLine(", ")"));
+        Assert.Equal("x", InlineSuggestions.Fit("x;", "var a = ", ";"));
+        Assert.Equal("hello", InlineSuggestions.Fit("hello\"", "var s = \"", "\""));
+        Assert.Equal("\"hi\"", InlineSuggestions.Fit("\"hi\"", "f(", ")"));
         Assert.Equal("one\ntwo", InlineSuggestions.Fit("one\r\ntwo  \n\n", "", ""));
         Assert.Null(InlineSuggestions.Fit(")", "f(", ")"));
         Assert.Null(InlineSuggestions.Fit("  \n ", "", ""));

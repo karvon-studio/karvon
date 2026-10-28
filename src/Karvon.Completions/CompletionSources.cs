@@ -89,7 +89,13 @@ public sealed class ClaudeCompletionSource(string apiKey, string model, HttpClie
 /// </summary>
 public sealed class OllamaCompletionSource(HttpClient http, string url, string model) : ICompletionSource
 {
-    sealed record Options([property: JsonPropertyName("temperature")] double Temperature, [property: JsonPropertyName("num_predict")] int NumPredict);
+    sealed record Options(
+        [property: JsonPropertyName("temperature")] double Temperature,
+        [property: JsonPropertyName("num_predict")] int NumPredict,
+        [property: JsonPropertyName("num_ctx")] int NumContext);
+
+    /// <summary>The model's context: room for the 10,000 characters a request has and the answer (Ollama's default, 2K or 4K on many, cuts the prompt's start, the template's fill-in-the-middle with it).</summary>
+    const int Context = 8192;
 
     sealed record Request(
         [property: JsonPropertyName("model")] string Model,
@@ -103,7 +109,7 @@ public sealed class OllamaCompletionSource(HttpClient http, string url, string m
     public async Task<string?> CompleteAsync(InlineCompletionRequest request, string path, CancellationToken ct)
     {
         using var reply = await http.PostAsJsonAsync(url.TrimEnd('/') + "/api/generate",
-            new Request(model, request.Prefix, request.Suffix, false, new Options(0.2, 256)), ct);
+            new Request(model, request.Prefix, request.Suffix, false, new Options(0.2, 256, Context)), ct);
         if (!reply.IsSuccessStatusCode)
             throw new HttpRequestException($"Ollama answered {(int)reply.StatusCode}: {(await reply.Content.ReadAsStringAsync(ct)).Trim()}", null, reply.StatusCode);
         var answer = await reply.Content.ReadFromJsonAsync<Response>(ct);

@@ -341,16 +341,18 @@ server starts in a session, Karvon asks to install them, and Ctrl+. on such an i
 
 ## Inline Completions (Tools > Inline Completions)
 
-As you type, a moment after you stop (at a line's end, or before only what closes it: brackets, quotes, a semicolon), a
+Off until you turn them on in Tools > Inline Completions: they send the code around the caret to the provider, on
+your key. As you type, a moment after you stop (at a line's end, or before only what closes it: brackets, quotes, a semicolon), a
 suggestion in gray after the caret: the rest of the line, or the next lines when the caret starts a block or a blank
 line, those under the caret's line and the code after them moved down. **Tab** takes it (one undo step), **Ctrl+Right**
 its next word, **Escape** dismisses it, as do moving the caret and typing something else; typing what it says keeps the
 rest of it. **Alt+\\** asks for one at once. None while IntelliSense's list is open, with several carets or a selection.
-The suggestions come from **Claude** through Anthropic's API (Claude Opus 5.5 by default, or Sonnet 5.5, or Haiku 5.5,
-which answers fastest and costs least; your API key, kept in the system keyring, else ANTHROPIC_API_KEY's), asked with
+The suggestions come from **Claude** through Anthropic's API (Claude Haiku 5.5 by default, which answers fastest and
+costs least, or Sonnet 5.5, or Opus 5.5; your API key, kept in the system keyring, else ANTHROPIC_API_KEY's), asked with
 little thinking and the API's own fallback model when the one asked declines; or from a **local model through Ollama**
 (one that fills in the middle: `ollama pull qwen2.5-coder:1.5b`), so the code stays on the machine. What goes is the
-code around the caret: up to 8,000 characters before it and 2,000 after, with the file's path in the folder. The status
+code around the caret: up to 8,000 characters before it and 2,000 after, with the file's path in the folder; nothing of
+a file that holds secrets (`.env`, `appsettings*.json`, keys, certificates, credentials). The status
 bar says where they come from (and why none came, as Output (Inline Completions) does); clicking it, or Tools > Inline
 Completions, changes that, turns them off, or forgets the key. The settings are in `completions.json` beside Karvon's,
 never the key.

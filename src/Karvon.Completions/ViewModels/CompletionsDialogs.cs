@@ -104,7 +104,8 @@ public sealed partial class CompletionsSettingsDialog : OverlayDialog
 
     public string? Problem =>
         IsClaude && ClaudeModel.Trim().Length == 0 ? "The model: a Claude model's id (claude-opus-5-5)."
-        : IsOllama && !Uri.TryCreate(OllamaUrl.Trim(), UriKind.Absolute, out _) ? "Ollama's address: http://localhost:11434, or where it runs."
+        : IsOllama && !(Uri.TryCreate(OllamaUrl.Trim(), UriKind.Absolute, out var address) && address.Scheme is "http" or "https")
+            ? "Ollama's address, with its http://: http://localhost:11434, or where it runs."
         : IsOllama && OllamaModel.Trim().Length == 0 ? "The model: one Ollama has pulled (ollama pull qwen2.5-coder:1.5b)."
         : null;
 
@@ -113,6 +114,9 @@ public sealed partial class CompletionsSettingsDialog : OverlayDialog
     [RelayCommand]
     void ForgetKey()
     {
+        // Only with the form as it can be saved: a Forget left set would forget the key on a later Save.
+        if (Problem is not null)
+            return;
         Forget = true;
         Key = "";
         Confirm();

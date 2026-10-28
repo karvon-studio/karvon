@@ -73,6 +73,8 @@ public class UiTests
             completions.Keyring = null;
             completions.EnvironmentKey = () => null;
         }
+        // A test that wants suggestions at once says so after this.
+        Karvon.Editor.EditorHost.InlineCompletionDelay = TimeSpan.FromMilliseconds(350);
         vm.Settings.Solutions.Clear();
         vm.Settings.Layout = new();
         // The Claude panel's language is shared by every window: each test starts in English.
