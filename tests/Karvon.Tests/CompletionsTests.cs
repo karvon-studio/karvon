@@ -5,6 +5,7 @@ using Avalonia.Controls;
 using Avalonia.Headless.XUnit;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
+using Bengine.Introspection.Servers;
 using Karvon.Completions;
 using Karvon.Completions.ViewModels;
 using Karvon.Editor;
@@ -110,6 +111,40 @@ public class CompletionsTests
         Assert.Equal(Request.Prefix, json.RootElement.GetProperty("prompt").GetString());
         Assert.Equal(Request.Suffix, json.RootElement.GetProperty("suffix").GetString());
         Assert.False(json.RootElement.GetProperty("stream").GetBoolean());
+        // Room for the whole request: Ollama's default context would cut its start.
+        Assert.Equal(8192, json.RootElement.GetProperty("options").GetProperty("num_ctx").GetInt32());
+    }
+
+    [Fact]
+    public void No_suggestion_is_asked_for_in_a_file_that_holds_secrets()
+    {
+        foreach (var file in new[] { ".env", ".env.local", "prod.env", "appsettings.json", "appsettings.Development.json", "secrets.json", "client_secret.json",
+            "id_rsa", "server.key", "cert.pem", "store.pfx", ".npmrc", "credentials" })
+            Assert.True(CompletionsModule.HoldsSecrets("/w/" + file), file);
+        foreach (var file in new[] { "Program.cs", "app.ts", "package.json", "environment.ts", "keys.py", "README.md" })
+            Assert.False(CompletionsModule.HoldsSecrets("/w/" + file), file);
+    }
+
+    sealed class LockedKeyring : ICredentialStore
+    {
+        public string Name => "Locked";
+        public string? Get(string key) => throw new System.ComponentModel.Win32Exception("The keyring is locked.");
+        public bool Set(string key, string label, string secret) => false;
+        public void Delete(string key) => throw new TimeoutException();
+    }
+
+    [Fact]
+    public void A_keyring_that_does_not_answer_is_no_error_and_is_not_kept_from_being_asked_later()
+    {
+        var secrets = new CompletionSecrets(new LockedKeyring(), () => null);
+        Assert.Null(secrets.ApiKey);
+        // Not read: asked again later (once it is unlocked), not taken as having no key for good.
+        Assert.False(secrets.IsRead);
+        // Kept for the session, though not in the keyring, and said so.
+        Assert.False(secrets.Set("sk-ant-1", keep: true));
+        Assert.Equal("sk-ant-1", secrets.ApiKey);
+        Assert.False(secrets.Forget());
+        Assert.Null(secrets.ApiKey);
     }
 
     [Fact]
@@ -125,7 +160,6 @@ public class CompletionsTests
     [AvaloniaFact]
     public async Task The_module_suggests_from_Claude_in_the_editor_says_its_problems_and_keeps_its_settings()
     {
-        EditorHost.InlineCompletionDelay = TimeSpan.FromMilliseconds(50);
         var status = HttpStatusCode.OK;
         var api = new FakeCompletionsHttp((request, _) => request.RequestUri!.Host == "api.anthropic.com"
             ? status == HttpStatusCode.OK
@@ -136,7 +170,13 @@ public class CompletionsTests
         var file = Path.Combine(dir, "Hello.cs");
         File.WriteAllText(file, "Console\n");
         var vm = NewViewModel();
+        EditorHost.InlineCompletionDelay = TimeSpan.FromMilliseconds(50);
         var completions = vm.Module<CompletionsModule>()!;
+        // Off until turned on: nothing of the code goes anywhere, and nothing shows in the status bar.
+        Assert.False(completions.Settings.Enabled);
+        Assert.False(completions.StatusItem.IsVisible);
+        completions.Settings.Enabled = true;
+        completions.Keyring = null;
         // No key yet: the status bar says so, and nothing is asked.
         Assert.Equal("Inline Completions", completions.StatusItem.Text);
         completions.EnvironmentKey = () => "sk-ant-env";
@@ -173,7 +213,7 @@ public class CompletionsTests
         Assert.True(Named<TextBox>(window, "KeyBox").IsEffectivelyVisible);
         Assert.False(Named<TextBox>(window, "OllamaModelBox").IsEffectivelyVisible);
         Assert.True(dialog.IsClaude);
-        Assert.Equal("claude-opus-5-5", dialog.ClaudeModel);
+        Assert.Equal("claude-haiku-5-5", dialog.ClaudeModel);
         dialog.ProviderIndex = 1;
         dialog.OllamaModel = "qwen2.5-coder:7b";
         dialog.Confirm();

@@ -20,7 +20,8 @@ public enum CompletionProvider
 /// </summary>
 public sealed class CompletionSettings
 {
-    public const string DefaultClaudeModel = "claude-opus-5-5";
+    /// <summary>The fastest and cheapest: a suggestion is asked for at every pause in typing.</summary>
+    public const string DefaultClaudeModel = "claude-haiku-5-5";
     public const string DefaultOllamaUrl = "http://localhost:11434";
     public const string DefaultOllamaModel = "qwen2.5-coder:1.5b";
 
@@ -34,7 +35,8 @@ public sealed class CompletionSettings
         Converters = { new JsonStringEnumConverter(JsonNamingPolicy.CamelCase) },
     };
 
-    public bool Enabled { get; set; } = true;
+    /// <summary>Off until the user turns them on: they send the code around the caret to the provider, on the user's key.</summary>
+    public bool Enabled { get; set; }
 
     public CompletionProvider Provider { get; set; } = CompletionProvider.Claude;
 
@@ -69,55 +71,100 @@ public sealed class CompletionSettings
 
 /// <summary>
 /// Anthropic's API key: in the system keyring when the user keeps it there, else for this session only; without either,
-/// the ANTHROPIC_API_KEY the environment has. Never in a file.
+/// the ANTHROPIC_API_KEY the environment has. Never in a file. The keyring is read once it answers (a locked one is
+/// asked again a while later), off the window's thread (<see cref="ReadAsync"/>): it may wait, or ask the user.
 /// </summary>
 public sealed class CompletionSecrets(ICredentialStore? keyring, Func<string?>? environment = null)
 {
     const string KeyName = "karvon-completions/anthropic";
 
+    /// <summary>How long a keyring that did not answer (locked, timed out) is left alone.</summary>
+    static readonly TimeSpan RetryAfter = TimeSpan.FromSeconds(30);
+
     readonly Func<string?> _environment = environment ?? (() => Environment.GetEnvironmentVariable("ANTHROPIC_API_KEY"));
+    readonly Lock _lock = new();
     string? _session;
     bool _read;
+    DateTime _failedAt = DateTime.MinValue;
 
     public bool HasKeyring => keyring is not null;
+
+    /// <summary>The keyring was read (or there is none): <see cref="ApiKey"/> asks it nothing more.</summary>
+    public bool IsRead => keyring is null || _read;
 
     /// <summary>A key Karvon keeps (the keyring's, or this session's), not the environment's.</summary>
     public bool HasOwnKey => Own() is not null;
 
     public bool HasEnvironmentKey => _environment() is { Length: > 0 };
 
-    public string? ApiKey => Own() ?? (_environment() is { Length: > 0 } key ? key : null);
+    public string? ApiKey => Own() ?? EnvironmentKey();
+
+    /// <summary>The key as far as it is known without asking the keyring: this session's (or the keyring's, read), else the environment's.</summary>
+    public string? KnownKey => _session ?? EnvironmentKey();
+
+    string? EnvironmentKey() => _environment() is { Length: > 0 } key ? key : null;
+
+    /// <summary>The keyring read on a thread of its own.</summary>
+    public Task ReadAsync() => IsRead ? Task.CompletedTask : Task.Run(Own);
 
     string? Own()
     {
-        if (!_read)
+        lock (_lock)
         {
-            _read = true;
-            try
+            if (!_read && keyring is not null && DateTime.UtcNow - _failedAt > RetryAfter)
             {
-                _session ??= keyring?.Get(KeyName) is { Length: > 0 } kept ? kept : null;
+                try
+                {
+                    _session ??= keyring.Get(KeyName) is { Length: > 0 } kept ? kept : null;
+                    _read = true;
+                }
+                // Locked, timed out, not there (D-Bus, Keychain): no key from it now, asked again later.
+                catch (Exception)
+                {
+                    _failedAt = DateTime.UtcNow;
+                }
             }
-            catch (Exception ex) when (ex is InvalidOperationException or TimeoutException)
-            {
-            }
+            return _session;
         }
-        return _session;
     }
 
-    public void Set(string key, bool keep)
+    /// <summary>The key for this session, and kept in the keyring (or no longer there): whether the keyring did as asked.</summary>
+    public bool Set(string key, bool keep)
     {
-        _session = key;
-        _read = true;
-        if (keep)
-            keyring?.Set(KeyName, "Karvon: Anthropic API key (inline completions)", key);
-        else
+        lock (_lock)
+        {
+            _session = key;
+            _read = true;
+        }
+        try
+        {
+            if (keep)
+                return keyring?.Set(KeyName, "Karvon: Anthropic API key (inline completions)", key) == true;
             keyring?.Delete(KeyName);
+            return true;
+        }
+        catch (Exception)
+        {
+            return false;
+        }
     }
 
-    public void Forget()
+    /// <summary>The key gone, from the keyring too: whether the keyring did as asked.</summary>
+    public bool Forget()
     {
-        _session = null;
-        _read = true;
-        keyring?.Delete(KeyName);
+        lock (_lock)
+        {
+            _session = null;
+            _read = true;
+        }
+        try
+        {
+            keyring?.Delete(KeyName);
+            return true;
+        }
+        catch (Exception)
+        {
+            return false;
+        }
     }
 }

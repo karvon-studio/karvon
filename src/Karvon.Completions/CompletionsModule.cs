@@ -105,6 +105,21 @@ public sealed class CompletionsModule : KarvonModule
 
     protected override void Started() => UpdateStatus();
 
+    /// <summary>
+    /// Files whose text holds secrets (.env, appsettings, keys, certificates, credentials): no suggestion is asked for in them, so
+    /// nothing of them leaves the machine.
+    /// </summary>
+    internal static bool HoldsSecrets(string path)
+    {
+        var name = Path.GetFileName(path).ToLowerInvariant();
+        return name == ".env" || name.StartsWith(".env.", StringComparison.Ordinal) || name.EndsWith(".env", StringComparison.Ordinal)
+            || name is ".npmrc" or ".netrc" or ".pgpass" or "credentials" or "credentials.json" || name.StartsWith("id_rsa", StringComparison.Ordinal)
+            || name.StartsWith("id_ed25519", StringComparison.Ordinal) || name.Contains("secret", StringComparison.Ordinal)
+            // Connection strings and their passwords.
+            || name.StartsWith("appsettings", StringComparison.Ordinal) && name.EndsWith(".json", StringComparison.Ordinal)
+            || Path.GetExtension(name) is ".pem" or ".key" or ".pfx" or ".p12" or ".jks" or ".keystore";
+    }
+
     /// <summary>What was made from the settings and the key goes; it is made again as they are now.</summary>
     void Reset()
     {
@@ -117,7 +132,11 @@ public sealed class CompletionsModule : KarvonModule
     /// <summary>A suggestion for a request from where the settings say, or null (off, no key, an error: said in its status and Output).</summary>
     async Task<string?> CompleteAsync(InlineCompletionRequest request, CancellationToken ct)
     {
-        if (!Settings.Enabled || Source() is not { } source)
+        if (!Settings.Enabled || HoldsSecrets(request.FilePath))
+            return null;
+        // The keyring read off the window's thread (it may wait), before the key is wanted.
+        await Secrets.ReadAsync();
+        if (Source() is not { } source)
             return null;
         // The file as the model sees it: its path in the folder open.
         var relative = Workbench.Workspace is { } workspace ? Path.GetRelativePath(workspace, request.FilePath) : "..";
@@ -141,7 +160,9 @@ public sealed class CompletionsModule : KarvonModule
         {
             Problem("Anthropic's rate limit for the key was reached: suggestions come again in a moment.");
         }
-        catch (Exception ex) when (ex is AnthropicException or HttpRequestException or TaskCanceledException or TimeoutException or System.Text.Json.JsonException)
+        // An address HttpClient cannot use (no http://) throws as its own: said as well, never lost.
+        catch (Exception ex) when (ex is AnthropicException or HttpRequestException or TaskCanceledException or TimeoutException or System.Text.Json.JsonException
+            or NotSupportedException or ArgumentException or InvalidOperationException or UriFormatException)
         {
             var why = ex is TaskCanceledException or TimeoutException ? "no answer within 30 seconds" : ex.Message;
             Problem(Settings.Provider == CompletionProvider.Ollama
@@ -190,7 +211,10 @@ public sealed class CompletionsModule : KarvonModule
     {
         var settings = Settings;
         var from = settings.Provider == CompletionProvider.Claude ? "Claude" : "Ollama";
-        var noKey = settings.Provider == CompletionProvider.Claude && Secrets.ApiKey is null;
+        // The keyring is not asked on the window's thread: read on a thread of its own, the status is said again.
+        if (settings.Enabled && settings.Provider == CompletionProvider.Claude && !Secrets.IsRead)
+            _ = ReadKeyThenUpdateAsync();
+        var noKey = settings.Provider == CompletionProvider.Claude && Secrets.KnownKey is null;
         // Turned off, it is out of the way: Tools > Inline Completions turns it on again.
         _status.IsVisible = settings.Enabled;
         _status.Text = noKey ? "Inline Completions" : _problem is not null ? $"{from}: error" : from;
@@ -201,9 +225,17 @@ public sealed class CompletionsModule : KarvonModule
               + (_problem is { } problem ? "\n\n" + problem : "");
     }
 
+    async Task ReadKeyThenUpdateAsync()
+    {
+        await Secrets.ReadAsync();
+        if (Secrets.IsRead)
+            Avalonia.Threading.Dispatcher.UIThread.Post(UpdateStatus);
+    }
+
     /// <summary>Tools > Inline Completions (and the status bar item): on or off, the provider, its model, the key.</summary>
     public async Task ShowSettingsAsync()
     {
+        await Secrets.ReadAsync();
         var dialog = new CompletionsSettingsDialog(Settings, Secrets.HasOwnKey, Secrets.HasKeyring, Secrets.HasEnvironmentKey);
         dialog.OpenSite += Workbench.OpenUrl;
         // Nothing of the module's is made over the window before it is needed.
@@ -225,9 +257,12 @@ public sealed class CompletionsModule : KarvonModule
             Workbench.Status($"Inline Completions' settings were not saved: {ex.Message}");
         }
         if (form.Forget)
-            Secrets.Forget();
-        else if (form.Key.Trim() is { Length: > 0 } key)
-            Secrets.Set(key, form.Keep);
+        {
+            if (!Secrets.Forget())
+                Workbench.Status("The API key could not be taken out of the system keyring (is it locked?): Karvon no longer uses it.");
+        }
+        else if (form.Key.Trim() is { Length: > 0 } key && !Secrets.Set(key, form.Keep))
+            Workbench.Status("The API key was not kept in the system keyring (is it locked?): it is kept for this session only.");
         Reset();
     }
 

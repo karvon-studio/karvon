@@ -25,6 +25,10 @@ public sealed partial class EditorHost
     static readonly IBrush SuggestionForeground = new SolidColorBrush(Color.Parse("#7F7F7F"));
 
     Suggestion? _suggestion;
+
+    /// <summary>The line the suggestion shows in (the last one it showed in, once it is gone): the only line drawn again for it.</summary>
+    DocumentLine? _suggestionLine;
+
     DispatcherTimer? _suggestionTimer;
     CancellationTokenSource? _suggestionCts;
     /// <summary>The document's changes so far: a suggestion that comes after one is for text no longer there.</summary>
@@ -43,7 +47,8 @@ public sealed partial class EditorHost
 
     void InstallInlineCompletion(TextEditor view)
     {
-        view.TextArea.TextView.ElementGenerators.Add(new SuggestionGenerator(this));
+        // Before the other generators: at a line's end the suggestion is at the caret, a lens after it.
+        view.TextArea.TextView.ElementGenerators.Insert(0, new SuggestionGenerator(this));
         // A suggestion's further lines start at the line's start: they bring their own indentation.
         view.Options.InheritWordWrapIndentation = false;
         // The caret moved away (a click, a key): the suggestion goes, and one on its way is no longer wanted. Typing moves
@@ -101,6 +106,11 @@ public sealed partial class EditorHost
             return false;
         var start = Math.Max(0, caret - SuggestionPrefixLength);
         var end = Math.Min(Document.TextLength, caret + SuggestionSuffixLength);
+        // Not half a character (a surrogate pair's), which no JSON can carry.
+        if (start > 0 && char.IsLowSurrogate(Document.GetCharAt(start)))
+            start++;
+        if (end < Document.TextLength && end > caret && char.IsHighSurrogate(Document.GetCharAt(end - 1)))
+            end--;
         var request = new InlineCompletionRequest(FilePath, Document.GetText(start, caret - start), Document.GetText(caret, end - caret));
         var edits = _suggestionEdits;
         var cts = _suggestionCts = new CancellationTokenSource();
@@ -127,6 +137,7 @@ public sealed partial class EditorHost
         // What is typed at its place goes before it.
         anchor.MovementType = AnchorMovementType.AfterInsertion;
         _suggestion = new Suggestion(anchor, text);
+        _suggestionLine = Document.GetLineByOffset(offset);
         RedrawSuggestion();
     }
 
@@ -178,14 +189,11 @@ public sealed partial class EditorHost
         if (_suggestion is not { } shown || part.Length == 0)
             return false;
         var offset = shown.Anchor.Offset;
-        Document.Insert(offset, part.Replace("\n", NewLine));
+        Document.Insert(offset, part.Replace("\n", TextUtilities.GetNewLineFromDocument(Document, Document.GetLineByOffset(offset).LineNumber)));
         Editor.CaretOffset = shown.Anchor.IsDeleted ? offset + part.Length : shown.Anchor.Offset;
         Editor.TextArea.Caret.BringCaretToView();
         return true;
     }
-
-    /// <summary>The document's line break (its first line's), which a suggestion's lines are put in with.</summary>
-    string NewLine => Document.LineCount > 1 && Document.GetLineByNumber(1).DelimiterLength == 2 ? "\r\n" : "\n";
 
     /// <summary>
     /// What is typed at the suggestion's place that it says (its line breaks as the document has them) leaves the rest
@@ -236,7 +244,10 @@ public sealed partial class EditorHost
     void RedrawSuggestion()
     {
         foreach (var view in Views)
-            view.TextArea.TextView.Redraw();
+            if (_suggestionLine is { IsDeleted: false } line)
+                view.TextArea.TextView.Redraw(line);
+            else
+                view.TextArea.TextView.Redraw();
     }
 
     /// <summary>

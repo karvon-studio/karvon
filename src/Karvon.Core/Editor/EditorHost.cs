@@ -832,7 +832,8 @@ public sealed partial class EditorHost : IDisposable, IDebugLineSource
 
     void OnKeyDown(object? sender, KeyEventArgs e)
     {
-        if (OnSuggestionKey(e) || OnMultiCaretKey(e))
+        // A chord's second key is the chord's, even Escape or Tab while a suggestion shows.
+        if (!_chordCtrlK && !_chordCtrlM && OnSuggestionKey(e) || OnMultiCaretKey(e))
         {
             e.Handled = true;
             return;

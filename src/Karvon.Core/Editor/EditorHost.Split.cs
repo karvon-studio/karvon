@@ -31,6 +31,8 @@ public sealed partial class EditorHost
     {
         if (_active == editor || editor != _primary && editor != _second)
             return;
+        // A suggestion is at the caret of the pane it was asked in: it goes with that pane.
+        DismissInlineSuggestion();
         _active = editor;
         CaretMoved?.Invoke();
     }

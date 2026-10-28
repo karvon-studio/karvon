@@ -18,10 +18,27 @@ public static class InlineSuggestions
             text = text[lineBefore.Length..];
         else if (lineBefore.TrimStart() is { Length: >= 2 } typed && text.Length > typed.Length && text.StartsWith(typed, StringComparison.Ordinal))
             text = text[typed.Length..];
-        // What closes the line is there after the caret already: it stays, and the suggestion goes before it.
-        if (lineAfter.Trim() is { Length: > 0 } after && text.EndsWith(after, StringComparison.Ordinal))
+        // What closes the line is there after the caret already: it stays, and the suggestion goes before it; not when
+        // the suggestion's own end closes what it opened itself (string.Join(a, b) before a ")").
+        if (lineAfter.Trim() is { Length: > 0 } after && text.EndsWith(after, StringComparison.Ordinal) && ClosesAgain(text, after))
             text = text[..^after.Length].TrimEnd();
         return string.IsNullOrWhiteSpace(text) ? null : text;
+    }
+
+    /// <summary>
+    /// The suggestion's end closes again what is closed after the caret: more of a closing bracket in it than of its
+    /// opening one, a quote left open, or a separator (; ,) written twice.
+    /// </summary>
+    static bool ClosesAgain(string text, string after)
+    {
+        int Count(char c) => text.Count(x => x == c);
+        foreach (var (open, close) in new[] { ('(', ')'), ('[', ']'), ('{', '}') })
+            if (after.Contains(close) && Count(close) > Count(open))
+                return true;
+        foreach (var quote in "'\"`")
+            if (after.Contains(quote) && Count(quote) % 2 == 1)
+                return true;
+        return after.All(c => c is ';' or ',' || char.IsWhiteSpace(c));
     }
 
     /// <summary>
