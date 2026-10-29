@@ -228,6 +228,32 @@ public class ClaudeChatViewTests
     }
 
     [AvaloniaFact]
+    public async Task A_long_question_and_its_options_wrap_inside_the_card()
+    {
+        var (dir, _) = FakeClaude.Workspace();
+        var vm = new ClaudeViewModel(new Karvon.Services.Settings(), () => dir, () => null, () => [], () => FakeClaude.Executable);
+        var window = new Window { Width = 480, Height = 700, Content = new ClaudeView { DataContext = vm } };
+        window.Show();
+        var question = string.Join(" ", Enumerable.Repeat("The report counts every record of the category, members of both programs too.", 3));
+        var label = string.Join(" ", Enumerable.Repeat("Count them separately", 6));
+        using var input = JsonDocument.Parse("{}");
+        vm.Items.Add(new QuestionChatItem(new ClaudePermissionRequest("q1", "AskUserQuestion", null, input.RootElement.Clone(), null, [], null),
+            [new QuestionEntry(question, "Reports", false, [new QuestionOption(label, "A description."), new QuestionOption("Keep it", null)])]));
+        await WaitUntil(() => false, TimeSpan.FromMilliseconds(300));
+
+        // Each is as wide as the card at most, on several lines.
+        var card = window.GetVisualDescendants().OfType<Border>().First(b => b.Classes.Contains("card") && b.DataContext is QuestionChatItem);
+        foreach (var text in new[] { question, label })
+        {
+            var block = window.GetVisualDescendants().OfType<TextBlock>().Single(t => t.Text == text);
+            var right = block.TranslatePoint(new Point(block.Bounds.Width, 0), card)!.Value.X;
+            Assert.True(right <= card.Bounds.Width, $"'{text[..20]}...' ends at {right}, past the card's {card.Bounds.Width}.");
+            Assert.True(block.Bounds.Height > block.FontSize * 2, $"'{text[..20]}...' is on one line ({block.Bounds.Height}).");
+        }
+        window.Close();
+    }
+
+    [AvaloniaFact]
     public async Task A_compaction_says_so_while_it_runs_and_when_it_fails()
     {
         var (dir, _) = FakeClaude.Workspace();
