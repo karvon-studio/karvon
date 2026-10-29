@@ -62,7 +62,13 @@ public class DotNetConsoleTests
             Assert.True(console.ReadText().Contains("Name? ", StringComparison.Ordinal), vm.DebugOutput.Document.Text + "\n" + console.ReadText());
             Assert.Same(console, vm.ShownTerminal);
             Assert.Equal("app", vm.TerminalTitle);
-            Type(console, "Bob\r");
+            // A Backspace too: .NET asks the terminal where the cursor is then, and reads what is typed on once it answers.
+            Type(console, "Bobx");
+            await WaitUntil(() => console.ReadText().Contains("Bobx", StringComparison.Ordinal), TimeSpan.FromSeconds(10));
+            Type(console, "\x7f");
+            await WaitUntil(() => !console.ReadText().Contains("Bobx", StringComparison.Ordinal), TimeSpan.FromSeconds(5));
+            Assert.DoesNotContain("Bobx", console.ReadText());
+            Type(console, "\r");
             await run.WaitAsync(TimeSpan.FromSeconds(30));
             Assert.Contains("Hello, Bob!", console.ReadText());
             Assert.Contains("The program 'app' has exited with code 0", vm.DebugOutput.Document.Text);

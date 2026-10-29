@@ -40,6 +40,9 @@ public sealed class TerminalSession : IAsyncDisposable
             ColorScheme = VsDarkTheme(),
         };
         _adapter = CreateAdapter();
+        // The terminal's answers to what the program asks it (where the cursor is, what terminal it is), to the program:
+        // .NET's Console.ReadLine asks where the cursor is at a Backspace, and reads nothing typed until it is told.
+        Control.Output += (_, data) => _adapter.Send(data.Span);
         Control.Resized += (_, size) =>
         {
             _size = size;
