@@ -28,6 +28,8 @@ public sealed class CompletionsModule : KarvonModule
     ICompletionSource? _source;
     string? _sourceFor;
     string? _problem;
+    /// <summary>Ollama is loading the model: the first suggestion waits for it.</summary>
+    bool _modelLoading;
     OutputChannel? _output;
 
     public CompletionsModule() => _status.Click = () => _ = ShowSettingsAsync();
@@ -134,8 +136,9 @@ public sealed class CompletionsModule : KarvonModule
     {
         if (!Settings.Enabled || HoldsSecrets(request.FilePath))
             return null;
-        // The keyring read off the window's thread (it may wait), before the key is wanted.
-        await Secrets.ReadAsync();
+        // The keyring read off the window's thread (it may wait), before the key is wanted; Ollama wants none.
+        if (Settings.Provider == CompletionProvider.Claude)
+            await Secrets.ReadAsync();
         if (Source() is not { } source)
             return null;
         // The file as the model sees it: its path in the folder open.
@@ -185,10 +188,24 @@ public sealed class CompletionsModule : KarvonModule
             return null;
         if (key != _sourceFor)
         {
-            _source = settings.Provider == CompletionProvider.Ollama
-                ? new OllamaCompletionSource(Http, settings.OllamaUrl, settings.OllamaModel)
-                : new ClaudeCompletionSource(Secrets.ApiKey!, settings.ClaudeModel, Http);
+            if (settings.Provider == CompletionProvider.Ollama)
+            {
+                var ollama = new OllamaCompletionSource(Http, settings.OllamaUrl, settings.OllamaModel);
+                ollama.Loading += loading => Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+                {
+                    if (_source != ollama)
+                        return;
+                    _modelLoading = loading;
+                    UpdateStatus();
+                });
+                _source = ollama;
+            }
+            else
+            {
+                _source = new ClaudeCompletionSource(Secrets.ApiKey!, settings.ClaudeModel, Http);
+            }
             _sourceFor = key;
+            _modelLoading = false;
         }
         return _source;
     }
@@ -217,11 +234,13 @@ public sealed class CompletionsModule : KarvonModule
         var noKey = settings.Provider == CompletionProvider.Claude && Secrets.KnownKey is null;
         // Turned off, it is out of the way: Tools > Inline Completions turns it on again.
         _status.IsVisible = settings.Enabled;
-        _status.Text = noKey ? "Inline Completions" : _problem is not null ? $"{from}: error" : from;
+        var loading = _modelLoading && settings.Provider == CompletionProvider.Ollama;
+        _status.Text = noKey ? "Inline Completions" : loading ? $"{from}: loading" : _problem is not null ? $"{from}: error" : from;
         _status.ToolTip = noKey
             ? "Inline completions need Anthropic's API key, or a local model through Ollama: click to set them up."
             : $"Inline completions from {from} ({settings.Model}): Tab takes a suggestion, Ctrl+Right its next word, Esc dismisses it, "
               + "Alt+\\ asks for one. Click to change."
+              + (loading ? $"\n\nOllama is loading {settings.Model}: the first suggestion comes once it is loaded." : "")
               + (_problem is { } problem ? "\n\n" + problem : "");
     }
 

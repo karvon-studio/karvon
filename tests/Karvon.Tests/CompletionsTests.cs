@@ -104,7 +104,7 @@ public class CompletionsTests
         var source = new OllamaCompletionSource(new HttpClient(ollama), "http://localhost:11434/", "qwen2.5-coder:1.5b");
 
         Assert.Equal("WriteLine();", await source.CompleteAsync(Request, "src/Hello.cs", TestContext.Current.CancellationToken));
-        var (request, body) = Assert.Single(ollama.Requests);
+        var (request, body) = Assert.Single(ollama.Requests, r => r.Body.Contains("\"prompt\"", StringComparison.Ordinal));
         Assert.Equal("http://localhost:11434/api/generate", request.RequestUri!.ToString());
         using var json = JsonDocument.Parse(body);
         Assert.Equal("qwen2.5-coder:1.5b", json.RootElement.GetProperty("model").GetString());
@@ -113,6 +113,79 @@ public class CompletionsTests
         Assert.False(json.RootElement.GetProperty("stream").GetBoolean());
         // Room for the whole request: Ollama's default context would cut its start.
         Assert.Equal(8192, json.RootElement.GetProperty("options").GetProperty("num_ctx").GetInt32());
+    }
+
+    [Fact]
+    public async Task Ollama_loads_the_model_in_a_request_of_its_own_that_typing_does_not_cancel()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var loaded = false;
+        using var release = new ManualResetEventSlim();
+        var ollama = new FakeCompletionsHttp((request, body) =>
+        {
+            if (request.RequestUri!.AbsolutePath == "/api/ps")
+                return FakeCompletionsHttp.Json(loaded ? """{"models":[{"name":"qwen2.5-coder:latest","model":"qwen2.5-coder:latest","context_length":8192}]}""" : """{"models":[]}""");
+            if (!body.Contains("\"prompt\"", StringComparison.Ordinal))
+            {
+                // Loading a model takes a while.
+                release.Wait(TimeSpan.FromSeconds(10));
+                loaded = true;
+                return FakeCompletionsHttp.Json("""{"model":"qwen2.5-coder:1.5b","response":"","done":true,"done_reason":"load"}""");
+            }
+            return FakeCompletionsHttp.Json("""{"response":"WriteLine();","done":true,"done_reason":"stop"}""");
+        });
+        var source = new OllamaCompletionSource(new HttpClient(ollama), "http://localhost:11434", "qwen2.5-coder");
+        var states = new List<bool>();
+        source.Loading += loading =>
+        {
+            lock (states)
+                states.Add(loading);
+        };
+        List<string> Asked()
+        {
+            lock (ollama.Requests)
+                return [.. ollama.Requests.Select(r => r.Request.RequestUri!.AbsolutePath + (r.Body.Contains("\"prompt\"", StringComparison.Ordinal) ? " prompt" : ""))];
+        }
+
+        // The model is not loaded: the first suggestion waits for its load, and typing on cancels it; the load goes on.
+        using var typing = new CancellationTokenSource();
+        var first = source.CompleteAsync(Request, "src/Hello.cs", typing.Token);
+        for (var i = 0; i < 200 && Asked().Count < 2; i++)
+            await Task.Delay(25, ct);
+        typing.Cancel();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => first);
+        // The next one waits for the same load, then is answered.
+        var second = source.CompleteAsync(Request, "src/Hello.cs", ct);
+        release.Set();
+        Assert.Equal("WriteLine();", await second);
+        Assert.Equal(["/api/ps", "/api/generate", "/api/generate prompt"], Asked());
+        using (var load = JsonDocument.Parse(ollama.Requests[1].Body))
+        {
+            Assert.Equal("qwen2.5-coder", load.RootElement.GetProperty("model").GetString());
+            Assert.Equal("30m", load.RootElement.GetProperty("keep_alive").GetString());
+            Assert.Equal(8192, load.RootElement.GetProperty("options").GetProperty("num_ctx").GetInt32());
+        }
+        lock (states)
+            Assert.Equal([true, false], states);
+
+        // Loaded (qwen2.5-coder is Ollama's qwen2.5-coder:latest): no load again.
+        Assert.Equal("WriteLine();", await source.CompleteAsync(Request, "src/Hello.cs", ct));
+        Assert.Equal(["/api/ps", "/api/generate", "/api/generate prompt", "/api/ps", "/api/generate prompt"], Asked());
+    }
+
+    [Fact]
+    public async Task Ollama_uses_the_model_as_another_app_loaded_it_with_more_context()
+    {
+        var ollama = new FakeCompletionsHttp((request, _) => request.RequestUri!.AbsolutePath == "/api/ps"
+            ? FakeCompletionsHttp.Json("""{"models":[{"name":"qwen2.5-coder:latest","model":"qwen2.5-coder:latest","context_length":32768}]}""")
+            : FakeCompletionsHttp.Json("""{"response":"WriteLine();","done":true,"done_reason":"stop"}"""));
+        var source = new OllamaCompletionSource(new HttpClient(ollama), "http://localhost:11434", "qwen2.5-coder");
+
+        Assert.Equal("WriteLine();", await source.CompleteAsync(Request, "src/Hello.cs", TestContext.Current.CancellationToken));
+        // Another context would load it again.
+        var (_, body) = Assert.Single(ollama.Requests, r => r.Request.RequestUri!.AbsolutePath == "/api/generate");
+        using var json = JsonDocument.Parse(body);
+        Assert.Equal(32768, json.RootElement.GetProperty("options").GetProperty("num_ctx").GetInt32());
     }
 
     [Fact]

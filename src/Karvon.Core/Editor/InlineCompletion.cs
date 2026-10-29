@@ -18,11 +18,37 @@ public static class InlineSuggestions
             text = text[lineBefore.Length..];
         else if (lineBefore.TrimStart() is { Length: >= 2 } typed && text.Length > typed.Length && text.StartsWith(typed, StringComparison.Ordinal))
             text = text[typed.Length..];
+        // A line less indented than the caret's ends the block the caret is in, and the code after the caret has that end
+        // already (the method's closing brace, the next member): a model often writes it, and the rest of the file, again.
+        var lines = text.Split('\n');
+        var indentation = Indentation(lineBefore);
+        for (var i = 1; i < lines.Length; i++)
+            if (lines[i].Trim().Length > 0 && Indentation(lines[i]) < indentation)
+            {
+                text = string.Join("\n", lines[..i]).TrimEnd();
+                break;
+            }
         // What closes the line is there after the caret already: it stays, and the suggestion goes before it; not when
         // the suggestion's own end closes what it opened itself (string.Join(a, b) before a ")").
         if (lineAfter.Trim() is { Length: > 0 } after && text.EndsWith(after, StringComparison.Ordinal) && ClosesAgain(text, after))
             text = text[..^after.Length].TrimEnd();
         return string.IsNullOrWhiteSpace(text) ? null : text;
+    }
+
+    /// <summary>A line's indentation in columns (a tab is four).</summary>
+    static int Indentation(string line)
+    {
+        var columns = 0;
+        foreach (var c in line)
+        {
+            if (c == ' ')
+                columns++;
+            else if (c == '\t')
+                columns += 4;
+            else
+                break;
+        }
+        return columns;
     }
 
     /// <summary>

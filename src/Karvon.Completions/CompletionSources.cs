@@ -97,22 +97,83 @@ public sealed class OllamaCompletionSource(HttpClient http, string url, string m
     /// <summary>The model's context: room for the 10,000 characters a request has and the answer (Ollama's default, 2K or 4K on many, cuts the prompt's start, the template's fill-in-the-middle with it).</summary>
     const int Context = 8192;
 
+    /// <summary>How long Ollama keeps the model loaded after a request (its default is 5 minutes); another model that needs the memory still takes it.</summary>
+    const string KeepAlive = "30m";
+
     sealed record Request(
         [property: JsonPropertyName("model")] string Model,
         [property: JsonPropertyName("prompt")] string Prompt,
         [property: JsonPropertyName("suffix")] string Suffix,
         [property: JsonPropertyName("stream")] bool Stream,
+        [property: JsonPropertyName("keep_alive")] string KeepAlive,
+        [property: JsonPropertyName("options")] Options Options);
+
+    /// <summary>A request with no prompt: Ollama loads the model, and answers once it is loaded.</summary>
+    sealed record LoadRequest(
+        [property: JsonPropertyName("model")] string Model,
+        [property: JsonPropertyName("keep_alive")] string KeepAlive,
         [property: JsonPropertyName("options")] Options Options);
 
     sealed record Response([property: JsonPropertyName("response")] string? Text, [property: JsonPropertyName("done_reason")] string? DoneReason);
 
+    sealed record Running([property: JsonPropertyName("models")] List<RunningModel>? Models);
+
+    sealed record RunningModel(
+        [property: JsonPropertyName("name")] string? Name,
+        [property: JsonPropertyName("model")] string? Model,
+        [property: JsonPropertyName("context_length")] int ContextLength);
+
+    readonly Lock _lock = new();
+    Task<int>? _loading;
+
+    /// <summary>Raised when Ollama starts loading the model (true), and when it is done (false); on a thread of the pool.</summary>
+    public event Action<bool>? Loading;
+
     public async Task<string?> CompleteAsync(InlineCompletionRequest request, string path, CancellationToken ct)
     {
+        var context = await LoadedAsync(ct);
         using var reply = await http.PostAsJsonAsync(url.TrimEnd('/') + "/api/generate",
-            new Request(model, request.Prefix, request.Suffix, false, new Options(0.2, 256, Context)), ct);
+            new Request(model, request.Prefix, request.Suffix, false, KeepAlive, new Options(0.2, 256, context)), ct);
         if (!reply.IsSuccessStatusCode)
             throw new HttpRequestException($"Ollama answered {(int)reply.StatusCode}: {(await reply.Content.ReadAsStringAsync(ct)).Trim()}", null, reply.StatusCode);
         var answer = await reply.Content.ReadFromJsonAsync<Response>(ct);
         return CompletionText.Clean(answer?.Text, truncated: answer?.DoneReason == "length");
     }
+
+    /// <summary>
+    /// The model loaded, with the context its requests use. Loading one takes seconds (more when another model has to make
+    /// room), and a request that loads it cancels the load when it is cancelled, which typing does to each one: the load
+    /// is a request of its own, one at a time, that only Ollama ends; a request no longer wanted stops waiting for it.
+    /// </summary>
+    async Task<int> LoadedAsync(CancellationToken ct)
+    {
+        Task<int> loading;
+        lock (_lock)
+            loading = _loading is { IsCompleted: false } running ? running : _loading = Task.Run(LoadAsync);
+        return await loading.WaitAsync(ct);
+    }
+
+    async Task<int> LoadAsync()
+    {
+        var running = await http.GetFromJsonAsync<Running>(url.TrimEnd('/') + "/api/ps");
+        // Loaded with room enough (by another app too): used as it is, as another context would load it again.
+        if (running?.Models?.FirstOrDefault(m => IsThisModel(m.Name) || IsThisModel(m.Model)) is { ContextLength: >= Context } loaded)
+            return loaded.ContextLength;
+        Loading?.Invoke(true);
+        try
+        {
+            using var reply = await http.PostAsJsonAsync(url.TrimEnd('/') + "/api/generate", new LoadRequest(model, KeepAlive, new Options(0.2, 256, Context)));
+            if (!reply.IsSuccessStatusCode)
+                throw new HttpRequestException($"Ollama answered {(int)reply.StatusCode}: {(await reply.Content.ReadAsStringAsync()).Trim()}", null, reply.StatusCode);
+            return Context;
+        }
+        finally
+        {
+            Loading?.Invoke(false);
+        }
+    }
+
+    /// <summary>Ollama's name of a model, with its tag (qwen2.5-coder is qwen2.5-coder:latest).</summary>
+    bool IsThisModel(string? name) =>
+        name is not null && (name == model || name == model + ":latest" || model == name + ":latest");
 }

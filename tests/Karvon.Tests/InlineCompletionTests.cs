@@ -157,6 +157,11 @@ public class InlineCompletionTests
         Assert.Equal("hello", InlineSuggestions.Fit("hello\"", "var s = \"", "\""));
         Assert.Equal("\"hi\"", InlineSuggestions.Fit("\"hi\"", "f(", ")"));
         Assert.Equal("one\ntwo", InlineSuggestions.Fit("one\r\ntwo  \n\n", "", ""));
+        // The end of the block the caret is in, and what follows it, are after the caret already: a model's copy of them goes.
+        Assert.Equal("result = a + b;", InlineSuggestions.Fit("result = a + b;\n    }\n}\n\nclass Program\n{", "        ", ""));
+        Assert.Equal("return 1\n\n    # done", InlineSuggestions.Fit("return 1\n\n    # done\ndef other():\n    pass", "    ", ""));
+        // A block of its own, closed at the caret's indentation, stays.
+        Assert.Equal("\n        y();\n    }", InlineSuggestions.Fit("\n        y();\n    }", "    if (x) {", ""));
         Assert.Null(InlineSuggestions.Fit(")", "f(", ")"));
         Assert.Null(InlineSuggestions.Fit("  \n ", "", ""));
         Assert.True(InlineSuggestions.FitsBefore(");"));
