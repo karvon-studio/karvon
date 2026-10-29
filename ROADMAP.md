@@ -107,6 +107,28 @@ Each language is a module (in now unless it says next):
 Then a Windows release: a per-user installer and a `.zip`, not signed (in now: the release workflow makes them; the
 first release with them is next).
 
+## 5. What Claude's tools may do
+
+Secrets already stay out of Claude's reach: the keyring, the tools' own connections, redaction. The next boundary is
+what an authenticated tool may do, above all in a workspace that is not the user's own (today: a write or a
+destructive call asks through Claude Code's permission prompt, one call at a time; reading, building and testing do
+not ask).
+
+- A policy per tool, enforced by Karvon's tool server rather than by Claude Code's permission mode: allow, ask or deny
+  for each tool and each target (a server, a data source, a port, a cluster), so Bypass permissions, auto mode or an
+  allow rule cannot skip it; destructive calls and production targets always ask.
+- Workspace trust: a folder not trusted yet gets the read-only tools; building, testing and running its code ask; what
+  the repository brings (its `.vs` data sources, `.mcp.json`, `.claude/settings.json` allow rules) is not used until it
+  is trusted.
+- Targets tied to the workspace: `server_exec` reaches the servers the workspace names or the user picks, not every
+  host of `~/.ssh/config`.
+- An audit trail per session: each call requested, what decided it (the user, a mode, a rule, the policy) and what ran
+  (when, its exit, its output's size, what was redacted), so what was requested and what was executed can be compared.
+- Negative tests: workspaces whose files, code and test output try to make Claude run a command on a server, write to
+  a database or forward a port, under every permission mode; each attempt is denied or shown to the user.
+- A published permission matrix (`docs/permissions.md`): every tool, its access (read, run, write, destructive), what
+  asks and what refuses, each boundary marked enforced and tested (with the negative test that proves it) or planned.
+
 ## What a language needs to be done
 
 Projects and their dependencies in Solution Explorer (in now: each language's Dependencies, in its project's folder);
