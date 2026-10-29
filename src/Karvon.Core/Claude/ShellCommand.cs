@@ -25,7 +25,7 @@ static class ShellCommand
         string? folder = root;
         foreach (var (text, all) in Commands(command))
         {
-            var words = all.SkipWhile(w => w == "sudo" || IsAssignment(w)).ToList();
+            var words = all.SkipWhile(w => w is "do" or "then" or "else" or "sudo" || IsAssignment(w)).ToList();
             if (words.Count == 0)
                 continue;
             if (words[0] is "cd" or "pushd")

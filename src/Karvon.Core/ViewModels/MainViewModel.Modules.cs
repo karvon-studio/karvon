@@ -142,7 +142,11 @@ public partial class MainViewModel : IWorkbench
 
     Task IWorkbench.ReloadSolutionAsync() => ReloadSolutionAsync();
 
-    Task<bool> IWorkbench.BuildAsync() => RunBuildAsync("build", "Build");
+    /// <summary>Claude's run_tests without a build (noBuild): the tests run as the last build that succeeded left them.</summary>
+    bool _testsWithoutBuild;
+
+    Task<bool> IWorkbench.BuildAsync() =>
+        _testsWithoutBuild && _lastBuild is { Succeeded: true, Verb: not "Clean" } ? Task.FromResult(true) : RunBuildAsync("build", "Build");
 
     Task<bool> IWorkbench.BuildAsync(string verb, Workspace.ProjectInfo project) =>
         RunBuildAsync(verb, verb.Length > 0 ? char.ToUpperInvariant(verb[0]) + verb[1..] : "Build", project.FilePath);

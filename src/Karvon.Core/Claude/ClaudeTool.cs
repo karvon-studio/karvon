@@ -58,12 +58,13 @@ public sealed record ClaudeShellRule(string Name, Func<string, bool> Matches, st
         Matches(command) && !(InWorkspace && workspace is not null && ShellCommand.RunsElsewhere(command, workspace, Matches));
 
     /// <summary>
-    /// A rule for a program run as a command: at a line's start, after ; &amp;&amp; || | ( ` $( or a newline, after sudo and
-    /// variables set before it (A=1 dotnet build). <paramref name="pattern"/> is the program and what follows it.
+    /// A rule for a program run as a command: at a line's start, after ; &amp;&amp; || | ( ` $( or a newline, after a loop's
+    /// do or a condition's then and else, after sudo and variables set before it (A=1 dotnet build). <paramref name="pattern"/>
+    /// is the program and what follows it.
     /// </summary>
     public static ClaudeShellRule Command(string name, string pattern, string use)
     {
-        var regex = new Regex(@"(?:^|[;&|(\n`]|\$\()\s*(?:sudo\s+)?(?:[A-Za-z_][A-Za-z0-9_]*=\S*\s+)*(?:" + pattern + ")",
+        var regex = new Regex(@"(?:^|[;&|(\n`]|\$\()\s*(?:(?:do|then|else)\s+)?(?:sudo\s+)?(?:[A-Za-z_][A-Za-z0-9_]*=\S*\s+)*(?:" + pattern + ")",
             RegexOptions.IgnoreCase | RegexOptions.CultureInvariant, TimeSpan.FromMilliseconds(200));
         return new ClaudeShellRule(name, command =>
         {

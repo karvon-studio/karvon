@@ -61,6 +61,14 @@ public class ClaudeIdeToolsTests
         Assert.StartsWith("1 test(s): 0 passed, 1 failed", await Text(server, "run_tests", new { failedOnly = true }));
         Assert.Equal("No test's name contains nothing-like-this.", await Text(server, "run_tests", new { filter = "nothing-like-this" }));
 
+        // Without a build, the same tests twice: no build ran, and a test that fails each time says so.
+        var lastBuild = vm.LastBuildForClaude;
+        var repeated = await Text(server, "run_tests", new { filter = "GreetingTests", noBuild = true, repeat = 2 });
+        Assert.StartsWith("Ran 2 times:\nrun 1: 3 passed, 1 failed, 1 skipped\nrun 2: 3 passed, 1 failed, 1 skipped\n"
+            + "Failed in every run: Tests.GreetingTests.Deliberately_failing: Assert.Equal() Failure", repeated);
+        Assert.Contains("\n\nThe last run: 5 test(s): 3 passed, 1 failed, 1 skipped", repeated);
+        Assert.Equal(lastBuild, vm.LastBuildForClaude);
+
         // The editor: what the user looks at, a file with line numbers, a search.
         var doc = vm.OpenDocument(program)!;
         var line2 = doc.Host.Document.GetLineByNumber(2);

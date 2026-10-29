@@ -40,11 +40,6 @@ public partial class MainViewModel
             && Path.GetExtension(path) is ".sln" or ".slnx" or ".csproj" or ".fsproj" or ".vbproj" ? path : null;
     }
 
-    /// <summary>
-    /// Builds, discovers and runs the tests whose fully qualified or display name contains <paramref name="filter"/> (all with
-    /// none; only those that failed last time with <paramref name="failedOnly"/>), as Test Explorer does. False when no test
-    /// ran: the summary says why.
-    /// </summary>
     /// <summary>A folder's test task, run as Run All Tests runs it: its exit code (-1 when it did not run).</summary>
     internal async Task<int> RunTestTaskForClaudeAsync(Modules.WorkspaceTask task)
     {
@@ -53,12 +48,29 @@ public partial class MainViewModel
         return _lastTestTask is { } run && run.Task == task.Name ? run.ExitCode : -1;
     }
 
-    internal async Task<bool> RunTestsForClaudeAsync(string? filter, bool failedOnly)
+    /// <summary>
+    /// Builds, discovers and runs the tests whose fully qualified or display name contains <paramref name="filter"/> (all with
+    /// none; only those that failed last time with <paramref name="failedOnly"/>; those of the last run with
+    /// <paramref name="again"/>), as Test Explorer does. With <paramref name="noBuild"/>, as the last build that succeeded
+    /// left them (built when none did). False when no test ran: the summary says why.
+    /// </summary>
+    internal async Task<bool> RunTestsForClaudeAsync(string? filter, bool failedOnly, bool noBuild = false, bool again = false)
     {
         var runs = _testRuns;
-        await RunTestsAsync(null, match: (key, test) =>
-            (filter is not { Length: > 0 } f || test.FullName.Contains(f, StringComparison.OrdinalIgnoreCase) || test.Name.Contains(f, StringComparison.OrdinalIgnoreCase))
-            && (!failedOnly || _testCases.TryGetValue(key, out var node) && node.State == TestState.Failed));
+        _testsWithoutBuild = noBuild;
+        try
+        {
+            if (again)
+                await RunTestsAsync([.. _lastRun]);
+            else
+                await RunTestsAsync(null, match: (key, test) =>
+                    (filter is not { Length: > 0 } f || test.FullName.Contains(f, StringComparison.OrdinalIgnoreCase) || test.Name.Contains(f, StringComparison.OrdinalIgnoreCase))
+                    && (!failedOnly || _testCases.TryGetValue(key, out var node) && node.State == TestState.Failed));
+        }
+        finally
+        {
+            _testsWithoutBuild = false;
+        }
         return _testRuns != runs;
     }
 

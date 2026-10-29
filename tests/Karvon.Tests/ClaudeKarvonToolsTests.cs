@@ -208,6 +208,8 @@ public class ClaudeKarvonToolsTests
     [InlineData("docker compose up -d", "docker")]
     [InlineData("curl -s https://jira.example.com/rest/api/2/issue/ABC-1", "jira api")]
     [InlineData("acli jira workitem view ABC-1", "jira cli")]
+    [InlineData("for i in 1 2 3; do dotnet test --no-build --filter Unit; done", "dotnet build")]
+    [InlineData("if true; then npm test; fi", "npm scripts")]
     [InlineData("dotnet --version", null)]
     [InlineData("dotnet add package Foo", null)]
     [InlineData("echo dotnet build", null)]
@@ -240,6 +242,19 @@ public class ClaudeKarvonToolsTests
     [InlineData("cd /tmp && docker ps", "docker")]
     public void Shell_rules_for_the_workspace_leave_other_folders_to_the_shell(string command, string? rule) =>
         Assert.Equal(rule, ShellRules.ShellRuleFor(command, "/work/app")?.Name);
+
+    [Fact]
+    public void Repeated_test_runs_tell_a_flaky_failure_from_one_that_always_fails()
+    {
+        var text = TestReport.Repeated([
+            new(8, 2, 0, new Dictionary<string, string> { ["T.Flaky"] = "Timed out", ["T.Broken"] = "Expected 1" }),
+            new(9, 1, 0, new Dictionary<string, string> { ["T.Broken"] = "Expected 1" }),
+            new(9, 1, 0, new Dictionary<string, string> { ["T.Broken"] = "Expected 1" }),
+        ]);
+        Assert.Equal("Ran 3 times:\nrun 1: 8 passed, 2 failed, 0 skipped\nrun 2: 9 passed, 1 failed, 0 skipped\nrun 3: 9 passed, 1 failed, 0 skipped\n"
+            + "Flaky, failed in 1 of 3 runs: T.Flaky: Timed out\nFailed in every run: T.Broken: Expected 1", text);
+        Assert.EndsWith("No test failed in any run.", TestReport.Repeated([new(3, 0, 0, new Dictionary<string, string>()), new(3, 0, 0, new Dictionary<string, string>())]));
+    }
 
     static async Task<T> WaitFor<T>(ClaudeViewModel vm, Func<T, bool> match) where T : ChatItem
     {

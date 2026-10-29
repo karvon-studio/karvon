@@ -42,8 +42,10 @@ public static class IdeClaudeTools
 
     const string Use =
         "Karvon builds, tests and runs this workspace: use mcp__karvon__run_build (its errors go to Karvon's Error List; build_errors "
-        + "reads them), mcp__karvon__run_tests (Test Explorer; test_failures reads them) or mcp__karvon__app_control (debug_control to "
-        + "debug), not the shell: they do what the command would, and the user sees it in Karvon.";
+        + "reads them), mcp__karvon__run_tests (Test Explorer) or mcp__karvon__app_control (debug_control to debug), not the shell: "
+        + "they do what the command would, and the user sees it in Karvon. run_tests returns only the counts and each failure with "
+        + "its message and file:line, so its output needs no tail or grep; its filter runs one test or class, noBuild skips the build "
+        + "(--no-build), repeat runs the same tests again to tell a flaky failure, and test_failures reads the last run's again.";
 }
 
 /// <summary>A match of <c>find_in_files</c>: Karvon lists them in Find Results.</summary>
@@ -213,6 +215,38 @@ static class TestReport
             text.Append($"\n\n… and {failed.Count - 20} more.");
         return text.ToString();
     }
+
+    /// <summary>One run of the same tests: its counts, and each failed test with the first line of its message.</summary>
+    public sealed record Run(int Passed, int Failed, int Skipped, IReadOnlyDictionary<string, string> Failures);
+
+    public static Run Tally(MainViewModel vm)
+    {
+        var run = vm.LastTestRunForClaude();
+        return new(run.Count(t => t.Node.State == TestState.Passed), run.Count(t => t.Node.State == TestState.Failed),
+            run.Count(t => t.Node.State == TestState.Skipped),
+            run.Where(t => t.Node.State == TestState.Failed).GroupBy(t => t.Name)
+                .ToDictionary(g => g.Key, g => g.First().Node.ErrorMessage?.Trim().Split('\n')[0].Trim() ?? ""));
+    }
+
+    /// <summary>The same tests run several times: each run's counts, and the tests that failed in some runs only (flaky) or in all.</summary>
+    public static string Repeated(IReadOnlyList<Run> runs)
+    {
+        var text = new StringBuilder($"Ran {runs.Count} times:");
+        for (var i = 0; i < runs.Count; i++)
+            text.Append($"\nrun {i + 1}: {runs[i].Passed} passed, {runs[i].Failed} failed, {runs[i].Skipped} skipped");
+        var failedIn = runs.SelectMany(r => r.Failures.Keys).Distinct()
+            .Select(name => (Name: name, Runs: runs.Count(r => r.Failures.ContainsKey(name)),
+                Message: runs.Select(r => r.Failures.GetValueOrDefault(name)).FirstOrDefault(m => m is { Length: > 0 })))
+            .ToList();
+        if (failedIn.Count == 0)
+            return text.Append("\nNo test failed in any run.").ToString();
+        foreach (var (name, count, message) in failedIn.OrderBy(f => f.Runs).ThenBy(f => f.Name).Take(20))
+            text.Append(count < runs.Count ? $"\nFlaky, failed in {count} of {runs.Count} runs: " : "\nFailed in every run: ")
+                .Append(name).Append(message is { Length: > 0 } ? ": " + message : "");
+        if (failedIn.Count > 20)
+            text.Append($"\n… and {failedIn.Count - 20} more.");
+        return text.ToString();
+    }
 }
 
 /// <summary><c>run_tests</c> (runs): Test Explorer's Run, for the tests a filter names.</summary>
@@ -222,18 +256,23 @@ sealed class RunTestsTool(MainViewModel vm) : IdeTool(vm)
 
     public override string Description =>
         "Builds the open solution and runs its tests (xUnit, NUnit, MSTest; Vitest in a package that depends on it) in Karvon's Test "
-        + "Explorer; returns the counts, then each failure with its message, stack trace and file:line. A folder opened as it is with no "
-        + "test framework Karvon knows runs its test task (.vscode/tasks.json's test group, or package.json's test script) and returns "
-        + "whether it passed and its output; filter and failedOnly do not apply there.";
+        + "Explorer; returns only the counts, then each failure with its message, stack trace and file:line (nothing to cut down with "
+        + "tail or grep). noBuild runs them as the last build left them (dotnet test --no-build); repeat runs the same tests again, "
+        + "building once, and says which failed in some runs only (flaky). A folder opened as it is with no test framework Karvon knows "
+        + "runs its test task (.vscode/tasks.json's test group, or package.json's test script) and returns whether it passed and its "
+        + "output; filter, failedOnly, noBuild and repeat do not apply there.";
 
     public override JsonObject InputSchema => Schema("""
         {"type":"object","properties":{
           "filter":{"type":"string","description":"Run only the tests whose fully qualified or display name contains this text."},
-          "failedOnly":{"type":"boolean","description":"Run only the tests that failed last time."}}}
+          "failedOnly":{"type":"boolean","description":"Run only the tests that failed last time."},
+          "noBuild":{"type":"boolean","description":"Do not build first: run the tests as the last build of the solution left them (it builds when none succeeded). For a run right after a build, nothing changed since."},
+          "repeat":{"type":"integer","minimum":1,"maximum":10,"description":"Run the same tests this many times (built once, first), to tell a flaky failure from one that always fails."}}}
         """);
 
     public override ClaudeToolPlan Plan(JsonElement input) =>
-        new(ToolAccess.Run, "Run Tests", Str(input, "filter") ?? (Bool(input, "failedOnly") ? "the failed ones" : "all"), "");
+        new(ToolAccess.Run, "Run Tests", (Str(input, "filter") ?? (Bool(input, "failedOnly") ? "the failed ones" : "all"))
+            + (Int(input, "repeat", 1, 1, 10) is var times and > 1 ? $", {times} times" : ""), "");
 
     protected override async Task<ClaudeToolOutput> RunAsync(JsonElement input, CancellationToken cancellationToken)
     {
@@ -253,17 +292,28 @@ sealed class RunTestsTool(MainViewModel vm) : IdeTool(vm)
             return new ClaudeToolOutput(text.ToString(), exit != 0);
         }
         var clock = System.Diagnostics.Stopwatch.StartNew();
-        if (!await Vm.RunTestsForClaudeAsync(Str(input, "filter"), Bool(input, "failedOnly")))
+        var repeat = Int(input, "repeat", 1, 1, 10);
+        var runs = new List<TestReport.Run>();
+        for (var i = 0; i < repeat; i++)
         {
-            var why = Vm.TestSummaryForClaude;
-            if (why.StartsWith("Build failed", StringComparison.Ordinal))
-                why = "The build failed; fix its errors to run the tests.\n" + BuildReport.Describe(Vm, warnings: false);
-            else if (why == "No tests to run.")
-                why = Str(input, "filter") is { } filter ? $"No test's name contains {filter}." : "There are no tests to run.";
-            return new ClaudeToolOutput(why);
+            // The first run picks the tests and builds them; the others run those again as they are.
+            if (!await Vm.RunTestsForClaudeAsync(Str(input, "filter"), Bool(input, "failedOnly"), noBuild: Bool(input, "noBuild") || i > 0, again: i > 0))
+            {
+                if (i > 0)
+                    break;
+                var why = Vm.TestSummaryForClaude;
+                if (why.StartsWith("Build failed", StringComparison.Ordinal))
+                    why = "The build failed; fix its errors to run the tests.\n" + BuildReport.Describe(Vm, warnings: false);
+                else if (why == "No tests to run.")
+                    why = Str(input, "filter") is { } filter ? $"No test's name contains {filter}." : "There are no tests to run.";
+                return new ClaudeToolOutput(why);
+            }
+            runs.Add(TestReport.Tally(Vm));
+            if (cancellationToken.IsCancellationRequested)
+                break;
         }
         var report = TestReport.Describe(Vm, clock.Elapsed);
-        return new ClaudeToolOutput(report);
+        return new ClaudeToolOutput(runs.Count > 1 ? TestReport.Repeated(runs) + "\n\nThe last run: " + report : report);
     }
 }
 
