@@ -3,7 +3,6 @@ using System.Text;
 using Avalonia.Media;
 using Avalonia.Threading;
 using Exclr8.Terminal;
-using Exclr8.Terminal.Pty;
 using Exclr8.Terminal.Render;
 using Porta.Pty;
 
@@ -17,7 +16,7 @@ public sealed class TerminalSession : IAsyncDisposable
 {
     readonly string? _program;
     readonly IReadOnlyList<string> _arguments;
-    PtyTerminalAdapter _adapter;
+    TerminalPty _adapter;
     (int Cols, int Rows)? _size;
     bool _starting;
     bool _exited;
@@ -119,9 +118,9 @@ public sealed class TerminalSession : IAsyncDisposable
     /// <summary>Raised on the UI thread when the title or running state changes.</summary>
     public event Action? StateChanged;
 
-    PtyTerminalAdapter CreateAdapter()
+    TerminalPty CreateAdapter()
     {
-        var adapter = new PtyTerminalAdapter(Control);
+        var adapter = new TerminalPty(Control);
         adapter.ProcessExited += (_, e) => Dispatcher.UIThread.Post(() =>
         {
             if (adapter != _adapter)
@@ -200,7 +199,7 @@ public sealed class TerminalSession : IAsyncDisposable
     /// Ends a session: the adapter's dispose waits for its read loop, which only returns once the pty closes,
     /// so the shell's process tree is killed first (as VS does when a terminal is closed).
     /// </summary>
-    static async Task StopAsync(PtyTerminalAdapter adapter)
+    static async Task StopAsync(TerminalPty adapter)
     {
         if (adapter.Pid is { } pid)
         {
