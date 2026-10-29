@@ -48,6 +48,16 @@ public sealed record ClaudeToolOutput(string Text, bool IsError = false)
 public sealed record ClaudeShellRule(string Name, Func<string, bool> Matches, string Use)
 {
     /// <summary>
+    /// The workspace's own build, tests or run: a command that does it in another folder (cd went there, or it names a
+    /// project there) is not the rule's, as Karvon's tools work only on the workspace.
+    /// </summary>
+    public bool InWorkspace { get; init; }
+
+    /// <summary>Whether <paramref name="command"/> is the rule's, run in <paramref name="workspace"/> (null: wherever).</summary>
+    public bool Applies(string command, string? workspace) =>
+        Matches(command) && !(InWorkspace && workspace is not null && ShellCommand.RunsElsewhere(command, workspace, Matches));
+
+    /// <summary>
     /// A rule for a program run as a command: at a line's start, after ; &amp;&amp; || | ( ` $( or a newline, after sudo and
     /// variables set before it (A=1 dotnet build). <paramref name="pattern"/> is the program and what follows it.
     /// </summary>

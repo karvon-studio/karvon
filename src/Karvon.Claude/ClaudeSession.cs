@@ -39,6 +39,9 @@ public sealed class ClaudeSession : IAsyncDisposable
     readonly CancellationTokenSource _toolCalls = new();
     ClaudeToolServer? _tools;
 
+    /// <summary>The folder the session works in (its Bash commands start there).</summary>
+    string? _workingDirectory;
+
     /// <summary>The Bash commands Karvon sent to its tools once: the same command again goes through (they could not do it).</summary>
     readonly HashSet<string> _redirected = [];
     int _requestCounter;
@@ -151,7 +154,7 @@ public sealed class ClaudeSession : IAsyncDisposable
         psi.Environment["PWD"] = options.WorkingDirectory;
         options.Account?.Apply(psi.Environment);
         var process = Process.Start(psi) ?? throw new InvalidOperationException("Claude Code could not be started.");
-        var session = new ClaudeSession(process) { SessionId = options.Resume, _tools = options.Tools };
+        var session = new ClaudeSession(process) { SessionId = options.Resume, _tools = options.Tools, _workingDirectory = options.WorkingDirectory };
         try
         {
             using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
@@ -393,7 +396,7 @@ public sealed class ClaudeSession : IAsyncDisposable
         object answer = new { };
         if (ClaudeProtocol.Str(request, "callback_id") == ShellHook && request.TryGetProperty("input", out var input)
             && ClaudeProtocol.Str(input, "tool_name") == "Bash" && input.TryGetProperty("tool_input", out var toolInput)
-            && ClaudeProtocol.Str(toolInput, "command") is { } command && _tools?.ShellRuleFor(command) is { } rule
+            && ClaudeProtocol.Str(toolInput, "command") is { } command && _tools?.ShellRuleFor(command, _workingDirectory) is { } rule
             && FirstRedirect(command))
             answer = new { hookSpecificOutput = new { hookEventName = "PreToolUse", permissionDecision = "deny", permissionDecisionReason =
                 rule.Use + " If they cannot do this one, run the same command again: Karvon lets it through then." } };

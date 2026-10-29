@@ -219,6 +219,28 @@ public class ClaudeKarvonToolsTests
     public void Shell_rules_name_the_commands_Karvons_tools_do(string command, string? rule) =>
         Assert.Equal(rule, ShellRules.ShellRuleFor(command)?.Name);
 
+    [Theory]
+    // The workspace's build, tests and run go to Karvon's tools, also from a folder in it or with output elsewhere...
+    [InlineData("dotnet build /work/app/App.sln 2>&1 | tail -5", "dotnet build")]
+    [InlineData("cd src && dotnet test", "dotnet build")]
+    [InlineData("cd /work/app/src && dotnet build ../App.csproj", "dotnet build")]
+    [InlineData("cd /tmp && ls; cd /work/app && dotnet build", "dotnet build")]
+    [InlineData("dotnet build -o /tmp/out", "dotnet build")]
+    [InlineData("dotnet test --results-directory=/tmp/results", "dotnet build")]
+    [InlineData("dotnet build > /tmp/build.log 2>&1", "dotnet build")]
+    [InlineData("npm run build", "npm scripts")]
+    // ...but a project in another folder is the shell's: Karvon's tools build only the workspace.
+    [InlineData("mkdir -p /tmp/probe && cd /tmp/probe && dotnet new console && dotnet build", null)]
+    [InlineData("dotnet build /tmp/probe/Probe.csproj 2>&1 | tail -5", null)]
+    [InlineData("dotnet run --project ~/other/App", null)]
+    [InlineData("dotnet build \"../other app/Other.sln\"", null)]
+    [InlineData("npm --prefix /tmp/site run build", null)]
+    [InlineData("(cd /tmp/site && npm test)", null)]
+    // Other rules are not about the workspace.
+    [InlineData("cd /tmp && docker ps", "docker")]
+    public void Shell_rules_for_the_workspace_leave_other_folders_to_the_shell(string command, string? rule) =>
+        Assert.Equal(rule, ShellRules.ShellRuleFor(command, "/work/app")?.Name);
+
     static async Task<T> WaitFor<T>(ClaudeViewModel vm, Func<T, bool> match) where T : ChatItem
     {
         T? found = null;

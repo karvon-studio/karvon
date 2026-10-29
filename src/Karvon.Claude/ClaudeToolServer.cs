@@ -29,8 +29,8 @@ public sealed class ClaudeToolServer(IReadOnlyList<IClaudeTool> tools, string in
 
     public IReadOnlyList<ClaudeShellRule> ShellRules => toolsFirst?.Invoke() is false ? [] : _shellRules;
 
-    /// <summary>The rule a Bash command breaks (it runs what one of these tools does), or null.</summary>
-    public ClaudeShellRule? ShellRuleFor(string command) => ShellRules.FirstOrDefault(r => r.Matches(command));
+    /// <summary>The rule a Bash command run in <paramref name="workspace"/> breaks (it runs what one of these tools does), or null.</summary>
+    public ClaudeShellRule? ShellRuleFor(string command, string? workspace = null) => ShellRules.FirstOrDefault(r => r.Applies(command, workspace));
 
     /// <summary>A call ran (on the thread it ran on), with its input and what it gave: the host shows it where the user would have done it.</summary>
     public event Action<IClaudeTool, JsonElement, ClaudeToolOutput>? Called;

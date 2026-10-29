@@ -36,8 +36,8 @@ public static class IdeClaudeTools
     /// <summary>The shell's build, tests and run of the workspace, which Karvon's own do (and show).</summary>
     public static IEnumerable<ClaudeShellRule> ShellRules =>
     [
-        ClaudeShellRule.Command("dotnet build", @"dotnet\s+(build|test|run|watch|clean|msbuild|vstest)\b", Use),
-        ClaudeShellRule.Command("npm scripts", @"(npm|pnpm|yarn|bun)\s+(run\s+)?(build|test|start|dev)\b", Use),
+        ClaudeShellRule.Command("dotnet build", @"dotnet\s+(build|test|run|watch|clean|msbuild|vstest)\b", Use) with { InWorkspace = true },
+        ClaudeShellRule.Command("npm scripts", @"(npm|pnpm|yarn|bun)\s+(run\s+)?(build|test|start|dev)\b", Use) with { InWorkspace = true },
     ];
 
     const string Use =
