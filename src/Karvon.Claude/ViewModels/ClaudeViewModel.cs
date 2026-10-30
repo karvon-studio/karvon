@@ -209,11 +209,13 @@ public sealed partial class ClaudeViewModel : ObservableObject, IAsyncDisposable
         {
             await StopSessionAsync();
             var session = await ClaudeSession.StartAsync(new ClaudeStartOptions(CliPath!, cwd, SelectedModel?.Value, PermissionMode, _resumeId, SelectedAccount, Tools, McpServersFor(cwd),
-                _settings.ClaudeKeepSecretsAway, _settings.ClaudeSandbox, WorkspaceTrust.IsTrusted(_settings.TrustedFolders, cwd)));
+                _settings.ClaudeKeepSecretsAway, _settings.ClaudeSandbox, WorkspaceTrust.IsTrusted(_settings.TrustedFolders, cwd),
+                Path.Combine(Settings.ConfigDirectory, "audit")));
             session.Event += ev => Dispatcher.UIThread.Post(() => Handle(session, ev));
             _session = session;
             _sessionCwd = cwd;
             OnPropertyChanged(nameof(IsFolderTrusted));
+            OnPropertyChanged(nameof(AuditFile));
             if (session.HiddenVariables.Count > 0)
                 VariablesHidden?.Invoke(session.HiddenVariables);
             if (_settings.ClaudeSandbox && ClaudeSandbox.Problem() is { } problem)
@@ -298,6 +300,7 @@ public sealed partial class ClaudeViewModel : ObservableObject, IAsyncDisposable
             return;
         _resumeId = session.SessionId ?? _resumeId;
         _session = null;
+        OnPropertyChanged(nameof(AuditFile));
         _backgroundTasks = 0;
         if (_remoteSession == session)
             ClearRemoteControl();
@@ -655,7 +658,7 @@ public sealed partial class ClaudeViewModel : ObservableObject, IAsyncDisposable
             case ClaudePermissionRequest request when PermissionMode == "plan" && Tools?.Plan(request.ToolName, request.Input) is { Access: ToolAccess.Write or ToolAccess.Destructive }:
                 // Planning changes nothing: a database or container change waits for the plan to be accepted.
                 _ = RespondAsync(request, ClaudePermissionDecision.Deny(
-                    "Plan mode: Karvon does not change databases or containers while Claude plans. Put the change in the plan for the user instead."));
+                    "Plan mode: Karvon does not change databases or containers while Claude plans. Put the change in the plan for the user instead."), "plan mode");
                 break;
 
             case ClaudePermissionRequest request:
@@ -742,6 +745,7 @@ public sealed partial class ClaudeViewModel : ObservableObject, IAsyncDisposable
 
             case ClaudeExited exited:
                 _session = null;
+                OnPropertyChanged(nameof(AuditFile));
                 _backgroundTasks = 0;
                 ClearRemoteControl();
                 if (IsRunning || exited.ExitCode != 0)
@@ -1115,7 +1119,7 @@ public sealed partial class ClaudeViewModel : ObservableObject, IAsyncDisposable
         return null;
     }
 
-    async Task RespondAsync(ClaudePermissionRequest request, ClaudePermissionDecision decision)
+    async Task RespondAsync(ClaudePermissionRequest request, ClaudePermissionDecision decision, string by = "the user")
     {
         // Karvon's own question: its tool server waits for the answer, not Claude Code.
         if (_asks.TryRemove(request.RequestId, out var asked))
@@ -1128,7 +1132,7 @@ public sealed partial class ClaudeViewModel : ObservableObject, IAsyncDisposable
             return;
         try
         {
-            await session.RespondToPermissionAsync(request.RequestId, decision);
+            await session.RespondToPermissionAsync(request.RequestId, decision, by);
         }
         catch (InvalidOperationException ex)
         {

@@ -115,7 +115,8 @@ public class ClaudeSecretsTests
     public async Task A_session_denies_Claude_Codes_own_tools_the_secrets()
     {
         var (dir, log) = FakeClaude.Workspace();
-        await using var session = await ClaudeSession.StartAsync(new ClaudeStartOptions(FakeClaude.Executable, dir), TestContext.Current.CancellationToken);
+        var audit = Path.Combine(Path.GetTempPath(), "karvon-audit-" + Guid.NewGuid().ToString("N"));
+        await using var session = await ClaudeSession.StartAsync(new ClaudeStartOptions(FakeClaude.Executable, dir, AuditDirectory: audit), TestContext.Current.CancellationToken);
         var done = new TaskCompletionSource();
         session.Event += e =>
         {
@@ -137,6 +138,11 @@ public class ClaudeSecretsTests
         Assert.Contains("id_ed25519, which holds secrets", reasons[1]);
         Assert.Contains("asks the system keyring", reasons[2]);
         Assert.False(answers[3].TryGetProperty("hookSpecificOutput", out _));
+        // The trail says who refused each: Karvon's guard, and why.
+        var refused = ClaudeAudit.Read(session.Audit!.File).Where(e => (string?)e["by"] == "Karvon's guard of the secrets").ToList();
+        Assert.Equal(3, refused.Count);
+        Assert.All(refused, e => Assert.Equal("deny", (string?)e["decision"]));
+        Assert.Contains(".env holds secrets", (string?)refused[0]["reason"]);
 
         // Turned off, no hook is registered.
         var (other, otherLog) = FakeClaude.Workspace();

@@ -67,6 +67,16 @@ public partial class ClaudeViewModel
         OnPropertyChanged(nameof(IsFolderTrusted));
     }
 
+    /// <summary>The running session's audit trail (<see cref="ClaudeAudit"/>); null for none.</summary>
+    public string? AuditFile => _session?.Audit?.File;
+
+    [CommunityToolkit.Mvvm.Input.RelayCommand]
+    void OpenAuditTrail()
+    {
+        if (AuditFile is { } file)
+            OpenFileRequested?.Invoke(file, null);
+    }
+
     /// <summary>The user allowed a call of Karvon's tools on Claude Code's prompt: its tool server does not ask again.</summary>
     void Approved(ClaudePermissionRequest request)
     {

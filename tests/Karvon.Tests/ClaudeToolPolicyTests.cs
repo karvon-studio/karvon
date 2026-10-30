@@ -11,7 +11,7 @@ namespace Karvon.Tests;
 /// <summary>The user's rules for Karvon's tools, enforced by its tool server whatever Claude Code's permission mode.</summary>
 public class ClaudeToolPolicyTests
 {
-    sealed class Tool(string name, ToolAccess access, string? target = null) : IClaudeTool
+    sealed class Tool(string name, ToolAccess access, string? target = null, string output = "done") : IClaudeTool
     {
         int _calls;
 
@@ -30,7 +30,7 @@ public class ClaudeToolPolicyTests
         public Task<ClaudeToolOutput> CallAsync(JsonElement input, CancellationToken cancellationToken)
         {
             Interlocked.Increment(ref _calls);
-            return Task.FromResult(new ClaudeToolOutput("done"));
+            return Task.FromResult(new ClaudeToolOutput(output));
         }
     }
 
@@ -235,5 +235,76 @@ public class ClaudeToolPolicyTests
         Assert.False(banner.IsVisible);
         await vm.DisposeAsync();
         window.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task Each_session_keeps_what_was_asked_what_decided_it_and_what_ran()
+    {
+        var (dir, _) = FakeClaude.Workspace();
+        var token = "ghp_" + new string('d', 36);
+        var server = KarvonTools.Create([new Tool("change", ToolAccess.Write), new Tool("refused", ToolAccess.Read),
+            new Tool("trusted", ToolAccess.Write, output: $"deployed with {token}")]);
+        server.Rules = () => new Dictionary<string, string> { ["refused"] = "deny", ["trusted"] = "allow" };
+        var vm = new ClaudeViewModel(new Karvon.Services.Settings { TrustedFolders = [dir] }, () => dir, () => null, () => [], () => FakeClaude.Executable) { Tools = server };
+        await WaitUntil(() => vm.Commands.Count > 0, TimeSpan.FromSeconds(10));
+        vm.Prompt = "karvonrules please";
+        await vm.SendCommand.ExecuteAsync(null);
+        await vm.AllowCommand.ExecuteAsync(await WaitFor(vm, c => c.IsPending));
+        await vm.DenyCommand.ExecuteAsync(await WaitFor(vm, c => c.IsPending && c.Question == "Allow Claude to change?" && c.Request.RequestId.Length > 0
+            && vm.Items.OfType<PermissionChatItem>().Count() == 2));
+        await WaitUntil(() => !vm.IsRunning, TimeSpan.FromSeconds(10));
+
+        // In Karvon's settings folder, the user's alone; each line of the session's.
+        var file = vm.AuditFile!;
+        Assert.StartsWith(Path.Combine(Karvon.Services.Settings.ConfigDirectory, "audit"), file);
+        if (!OperatingSystem.IsWindows())
+            Assert.Equal(UnixFileMode.UserRead | UnixFileMode.UserWrite, File.GetUnixFileMode(file));
+        var trail = ClaudeAudit.Read(file);
+        Assert.All(trail.Where(e => (string?)e["kind"] != "decided" || e["toolUseId"] is not null), e => Assert.NotNull((string?)e["session"]));
+        string Of(JsonObject e) => $"{e["kind"]} {e["toolUseId"]} {e["tool"]} {e["decision"]} {e["by"]}".Replace("  ", " ").Trim();
+        var lines = trail.Select(Of).ToList();
+
+        // Called as in Bypass permissions: Claude Code let it through, Karvon asked, the user said yes and then no.
+        Assert.Contains("requested toolu_b1 mcp__karvon__change", lines);
+        Assert.Contains("decided mcp__karvon__change ask Karvon, as Claude Code did not ask", lines);
+        Assert.Contains("decided mcp__karvon__change allow the user, on Karvon's card", lines);
+        Assert.Contains("decided mcp__karvon__change deny the user, on Karvon's card", lines);
+        Assert.Contains("decided toolu_b1 mcp__karvon__change allow Claude Code", lines);
+        Assert.Single(trail, e => (string?)e["kind"] == "ran" && (string?)e["tool"] == "mcp__karvon__change");
+        var b2 = trail.Single(e => (string?)e["kind"] == "result" && (string?)e["toolUseId"] == "toolu_b2");
+        Assert.True((bool)b2["isError"]!);
+        // Asked as any tool: the rules' answers.
+        Assert.Contains("decided toolu_b3 mcp__karvon__refused deny the user's rules for Karvon's tools", lines);
+        Assert.Contains("decided toolu_b4 mcp__karvon__trusted allow the user's rules for Karvon's tools", lines);
+        // What ran: how long, how much it gave, what was hidden of it; never the secret itself.
+        var ran = trail.Single(e => (string?)e["kind"] == "ran" && (string?)e["tool"] == "mcp__karvon__trusted");
+        Assert.Equal($"deployed with {token}".Length, (int)ran["outputChars"]!);
+        Assert.Equal(["a GitHub token"], ran["hidden"]!.AsArray().Select(h => (string?)h));
+        Assert.True((long)ran["ms"]! >= 0);
+        Assert.DoesNotContain(token, File.ReadAllText(file));
+        await vm.DisposeAsync();
+    }
+
+    [Fact]
+    public async Task The_trail_keeps_what_Karvons_hooks_refused_without_the_secret_and_thirty_days()
+    {
+        var (dir, _) = FakeClaude.Workspace();
+        var audit = Path.Combine(Path.GetTempPath(), "karvon-audit-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(audit);
+        var old = Path.Combine(audit, "old.jsonl");
+        File.WriteAllText(old, "");
+        File.SetLastWriteTimeUtc(old, DateTime.UtcNow - ClaudeAudit.Kept - TimeSpan.FromDays(1));
+        await using var session = await ClaudeSession.StartAsync(new ClaudeStartOptions(FakeClaude.Executable, dir, AuditDirectory: audit), TestContext.Current.CancellationToken);
+        Assert.False(File.Exists(old));
+        var file = session.Audit!.File;
+        var token = "glpat-" + new string('k', 24);
+        session.Audit.Requested("toolu_x", "Bash", JsonSerializer.SerializeToElement(new { command = $"curl -H 'PRIVATE-TOKEN: {token}' https://gitlab.com" }));
+        session.Audit.Result("toolu_x", false, 12);
+        var trail = ClaudeAudit.Read(file);
+        Assert.Contains("«secret: a GitLab token»", (string?)trail[0]["input"]);
+        Assert.DoesNotContain(token, File.ReadAllText(file));
+        // Nothing heard of deciding it: Claude Code let it through itself.
+        Assert.Equal(("decided", "allow", "Claude Code"), ((string?)trail[1]["kind"], (string?)trail[1]["decision"], (string?)trail[1]["by"]));
+        Assert.Equal("result", (string?)trail[2]["kind"]);
     }
 }

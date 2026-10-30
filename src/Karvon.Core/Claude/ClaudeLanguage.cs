@@ -323,6 +323,7 @@ public sealed class ClaudeLanguage : INotifyPropertyChanged
         ["This folder is not trusted yet: Claude reads it, and building, testing or running its code and every change ask. Its .claude settings (hooks, allow rules), .mcp.json servers and data sources are not used."] =
             "Bu papkaga hali ishonilmagan: Claude uni o‘qiydi, kodini build qilish, test qilish, ishga tushirish va har bir o‘zgarish so‘raladi. Uning .claude sozlamalari (hook’lar, allow qoidalari), .mcp.json serverlari va data source’lari ishlatilmaydi.",
         ["Trust this folder"] = "Bu papkaga ishonish",
+        ["This session’s audit trail"] = "Shu sessiyaning audit yozuvlari",
         ["Remote Control: continue this conversation from claude.ai/code or the Claude app (/remote-control)"] =
             "Remote Control: bu suhbatni claude.ai/code yoki Claude ilovasidan davom ettiring (/remote-control)",
         ["Remote Control is on: continue this conversation at claude.ai/code or in the Claude app. Click to turn it off."] =

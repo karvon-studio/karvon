@@ -16,7 +16,8 @@ public sealed record ClaudeStartOptions(
     string? McpConfigFile = null,
     bool GuardSecrets = true,
     bool Sandbox = false,
-    bool Trusted = true);
+    bool Trusted = true,
+    string? AuditDirectory = null);
 
 /// <summary>
 /// One running Claude Code CLI in headless streaming mode (the interface the Agent SDK uses): JSON lines on
@@ -47,6 +48,12 @@ public sealed class ClaudeSession : IAsyncDisposable
 
     /// <summary>The folder it was started in.</summary>
     public string? WorkingDirectory => _workingDirectory;
+
+    /// <summary>Its audit trail: each tool call Claude asked for, what decided it, what ran; null when none is kept.</summary>
+    public ClaudeAudit? Audit { get; private init; }
+
+    /// <summary>The permission requests the user is asked (by Karvon's card), for the trail to say how each was answered.</summary>
+    readonly System.Collections.Concurrent.ConcurrentDictionary<string, (string? ToolUseId, string Tool)> _asked = new();
 
     /// <summary>The Bash commands Karvon sent to its tools once: the same command again goes through (they could not do it).</summary>
     readonly HashSet<string> _redirected = [];
@@ -183,7 +190,9 @@ public sealed class ClaudeSession : IAsyncDisposable
         var session = new ClaudeSession(process)
         {
             SessionId = options.Resume, _tools = options.Tools, _workingDirectory = options.WorkingDirectory, HiddenVariables = hidden,
+            Audit = options.AuditDirectory is { } audit ? ClaudeAudit.Start(audit) : null,
         };
+        session.Audit?.SessionId = options.Resume;
         try
         {
             using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
@@ -246,13 +255,20 @@ public sealed class ClaudeSession : IAsyncDisposable
         return id;
     }
 
-    /// <summary>Answers a can_use_tool request: allow (optionally with changed input / remembered rules) or deny.</summary>
-    public Task RespondToPermissionAsync(string requestId, ClaudePermissionDecision decision) =>
-        WriteAsync(new
+    /// <summary>
+    /// Answers a can_use_tool request: allow (optionally with changed input / remembered rules) or deny, as
+    /// <paramref name="by"/> decided (for the audit trail).
+    /// </summary>
+    public Task RespondToPermissionAsync(string requestId, ClaudePermissionDecision decision, string by = "the user")
+    {
+        if (_asked.TryRemove(requestId, out var call))
+            Audit?.Decided(call.ToolUseId, call.Tool, decision.Allow ? "allow" : "deny", by, decision.Message);
+        return WriteAsync(new
         {
             type = "control_response",
             response = new { subtype = "success", request_id = requestId, response = decision.ToResponse() },
         });
+    }
 
     public Task InterruptAsync() => RequestAsync(new { subtype = "interrupt" });
 
@@ -393,17 +409,49 @@ public sealed class ClaudeSession : IAsyncDisposable
         foreach (var ev in ClaudeProtocol.Parse(root))
         {
             if (ev is ClaudeInit init)
+            {
                 SessionId = init.SessionId;
+                Audit?.SessionId = init.SessionId;
+            }
+            Trail(ev);
             // Reading or building through Karvon's tools needs no approval (as Read and Grep need none), nor what the user's
             // rules allow; what they deny is denied at once.
             if (ev is ClaudePermissionRequest request && _tools?.Decide(request.ToolName, request.Input, this) is { Rule: not ToolRule.Ask } decision)
             {
+                Audit?.Decided(request.ToolUseId, request.ToolName, decision.Rule == ToolRule.Allow ? "allow" : "deny", "the user's rules for Karvon's tools",
+                    decision.Rule == ToolRule.Deny ? decision.Refusal : null);
                 _ = AnswerQuietlyAsync(request, decision.Rule == ToolRule.Allow
                     ? ClaudePermissionDecision.AllowOnce(request.Input)
                     : ClaudePermissionDecision.Deny(decision.Refusal));
                 continue;
             }
+            if (ev is ClaudePermissionRequest asked)
+            {
+                _asked[asked.RequestId] = (asked.ToolUseId, asked.ToolName);
+                Audit?.Decided(asked.ToolUseId, asked.ToolName, "ask", "Claude Code, which asks the user");
+            }
             Event?.Invoke(ev);
+        }
+    }
+
+    /// <summary>What the trail keeps of what the CLI said: the calls Claude asked for, answers given elsewhere, what Claude got back.</summary>
+    void Trail(ClaudeEvent ev)
+    {
+        if (Audit is not { } audit)
+            return;
+        switch (ev)
+        {
+            case ClaudeAssistant assistant:
+                foreach (var use in assistant.Blocks.OfType<ClaudeToolUseBlock>())
+                    audit.Requested(use.Id, use.Name, use.Input);
+                break;
+            case ClaudePermissionCancelled cancelled when _asked.TryRemove(cancelled.RequestId, out var call):
+                audit.Decided(call.ToolUseId, call.Tool, "answered", "the user, on another device (Remote Control)");
+                break;
+            case ClaudeToolResults results:
+                foreach (var result in results.Results)
+                    audit.Result(result.ToolUseId, result.IsError, result.Content.Length);
+                break;
         }
     }
 
@@ -430,13 +478,19 @@ public sealed class ClaudeSession : IAsyncDisposable
         if (ClaudeProtocol.Str(request, "callback_id") == SecretsHook && request.TryGetProperty("input", out var called)
             && ClaudeProtocol.Str(called, "tool_name") is { } tool && called.TryGetProperty("tool_input", out var calledInput)
             && SecretGuard.Check(tool, calledInput, _workingDirectory) is { } reason)
+        {
+            Audit?.Decided(ClaudeProtocol.Str(called, "tool_use_id") ?? ClaudeProtocol.Str(request, "tool_use_id"), tool, "deny", "Karvon's guard of the secrets", reason);
             answer = new { hookSpecificOutput = new { hookEventName = "PreToolUse", permissionDecision = "deny", permissionDecisionReason = reason } };
+        }
         else if (ClaudeProtocol.Str(request, "callback_id") == ShellHook && request.TryGetProperty("input", out var input)
             && ClaudeProtocol.Str(input, "tool_name") == "Bash" && input.TryGetProperty("tool_input", out var toolInput)
             && ClaudeProtocol.Str(toolInput, "command") is { } command && _tools?.ShellRuleFor(command, _workingDirectory) is { } rule
             && FirstRedirect(command))
+        {
+            Audit?.Decided(ClaudeProtocol.Str(input, "tool_use_id") ?? ClaudeProtocol.Str(request, "tool_use_id"), "Bash", "deny", "Karvon's tools before the shell", rule.Name);
             answer = new { hookSpecificOutput = new { hookEventName = "PreToolUse", permissionDecision = "deny", permissionDecisionReason =
                 rule.Use + " If they cannot do this one, run the same command again: Karvon lets it through then." } };
+        }
         try
         {
             await WriteAsync(new { type = "control_response", response = new { subtype = "success", request_id = requestId, response = answer } });

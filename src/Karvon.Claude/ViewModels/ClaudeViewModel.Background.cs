@@ -88,6 +88,7 @@ public partial class ClaudeViewModel
             RemoteControl = _remoteSession == session ? (RemoteControlState, RemoteControlUrl) : null,
         });
         _session = null;
+        OnPropertyChanged(nameof(AuditFile));
         _backgroundTasks = 0;
         if (_remoteSession == session)
             ClearRemoteControl();
@@ -102,6 +103,7 @@ public partial class ClaudeViewModel
             return false;
         _background.Remove(conversation);
         _session = conversation.Session;
+        OnPropertyChanged(nameof(AuditFile));
         _sessionCwd = conversation.SessionCwd;
         _resumeId = conversation.SessionId;
         _backgroundTasks = conversation.Tasks;

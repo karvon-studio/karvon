@@ -973,6 +973,10 @@
       <Border IsVisible="{Binding IsHistoryOpen}" Background="#252526">
         <DockPanel>
           <TextBlock DockPanel.Dock="Top" Text="{v:L 'Past conversations'}" FontWeight="SemiBold" Margin="12,8,12,4" />
+          <!-- What Claude asked for in this session, what decided each call and what ran -->
+          <Button DockPanel.Dock="Top" Name="AuditButton" Classes="pill link" Margin="12,0,12,6" HorizontalAlignment="Left"
+                  IsVisible="{Binding AuditFile, Converter={x:Static ObjectConverters.IsNotNull}}" Command="{Binding OpenAuditTrailCommand}"
+                  Content="{v:L 'This session’s audit trail'}" ToolTip.Tip="{Binding AuditFile}" />
           <TextBlock DockPanel.Dock="Top" Text="{v:L 'No conversations in this folder yet.'}" Classes="muted" Margin="12,0,12,10" IsVisible="{Binding !History.Count}" />
           <ListBox Name="HistoryList" ItemsSource="{Binding History}" Background="Transparent" Margin="4,0,4,6" ScrollViewer.HorizontalScrollBarVisibility="Disabled">
             <ListBox.ItemTemplate>

@@ -102,17 +102,26 @@ public sealed class ClaudeToolServer(IReadOnlyList<IClaudeTool> tools, string in
     async Task<ClaudeToolOutput?> RefuseAsync(IClaudeTool tool, JsonElement input, object? caller, CancellationToken cancellationToken)
     {
         var decision = Decide(tool, input, caller);
+        var audit = (caller as ClaudeSession)?.Audit;
+        var name = Prefix + tool.Name;
         if (decision.Rule == ToolRule.Allow)
             return null;
         if (decision.Rule == ToolRule.Deny)
+        {
+            audit?.Decided(null, name, "deny", "the user's rules for Karvon's tools, at the call", decision.Refusal);
             return ClaudeToolOutput.Error(decision.Refusal);
-        if (_approved.TryRemove(Key(Prefix + tool.Name, input), out var at) && DateTime.UtcNow - at < TimeSpan.FromMinutes(2))
+        }
+        if (_approved.TryRemove(Key(name, input), out var at) && DateTime.UtcNow - at < TimeSpan.FromMinutes(2))
             return null;
         if (Ask is not { } ask)
+        {
+            audit?.Decided(null, name, "deny", "Karvon, with no one to ask");
             return ClaudeToolOutput.Error("This call needs the user's yes, and Karvon could not ask them.");
-        return await ask(new ClaudeToolRequest(Prefix + tool.Name, input, decision.Plan, decision.Target, caller), cancellationToken)
-            ? null
-            : ClaudeToolOutput.Error("The user said no to this call. Do not try it another way: wait for what they say.");
+        }
+        audit?.Decided(null, name, "ask", "Karvon, as Claude Code did not ask");
+        var allowed = await ask(new ClaudeToolRequest(name, input, decision.Plan, decision.Target, caller), cancellationToken);
+        audit?.Decided(null, name, allowed ? "allow" : "deny", "the user, on Karvon's card");
+        return allowed ? null : ClaudeToolOutput.Error("The user said no to this call. Do not try it another way: wait for what they say.");
     }
 
     /// <summary>A call as the user allowed it: its tool and its input, whatever order and spacing the JSON has.</summary>
@@ -186,6 +195,8 @@ public sealed class ClaudeToolServer(IReadOnlyList<IClaudeTool> tools, string in
             ? a.Clone()
             : JsonDocument.Parse("{}").RootElement.Clone();
         ClaudeToolOutput result;
+        var started = DateTime.UtcNow;
+        var ran = false;
         if (Tools.FirstOrDefault(t => t.Name == name) is not { } tool)
             result = ClaudeToolOutput.Error($"Karvon has no tool named {name}.");
         else
@@ -196,7 +207,14 @@ public sealed class ClaudeToolServer(IReadOnlyList<IClaudeTool> tools, string in
             try
             {
                 // The user's rules, whatever Claude Code's permission mode let through.
-                result = await RefuseAsync(tool, input, caller, cts.Token) ?? await tool.CallAsync(input, cts.Token);
+                if (await RefuseAsync(tool, input, caller, cts.Token) is { } refusal)
+                    result = refusal;
+                else
+                {
+                    started = DateTime.UtcNow;
+                    ran = true;
+                    result = await tool.CallAsync(input, cts.Token);
+                }
             }
             catch (OperationCanceledException)
             {
@@ -215,9 +233,13 @@ public sealed class ClaudeToolServer(IReadOnlyList<IClaudeTool> tools, string in
         // Whatever a tool says, the secrets Karvon holds and the tokens told by their form do not reach Claude; what others
         // wrote reaches it as data.
         var text = Redaction.Secrets(result.Text);
+        var sent = result.Outside is { } outside ? OutsideText.Mark(text, outside) : text;
+        if (ran && (caller as ClaudeSession)?.Audit is { } audit)
+            audit.Ran(Prefix + name, input, started, DateTime.UtcNow - started, result.IsError, result.Text, text, result.Outside,
+                result.Outside is null ? 0 : OutsideText.Find(text).Count);
         return new JsonObject
         {
-            ["content"] = new JsonArray(new JsonObject { ["type"] = "text", ["text"] = result.Outside is { } outside ? OutsideText.Mark(text, outside) : text }),
+            ["content"] = new JsonArray(new JsonObject { ["type"] = "text", ["text"] = sent }),
             ["isError"] = result.IsError,
         };
     }
