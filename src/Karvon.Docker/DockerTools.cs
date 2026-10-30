@@ -160,7 +160,9 @@ sealed class ContainerLogsTool(IDockerToolHost host) : DockerTool(host)
         if (!result.Succeeded)
             return ClaudeToolOutput.Error(Redaction.Text(result.Message));
         var logs = Redaction.Text(string.Join("\n", lines));
-        return new ClaudeToolOutput(logs.Length == 0 ? $"{container.Name} has no log output." : $"Logs of {container.Name} ({container.Status}):\n{Tail(logs, 40_000)}");
+        return logs.Length == 0
+            ? new ClaudeToolOutput($"{container.Name} has no log output.")
+            : new ClaudeToolOutput($"Logs of {container.Name} ({container.Status}):\n{Tail(logs, 40_000)}") { Outside = $"the logs of {container.Name}" };
     }
 }
 

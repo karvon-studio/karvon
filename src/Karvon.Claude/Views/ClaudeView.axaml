@@ -696,6 +696,11 @@
                   <Border Grid.Column="1" Width="9" Height="8" BorderBrush="#5A5A5A" BorderThickness="1,0,0,1" VerticalAlignment="Top" Margin="2,1,6,0" />
                   <TextBlock Grid.Column="2" Text="{v:Tr Summary}" Classes="muted" Classes.error="{Binding IsError}" FontSize="12" TextWrapping="Wrap" />
                 </Grid>
+                <!-- What others wrote in the result reads as instructions to Claude -->
+                <Grid ColumnDefinitions="16,Auto,*" IsVisible="{Binding HasInstructions}" Margin="0,3,0,0">
+                  <v:VsIcon Grid.Column="1" Kind="Warning" Width="12" Height="12" VerticalAlignment="Top" Margin="0,1,6,0" />
+                  <SelectableTextBlock Grid.Column="2" Text="{v:Tr Instructions}" Foreground="#CCA700" FontSize="12" TextWrapping="Wrap" />
+                </Grid>
                 <StackPanel IsVisible="{Binding HasChildren}" Margin="16,3,0,0" Spacing="1">
                   <TextBlock Text="{v:Tr MoreChildrenText}" IsVisible="{Binding HasMoreChildren}" Classes="muted" FontSize="11" Margin="12,0,0,1" />
                   <ItemsControl ItemsSource="{Binding VisibleChildren}">

@@ -111,7 +111,7 @@ sealed class ServerLogsTool(Func<ServersExplorerViewModel> servers) : ServerTool
         var result = await Servers.Connections.RunAsync(host, RemoteCommands.Logs(Str(input, "unit"), Str(input, "file"), Int(input, "lines", 200, 1, 5000)),
             TimeSpan.FromSeconds(60), cancellationToken);
         var text = Redaction.Text(Tail(result.Succeeded ? result.Output : result.Combined, 40_000));
-        return new ClaudeToolOutput(text.Length == 0 ? "No log lines." : text, !result.Succeeded);
+        return text.Length == 0 ? new ClaudeToolOutput("No log lines.", !result.Succeeded) : new ClaudeToolOutput(text, !result.Succeeded) { Outside = $"the logs of {host.Name}" };
     }
 }
 
@@ -151,6 +151,9 @@ sealed class ServerExecTool(Func<ServersExplorerViewModel> servers) : ServerTool
         var host = Server(input);
         var command = Str(input, "command") ?? throw new InvalidOperationException("Give the command to run.");
         var result = await Servers.Connections.RunAsync(host, command, TimeSpan.FromMinutes(2), cancellationToken);
-        return new ClaudeToolOutput(Redaction.Text(Tail($"Exit code {result.ExitCode}.\n{result.Combined}".TrimEnd(), 40_000)), !result.Succeeded);
+        return new ClaudeToolOutput(Redaction.Text(Tail($"Exit code {result.ExitCode}.\n{result.Combined}".TrimEnd(), 40_000)), !result.Succeeded)
+        {
+            Outside = $"the command's output on {host.Name}",
+        };
     }
 }

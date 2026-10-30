@@ -579,6 +579,14 @@ def turn(prompt, content, sent=None):
         karvon_tool("toolu_q3", "db_query", {"connection": "shop", "sql": "DELETE FROM users"})
         stream_text("Done with the database.")
         result("ok")
+    elif "outsidetext" in p and "karvon" in sdk_servers():
+        # Two of Karvon's tools that give what others wrote: one of them with instructions to Claude in it.
+        mcp("karvon", "initialize", {"protocolVersion": "2025-11-25", "capabilities": {}, "clientInfo": {"name": "claude-code", "version": "2.1.308"}})
+        mcp("karvon", "notifications/initialized", notify=True)
+        karvon_tool("toolu_o1", "issue", {})
+        karvon_tool("toolu_o2", "calm", {})
+        stream_text("Read them.")
+        result("ok")
     elif "phone" in p:
         stream_text("Open the Claude app: this conversation is there.")
         result("ok")

@@ -617,8 +617,17 @@ public sealed partial class ClaudeViewModel : ObservableObject, IAsyncDisposable
                     if (!_tools.TryGetValue(result.ToolUseId, out var tool))
                         continue;
                     tool.State = result.IsError ? ToolState.Error : ToolState.Done;
-                    tool.Result = result.Content;
-                    tool.Summary = tool.WasDenied ? "Denied by you" : Summarize(tool, result.Content, result.IsError);
+                    // What others wrote, as Claude got it marked: the text shown, and what in it reads as instructions to Claude.
+                    var content = result.Content;
+                    if (OutsideText.Read(content) is { } outside)
+                    {
+                        content = outside.Text;
+                        if (OutsideText.Find(content) is { Count: > 0 } found)
+                            tool.Instructions = $"Text in {outside.Source} reads as instructions to Claude, which was told not to follow them: "
+                                + string.Join("; ", found.Select(f => $"«{f}»"));
+                    }
+                    tool.Result = content;
+                    tool.Summary = tool.WasDenied ? "Denied by you" : Summarize(tool, content, result.IsError);
                     foreach (var step in tool.Children.Where(c => c.IsRunning))
                         step.State = ToolState.Done;
                     changed |= !result.IsError && FileChangingTools.Contains(tool.Name);

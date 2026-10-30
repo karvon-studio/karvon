@@ -412,6 +412,8 @@ public sealed class ClaudeLanguage : INotifyPropertyChanged
         (new(@"^Allow Claude to use (.+)\?$"), m => $"Claude {m.Groups[1].Value} vositasidan foydalansinmi?"),
         (new(@"^Your message holds what looks like (.+)\. Send it to Claude\?$", RegexOptions.Singleline), m =>
             $"Xabaringizda sirga o‘xshash narsa bor: {SecretKindsInUzbek(m.Groups[1].Value)}. Claude’ga yuborilsinmi?"),
+        (new(@"^Text in (.+?) reads as instructions to Claude, which was told not to follow them: (.+)$", RegexOptions.Singleline), m =>
+            $"{m.Groups[1].Value} ichidagi matn Claude’ga buyruqdek o‘qiladi (Claude’ga unga amal qilmaslik aytildi): {m.Groups[2].Value}"),
         (new(@"^A subagent asks: (.+)$", RegexOptions.Singleline), m => "Yordamchi agent so‘rayapti: " + T(m.Groups[1].Value)),
         (new(@"^Yes, and switch to (.+) mode$"), m => $"Ha, va {m.Groups[1].Value} rejimiga o‘tish"),
         (new(@"^Yes, and don't ask again for (.+) in this (session|project)$"), m =>

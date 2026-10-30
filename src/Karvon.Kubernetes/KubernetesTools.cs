@@ -201,7 +201,7 @@ sealed class K8sDescribeTool(Func<KubernetesViewModel> window) : KubernetesTool(
     {
         var context = ContextOf(input);
         var text = await Kubectl.OutputAsync([.. Kubectl.In(context.Name, NamespaceOf(input, context)), "describe", KindOf(input).Resource(), Required(input, "name")], cancellationToken);
-        return new ClaudeToolOutput(Redaction.Text(text));
+        return new ClaudeToolOutput(Redaction.Text(text)) { Outside = $"the description of {Str(input, "kind")}/{Str(input, "name")}" };
     }
 }
 
@@ -251,7 +251,9 @@ sealed class K8sLogsTool(Func<KubernetesViewModel> window) : KubernetesTool(wind
         if (Str(input, "since") is { Length: > 0 } since)
             args.Add($"--since={since}");
         var text = await Kubectl.OutputAsync(args, cancellationToken);
-        return new ClaudeToolOutput(text.Length == 0 ? $"{name} wrote nothing{(Str(input, "since") is { } s ? $" in {s}" : "")}." : Redaction.Text(text));
+        return text.Length == 0
+            ? new ClaudeToolOutput($"{name} wrote nothing{(Str(input, "since") is { } s ? $" in {s}" : "")}.")
+            : new ClaudeToolOutput(Redaction.Text(text)) { Outside = $"the logs of {name}" };
     }
 }
 
@@ -291,8 +293,11 @@ sealed class K8sEventsTool(Func<KubernetesViewModel> window) : KubernetesTool(wi
         using (json)
         {
             var events = KubeParse.Events(json.RootElement).Take(60).ToList();
-            return new ClaudeToolOutput(events.Count == 0 ? "No events." : string.Join("\n", events.Select(e =>
-                $"{(e.Last is { } at ? KubeParse.Ago(at) : "")} {e.Type} {e.Reason} {e.Object}{(e.Count > 1 ? $" ×{e.Count}" : "")}: {Redaction.Text(e.Message)}".Trim())));
+            return events.Count == 0 ? new ClaudeToolOutput("No events.") : new ClaudeToolOutput(string.Join("\n", events.Select(e =>
+                $"{(e.Last is { } at ? KubeParse.Ago(at) : "")} {e.Type} {e.Reason} {e.Object}{(e.Count > 1 ? $" ×{e.Count}" : "")}: {Redaction.Text(e.Message)}".Trim())))
+            {
+                Outside = "the cluster's events",
+            };
         }
     }
 }

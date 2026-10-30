@@ -117,7 +117,7 @@ sealed class JiraSearchTool(Func<JiraExplorerViewModel> jira) : JiraTool(jira)
     protected override async Task<ClaudeToolOutput> RunAsync(JsonElement input, CancellationToken cancellationToken)
     {
         var issues = await (await ClientAsync(input)).SearchAsync(Required(input, "jql"), Int(input, "max", 30, 1, 200), cancellationToken);
-        return new ClaudeToolOutput(issues.Count == 0 ? "No issues." : string.Join("\n", issues.Select(Row)));
+        return issues.Count == 0 ? new ClaudeToolOutput("No issues.") : new ClaudeToolOutput(string.Join("\n", issues.Select(Row))) { Outside = "the issues Jira found" };
     }
 }
 
@@ -163,7 +163,7 @@ sealed class JiraIssueTool(Func<JiraExplorerViewModel> jira) : JiraTool(jira)
                 text.AppendLine($"- {comment.Author}, {comment.Created?.ToString("yyyy-MM-dd HH:mm") ?? "?"}: {Tail(comment.Body, 4000)}");
         }
         text.AppendLine().Append("Transitions now: ").Append(issue.Transitions.Count == 0 ? "none" : string.Join(", ", issue.Transitions.Select(t => $"{t.Name} (to {t.ToStatus})")));
-        return new ClaudeToolOutput(text.ToString());
+        return new ClaudeToolOutput(text.ToString()) { Outside = $"Jira issue {issue.Key}" };
     }
 }
 

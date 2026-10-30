@@ -281,7 +281,10 @@ public class ClaudeKarvonToolsTests
         Assert.DoesNotContain("hunter2", connections);
 
         Assert.Contains("CREATE TABLE", Text(await Call(server, "db_schema", new { connection = "shop", table = "users" })));
-        var rows = Text(await Call(server, "db_query", new { connection = "shop", sql = "SELECT id, email FROM users ORDER BY id", maxRows = 2 }));
+        // Rows, which others wrote, reach Claude as data.
+        var marked = OutsideText.Read(Text(await Call(server, "db_query", new { connection = "shop", sql = "SELECT id, email FROM users ORDER BY id", maxRows = 2 })));
+        Assert.Equal("the rows of shop", marked?.Source);
+        var rows = marked!.Value.Text;
         Assert.StartsWith("2+ row(s)", rows);
         Assert.Contains("id | email", rows);
         Assert.Contains("1 | a@x.io", rows);
@@ -333,7 +336,9 @@ public class ClaudeKarvonToolsTests
         host.AllContainers = false;
 
         // By compose service name; passwords in logs and variables hidden.
-        var logs = Text(await Call(server, "container_logs", new { name = "db", tail = 50 }));
+        var marked = OutsideText.Read(Text(await Call(server, "container_logs", new { name = "db", tail = 50 })));
+        Assert.Equal("the logs of shop-db-1", marked?.Source);
+        var logs = marked!.Value.Text;
         Assert.StartsWith("Logs of shop-db-1", logs);
         Assert.Contains("postgres://shop:***@db:5432/shop", logs);
         Assert.DoesNotContain("not-a-secret", logs);

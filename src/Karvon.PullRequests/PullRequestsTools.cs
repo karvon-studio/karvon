@@ -114,9 +114,12 @@ sealed class PrListTool(Func<PullRequestsViewModel> window) : PullRequestsTool(w
                 ? string.Equals(p.Author, user, StringComparison.OrdinalIgnoreCase)
                 : p.Reviewers.Contains(user, StringComparer.OrdinalIgnoreCase))];
         }
-        return new ClaudeToolOutput(list.Count == 0
-            ? $"{Service} has no {Str(input, "state") ?? "open"} {provider.Noun}s."
-            : $"{Service}'s {provider.Noun}s:\n" + string.Join("\n", list.Select(p => PullRequestsClaudeTools.Row(p, provider.Prefix))));
+        return list.Count == 0
+            ? new ClaudeToolOutput($"{Service} has no {Str(input, "state") ?? "open"} {provider.Noun}s.")
+            : new ClaudeToolOutput($"{Service}'s {provider.Noun}s:\n" + string.Join("\n", list.Select(p => PullRequestsClaudeTools.Row(p, provider.Prefix))))
+            {
+                Outside = $"{Service}'s {provider.Noun}s",
+            };
     }
 }
 
@@ -166,7 +169,7 @@ sealed class PrViewTool(Func<PullRequestsViewModel> window) : PullRequestsTool(w
                 text.AppendLine($"- {c.Author}{(c.Path is { Length: > 0 } path ? $" on {path}{(c.Line is { } line ? ":" + line : "")}" : "")}: {c.Body}");
         }
         text.AppendLine().Append(pr.Url);
-        return new ClaudeToolOutput(text.ToString());
+        return new ClaudeToolOutput(text.ToString()) { Outside = $"{provider.Noun} {provider.Prefix}{pr.Number}" };
     }
 }
 
@@ -218,7 +221,7 @@ sealed class PrDiffTool(Func<PullRequestsViewModel> window) : PullRequestsTool(w
         }
         if (cut.Count > 0)
             text.AppendLine().Append("Not shown (too long together; ask with path): " + string.Join(", ", cut));
-        return new ClaudeToolOutput(text.ToString());
+        return new ClaudeToolOutput(text.ToString()) { Outside = $"the changes of {provider.Noun} {provider.Prefix}{pr.Number}" };
     }
 }
 

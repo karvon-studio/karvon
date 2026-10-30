@@ -166,7 +166,10 @@ sealed class PipelineLogTool(Func<PipelinesViewModel> pipelines) : PipelinesTool
             : jobs.FirstOrDefault(j => j.Status == PipelineStatus.Failed && !j.AllowFailure) ?? jobs.FirstOrDefault(j => j.Status == PipelineStatus.Failed)
                 ?? throw new InvalidOperationException("No job of the run failed: name one ('job').");
         var log = PipelineLog.Plain(PipelineLog.Clean(await provider.LogAsync(job, cancellationToken), provider.Remote.Provider), Int(input, "lines", 200, 10, 2000));
-        return new ClaudeToolOutput($"job {job.Id} {job.Name} [{job.Status.Text()}] of {run.Name} #{run.Number}:\n" + string.Join('\n', log.Split('\n').Select(Redaction.Text)));
+        return new ClaudeToolOutput($"job {job.Id} {job.Name} [{job.Status.Text()}] of {run.Name} #{run.Number}:\n" + string.Join('\n', log.Split('\n').Select(Redaction.Text)))
+        {
+            Outside = $"the log of job {job.Name}",
+        };
     }
 }
 

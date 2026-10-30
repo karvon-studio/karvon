@@ -382,6 +382,13 @@ public class JiraTests
             Assert.False(isError, text);
             return text;
         }
+        // What others wrote in Jira reaches Claude as data.
+        async Task<string> Data(string name, object arguments, string source)
+        {
+            var marked = Karvon.Claude.Tools.OutsideText.Read(await Tool(name, arguments));
+            Assert.Equal(source, marked?.Source);
+            return marked!.Value.Text;
+        }
         try
         {
             // No site: Claude is told where the user adds one.
@@ -392,8 +399,8 @@ public class JiraTests
 
             Assert.Equal("Work: https://jira.example.invalid, Jira Server/Data Center, dates in customfield_10015 and customfield_10016", await Tool("jira_sites", new { }));
             Assert.Equal("SHOP-1 [В работе] Bug: Fix the cart's total (Dev Eloper)\nSHOP-2 [К выполнению] Задача: Add a wish list (Dev Eloper)",
-                await Tool("jira_search", new { jql = "assignee = currentUser()" }));
-            var issue = await Tool("jira_issue", new { key = "SHOP-1" });
+                await Data("jira_search", new { jql = "assignee = currentUser()" }, "the issues Jira found"));
+            var issue = await Data("jira_issue", new { key = "SHOP-1" }, "Jira issue SHOP-1");
             Assert.StartsWith("SHOP-1: Fix the cart's total\nStatus: В работе; type: Bug; priority: Medium; assignee: Dev Eloper; reporter: Dev Eloper", issue);
             Assert.Contains("Description:\nThe total is **off** by one.", issue);
             Assert.Contains("- Dev Eloper, 2026-10-20", issue);

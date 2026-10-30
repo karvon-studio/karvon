@@ -34,6 +34,12 @@ public sealed record ClaudeToolOutput(string Text, bool IsError = false)
     /// <summary>What the call produced for the host to show (a query's result sets, the matches of a search); never sent to Claude.</summary>
     public object? Detail { get; init; }
 
+    /// <summary>
+    /// What the text is when others wrote it ("Jira issue ABC-1", "the pod's logs", "the query's rows"): Claude gets it
+    /// marked as data (<see cref="Tools.OutsideText"/>).
+    /// </summary>
+    public string? Outside { get; init; }
+
     public static ClaudeToolOutput Error(string message) => new(message, true);
 }
 

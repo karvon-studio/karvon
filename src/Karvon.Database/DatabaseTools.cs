@@ -284,7 +284,11 @@ sealed class DbQueryTool(IDatabaseToolHost host) : DatabaseTool(host)
             foreach (var row in result.Rows)
                 text.AppendLine(string.Join(" | ", row.Select(Cell)));
         }
-        return new ClaudeToolOutput(text.ToString().TrimEnd()) { Detail = new DbQueryRun(server, Str(input, "database"), sql, results) };
+        return new ClaudeToolOutput(text.ToString().TrimEnd())
+        {
+            Detail = new DbQueryRun(server, Str(input, "database"), sql, results),
+            Outside = results.Any(r => r.IsQuery && r.Rows.Count > 0) ? $"the rows of {server.Name}" : null,
+        };
     }
 }
 

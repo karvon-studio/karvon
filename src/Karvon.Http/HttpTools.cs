@@ -129,7 +129,7 @@ sealed class HttpSendTool(HttpModule module) : IClaudeTool
                 exchange = await HttpRunner.SendAsync(Str(input, "method")?.ToUpperInvariant() ?? "GET", url, headers, Str(input, "body"), cancellationToken);
             }
             var text = HttpClaudeTools.Text(exchange);
-            return exchange.Error is null ? new ClaudeToolOutput(text) : ClaudeToolOutput.Error(text);
+            return exchange.Error is null ? new ClaudeToolOutput(text) { Outside = "the HTTP response" } : ClaudeToolOutput.Error(text);
         }
         catch (Exception ex) when (ex is InvalidOperationException or IOException or HttpVariableException)
         {

@@ -180,6 +180,13 @@ public sealed partial class ToolChatItem : ChatItem
 
     public bool HasMoreResult => Result is { Length: > 0 } r && r.Trim() != Summary?.Trim();
 
+    /// <summary>What in a result others wrote reads as instructions to Claude (<see cref="Karvon.Claude.Tools.OutsideText.Find"/>): shown under the row.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasInstructions))]
+    public partial string? Instructions { get; set; }
+
+    public bool HasInstructions => Instructions is { Length: > 0 };
+
     [ObservableProperty]
     public partial bool IsExpanded { get; set; }
 }
