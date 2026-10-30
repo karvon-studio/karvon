@@ -47,7 +47,7 @@ public class ClaudeIdeToolsTests
         window.Show();
         await vm.OpenSolutionAsync(sln);
         var server = ClaudeOf(vm).ToolServer();
-        Assert.Equal(66, server.Tools.Count);
+        Assert.Equal(68, server.Tools.Count);
         var program = SampleSolution.PathOf(sln, "Web/Program.cs");
 
         // The tools most sessions use are in the prompt from the start; the rest are behind Claude Code's tool search.

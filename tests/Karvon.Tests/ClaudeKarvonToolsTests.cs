@@ -23,7 +23,17 @@ sealed class TestToolHost(string? solution, DockerEngine docker, params ServerPr
 
     public string? SolutionDirectory { get; } = solution;
 
-    public IReadOnlyList<ServerProfile> DataSources() => servers;
+    public string? Workspace => SolutionDirectory;
+
+    readonly List<ServerProfile> _servers = [.. servers];
+
+    public IReadOnlyList<ServerProfile> DataSources() => _servers;
+
+    public ServerProfile AddDataSource(ServerProfile profile)
+    {
+        _servers.Add(profile);
+        return profile;
+    }
 
     public Task<string?> PasswordForAsync(ServerProfile server) => Task.FromResult(server.Password);
 
@@ -116,7 +126,7 @@ public class ClaudeKarvonToolsTests
         Assert.Equal(ClaudeSession.SecretsHook, only.GetProperty("hookCallbackIds")[0].GetString());
         var mcp = entries.Where(e => e.Kind == "mcp").Select(e => e.Data).ToList();
         Assert.Equal("karvon", mcp[0].GetProperty("response").GetProperty("result").GetProperty("serverInfo").GetProperty("name").GetString());
-        Assert.Equal(10, mcp[2].GetProperty("response").GetProperty("result").GetProperty("tools").GetArrayLength());
+        Assert.Equal(12, mcp[2].GetProperty("response").GetProperty("result").GetProperty("tools").GetArrayLength());
         Assert.Contains("1 row(s) affected", mcp.Last().GetProperty("response").GetProperty("result").GetProperty("content")[0].GetProperty("text").GetString());
         // The SELECT's approval was Karvon's own, without the user: allowed once, no rule remembered.
         var first = entries.First(e => e.Kind == "decision").Data;
@@ -262,6 +272,91 @@ public class ClaudeKarvonToolsTests
         T? found = null;
         await WaitUntil(() => (found = vm.Items.OfType<T>().FirstOrDefault(match)) is not null, TimeSpan.FromSeconds(10));
         return found!;
+    }
+
+    [Fact]
+    public async Task Db_export_writes_every_row_to_a_file_and_tells_claude_only_where()
+    {
+        var file = TestToolHost.NewDatabase();
+        using (var connection = new SqliteConnection($"Data Source={file};Pooling=False"))
+        {
+            connection.Open();
+            using var insert = connection.CreateCommand();
+            insert.CommandText = "WITH RECURSIVE n(i) AS (SELECT 1 UNION ALL SELECT i + 1 FROM n WHERE i < 1500) "
+                + "INSERT INTO users (email, age) SELECT 'u' || i || '@x.io', 20 FROM n";
+            insert.ExecuteNonQuery();
+        }
+        var dir = Directory.CreateDirectory(Path.Combine(Path.GetTempPath(), "karvon-export-" + Guid.NewGuid().ToString("N"))).FullName;
+        var (docker, _, _) = FakeDocker.Create();
+        var host = new TestToolHost(dir, new DockerEngine(docker), new ServerProfile { Name = "shop", Provider = DatabaseProvider.Sqlite, FilePath = file });
+        var server = host.Tools();
+
+        // A new file is written at once: every row (more than db_query gives), in the solution's folder.
+        Assert.Equal(ToolAccess.Run, Plan(server, "db_export", new { connection = "shop", sql = "SELECT id, email FROM users", path = "out/users.xlsx" }).Access);
+        var xlsx = Path.Combine(dir, "out", "users.xlsx");
+        var text = Text(await Call(server, "db_export", new { connection = "shop", sql = "SELECT id, email FROM users ORDER BY id", path = "out/users.xlsx" }));
+        Assert.StartsWith($"Exported 1503 row(s) of 2 column(s) (id, email) to {xlsx} (", text);
+        Assert.DoesNotContain("a@x.io", text);
+        using (var zip = System.IO.Compression.ZipFile.OpenRead(xlsx))
+        {
+            using var sheet = new StreamReader(zip.GetEntry("xl/worksheets/sheet1.xml")!.Open());
+            Assert.Equal(1504, System.Text.RegularExpressions.Regex.Count(sheet.ReadToEnd(), "<row "));
+        }
+        // Its format from the path; one that exists is replaced only when the user says so.
+        Text(await Call(server, "db_export", new { connection = "shop", sql = "SELECT id, email FROM users ORDER BY id", path = "out/users.csv" }));
+        var lines = File.ReadAllLines(Path.Combine(dir, "out", "users.csv"));
+        Assert.Equal(1504, lines.Length);
+        Assert.Equal("id,email", lines[0]);
+        var replace = Plan(server, "db_export", new { connection = "shop", sql = "SELECT 1", path = "out/users.csv" });
+        Assert.Equal((ToolAccess.Write, "Allow Claude to replace users.csv with the rows of shop?"), (replace.Access, replace.Question));
+        // A change is no export: refused before anyone is asked.
+        var change = server.Decide(ClaudeToolServer.Prefix + "db_export", JsonSerializer.SerializeToElement(new { connection = "shop", sql = "DELETE FROM users" }))!;
+        Assert.Equal(ToolRule.Deny, change.Rule);
+        Assert.StartsWith("db_export writes what a query reads", change.Refusal);
+        Assert.Equal(1503, TestToolHost.Scalar(file, "SELECT COUNT(*) FROM users"));
+    }
+
+    [Fact]
+    public async Task A_connection_string_of_the_solution_becomes_a_data_source_without_claude_seeing_its_password()
+    {
+        var dir = Directory.CreateDirectory(Path.Combine(Path.GetTempPath(), "karvon-appsettings-" + Guid.NewGuid().ToString("N"))).FullName;
+        var api = Directory.CreateDirectory(Path.Combine(dir, "src", "Api")).FullName;
+        var db = TestToolHost.NewDatabase();
+        File.WriteAllText(Path.Combine(api, "appsettings.Development.json"), $$"""
+            {
+              // The developer's own
+              "ConnectionStrings": {
+                "Default": "Host=db.internal;Port=5433;Database=shop;Username=app;Password=pa55-word-xyz",
+                "Local": "Data Source={{db}}",
+              },
+            }
+            """);
+        var (docker, _, _) = FakeDocker.Create();
+        var host = new TestToolHost(dir, new DockerEngine(docker));
+        var server = host.Tools();
+        var settings = Path.Combine("src", "Api", "appsettings.Development.json");
+
+        // Named as not added yet, without their passwords.
+        var list = Text(await Call(server, "db_connections", new { }));
+        Assert.Contains($"Default in {settings}, Local in {settings}", list);
+        Assert.DoesNotContain("pa55", list);
+        // The card says what is added, never the password; the user approves it.
+        var plan = Plan(server, "db_add_connection", new { file = settings, name = "Default" });
+        Assert.Equal((ToolAccess.Write, "PostgreSql, shop on db.internal:5433 as app"), (plan.Access, plan.Code));
+        var added = Text(await Call(server, "db_add_connection", new { file = settings, name = "Default" }));
+        Assert.StartsWith("Added the data source Default (PostgreSql, shop on db.internal:5433); its password is Karvon's.", added);
+        Assert.DoesNotContain("pa55", added);
+        var profile = host.DataSources().Single(s => s.Name == "Default");
+        Assert.Equal(("db.internal", 5433, "shop", "app", "pa55-word-xyz", true), (profile.Host, profile.Port, profile.MaintenanceDatabase, profile.Username, profile.Password, profile.SavePassword));
+
+        // A SQLite one is queried at once; neither is named as not added any more.
+        Text(await Call(server, "db_add_connection", new { file = settings, name = "Local" }));
+        Assert.Contains("a@x.io", Text(await Call(server, "db_query", new { connection = "Local", sql = "SELECT email FROM users" })));
+        Assert.DoesNotContain("Not added yet", Text(await Call(server, "db_connections", new { })));
+        // Only the solution's appsettings*.json are read.
+        var elsewhere = await Call(server, "db_add_connection", new { file = "/etc/hosts", name = "x" });
+        Assert.True(IsError(elsewhere));
+        Assert.Equal("Only an appsettings*.json of the open solution is read for a connection.", Text(elsewhere));
     }
 
     [Fact]

@@ -372,7 +372,7 @@ its URLs and output), the debugger where it stopped (`debug_state`, `debug_local
 `find_in_files`), the code by what it means, through the language servers (`code_symbols`: declarations by name;
 `code_outline`: a file's declarations with their lines; `code_read_symbol`: a declaration's source by its name, every
 overload; `code_definition`: what a name on a line refers to; `code_references`: every use, with the member each is in;
-`code_implementations`), in place of grep and reading files by line ranges, the Database Explorer's data sources (`db_connections`, `db_schema`, `db_query`, `db_explain`),
+`code_implementations`), in place of grep and reading files by line ranges, the Database Explorer's data sources (`db_connections`, `db_schema`, `db_query`, `db_export`: every row of a query to an Excel, CSV, TSV or JSON file, `db_add_connection`: a connection string of the solution's appsettings as a data source, its password kept by Karvon, `db_explain`),
 the solution's containers (`container_list`, `container_logs`, `container_inspect`, `container_restart`,
 `compose_up`, `container_remove`) and the Servers (`server_list`, `server_logs`, `server_exec`), with your own
 connections and passwords, which it never sees. Reading, building,

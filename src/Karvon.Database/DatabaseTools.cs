@@ -26,13 +26,19 @@ public interface IDatabaseToolHost
 
     /// <summary>The password the Database Explorer would use: typed there this session, else the saved one.</summary>
     Task<string?> PasswordForAsync(ServerProfile server);
+
+    /// <summary>The open solution's folder (where a relative export path is); null for none.</summary>
+    string? Workspace => null;
+
+    /// <summary>Adds a data source to the Database Explorer (its password kept by Karvon); the one added.</summary>
+    ServerProfile AddDataSource(ServerProfile profile) => throw new NotSupportedException("Karvon cannot add a data source here.");
 }
 
 /// <summary>Claude Code's database tools.</summary>
 public static class DatabaseClaudeTools
 {
     public static IEnumerable<IClaudeTool> Create(IDatabaseToolHost host) =>
-        [new DbConnectionsTool(host), new DbSchemaTool(host), new DbQueryTool(host), new DbExplainTool(host)];
+        [new DbConnectionsTool(host), new DbAddConnectionTool(host), new DbSchemaTool(host), new DbQueryTool(host), new DbExportTool(host), new DbExplainTool(host)];
 }
 
 /// <summary>What <c>db_query</c> ran, and its result sets: Karvon shows them in a Query Tool of the data source.</summary>
@@ -96,6 +102,9 @@ abstract class DatabaseTool(IDatabaseToolHost host) : IClaudeTool
     /// <summary>What Claude is told of the data sources of a folder not trusted yet.</summary>
     protected const string NotTrusted = "This folder is not trusted yet: Karvon does not use its data sources (they are in its .vs "
         + "folder, which a repository can bring) until the user trusts it in the Claude Code window.";
+
+    /// <summary>What a data source added from a solution's settings says it came from (and how it is known again).</summary>
+    protected static string Comment(AppSettingsConnection connection) => $"From {Path.GetFileName(connection.File)} ({connection.Name})";
 
     protected DatabaseProvider ProviderOf(JsonElement input) =>
         (Host.Trusted ? Host.DataSources() : []).FirstOrDefault(s => s.Name.Equals(Str(input, "connection"), StringComparison.OrdinalIgnoreCase))?.Provider
@@ -188,8 +197,14 @@ sealed class DbConnectionsTool(IDatabaseToolHost host) : DatabaseTool(host)
         if (!Host.Trusted)
             return Task.FromResult(new ClaudeToolOutput(NotTrusted));
         var servers = Host.DataSources();
+        // What the solution's settings connect to and the explorer has not: added with db_add_connection, not read by Claude.
+        var unknown = Host.Workspace is { } workspace
+            ? AppSettingsConnections.Find(workspace).Where(c => !servers.Any(s => s.Comment == Comment(c))).ToList()
+            : [];
+        var hint = unknown.Count == 0 ? "" : "\nNot added yet, from the solution's settings (add one with db_add_connection; do not read its password): "
+            + string.Join(", ", unknown.Select(c => $"{c.Name} in {Path.GetRelativePath(Host.Workspace!, c.File)}")) + ".";
         if (servers.Count == 0)
-            return Task.FromResult(new ClaudeToolOutput("There are no data sources. The user adds them in Karvon's Database Explorer."));
+            return Task.FromResult(new ClaudeToolOutput("There are no data sources. The user adds them in Karvon's Database Explorer." + hint));
         var text = new StringBuilder();
         foreach (var s in servers)
         {
@@ -197,7 +212,82 @@ sealed class DbConnectionsTool(IDatabaseToolHost host) : DatabaseTool(host)
             text.AppendLine($"{s.Name}: {s.Provider}, {where}{(s.ReadOnly ? ", read-only" : ", writable")}"
                 + (s.Comment is { Length: > 0 } comment ? $" ({Redaction.Text(comment)})" : ""));
         }
-        return Task.FromResult(new ClaudeToolOutput(text.ToString().TrimEnd()));
+        return Task.FromResult(new ClaudeToolOutput(text.ToString().TrimEnd() + hint));
+    }
+}
+
+/// <summary>
+/// <c>db_add_connection</c>: a connection string of the solution's appsettings*.json made a data source of the Database
+/// Explorer, read by Karvon: its password goes to Karvon's vault, never through Claude. Asks the user.
+/// </summary>
+sealed class DbAddConnectionTool(IDatabaseToolHost host) : DatabaseTool(host)
+{
+    public override string Name => "db_add_connection";
+
+    public override string Description =>
+        "Adds a connection string of the solution's settings (appsettings*.json, ConnectionStrings) to Karvon's data sources, so "
+        + "db_query, db_export and db_schema can use it. Karvon reads the file and keeps the password itself: never read the "
+        + "password, nor pass it to a command. db_connections names those not added yet. The user approves it.";
+
+    public override JsonObject InputSchema => Schema("""
+        {"type":"object","properties":{
+          "file":{"type":"string","description":"The settings file, relative to the solution's folder (as db_connections names it)."},
+          "name":{"type":"string","description":"The connection string's name under ConnectionStrings."},
+          "as":{"type":"string","description":"The data source's name (default the connection string's)."},
+          "provider":{"type":"string","description":"postgresql, sqlserver, mysql, sqlite or oracle, when its keywords do not tell."}},
+         "required":["file","name"]}
+        """);
+
+    AppSettingsConnection Find(JsonElement input)
+    {
+        var workspace = Host.Workspace ?? throw new InvalidOperationException("No solution is open: its settings are where the connection strings are.");
+        var file = Path.GetFullPath(Str(input, "file") ?? "", workspace);
+        if (!file.StartsWith(Path.TrimEndingDirectorySeparator(Path.GetFullPath(workspace)) + Path.DirectorySeparatorChar, StringComparison.Ordinal)
+            || !Path.GetFileName(file).StartsWith("appsettings", StringComparison.OrdinalIgnoreCase))
+            throw new InvalidOperationException("Only an appsettings*.json of the open solution is read for a connection.");
+        var connections = AppSettingsConnections.Read(file);
+        return connections.FirstOrDefault(c => c.Name.Equals(Str(input, "name"), StringComparison.OrdinalIgnoreCase))
+            ?? throw new InvalidOperationException(connections.Count == 0
+                ? $"{Path.GetFileName(file)} has no connection strings."
+                : $"{Path.GetFileName(file)} has no connection string named {Str(input, "name")}: it has {string.Join(", ", connections.Select(c => c.Name))}.");
+    }
+
+    public override ClaudeToolPlan Plan(JsonElement input)
+    {
+        var name = Str(input, "as") ?? Str(input, "name") ?? "";
+        string where;
+        try
+        {
+            var profile = AppSettingsConnections.Profile(Find(input), name, AppSettingsConnections.Provider(Str(input, "provider")));
+            where = profile.Provider == DatabaseProvider.Sqlite ? profile.FilePath ?? "" : $"{profile.Provider}, {profile.MaintenanceDatabase} on {profile.Host}{(profile.Port is { } port ? ":" + port : "")} as {profile.Username}";
+        }
+        catch (InvalidOperationException ex)
+        {
+            where = ex.Message;
+        }
+        return new(ToolAccess.Write, "Add Data Source", $"{name} from {Str(input, "file")}",
+            $"Allow Claude to add the data source {name} from {Path.GetFileName(Str(input, "file") ?? "")}?")
+        {
+            Code = where,
+            Warning = "Karvon reads the connection string and keeps its password in its vault: Claude does not see it.",
+        };
+    }
+
+    protected override Task<ClaudeToolOutput> RunAsync(JsonElement input, CancellationToken cancellationToken)
+    {
+        if (!Host.Trusted)
+            throw new InvalidOperationException(NotTrusted);
+        var connection = Find(input);
+        var name = Str(input, "as") ?? connection.Name;
+        if (Host.DataSources().FirstOrDefault(s => s.Name.Equals(name, StringComparison.OrdinalIgnoreCase)) is { } taken)
+            throw new InvalidOperationException($"There is a data source named {taken.Name} already: give another with 'as'.");
+        var added = Host.AddDataSource(AppSettingsConnections.Profile(connection, name, AppSettingsConnections.Provider(Str(input, "provider"))) with
+        {
+            Comment = Comment(connection),
+        });
+        var where = added.Provider == DatabaseProvider.Sqlite ? added.FilePath : $"{added.MaintenanceDatabase} on {added.Host}{(added.Port is { } port ? ":" + port : "")}";
+        return Task.FromResult(new ClaudeToolOutput($"Added the data source {added.Name} ({added.Provider}, {where}); its password is Karvon's. "
+            + $"Use connection \"{added.Name}\" with db_query, db_export and db_schema."));
     }
 }
 
@@ -313,6 +403,116 @@ sealed class DbQueryTool(IDatabaseToolHost host) : DatabaseTool(host)
             Detail = new DbQueryRun(server, Str(input, "database"), sql, results),
             Outside = results.Any(r => r.IsQuery && r.Rows.Count > 0) ? $"the rows of {server.Name}" : null,
         };
+    }
+}
+
+/// <summary>
+/// <c>db_export</c>: a query's rows, all of them, written by Karvon to a file (Excel, CSV, TSV, JSON) through its own
+/// connection; Claude gets where the file is and how many rows it has, never the rows' text to copy, nor a password.
+/// </summary>
+sealed class DbExportTool(IDatabaseToolHost host) : DatabaseTool(host)
+{
+    /// <summary>Excel's own limit, less its header.</summary>
+    const int MaxRows = 1_048_575;
+
+    static readonly string[] Formats = ["xlsx", "csv", "tsv", "json"];
+
+    public override string Name => "db_export";
+
+    public override string Description =>
+        "Writes all the rows a query reads to a file, through Karvon's connection: Excel (.xlsx), CSV, TSV or JSON. Use it to export "
+        + "data (db_query returns at most 1000 rows as text). Returns the file's path and its row count. A new file is written at once; "
+        + "one that exists is replaced only when the user says so.";
+
+    public override JsonObject InputSchema => Schema("""
+        {"type":"object","properties":{
+          "connection":{"type":"string","description":"Connection name from db_connections."},
+          "database":{"type":"string","description":"A database on the server, if not the connection's own."},
+          "sql":{"type":"string","description":"The query whose rows to export (one that only reads)."},
+          "format":{"type":"string","enum":["xlsx","csv","tsv","json"],"description":"The file's format (default xlsx)."},
+          "path":{"type":"string","description":"Where to write it; relative to the solution's folder. Default: a new file in the Downloads folder."},
+          "sheet":{"type":"string","description":"The Excel sheet's name (default the connection's)."}},
+         "required":["connection","sql"]}
+        """);
+
+    string Format(JsonElement input) =>
+        Str(input, "format")?.Trim().TrimStart('.').ToLowerInvariant() is { } format && Formats.Contains(format) ? format
+            : Path.GetExtension(Str(input, "path") ?? "").TrimStart('.').ToLowerInvariant() is var extension && Formats.Contains(extension) ? extension
+            : "xlsx";
+
+    /// <summary>The file it writes: the path given (relative to the solution's folder), else a new one in Downloads.</summary>
+    string PathOf(JsonElement input)
+    {
+        var format = Format(input);
+        if (Str(input, "path") is { Length: > 0 } given)
+        {
+            var full = Path.GetFullPath(given.StartsWith('~') ? Environment.GetFolderPath(Environment.SpecialFolder.UserProfile) + given[1..] : given,
+                Host.Workspace ?? Environment.GetFolderPath(Environment.SpecialFolder.UserProfile));
+            return Path.HasExtension(full) ? full : full + "." + format;
+        }
+        var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+        var folder = Directory.Exists(Path.Combine(home, "Downloads")) ? Path.Combine(home, "Downloads") : home;
+        var name = string.Concat((Str(input, "connection") ?? "export").Select(c => char.IsLetterOrDigit(c) || c is '-' or '_' ? c : '-'));
+        return Path.Combine(folder, $"{name}-{DateTime.Now:yyyyMMdd-HHmmss}.{format}");
+    }
+
+    public override ClaudeToolPlan Plan(JsonElement input)
+    {
+        var path = PathOf(input);
+        var replaces = File.Exists(path);
+        var subject = $"{Str(input, "connection")}: {OneLine(Str(input, "sql") ?? "")} → {path}";
+        return replaces
+            ? new(ToolAccess.Write, "Export", subject, $"Allow Claude to replace {Path.GetFileName(path)} with the rows of {Str(input, "connection")}?")
+            {
+                Code = Str(input, "sql"),
+                Warning = $"{path} exists: it is written over.",
+            }
+            : new(ToolAccess.Run, "Export", subject, "") { Code = Str(input, "sql") };
+    }
+
+    /// <summary>A change is no export: refused before anyone is asked.</summary>
+    public override string? Refusal(JsonElement input) =>
+        base.Refusal(input) ?? (Str(input, "sql") is { } sql && SqlAccess(sql, ProviderOf(input)) != ToolAccess.Read
+            ? "db_export writes what a query reads; it runs no change. Run changes with db_query, which asks the user."
+            : null);
+
+    protected override async Task<ClaudeToolOutput> RunAsync(JsonElement input, CancellationToken cancellationToken)
+    {
+        var server = Server(input);
+        var sql = Str(input, "sql") ?? throw new InvalidOperationException("Give the query whose rows to export.");
+        if (SqlAccess(sql, server.Provider) != ToolAccess.Read)
+            throw new InvalidOperationException("db_export writes what a query reads; it runs no change.");
+        var path = PathOf(input);
+        var format = Format(input);
+        await using var session = await OpenAsync(input, server, cancellationToken);
+        var result = (await session.Query.ExecuteAllAsync(sql, MaxRows, cancellationToken)).LastOrDefault(r => r.IsQuery)
+            ?? throw new InvalidOperationException("The query returned no rows to export (no result set).");
+        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+        try
+        {
+            if (format == "xlsx")
+                await File.WriteAllBytesAsync(path, Bengine.Introspection.Export.XlsxWriter.Write(SheetName(Str(input, "sheet") ?? server.Name), result.Columns, result.Rows), cancellationToken);
+            else
+                await File.WriteAllTextAsync(path, format switch
+                {
+                    "csv" => Bengine.Introspection.Export.DataExporter.ToCsv(result.Columns, result.Rows),
+                    "tsv" => Bengine.Introspection.Export.DataExporter.ToTsv(result.Columns, result.Rows),
+                    _ => Bengine.Introspection.Export.DataExporter.ToJson(result.Columns, result.Rows),
+                }, cancellationToken);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            throw new InvalidOperationException($"{path} could not be written: {ex.Message}");
+        }
+        return new ClaudeToolOutput($"Exported {result.Rows.Count} row(s){(result.Truncated ? $" (the first {MaxRows}: Excel holds no more)" : "")} "
+            + $"of {result.Columns.Count} column(s) ({string.Join(", ", result.Columns)}) to {path} ({result.ElapsedMilliseconds:0} ms).");
+    }
+
+    /// <summary>An Excel sheet's name: at most 31 characters, none of : \ / ? * [ ].</summary>
+    static string SheetName(string name)
+    {
+        var clean = string.Concat(name.Select(c => c is ':' or '\\' or '/' or '?' or '*' or '[' or ']' ? '-' : c)).Trim();
+        return clean.Length == 0 ? "Export" : clean.Length > 31 ? clean[..31] : clean;
     }
 }
 
