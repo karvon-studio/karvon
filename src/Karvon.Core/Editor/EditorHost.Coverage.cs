@@ -63,7 +63,7 @@ public sealed partial class EditorHost
                 if (!file.Lines.TryGetValue(visual.FirstDocumentLine.LineNumber, out var line))
                     continue;
                 dc.FillRectangle(!line.IsCovered ? NotCovered : line.Partial ? Partial : Covered,
-                    new Rect(1, visual.VisualTop - view.VerticalOffset, 4, visual.Height));
+                    new Rect(1, EditorHost.CodeTop(visual) - view.VerticalOffset, 4, EditorHost.CodeHeight(visual)));
             }
         }
     }

@@ -33,7 +33,8 @@ Markdown files open with a live preview to the right or below (VS 2022's Markdow
 **Multiple carets** (Visual Studio's): Ctrl+Alt+click adds one, Shift+Alt+. a selection at the next match, Shift+Alt+;
 at every match; typing, Backspace, Delete, Enter, Left, Right, Home and End act at each; Escape leaves one.
 **Inlay hints** (a parameter's name before its argument, a type after a var; Roslyn's and any language server's) and
-**CodeLens** (a member's references after its line, which finds them); **Fix All** in a quick action's menu (Fix all
+**CodeLens** (a member's references on a row of its own above it, as Visual Studio has them, which finds them;
+View > CodeLens turns it off); **Fix All** in a quick action's menu (Fix all
 occurrences in Document, Project or Solution); **Sticky Scroll** (the lines that open the scopes the view is in stay at
 its top; one clicked goes there); a **Minimap** in place of the vertical scroll bar (VS's map mode). Each is in the
 View menu, kept; the minimap is off at first.

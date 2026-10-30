@@ -97,8 +97,9 @@ while True:
         send({"jsonrpc": "2.0", "id": id, "result": found})
     elif method == "textDocument/codeLens" and hints:
         text = documents[params["textDocument"]["uri"]]
-        lenses = [{"range": {"start": {"line": i, "character": 4}, "end": {"line": i, "character": len(line)}}, "data": {"line": i}}
-                  for i, line in enumerate(text.split("\n")) if line.startswith("def ")]
+        # A member's lens at its name, as indented as it is.
+        lenses = [{"range": {"start": {"line": i, "character": len(line) - len(line.lstrip()) + 4}, "end": {"line": i, "character": len(line)}}, "data": {"line": i}}
+                  for i, line in enumerate(text.split("\n")) if line.lstrip().startswith("def ")]
         send({"jsonrpc": "2.0", "id": id, "result": lenses})
     elif method == "codeLens/resolve" and hints:
         params["command"] = {"title": "2 references", "command": "fake.references"}

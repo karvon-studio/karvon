@@ -59,8 +59,9 @@ public sealed class BreakpointMargin(IDebugLineSource source) : AbstractMargin
         foreach (var visual in view.VisualLines)
         {
             var line = visual.FirstDocumentLine.LineNumber;
-            var top = visual.VisualTop - view.VerticalOffset;
-            var height = visual.TextLines.Count > 0 ? visual.TextLines[0].Height : view.DefaultLineHeight;
+            // Beside the line's code (below its code lens's row, when it has one).
+            var top = EditorHost.CodeTop(visual) - view.VerticalOffset;
+            var height = EditorHost.FirstRowHeight(visual, view.DefaultLineHeight);
             var center = new Point(9, top + height / 2);
             if (breakpoints.Contains(line))
             {
@@ -158,8 +159,8 @@ public sealed class DebugLineRenderer(IDebugLineSource source) : IBackgroundRend
                 : null;
             if (brush is null)
                 continue;
-            var top = visual.VisualTop - textView.VerticalOffset;
-            drawingContext.FillRectangle(brush, new Rect(0, top, textView.Bounds.Width, visual.Height));
+            var top = EditorHost.CodeTop(visual) - textView.VerticalOffset;
+            drawingContext.FillRectangle(brush, new Rect(0, top, textView.Bounds.Width, EditorHost.CodeHeight(visual)));
         }
     }
 }
@@ -194,7 +195,8 @@ public sealed class GitChangeMargin(Func<IReadOnlyList<Karvon.Git.LineChange>> c
         foreach (var visual in view.VisualLines)
         {
             var line = visual.FirstDocumentLine.LineNumber;
-            var top = visual.VisualTop - view.VerticalOffset;
+            var top = EditorHost.CodeTop(visual) - view.VerticalOffset;
+            var height = EditorHost.CodeHeight(visual);
             foreach (var c in list)
             {
                 if (c.Kind == Karvon.Git.LineChangeKind.Deleted)
@@ -202,7 +204,7 @@ public sealed class GitChangeMargin(Func<IReadOnlyList<Karvon.Git.LineChange>> c
                     if (c.Line != line)
                         continue;
                     // A small wedge at the bottom of the line after which lines were removed.
-                    var y = top + visual.Height;
+                    var y = top + height;
                     var wedge = new StreamGeometry();
                     using (var ctx = wedge.Open())
                     {
@@ -215,7 +217,7 @@ public sealed class GitChangeMargin(Func<IReadOnlyList<Karvon.Git.LineChange>> c
                 }
                 else if (line >= c.Line && line < c.Line + c.Count)
                 {
-                    dc.FillRectangle(c.Kind == Karvon.Git.LineChangeKind.Added ? AddedBrush : ModifiedBrush, new Rect(1, top, 3, visual.Height));
+                    dc.FillRectangle(c.Kind == Karvon.Git.LineChangeKind.Added ? AddedBrush : ModifiedBrush, new Rect(1, top, 3, height));
                 }
             }
         }

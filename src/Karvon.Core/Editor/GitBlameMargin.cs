@@ -70,8 +70,8 @@ public sealed class GitBlameMargin(Func<IReadOnlyList<GitBlameCommit>?> blame) :
             var line = visual.FirstDocumentLine.LineNumber;
             if (At(lines, line) is not { } commit)
                 continue;
-            var top = visual.VisualTop - view.VerticalOffset;
-            var height = visual.Height;
+            var top = EditorHost.CodeTop(visual) - view.VerticalOffset;
+            var height = EditorHost.CodeHeight(visual);
             if (ReferenceEquals(commit, _hovered))
                 dc.FillRectangle(HoverBrush, new Rect(0, top, Bounds.Width, height));
             dc.FillRectangle(commit.IsUncommitted ? UncommittedBrush : new SolidColorBrush(Heat(commit.Date, oldest, newest)), new Rect(0, top, 3, height));

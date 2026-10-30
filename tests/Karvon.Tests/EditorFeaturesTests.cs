@@ -4,6 +4,8 @@ using Avalonia.Headless.XUnit;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Threading;
+using AvaloniaEdit;
+using Karvon.Editor;
 using Karvon.Modules;
 using Karvon.ViewModels;
 using Karvon.Views;
@@ -144,6 +146,23 @@ public class EditorFeaturesTests
     }
 
     [AvaloniaFact]
+    public async Task A_code_lens_is_as_indented_as_its_member_and_its_marks_are_beside_the_code()
+    {
+        var (vm, window, file) = await OpenFolderAsync("shop.hint", "class Shop {\n    def total {\n        call(1)\n    }\n}\n", new FakeHintsModule());
+        var host = vm.OpenDocument(file)!.Host;
+        await WaitUntil(() => host.CodeLenses.Count == 1, TimeSpan.FromSeconds(15));
+        var textView = host.Editor.TextArea.TextView;
+        await WaitUntil(() => textView.VisualLinesValid && EditorHost.HasLensRow(textView.GetOrConstructVisualLine(host.Document.GetLineByNumber(2))), TimeSpan.FromSeconds(5));
+        var member = textView.GetOrConstructVisualLine(host.Document.GetLineByNumber(2));
+        // The title starts over the member's first letter.
+        var lensX = member.GetTextLineVisualXPosition(member.TextLines[0], 4);
+        var codeX = member.GetTextLineVisualXPosition(member.TextLines[1], member.GetVisualColumn(4));
+        Assert.Equal(codeX, lensX, 1);
+        Snapshot(window, "editor-codelens");
+        window.Close();
+    }
+
+    [AvaloniaFact]
     public async Task The_servers_inlay_hints_CodeLens_and_Fix_All_show_in_the_editor()
     {
         var (vm, window, file) = await OpenFolderAsync("plan.hint", "call(42)\ndef thing\nTODO one\nTODO two\n", new FakeHintsModule());
@@ -153,6 +172,47 @@ public class EditorFeaturesTests
         Assert.Equal((5, "value:"), host.InlayHints[0]);
         Assert.Equal((2, "2 references"), host.CodeLenses[0]);
         Snapshot(window, "editor-hints");
+
+        // As in Visual Studio: the lens on a row of its own above the member, the code where it was below it.
+        var editor = host.Editor;
+        var textView = editor.TextArea.TextView;
+        await WaitUntil(() => textView.VisualLinesValid && EditorHost.HasLensRow(textView.GetOrConstructVisualLine(host.Document.GetLineByNumber(2))), TimeSpan.FromSeconds(5));
+        var member = textView.GetOrConstructVisualLine(host.Document.GetLineByNumber(2));
+        Assert.Equal(2, member.TextLines.Count);
+        Assert.False(EditorHost.HasLensRow(textView.GetOrConstructVisualLine(host.Document.GetLineByNumber(1))));
+        Assert.True(EditorHost.CodeTop(member) > member.VisualTop);
+        // Up and Down go over the lens's row; the caret never stops on it.
+        await WaitUntil(() => editor.TextArea.IsEffectivelyVisible && TopLevel.GetTopLevel(editor) is not null, TimeSpan.FromSeconds(5));
+        editor.TextArea.Focus();
+        Dispatcher.UIThread.RunJobs();
+        var caret = editor.TextArea.Caret;
+        int Row() => textView.GetOrConstructVisualLine(host.Document.GetLineByNumber(caret.Line)) is var v ? v.TextLines.IndexOf(v.GetTextLine(caret.VisualColumn, caret.Position.IsAtEndOfLine)) : -1;
+        void Key_(Key key, PhysicalKey physical)
+        {
+            window.KeyPress(key, RawInputModifiers.None, physical, null);
+            Dispatcher.UIThread.RunJobs();
+        }
+        caret.Position = new TextViewPosition(1, 3);
+        Key_(Key.Down, PhysicalKey.ArrowDown);
+        Assert.Equal((2, 1), (caret.Line, Row()));
+        Key_(Key.Up, PhysicalKey.ArrowUp);
+        Assert.Equal(1, caret.Line);
+        Key_(Key.Down, PhysicalKey.ArrowDown);
+        Key_(Key.Down, PhysicalKey.ArrowDown);
+        Assert.Equal(3, caret.Line);
+        Key_(Key.Up, PhysicalKey.ArrowUp);
+        Assert.Equal((2, 1), (caret.Line, Row()));
+        // Home is the code's start, below the lens; Left from there the line above's end.
+        caret.Position = new TextViewPosition(2, 5);
+        Key_(Key.Home, PhysicalKey.Home);
+        Assert.Equal((2, 1, 1), (caret.Line, caret.Column, Row()));
+        Key_(Key.Left, PhysicalKey.ArrowLeft);
+        Assert.Equal((1, 9), (caret.Line, caret.Column));
+        // View > CodeLens takes it away, the line one row again.
+        vm.CodeLens = false;
+        await WaitUntil(() => textView.VisualLinesValid && !EditorHost.HasLensRow(textView.GetOrConstructVisualLine(host.Document.GetLineByNumber(2))), TimeSpan.FromSeconds(5));
+        vm.CodeLens = true;
+        await WaitUntil(() => host.CodeLenses.Count == 1, TimeSpan.FromSeconds(15));
 
         // The hint keeps its place as the line is edited before it.
         host.Document.Insert(0, "  ");
