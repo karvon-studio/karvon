@@ -48,14 +48,28 @@ abstract class ServerTool(Func<ServersExplorerViewModel> servers) : IClaudeTool
 
     protected abstract Task<ClaudeToolOutput> RunAsync(JsonElement input, CancellationToken cancellationToken);
 
-    /// <summary>The machine the call names, or an error that lists them.</summary>
+    /// <summary>The machine the call names, of those Claude may reach in this folder, or an error that lists them.</summary>
     protected ServerHost Server(JsonElement input)
     {
         var name = Str(input, "server") ?? "";
-        return Servers.Find(name)?.Host ?? throw new InvalidOperationException(Servers.Servers.Any()
-            ? $"There is no server named '{name}'. Servers: {string.Join(", ", Servers.Servers.Select(s => s.Name))}."
-            : "There are no servers. The user adds them in ~/.ssh/config or Karvon's Servers window.");
+        var reachable = Reachable();
+        if (reachable.FirstOrDefault(s => s.Name.Equals(name, StringComparison.OrdinalIgnoreCase)) is { } server)
+            return server.Host;
+        throw new InvalidOperationException(Servers.Find(name) is not null
+            ? $"{name} is not one of the servers Claude may reach in this folder. {LetIn}"
+            : reachable.Count > 0
+                ? $"There is no server named '{name}' for this folder. Servers: {string.Join(", ", reachable.Select(s => s.Name))}."
+                : NoServers());
     }
+
+    /// <summary>The servers the user let Claude reach in the folder it works in.</summary>
+    protected List<ServerNode> Reachable() => [.. Servers.Servers.Where(s => Servers.IsForClaude(s.Host))];
+
+    protected const string LetIn = "The user lets Claude reach a server in the Servers window (right-click > Let Claude Reach It Here): ask them.";
+
+    protected string NoServers() => Servers.Servers.Any()
+        ? $"No server is Claude's to reach in this folder (the user has {Servers.Servers.Count()}). {LetIn}"
+        : "There are no servers. The user adds them in ~/.ssh/config or Karvon's Servers window.";
 
     protected bool IsProduction(JsonElement input) => Str(input, "server") is { } name && Servers.Find(name)?.IsProduction == true;
 
@@ -68,8 +82,8 @@ sealed class ServerListTool(Func<ServersExplorerViewModel> servers) : ServerTool
     public override string Name => "server_list";
 
     public override string Description =>
-        "Lists the user's servers (SSH machines from ~/.ssh/config and Karvon's Servers window): name, user@host:port, and which are "
-        + "production, where every command asks the user.";
+        "Lists the servers the user lets Claude reach in this folder (SSH machines from ~/.ssh/config and Karvon's Servers window): "
+        + "name, user@host:port, and which are production, where every command asks the user.";
 
     public override JsonObject InputSchema => Schema("""{"type":"object","properties":{}}""");
 
@@ -77,9 +91,9 @@ sealed class ServerListTool(Func<ServersExplorerViewModel> servers) : ServerTool
 
     protected override Task<ClaudeToolOutput> RunAsync(JsonElement input, CancellationToken cancellationToken)
     {
-        var all = Servers.Servers.OrderBy(s => s.Name, StringComparer.OrdinalIgnoreCase).ToList();
+        var all = Reachable().OrderBy(s => s.Name, StringComparer.OrdinalIgnoreCase).ToList();
         if (all.Count == 0)
-            return Task.FromResult(new ClaudeToolOutput("There are no servers. The user adds them in ~/.ssh/config or Karvon's Servers window."));
+            return Task.FromResult(new ClaudeToolOutput(NoServers()));
         return Task.FromResult(new ClaudeToolOutput(string.Join("\n", all.Select(s => $"{s.Name}: {s.Target}"
             + (s.Host.Group is { } group ? $", group {group}" : "") + (s.IsProduction ? ", production (every command asks the user)" : "")))));
     }

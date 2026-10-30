@@ -143,6 +143,8 @@ public sealed partial class ServersModule : KarvonModule, IServersHost
 
     void IServersHost.Status(string text) => Workbench.Status(text);
 
+    string? IServersHost.Workspace => Workbench.Workspace;
+
     // ---- Remote folders -----------------------------------------------------------------------------------------
 
     /// <summary>Where the machines' folders are copied: &lt;config&gt;/remote-folders.</summary>
@@ -200,6 +202,8 @@ public sealed partial class ServersModule : KarvonModule, IServersHost
     /// </summary>
     public override async Task WorkspaceChangedAsync()
     {
+        // The servers Claude may reach are the folder's.
+        Explorer?.Refresh();
         var dir = Workbench.Solution?.Directory is { } d ? Path.GetFullPath(d).TrimEnd(Path.DirectorySeparatorChar) : null;
         if (_remote is { } open && open.Folder.LocalRoot != dir)
         {

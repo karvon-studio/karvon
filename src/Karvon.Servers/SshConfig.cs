@@ -19,6 +19,9 @@ public sealed record ServerHost(string Name, string Address, int Port, string Us
     /// <summary>Every change on it asks, from the explorer and from Claude.</summary>
     public bool Production { get; init; }
 
+    /// <summary>The folders in which Claude may reach it (Karvon's tools), as the user let it.</summary>
+    public IReadOnlyList<string> ClaudeFolders { get; init; } = [];
+
     public bool FromSshConfig => Source == "ssh config";
 
     /// <summary>"user@host:port" (the port only when it is not 22).</summary>

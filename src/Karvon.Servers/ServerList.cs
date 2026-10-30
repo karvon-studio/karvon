@@ -17,6 +17,9 @@ public sealed class ServerSettings
     public string? Group { get; set; }
 
     public bool Production { get; set; }
+
+    /// <summary>The folders (the solutions' and the home folder) in which Claude may reach it.</summary>
+    public List<string>? ClaudeFolders { get; set; }
 }
 
 /// <summary>
@@ -56,7 +59,9 @@ public sealed class ServerList(string file)
     public IReadOnlyList<ServerHost> Hosts()
     {
         var settings = Load();
-        var hosts = SshConfig.Read().Select(h => settings.TryGetValue(h.Name, out var s) ? h with { Group = s.Group, Production = s.Production } : h).ToList();
+        var hosts = SshConfig.Read().Select(h => settings.TryGetValue(h.Name, out var s)
+            ? h with { Group = s.Group, Production = s.Production, ClaudeFolders = s.ClaudeFolders ?? [] }
+            : h).ToList();
         foreach (var (name, s) in settings)
             if (s.Address is { Length: > 0 } address && hosts.All(h => !h.Name.Equals(name, StringComparison.OrdinalIgnoreCase)))
                 hosts.Add(new ServerHost(name, address, s.Port ?? 22, s.User ?? Environment.UserName)
@@ -65,6 +70,7 @@ public sealed class ServerList(string file)
                     Source = "Karvon",
                     Group = s.Group,
                     Production = s.Production,
+                    ClaudeFolders = s.ClaudeFolders ?? [],
                 });
         return hosts;
     }

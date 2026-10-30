@@ -32,6 +32,9 @@ public interface IServersHost
 
     /// <summary>A folder of a machine copied here and opened as the workspace (its tasks, builds and terminal run there).</summary>
     Task OpenRemoteFolderAsync(ServerHost host, string path);
+
+    /// <summary>The open solution's folder, where Claude works; null for none (it works in the home folder).</summary>
+    string? Workspace => null;
 }
 
 public enum ServerStatus
@@ -46,7 +49,7 @@ public enum ServerStatus
 public sealed partial class ServerNode(ServersExplorerViewModel explorer, ServerHost host) : ObservableObject
 {
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(Name), nameof(Target), nameof(IsProduction), nameof(ToolTip))]
+    [NotifyPropertyChangedFor(nameof(Name), nameof(Target), nameof(IsProduction), nameof(IsForClaude), nameof(ToolTip))]
     public partial ServerHost Host { get; set; } = host;
 
     public string Name => Host.Name;
@@ -55,8 +58,12 @@ public sealed partial class ServerNode(ServersExplorerViewModel explorer, Server
 
     public bool IsProduction => Host.Production;
 
+    /// <summary>Claude may reach it in the folder it works in now (Karvon's server tools).</summary>
+    public bool IsForClaude => explorer.IsForClaude(Host);
+
     public string ToolTip => $"{Host.Target} · from {Host.Source}{(Host.ProxyJump is { } jump ? $" · through {jump}" : "")}"
-        + (Host.Production ? "\nProduction: every change on it asks, yours and Claude's." : "") + (Error is { } error ? "\n" + error : "");
+        + (Host.Production ? "\nProduction: every change on it asks, yours and Claude's." : "")
+        + (IsForClaude ? "\nClaude may reach it in this folder." : "") + (Error is { } error ? "\n" + error : "");
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(StatusText), nameof(DotKind), nameof(IsConnected))]
@@ -116,6 +123,9 @@ public sealed partial class ServerNode(ServersExplorerViewModel explorer, Server
 
     [RelayCommand]
     void ToggleProduction() => explorer.SetProduction(this, !IsProduction);
+
+    [RelayCommand]
+    void ToggleClaude() => explorer.SetForClaude(this, !IsForClaude);
 
     [RelayCommand]
     Task Edit() => explorer.EditAsync(this);
@@ -421,6 +431,29 @@ public sealed partial class ServersExplorerViewModel : ObservableObject, IServer
     internal void SetProduction(ServerNode node, bool production)
     {
         List.Update(node.Name, s => s.Production = production);
+        Refresh();
+    }
+
+    /// <summary>The folder Claude works in: the open solution's, else the home folder.</summary>
+    public string ClaudeFolder => Path.TrimEndingDirectorySeparator(Path.GetFullPath(Host.Workspace ?? Environment.GetFolderPath(Environment.SpecialFolder.UserProfile)));
+
+    /// <summary>
+    /// Whether Claude may reach <paramref name="host"/> in the folder it works in: the servers the user let it reach there,
+    /// not every host of ~/.ssh/config.
+    /// </summary>
+    public bool IsForClaude(ServerHost host) => host.ClaudeFolders.Any(f =>
+        Path.TrimEndingDirectorySeparator(f).Equals(ClaudeFolder, OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal));
+
+    internal void SetForClaude(ServerNode node, bool forClaude)
+    {
+        var folder = ClaudeFolder;
+        List.Update(node.Name, s =>
+        {
+            var folders = (s.ClaudeFolders ?? []).Where(f => !Path.TrimEndingDirectorySeparator(f).Equals(folder, StringComparison.Ordinal)).ToList();
+            if (forClaude)
+                folders.Add(folder);
+            s.ClaudeFolders = folders.Count > 0 ? folders : null;
+        });
         Refresh();
     }
 

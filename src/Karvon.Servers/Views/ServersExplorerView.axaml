@@ -107,6 +107,8 @@
                   <Separator />
                   <MenuItem Header="Mark as Production" Command="{Binding ToggleProductionCommand}" IsVisible="{Binding !IsProduction}" />
                   <MenuItem Header="Not Production" Command="{Binding ToggleProductionCommand}" IsVisible="{Binding IsProduction}" />
+                  <MenuItem Header="Let Claude Reach It Here" Command="{Binding ToggleClaudeCommand}" IsVisible="{Binding !IsForClaude}" />
+                  <MenuItem Header="Keep Claude Away From It Here" Command="{Binding ToggleClaudeCommand}" IsVisible="{Binding IsForClaude}" />
                   <MenuItem Header="Edit…" Command="{Binding EditCommand}" />
                   <MenuItem Header="Remove…" Command="{Binding RemoveCommand}" IsVisible="{Binding CanRemove}" />
                   <Separator />
@@ -131,6 +133,8 @@
                 <Border Classes="pill red" IsVisible="{Binding IsProduction}" Padding="6,0" ToolTip.Tip="Production: every change on it asks">
                   <TextBlock Text="prod" FontSize="10" />
                 </Border>
+                <v:VsIcon Kind="Claude" Width="12" Height="12" IsVisible="{Binding IsForClaude}" VerticalAlignment="Center"
+                          ToolTip.Tip="Claude may reach it in this folder" />
               </StackPanel>
               <StackPanel Grid.Column="3" Classes="rowActions" Orientation="Horizontal" Margin="4,0,0,0">
                 <Button Classes="tbi" Command="{Binding OpenTabCommand}" CommandParameter="terminal" ToolTip.Tip="Terminal">

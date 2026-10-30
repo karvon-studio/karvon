@@ -20,6 +20,8 @@ sealed class TestServersHost : IServersHost
 {
     public string ConfigDirectory { get; } = Path.Combine(Path.GetTempPath(), "karvon-servers-" + Guid.NewGuid().ToString("N"));
 
+    public string? Workspace { get; set; }
+
     public List<ServerDocument> Open { get; } = [];
 
     public List<string> Opened { get; } = [];
@@ -271,14 +273,38 @@ public class ServersTests
     public async Task Claude_lists_the_servers_and_a_production_command_is_destructive()
     {
         WriteConfig("Host lab\n  HostName 127.0.0.1\n  Port 1\n  User tester\n\nHost prod-1\n  HostName 127.0.0.1\n  Port 1\n");
-        var host = new TestServersHost();
+        var shop = Directory.CreateDirectory(Path.Combine(Path.GetTempPath(), "karvon-shop-" + Guid.NewGuid().ToString("N"))).FullName;
+        var host = new TestServersHost { Workspace = shop };
         var explorer = new ServersExplorerViewModel(host);
         explorer.SetProduction(explorer.Find("prod-1")!, true);
         var (docker, _, _) = FakeDocker.Create();
         var server = new TestToolHost(null, new Docker.DockerEngine(docker)).Tools(() => explorer);
-        var message = JsonSerializer.SerializeToElement(new { jsonrpc = "2.0", id = 1, method = "tools/call", @params = new { name = "server_list", arguments = new { } } });
-        var list = (await server.HandleAsync(message, CancellationToken.None))["result"]!["content"]![0]!["text"]!.GetValue<string>();
-        Assert.Equal("lab: tester@127.0.0.1:1\nprod-1: " + Environment.UserName + "@127.0.0.1:1, production (every command asks the user)", list);
+        async Task<(string Text, bool IsError)> Call(string tool, object arguments)
+        {
+            var message = ClaudeIdeToolsTests.Allowed(server, tool, arguments);
+            var result = (await server.HandleAsync(message, CancellationToken.None))["result"]!;
+            return (result["content"]![0]!["text"]!.GetValue<string>(), result["isError"]!.GetValue<bool>());
+        }
+
+        // Not every host of ~/.ssh/config: only those the user lets Claude reach in this folder.
+        Assert.Equal("No server is Claude's to reach in this folder (the user has 2). The user lets Claude reach a server in the Servers "
+            + "window (right-click > Let Claude Reach It Here): ask them.", (await Call("server_list", new { })).Text);
+        var (refused, isError) = await Call("server_logs", new { server = "lab", unit = "nginx" });
+        Assert.True(isError);
+        Assert.StartsWith("lab is not one of the servers Claude may reach in this folder.", refused);
+        explorer.SetForClaude(explorer.Find("lab")!, true);
+        explorer.SetForClaude(explorer.Find("prod-1")!, true);
+        Assert.True(explorer.Find("lab")!.IsForClaude);
+        Assert.Equal("lab: tester@127.0.0.1:1\nprod-1: " + Environment.UserName + "@127.0.0.1:1, production (every command asks the user)",
+            (await Call("server_list", new { })).Text);
+        // Another folder has its own; kept away again, it is not Claude's here.
+        host.Workspace = Path.GetTempPath();
+        explorer.Refresh();
+        Assert.False(explorer.Find("lab")!.IsForClaude);
+        host.Workspace = shop;
+        explorer.Refresh();
+        explorer.SetForClaude(explorer.Find("prod-1")!, false);
+        Assert.Equal("lab: tester@127.0.0.1:1", (await Call("server_list", new { })).Text);
 
         ClaudeToolPlan Plan(string tool, object input) => server.Plan(ClaudeToolServer.Prefix + tool, JsonSerializer.SerializeToElement(input))!;
         Assert.Equal(ToolAccess.Write, Plan("server_exec", new { server = "lab", command = "uptime" }).Access);

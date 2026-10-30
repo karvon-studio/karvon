@@ -122,6 +122,7 @@ public class ServersLiveTests
             // Claude: a command through Karvon's connection; on a production machine it is destructive.
             var (docker, _, _) = FakeDocker.Create();
             var tools = new TestToolHost(null, new Docker.DockerEngine(docker)).Tools(() => explorer);
+            explorer.SetForClaude(explorer.Find("live")!, true);
             var message = ClaudeIdeToolsTests.Allowed(tools, "server_exec", new { server = "live", command = "uname -s" });
             Assert.Equal("Exit code 0.\nLinux", (await tools.HandleAsync(message, CancellationToken.None))["result"]!["content"]![0]!["text"]!.GetValue<string>());
 
