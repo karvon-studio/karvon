@@ -401,5 +401,7 @@
         <Button Name="CloneButton" Classes="primary" Content="Clone" Command="{Binding CloneCommand}" IsVisible="{Binding IsClone}" />
       </StackPanel>
     </Grid>
+    <!-- The update's notification, in the corner (above Back and Next) -->
+    <StackPanel Name="NotificationLayer" Spacing="8" HorizontalAlignment="Right" VerticalAlignment="Bottom" />
   </Grid>
 </Window>

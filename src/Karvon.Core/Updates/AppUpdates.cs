@@ -13,8 +13,8 @@ public enum ExitAction
 }
 
 /// <summary>
-/// The running Karvon Studio's updates: one updater; checked for as it starts (once a day, as the settings say), the
-/// update downloaded when they say so; installed as it exits (and it starts again), when the user asked for it or the
+/// The running Karvon Studio's updates: one updater; checked for each time it starts (as the settings say), the update
+/// downloaded when they say so; installed as it exits (and it starts again), when the user asked for it or the
 /// settings say an update installs as Karvon Studio closes.
 /// </summary>
 public static class AppUpdates
@@ -27,18 +27,14 @@ public static class AppUpdates
     /// <summary>What Karvon Studio starts again with (the solution that was open).</summary>
     public static IReadOnlyList<string> RestartArguments { get; set; } = [];
 
-    /// <summary>How long a check lasts before another as Karvon Studio starts.</summary>
-    public static readonly TimeSpan CheckInterval = TimeSpan.FromDays(1);
-
     /// <summary>
-    /// The check as Karvon Studio starts: when the settings ask for it and the last one is a day old; the update
-    /// downloaded when they say so. The downloads of what is installed go first.
+    /// The check as Karvon Studio starts, when the settings ask for it; the update downloaded when they say so. The
+    /// downloads of what is installed go first.
     /// </summary>
     public static async Task StartAsync(Updater updater, Settings settings, CancellationToken ct = default)
     {
         updater.CleanCache();
-        if (!settings.UpdatesCheck || !updater.Install.CanUpdate
-            || settings.UpdatesLastCheck is { } last && DateTimeOffset.Now - last < CheckInterval)
+        if (!settings.UpdatesCheck || !updater.Install.CanUpdate)
             return;
         await updater.CheckAsync(ct);
         if (updater.State != UpdateState.Failed)

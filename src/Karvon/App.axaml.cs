@@ -74,7 +74,7 @@ public partial class App : Application
         }
         else
             ShowStartWindow(desktop, vm);
-        // Once a day (as the settings say) the update is checked for, and downloaded.
+        // Each time it starts (as the settings say) the update is checked for and downloaded; a notification says it.
         _ = AppUpdates.StartAsync(AppUpdates.Current, vm.Settings);
     }
 
@@ -82,6 +82,7 @@ public partial class App : Application
     static StartWindow ShowStartWindow(IClassicDesktopStyleApplicationLifetime desktop, MainViewModel vm)
     {
         var start = new StartWindow { DataContext = new StartViewModel(vm.Settings, templates: vm.ProjectTemplateSources) };
+        start.ShowUpdates(vm.Updates);
         start.Finished += path =>
         {
             var main = new MainWindow { DataContext = vm };

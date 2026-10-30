@@ -170,6 +170,14 @@ public partial class MainWindow
 
     void OnUpdateBadgeClick(object? sender, RoutedEventArgs e) => ShowInstaller(InstallerPage.Product, check: false);
 
+    /// <summary>The update's notification in the corner: Restart and update restarts as the installer's does, its notes are the installer's.</summary>
+    void AttachUpdateNotification(MainViewModel vm)
+    {
+        NotificationLayer.Children.Clear();
+        NotificationLayer.Children.Add(new UpdateNotification(vm.Updates, () => Restart(Updates.ExitAction.RestartUpdated),
+            () => ShowInstaller(InstallerPage.Product, check: false)));
+    }
+
     /// <summary>Karvon Studio Installer over the window (one: shown again when it is open), on its product or on Modify.</summary>
     internal InstallerWindow? ShowInstaller(InstallerPage page, bool check)
     {

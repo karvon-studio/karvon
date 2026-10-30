@@ -31,7 +31,8 @@ chmod +x Karvon-Studio-*-x86_64.AppImage && ./Karvon-Studio-*-x86_64.AppImage   
 
 Then `karvon path/to/App.sln` (or a `.slnx`, a project, a folder), or `karvon` for the start window. Solutions need the
 .NET 10 SDK; the language servers and debuggers download the first time they are needed (Tools > Get Tools and Features
-lists them). Karvon Studio updates itself: it checks once a day and installs the update as it closes.
+lists them). Karvon Studio updates itself: it checks each time it starts, says so in a notification, and installs the
+update as it closes.
 
 ## What it does
 

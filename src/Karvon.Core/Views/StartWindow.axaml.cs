@@ -47,6 +47,22 @@ public partial class StartWindow : Window
         Close(path);
     }
 
+    /// <summary>
+    /// The update's notification in the corner: Restart and update closes Karvon Studio (no IDE window after it), the
+    /// update installs as it exits and it starts again; its notes are the release's page.
+    /// </summary>
+    public void ShowUpdates(Updates.Updater updater)
+    {
+        NotificationLayer.Children.Clear();
+        NotificationLayer.Children.Add(new UpdateNotification(updater, () =>
+        {
+            Updates.AppUpdates.OnExit = Updates.ExitAction.RestartUpdated;
+            Updates.AppUpdates.RestartArguments = [];
+            _finished = true;
+            Close();
+        }, () => Services.DesktopShell.Open(updater.Latest?.PageUrl ?? $"https://github.com/{Updates.UpdateFeed.Repository}/releases")));
+    }
+
     protected override void OnClosing(WindowClosingEventArgs e)
     {
         base.OnClosing(e);

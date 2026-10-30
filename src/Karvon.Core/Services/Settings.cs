@@ -112,7 +112,7 @@ public sealed class Settings
     /// <summary>What Claude does with Karvon's tools shows in Karvon: a query's results, a container's logs, the build, a search...</summary>
     public bool ClaudeShowToolActivity { get; set; } = true;
 
-    /// <summary>Updates: checked as Karvon Studio starts (once a day), downloaded at once, installed as it closes.</summary>
+    /// <summary>Updates: checked each time Karvon Studio starts, downloaded at once, installed as it closes.</summary>
     public bool UpdatesCheck { get; set; } = true;
 
     public bool UpdatesDownload { get; set; } = true;

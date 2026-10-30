@@ -1186,6 +1186,8 @@
           <Border Name="ToolDropMarker" Background="#3794FF" CornerRadius="1" IsVisible="False" />
         </Canvas>
       </Panel>
+      <!-- Notifications in the corner, over the documents (the update's) -->
+      <StackPanel Name="NotificationLayer" Grid.ColumnSpan="5" ZIndex="98" Spacing="8" HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,14,14" />
     </Grid>
   </DockPanel>
 </Window>

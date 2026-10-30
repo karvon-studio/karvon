@@ -53,6 +53,9 @@ public sealed partial class Updater(AppInstall install, UpdateFeed feed, string 
     /// <summary>When it last checked.</summary>
     public DateTimeOffset? LastChecked { get; private set; }
 
+    /// <summary>The version whose notification was closed: not shown again while Karvon Studio runs.</summary>
+    public string? Dismissed { get; set; }
+
     /// <summary>The update downloaded and unpacked: the file or folder that takes the install's place.</summary>
     string? _staged;
 

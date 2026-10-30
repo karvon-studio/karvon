@@ -151,29 +151,119 @@ public class InstallerTests
         Directory.Delete(dir, recursive: true);
     }
 
+    [AvaloniaFact]
+    public async Task The_update_found_as_Karvon_starts_is_said_in_a_notification_that_downloads_and_restarts_into_it()
+    {
+        var (updater, dir) = UpdaterWithRelease();
+        var vm = NewViewModel();
+        vm.Updates = updater;
+        var main = new MainWindow { DataContext = vm, Width = 1280, Height = 800 };
+        main.Show();
+        var notification = Named<UpdateNotification>(main, "UpdateNotification");
+        Assert.False(notification.IsVisible);
+        string Text(string name) => Named<TextBlock>(main, name).Text!;
+        var update = Named<Button>(main, "UpdateNotificationUpdate");
+        try
+        {
+            // The check as it starts (not downloading, as the settings may say): the update, in the corner.
+            var settings = new Karvon.Services.Settings { InMemory = true, UpdatesDownload = false };
+            await AppUpdates.StartAsync(updater, settings);
+            await WaitUntil(() => notification.IsVisible, TimeSpan.FromSeconds(5));
+            Assert.Equal("Karvon Studio 0.2.0 is available", Text("UpdateNotificationTitle"));
+            Assert.Equal(("Update", true), (update.Content, update.IsVisible));
+            Snapshot(main, "update-notification");
+
+            // Update downloads it; then Restart and update restarts into it, as the installer's does.
+            update.RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent));
+            await WaitUntil(() => updater.State == UpdateState.Ready, TimeSpan.FromSeconds(10));
+            await WaitUntil(() => Text("UpdateNotificationTitle") == "Karvon Studio 0.2.0 is ready", TimeSpan.FromSeconds(5));
+            Assert.Equal("Restart and update", update.Content);
+
+            // Release notes: the installer, with the release's notes.
+            Named<Button>(main, "UpdateNotificationNotes").RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent));
+            var installer = Assert.IsType<InstallerViewModel>(main.ShowInstaller(InstallerPage.Product, check: false)!.DataContext);
+            Assert.StartsWith("# Karvon Studio 0.2.0", installer.ReleaseNotes);
+
+            // Closed: not again while Karvon Studio runs (the start window's either), though the status bar still says it.
+            Named<Button>(main, "UpdateNotificationClose").RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent));
+            Assert.False(notification.IsVisible);
+            Assert.True(vm.HasUpdateBadge);
+            var start = new StartWindow { DataContext = new StartViewModel(new Karvon.Services.Settings { InMemory = true }) };
+            start.ShowUpdates(updater);
+            start.Show();
+            Assert.False(Named<UpdateNotification>(start, "UpdateNotification").IsVisible);
+            start.Close();
+
+            // Not closed (the next time it starts): Restart and update closes Karvon Studio, which restarts into it.
+            updater.Dismissed = null;
+            var next = NewViewModel();
+            next.Updates = updater;
+            var again = new MainWindow { DataContext = next, Width = 1280, Height = 800 };
+            again.Show();
+            Assert.True(Named<UpdateNotification>(again, "UpdateNotification").IsVisible);
+            Named<Button>(again, "UpdateNotificationUpdate").RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent));
+            Assert.Equal(ExitAction.RestartUpdated, AppUpdates.OnExit);
+            Assert.False(again.IsVisible);
+        }
+        finally
+        {
+            AppUpdates.OnExit = ExitAction.None;
+            AppUpdates.RestartArguments = [];
+            main.Close();
+            Directory.Delete(dir, recursive: true);
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task The_start_window_says_the_update_and_restarts_into_it_without_opening_the_IDE()
+    {
+        var (updater, dir) = UpdaterWithRelease();
+        var start = new StartWindow { DataContext = new StartViewModel(new Karvon.Services.Settings { InMemory = true }), Width = 1060, Height = 700 };
+        var finished = new List<string?>();
+        start.Finished += finished.Add;
+        start.ShowUpdates(updater);
+        start.Show();
+        var notification = Named<UpdateNotification>(start, "UpdateNotification");
+        try
+        {
+            await AppUpdates.StartAsync(updater, new Karvon.Services.Settings { InMemory = true });
+            Assert.Equal(UpdateState.Ready, updater.State);
+            await WaitUntil(() => notification.IsVisible && Named<Button>(start, "UpdateNotificationUpdate").Content is "Restart and update", TimeSpan.FromSeconds(5));
+            Snapshot(start, "update-notification-start");
+
+            // Restart and update: Karvon Studio exits (no IDE window), the update installs, and it starts again.
+            Named<Button>(start, "UpdateNotificationUpdate").RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent));
+            Assert.Equal(ExitAction.RestartUpdated, AppUpdates.OnExit);
+            Assert.False(start.IsVisible);
+            Assert.Empty(finished);
+        }
+        finally
+        {
+            AppUpdates.OnExit = ExitAction.None;
+            start.Close();
+            Directory.Delete(dir, recursive: true);
+        }
+    }
+
     [Fact]
-    public async Task Karvon_checks_once_a_day_and_installs_as_it_closes_as_its_settings_say()
+    public async Task Karvon_checks_each_time_it_starts_and_installs_as_it_closes_as_its_settings_say()
     {
         var (updater, dir) = UpdaterWithRelease();
         var settings = new Karvon.Services.Settings { InMemory = true };
 
-        // Checked as it starts, the update downloaded; not again the same day.
+        // Checked as it starts, the update downloaded; again the next time, though it checked an hour ago.
         await AppUpdates.StartAsync(updater, settings);
         Assert.Equal(UpdateState.Ready, updater.State);
         Assert.NotNull(settings.UpdatesLastCheck);
         var (other, otherDir) = UpdaterWithRelease();
-        settings.UpdatesLastCheck = DateTimeOffset.Now.AddHours(-2);
-        await AppUpdates.StartAsync(other, settings);
-        Assert.Equal(UpdateState.Idle, other.State);
+        settings.UpdatesLastCheck = DateTimeOffset.Now.AddHours(-1);
         // Without downloading: only said.
-        settings.UpdatesLastCheck = null;
         settings.UpdatesDownload = false;
         await AppUpdates.StartAsync(other, settings);
         Assert.Equal(UpdateState.Available, other.State);
         // Not checked when the settings say not to.
         var (off, offDir) = UpdaterWithRelease();
         settings.UpdatesCheck = false;
-        settings.UpdatesLastCheck = null;
         await AppUpdates.StartAsync(off, settings);
         Assert.Equal(UpdateState.Idle, off.State);
         foreach (var folder in new[] { dir, otherDir, offDir })

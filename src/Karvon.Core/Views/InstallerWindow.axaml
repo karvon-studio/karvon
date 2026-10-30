@@ -143,7 +143,7 @@
           <Border Background="#2D2D30" BorderBrush="{StaticResource VsBorderBrush}" BorderThickness="1" CornerRadius="3" Padding="22,14">
             <StackPanel Spacing="6">
               <TextBlock Text="Update settings" FontWeight="SemiBold" />
-              <CheckBox Name="CheckUpdates" Content="Check for updates when Karvon Studio starts (once a day)" IsChecked="{Binding UpdatesCheck}" />
+              <CheckBox Name="CheckUpdates" Content="Check for updates when Karvon Studio starts" IsChecked="{Binding UpdatesCheck}" />
               <CheckBox Name="DownloadUpdates" Content="Download updates automatically" IsChecked="{Binding UpdatesDownload}" />
               <CheckBox Name="InstallOnClose" Content="Install a downloaded update when Karvon Studio closes" IsChecked="{Binding UpdatesInstallOnClose}" />
             </StackPanel>
