@@ -34,7 +34,8 @@ public class ClaudeToolActivityTests
     public async Task Claudes_queries_containers_searches_and_files_open_in_karvon()
     {
         var sln = SolutionExplorerTests.CopySample();
-        var vm = NewViewModel();
+        // The user's own solution: its data sources are Claude's to use.
+        var vm = NewViewModel(s => s.TrustedFolders.Add(Path.GetDirectoryName(sln)!));
         var window = new MainWindow { DataContext = vm, Width = 1500, Height = 950 };
         window.Show();
         await vm.OpenSolutionAsync(sln);

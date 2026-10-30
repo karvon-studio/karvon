@@ -82,7 +82,8 @@ public sealed partial class McpModule : KarvonModule, IMcpHost
     /// </summary>
     string? ClaudeMcpServers(string workingDirectory)
     {
-        var servers = new McpConfigs(Services.Settings.ConfigDirectory, workingDirectory, _claude?.SettingsFile).ForClaude();
+        var servers = new McpConfigs(Services.Settings.ConfigDirectory, workingDirectory, _claude?.SettingsFile)
+            .ForClaude(Karvon.Claude.WorkspaceTrust.IsTrusted(Workbench.Settings.TrustedFolders, workingDirectory));
         var file = _claudeMcpFile ??= Path.Combine(Services.Settings.ConfigDirectory, "mcp", $"claude-{Environment.ProcessId}.json");
         if (servers.Count == 0)
         {

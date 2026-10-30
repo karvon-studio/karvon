@@ -21,6 +21,9 @@ public interface IDatabaseToolHost
     /// <summary>The Database Explorer's data sources: the solution's own, or Bengine Data Studio's list with no solution open.</summary>
     IReadOnlyList<ServerProfile> DataSources();
 
+    /// <summary>Whether the open solution's folder is trusted: its data sources (in its .vs folder) are used only then.</summary>
+    bool Trusted => true;
+
     /// <summary>The password the Database Explorer would use: typed there this session, else the saved one.</summary>
     Task<string?> PasswordForAsync(ServerProfile server);
 }
@@ -78,6 +81,8 @@ abstract class DatabaseTool(IDatabaseToolHost host) : IClaudeTool
     protected ServerProfile Server(JsonElement input)
     {
         var name = Str(input, "connection") ?? "";
+        if (!Host.Trusted)
+            throw new InvalidOperationException(NotTrusted);
         var servers = Host.DataSources();
         return servers.FirstOrDefault(s => s.Name.Equals(name, StringComparison.OrdinalIgnoreCase))
             ?? throw new InvalidOperationException(servers.Count == 0
@@ -85,8 +90,12 @@ abstract class DatabaseTool(IDatabaseToolHost host) : IClaudeTool
                 : $"There is no data source named '{name}'. Data sources: {string.Join(", ", servers.Select(s => s.Name))}.");
     }
 
+    /// <summary>What Claude is told of the data sources of a folder not trusted yet.</summary>
+    protected const string NotTrusted = "This folder is not trusted yet: Karvon does not use its data sources (they are in its .vs "
+        + "folder, which a repository can bring) until the user trusts it in the Claude Code window.";
+
     protected DatabaseProvider ProviderOf(JsonElement input) =>
-        Host.DataSources().FirstOrDefault(s => s.Name.Equals(Str(input, "connection"), StringComparison.OrdinalIgnoreCase))?.Provider
+        (Host.Trusted ? Host.DataSources() : []).FirstOrDefault(s => s.Name.Equals(Str(input, "connection"), StringComparison.OrdinalIgnoreCase))?.Provider
         ?? DatabaseProvider.PostgreSql;
 
     protected async Task<DatabaseSession> OpenAsync(JsonElement input, ServerProfile server, CancellationToken cancellationToken)
@@ -173,6 +182,8 @@ sealed class DbConnectionsTool(IDatabaseToolHost host) : DatabaseTool(host)
 
     protected override Task<ClaudeToolOutput> RunAsync(JsonElement input, CancellationToken cancellationToken)
     {
+        if (!Host.Trusted)
+            return Task.FromResult(new ClaudeToolOutput(NotTrusted));
         var servers = Host.DataSources();
         if (servers.Count == 0)
             return Task.FromResult(new ClaudeToolOutput("There are no data sources. The user adds them in Karvon's Database Explorer."));

@@ -49,6 +49,24 @@ public partial class ClaudeViewModel
         }, CancellationToken.None, TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default);
     }
 
+    /// <summary>
+    /// Whether the folder Claude works in is trusted (<see cref="WorkspaceTrust"/>): until it is, the sessions do not use
+    /// what its repository brings, and building, testing and running its code ask.
+    /// </summary>
+    public bool IsFolderTrusted => WorkspaceTrust.IsTrusted(_settings.TrustedFolders, _workingDirectory());
+
+    /// <summary>
+    /// Trusts the folder: Karvon's tools build, test and run its code as anywhere else at once; the sessions started after
+    /// use its Claude Code settings, its .mcp.json and its data sources.
+    /// </summary>
+    [CommunityToolkit.Mvvm.Input.RelayCommand]
+    void TrustFolder()
+    {
+        WorkspaceTrust.Trust(_settings.TrustedFolders, _workingDirectory());
+        _settings.Save();
+        OnPropertyChanged(nameof(IsFolderTrusted));
+    }
+
     /// <summary>The user allowed a call of Karvon's tools on Claude Code's prompt: its tool server does not ask again.</summary>
     void Approved(ClaudePermissionRequest request)
     {

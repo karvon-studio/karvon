@@ -470,6 +470,18 @@
       </Grid>
     </Border>
 
+    <!-- ===== A folder not trusted yet ===== -->
+    <Border DockPanel.Dock="Top" Name="TrustBanner" IsVisible="{Binding !IsFolderTrusted}" Background="#2D2A1E" BorderBrush="#5C5230"
+            BorderThickness="0,0,0,1" Padding="12,7">
+      <Grid ColumnDefinitions="Auto,*,Auto">
+        <v:VsIcon Kind="Warning" Width="13" Height="13" VerticalAlignment="Top" Margin="0,2,8,0" />
+        <TextBlock Grid.Column="1" TextWrapping="Wrap" FontSize="12"
+                   Text="{v:L 'This folder is not trusted yet: Claude reads it, and building, testing or running its code and every change ask. Its .claude settings (hooks, allow rules), .mcp.json servers and data sources are not used.'}" />
+        <Button Grid.Column="2" Name="TrustButton" Classes="pill" Margin="10,0,0,0" VerticalAlignment="Top" Command="{Binding TrustFolderCommand}"
+                Content="{v:L 'Trust this folder'}" Background="#3A3424" BorderBrush="#8A7A40" BorderThickness="1" Foreground="#E0E0E0" />
+      </Grid>
+    </Border>
+
     <!-- ===== Prompt ===== -->
     <Border DockPanel.Dock="Bottom" Classes="input" Margin="10,2,10,10" IsVisible="{Binding !IsCliMissing}">
       <StackPanel>

@@ -238,7 +238,7 @@ public class McpTests
     [Fact]
     public void Claude_sessions_get_the_servers_switched_on_for_them()
     {
-        var (configs, _, _) = Everywhere();
+        var (configs, _, workspace) = Everywhere();
         // By default Karvon's own; never one with a name Claude Code has already (notes), nor "karvon".
         Assert.Equal(["mine"], configs.ForClaude().Select(p => p.Key));
         Assert.True(configs.IsForClaude(configs.Read().Servers.Single(s => s.Key == "ClaudeUser:notes")));
@@ -260,6 +260,12 @@ public class McpTests
         }
         Assert.Equal("none", McpConfigs.Expand("${KARVON_TEST_MCP_TOKEN:-none}"));
         Assert.Equal("", McpConfigs.Expand("${KARVON_TEST_MCP_TOKEN}"));
+
+        // In a folder not trusted yet, not the folder's own (Gemini's in it); the user's and Karvon's still.
+        Write(Path.Combine(workspace, ".gemini", "settings.json"), """{ "mcpServers": { "repo": { "command": "repo-server" } } }""");
+        configs.SetForClaude(configs.Read().Servers.Single(s => s.Key == "GeminiProject:repo"), true);
+        Assert.Contains("repo", configs.ForClaude().Select(p => p.Key));
+        Assert.Equal(["docs", "mine"], configs.ForClaude(trusted: false).Select(p => p.Key));
 
         // The CLI gets Karvon's tools and that file in one --mcp-config.
         var tools = new ClaudeToolServer([], "");

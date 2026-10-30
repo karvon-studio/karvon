@@ -412,14 +412,14 @@ public sealed partial class McpConfigs(string configDirectory, string? workspace
     /// <summary>
     /// What a Claude Code session Karvon starts gets beside its own servers (as <c>mcpServers</c>): the others switched on for
     /// it, under names Claude does not have already (nor "karvon", Karvon's tools), the first of a name winning, with ${VAR}
-    /// filled in from the environment.
+    /// filled in from the environment. In a folder not trusted yet, not the folder's own (Gemini's in it).
     /// </summary>
-    public JsonObject ForClaude()
+    public JsonObject ForClaude(bool trusted = true)
     {
         var servers = Read().Servers;
         var taken = servers.Where(s => ClaudeReadsItself(s.Origin)).Select(s => s.Name).Append(KarvonToolNames.Server).ToHashSet(StringComparer.Ordinal);
         var given = new JsonObject();
-        foreach (var server in servers.Where(s => !ClaudeReadsItself(s.Origin) && IsForClaude(s)))
+        foreach (var server in servers.Where(s => !ClaudeReadsItself(s.Origin) && IsForClaude(s) && (trusted || s.Origin != McpOrigin.GeminiProject)))
             if (!taken.Contains(server.Name) && !given.ContainsKey(server.Name))
                 given[server.Name] = ToJson(Expand(server), gemini: false);
         return given;

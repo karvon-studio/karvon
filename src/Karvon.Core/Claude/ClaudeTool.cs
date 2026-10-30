@@ -120,16 +120,17 @@ public enum ToolRule
 /// The user's rules for Karvon's tools (Settings' <c>ClaudeToolRules</c>: a tool's name, or its name and a target as
 /// <c>db_query@shop</c>, to allow, ask or deny), as Karvon's tool server enforces them whatever Claude Code's permission
 /// mode and its allow rules say. Without a rule a call goes as its access says: reading and running at once, a change
-/// asks; a destructive call asks every time, whatever a rule says, and a rule can deny anything.
+/// asks; a destructive call asks every time, whatever a rule says, and a rule can deny anything. In a folder not trusted
+/// yet (<see cref="WorkspaceTrust"/>) only reading goes at once: building, testing, running its code and changes ask.
 /// </summary>
 public static class ClaudeToolPolicy
 {
-    public static ToolRule Decide(IClaudeTool tool, ClaudeToolPlan plan, string? target, IReadOnlyDictionary<string, string>? rules)
+    public static ToolRule Decide(IClaudeTool tool, ClaudeToolPlan plan, string? target, IReadOnlyDictionary<string, string>? rules, bool trusted = true)
     {
         var rule = (target is { Length: > 0 } ? Rule(rules, $"{tool.Name}@{target}") : null) ?? Rule(rules, tool.Name);
         if (rule == ToolRule.Deny)
             return ToolRule.Deny;
-        if (plan.Access == ToolAccess.Destructive)
+        if (plan.Access == ToolAccess.Destructive || !trusted && plan.Access != ToolAccess.Read)
             return ToolRule.Ask;
         return rule ?? (plan.Access is ToolAccess.Read or ToolAccess.Run ? ToolRule.Allow : ToolRule.Ask);
     }

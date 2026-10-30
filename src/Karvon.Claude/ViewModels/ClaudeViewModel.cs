@@ -125,7 +125,10 @@ public sealed partial class ClaudeViewModel : ObservableObject, IAsyncDisposable
             _toolServer = value;
             // What the user's rules ask for and Claude Code did not ask (Bypass permissions, auto mode): asked on a card here.
             if (value is not null)
+            {
                 value.Ask = AskAboutToolAsync;
+                value.Trusted = caller => WorkspaceTrust.IsTrusted(_settings.TrustedFolders, (caller as ClaudeSession)?.WorkingDirectory ?? _workingDirectory());
+            }
         }
     }
 
@@ -206,10 +209,11 @@ public sealed partial class ClaudeViewModel : ObservableObject, IAsyncDisposable
         {
             await StopSessionAsync();
             var session = await ClaudeSession.StartAsync(new ClaudeStartOptions(CliPath!, cwd, SelectedModel?.Value, PermissionMode, _resumeId, SelectedAccount, Tools, McpServersFor(cwd),
-                _settings.ClaudeKeepSecretsAway, _settings.ClaudeSandbox));
+                _settings.ClaudeKeepSecretsAway, _settings.ClaudeSandbox, WorkspaceTrust.IsTrusted(_settings.TrustedFolders, cwd)));
             session.Event += ev => Dispatcher.UIThread.Post(() => Handle(session, ev));
             _session = session;
             _sessionCwd = cwd;
+            OnPropertyChanged(nameof(IsFolderTrusted));
             if (session.HiddenVariables.Count > 0)
                 VariablesHidden?.Invoke(session.HiddenVariables);
             if (_settings.ClaudeSandbox && ClaudeSandbox.Problem() is { } problem)
@@ -1337,7 +1341,11 @@ public sealed partial class ClaudeViewModel : ObservableObject, IAsyncDisposable
     void ToggleContext() => IncludeContext = !IncludeContext;
 
     /// <summary>Re-reads the active editor and selection for the context chip.</summary>
-    public void RefreshContext() => EditorContext = _editorContext();
+    public void RefreshContext()
+    {
+        EditorContext = _editorContext();
+        OnPropertyChanged(nameof(IsFolderTrusted));
+    }
 
     // ---- History -------------------------------------------------------------------------------------------
 

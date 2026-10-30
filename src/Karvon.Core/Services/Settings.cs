@@ -95,6 +95,12 @@ public sealed class Settings
     /// </summary>
     public Dictionary<string, string> ClaudeToolRules { get; set; } = [];
 
+    /// <summary>
+    /// The folders the user trusts, and what is in them: only there do Claude's sessions use what the repository brings, and
+    /// build, test and run its code without asking (<see cref="Karvon.Claude.WorkspaceTrust"/>). This machine's, not synced.
+    /// </summary>
+    public List<string> TrustedFolders { get; set; } = [];
+
     /// <summary>What Claude does with Karvon's tools shows in Karvon: a query's results, a container's logs, the build, a search...</summary>
     public bool ClaudeShowToolActivity { get; set; } = true;
 

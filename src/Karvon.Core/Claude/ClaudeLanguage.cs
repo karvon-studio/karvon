@@ -320,6 +320,9 @@ public sealed class ClaudeLanguage : INotifyPropertyChanged
         ["Remote Control"] = "Remote Control",
         ["Connecting…"] = "Ulanmoqda…",
         ["Sent with Remote Control"] = "Remote Control orqali yuborilgan",
+        ["This folder is not trusted yet: Claude reads it, and building, testing or running its code and every change ask. Its .claude settings (hooks, allow rules), .mcp.json servers and data sources are not used."] =
+            "Bu papkaga hali ishonilmagan: Claude uni o‘qiydi, kodini build qilish, test qilish, ishga tushirish va har bir o‘zgarish so‘raladi. Uning .claude sozlamalari (hook’lar, allow qoidalari), .mcp.json serverlari va data source’lari ishlatilmaydi.",
+        ["Trust this folder"] = "Bu papkaga ishonish",
         ["Remote Control: continue this conversation from claude.ai/code or the Claude app (/remote-control)"] =
             "Remote Control: bu suhbatni claude.ai/code yoki Claude ilovasidan davom ettiring (/remote-control)",
         ["Remote Control is on: continue this conversation at claude.ai/code or in the Claude app. Click to turn it off."] =

@@ -15,7 +15,8 @@ public sealed record ClaudeStartOptions(
     ClaudeToolServer? Tools = null,
     string? McpConfigFile = null,
     bool GuardSecrets = true,
-    bool Sandbox = false);
+    bool Sandbox = false,
+    bool Trusted = true);
 
 /// <summary>
 /// One running Claude Code CLI in headless streaming mode (the interface the Agent SDK uses): JSON lines on
@@ -43,6 +44,9 @@ public sealed class ClaudeSession : IAsyncDisposable
 
     /// <summary>The folder the session works in (its Bash commands start there).</summary>
     string? _workingDirectory;
+
+    /// <summary>The folder it was started in.</summary>
+    public string? WorkingDirectory => _workingDirectory;
 
     /// <summary>The Bash commands Karvon sent to its tools once: the same command again goes through (they could not do it).</summary>
     readonly HashSet<string> _redirected = [];
@@ -136,6 +140,10 @@ public sealed class ClaudeSession : IAsyncDisposable
         // Its shell in Claude Code's sandbox, the secrets out of its reach (beside the user's own settings).
         if (options.Sandbox)
             args.AddRange(["--settings", ClaudeSandbox.Settings()]);
+        // A folder not trusted yet: its .claude settings (hooks that run at once, allow rules, its .mcp.json approved) and its
+        // .mcp.json servers are not read; the user's own are.
+        if (!options.Trusted)
+            args.AddRange(["--setting-sources", "user"]);
         // In Karvon its tools come before the shell, as the session's system prompt says (Claude Code's own prompt kept).
         if (options.Tools?.SystemPrompt is { Length: > 0 } prompt)
             args.AddRange(["--append-system-prompt", prompt]);
@@ -388,7 +396,7 @@ public sealed class ClaudeSession : IAsyncDisposable
                 SessionId = init.SessionId;
             // Reading or building through Karvon's tools needs no approval (as Read and Grep need none), nor what the user's
             // rules allow; what they deny is denied at once.
-            if (ev is ClaudePermissionRequest request && _tools?.Decide(request.ToolName, request.Input) is { Rule: not ToolRule.Ask } decision)
+            if (ev is ClaudePermissionRequest request && _tools?.Decide(request.ToolName, request.Input, this) is { Rule: not ToolRule.Ask } decision)
             {
                 _ = AnswerQuietlyAsync(request, decision.Rule == ToolRule.Allow
                     ? ClaudePermissionDecision.AllowOnce(request.Input)

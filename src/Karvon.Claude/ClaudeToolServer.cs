@@ -74,10 +74,14 @@ public sealed class ClaudeToolServer(IReadOnlyList<IClaudeTool> tools, string in
     /// <summary>The user allowed this call on Claude Code's prompt: it runs when it comes without being asked again (once, within two minutes).</summary>
     public void Approve(string toolName, JsonElement input) => _approved[Key(toolName, input)] = DateTime.UtcNow;
 
-    /// <summary>What the user's rules say of a call of one of these tools; null for any other tool.</summary>
-    public ClaudeToolDecision? Decide(string toolName, JsonElement input) => Find(toolName) is { } tool ? Decide(tool, input) : null;
+    /// <summary>Whether the folder of the session a call comes from (the caller) is trusted (<see cref="WorkspaceTrust"/>); none: all are.</summary>
+    public Func<object?, bool>? Trusted { get; set; }
 
-    ClaudeToolDecision Decide(IClaudeTool tool, JsonElement input)
+    /// <summary>What the user's rules say of a call of one of these tools from <paramref name="caller"/>; null for any other tool.</summary>
+    public ClaudeToolDecision? Decide(string toolName, JsonElement input, object? caller = null) =>
+        Find(toolName) is { } tool ? Decide(tool, input, caller) : null;
+
+    ClaudeToolDecision Decide(IClaudeTool tool, JsonElement input, object? caller)
     {
         string? target;
         try
@@ -90,14 +94,14 @@ public sealed class ClaudeToolServer(IReadOnlyList<IClaudeTool> tools, string in
         }
         // Input no plan can be made of asks.
         return PlanOf(tool, input) is { } plan
-            ? new(tool.Name, ClaudeToolPolicy.Decide(tool, plan, target, Rules?.Invoke()), plan, target)
+            ? new(tool.Name, ClaudeToolPolicy.Decide(tool, plan, target, Rules?.Invoke(), Trusted?.Invoke(caller) ?? true), plan, target)
             : new(tool.Name, ToolRule.Ask, new ClaudeToolPlan(ToolAccess.Write, tool.Name, null, $"Allow Claude to use {tool.Name}?"), target);
     }
 
     /// <summary>Why the call does not run (the rules deny it, the user said no); null when it may.</summary>
     async Task<ClaudeToolOutput?> RefuseAsync(IClaudeTool tool, JsonElement input, object? caller, CancellationToken cancellationToken)
     {
-        var decision = Decide(tool, input);
+        var decision = Decide(tool, input, caller);
         if (decision.Rule == ToolRule.Allow)
             return null;
         if (decision.Rule == ToolRule.Deny)

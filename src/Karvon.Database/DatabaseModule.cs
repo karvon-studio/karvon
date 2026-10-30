@@ -296,6 +296,8 @@ public sealed class DatabaseModule : KarvonModule, IDatabaseService, IDatabaseTo
 
     IReadOnlyList<ServerProfile> IDatabaseToolHost.DataSources() => Servers.List();
 
+    bool IDatabaseToolHost.Trusted => Workbench.Workspace is null || Karvon.Claude.WorkspaceTrust.IsTrusted(Workbench.Settings.TrustedFolders, Workbench.Workspace);
+
     /// <summary>The explorer's passwords are the UI thread's.</summary>
     Task<string?> IDatabaseToolHost.PasswordForAsync(ServerProfile server) =>
         Dispatcher.UIThread.InvokeAsync<string?>(() => _explorer is { } explorer ? explorer.PasswordFor(server) : server.Password).GetTask();

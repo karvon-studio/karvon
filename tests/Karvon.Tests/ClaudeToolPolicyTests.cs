@@ -1,6 +1,7 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using Avalonia.Headless.XUnit;
+using Avalonia.VisualTree;
 using Karvon.Claude;
 using Karvon.ViewModels;
 using static Karvon.Tests.UiTests;
@@ -138,7 +139,7 @@ public class ClaudeToolPolicyTests
         var trusted = new Tool("trusted", ToolAccess.Write);
         var server = KarvonTools.Create([change, refused, trusted]);
         server.Rules = () => new Dictionary<string, string> { ["refused"] = "deny", ["trusted"] = "allow" };
-        var vm = new ClaudeViewModel(new Karvon.Services.Settings(), () => dir, () => null, () => [], () => FakeClaude.Executable) { Tools = server };
+        var vm = new ClaudeViewModel(new Karvon.Services.Settings { TrustedFolders = [dir] }, () => dir, () => null, () => [], () => FakeClaude.Executable) { Tools = server };
         await WaitUntil(() => vm.Commands.Count > 0, TimeSpan.FromSeconds(10));
 
         vm.Prompt = "karvonrules please";
@@ -172,5 +173,67 @@ public class ClaudeToolPolicyTests
         PermissionChatItem? found = null;
         await WaitUntil(() => (found = vm.Items.OfType<PermissionChatItem>().FirstOrDefault(match)) is not null, TimeSpan.FromSeconds(10));
         return found!;
+    }
+
+    [Fact]
+    public void Trusted_are_the_users_folders_and_what_is_in_them()
+    {
+        var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+        var repo = Path.Combine(Path.GetTempPath(), "karvon-trust-" + Guid.NewGuid().ToString("N"));
+        List<string> trusted = [];
+        Assert.True(WorkspaceTrust.IsTrusted(trusted, home));
+        Assert.False(WorkspaceTrust.IsTrusted(trusted, repo));
+        WorkspaceTrust.Trust(trusted, repo + Path.DirectorySeparatorChar);
+        Assert.Equal([repo], trusted);
+        Assert.True(WorkspaceTrust.IsTrusted(trusted, Path.Combine(repo, "src")));
+        Assert.False(WorkspaceTrust.IsTrusted(trusted, repo + "-fork"));
+        WorkspaceTrust.Trust(trusted, Path.Combine(repo, "src"));
+        Assert.Single(trusted);
+
+        // Not trusted: only reading goes at once, whatever the rules allow; what they deny stays denied.
+        var read = new Tool("read", ToolAccess.Read);
+        var build = new Tool("run_build", ToolAccess.Run);
+        var write = new Tool("write", ToolAccess.Write);
+        Assert.Equal(ToolRule.Allow, ClaudeToolPolicy.Decide(read, read.Plan(default), null, null, trusted: false));
+        Assert.Equal(ToolRule.Ask, ClaudeToolPolicy.Decide(build, build.Plan(default), null, null, trusted: false));
+        Assert.Equal(ToolRule.Ask, ClaudeToolPolicy.Decide(write, write.Plan(default), null, new Dictionary<string, string> { ["write"] = "allow" }, trusted: false));
+        Assert.Equal(ToolRule.Deny, ClaudeToolPolicy.Decide(read, read.Plan(default), null, new Dictionary<string, string> { ["read"] = "deny" }, trusted: false));
+
+        // Claude Code reads none of the folder's settings (its hooks, allow rules, .mcp.json): only the user's.
+        var args = ClaudeSession.Arguments(new ClaudeStartOptions("claude", repo, Trusted: false));
+        Assert.Equal("user", args[args.IndexOf("--setting-sources") + 1]);
+        Assert.DoesNotContain("--setting-sources", ClaudeSession.Arguments(new ClaudeStartOptions("claude", repo)));
+    }
+
+    [AvaloniaFact]
+    public async Task A_folder_not_trusted_yet_says_so_until_the_user_trusts_it()
+    {
+        var (dir, log) = FakeClaude.Workspace();
+        var settings = new Karvon.Services.Settings();
+        var build = new Tool("run_build", ToolAccess.Run);
+        var server = KarvonTools.Create([build]);
+        var vm = new ClaudeViewModel(settings, () => dir, () => null, () => [], () => FakeClaude.Executable) { Tools = server };
+        var window = new Avalonia.Controls.Window { Width = 560, Height = 700, Content = new Karvon.Views.ClaudeView { DataContext = vm } };
+        window.Show();
+        await WaitUntil(() => vm.Commands.Count > 0, TimeSpan.FromSeconds(10));
+
+        // The banner, the session started without the folder's settings, and the build asked about.
+        Assert.False(vm.IsFolderTrusted);
+        var banner = window.GetVisualDescendants().OfType<Avalonia.Controls.Border>().Single(b => b.Name == "TrustBanner");
+        Assert.True(banner.IsVisible);
+        var argv = FakeClaude.Log(log).First(e => e.Kind == "argv").Data.EnumerateArray().Select(a => a.GetString()).ToList();
+        Assert.Equal("user", argv[argv.IndexOf("--setting-sources") + 1]);
+        Assert.Equal(ToolRule.Ask, server.Decide("mcp__karvon__run_build", JsonSerializer.SerializeToElement(new { }))!.Rule);
+        Snapshot(window, "claude-untrusted-folder");
+
+        // Trusted: kept in the settings, the build at once from now on, the banner gone.
+        window.GetVisualDescendants().OfType<Avalonia.Controls.Button>().Single(b => b.Name == "TrustButton").Command!.Execute(null);
+        Assert.Equal([dir], settings.TrustedFolders.Select(Path.TrimEndingDirectorySeparator));
+        Assert.True(vm.IsFolderTrusted);
+        Assert.Equal(ToolRule.Allow, server.Decide("mcp__karvon__run_build", JsonSerializer.SerializeToElement(new { }))!.Rule);
+        Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+        Assert.False(banner.IsVisible);
+        await vm.DisposeAsync();
+        window.Close();
     }
 }
