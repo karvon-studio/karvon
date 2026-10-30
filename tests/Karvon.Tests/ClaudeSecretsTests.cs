@@ -1,5 +1,10 @@
 using System.Text.Json;
+using System.Text.Json.Nodes;
+using Avalonia.Headless.XUnit;
 using Karvon.Claude;
+using Karvon.Claude.Tools;
+using Karvon.ViewModels;
+using static Karvon.Tests.UiTests;
 
 namespace Karvon.Tests;
 
@@ -139,5 +144,107 @@ public class ClaudeSecretsTests
         var init = FakeClaude.Log(otherLog).Where(e => e.Kind == "in" && e.Data.GetProperty("type").GetString() == "control_request")
             .Select(e => e.Data.GetProperty("request")).First(r => r.GetProperty("subtype").GetString() == "initialize");
         Assert.False(init.TryGetProperty("hooks", out var none) && none.ValueKind != JsonValueKind.Null);
+    }
+
+    static string Unique(string prefix) => prefix + Guid.NewGuid().ToString("N");
+
+    [Fact]
+    public void Secrets_are_hidden_by_what_they_are_known_values_by_their_names()
+    {
+        var jira = Unique("jira-token-");
+        KnownSecrets.Add("karvon-jira/acme", jira);
+        var github = "ghp_" + new string('d', 36);
+        var text = $"token {jira}, encoded {Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes(jira))}, {Uri.EscapeDataString(jira + "/x")} "
+            + $"{github} Server=db;Password=hunter2 postgres://app:pw@db/app\n-----BEGIN RSA PRIVATE KEY-----\nMIIB\n-----END RSA PRIVATE KEY----- end";
+
+        var secrets = Redaction.Secrets(text);
+        Assert.DoesNotContain(jira, secrets);
+        // As it is, base64-encoded, and inside the URL-encoded text.
+        Assert.Equal(3, secrets.Split("«secret: karvon-jira/acme»").Length - 1);
+        Assert.Contains("«secret: a GitHub token»", secrets);
+        Assert.Contains("«secret: a private key» end", secrets);
+        // A password setting may be a test's: only the full hiding takes it.
+        Assert.Contains("Password=hunter2", secrets);
+        var all = Redaction.Text(text);
+        Assert.Contains("Password=***", all);
+        Assert.Contains("postgres://app:***@db/app", all);
+
+        Assert.Equal(["a secret Karvon keeps (karvon-jira/acme)", "a private key", "a GitHub token", "a password in a connection string", "a password in a URL"],
+            Redaction.Find(text));
+        Assert.Empty(Redaction.Find("dotnet build && git push"));
+        // Too short to tell from the words of a text.
+        KnownSecrets.Add("short", "abc123");
+        Assert.Equal("abc123", Redaction.Secrets("abc123"));
+    }
+
+    [Fact]
+    public void A_secret_typed_into_a_sign_in_is_known_at_once()
+    {
+        var token = Unique("typed-");
+        new Karvon.Jira.JiraSecrets(null).Set(new Karvon.Jira.JiraSite("ops", "Ops", "https://ops.example", Karvon.Jira.JiraAuth.CloudToken), token, keep: false);
+        Assert.Equal("issues of «secret: karvon-jira/ops»", Redaction.Secrets("issues of " + token));
+    }
+
+    sealed class Leaky(string text) : IClaudeTool
+    {
+        public string Name => "leaky";
+
+        public string Description => "Says what it is given.";
+
+        public JsonObject InputSchema => new() { ["type"] = "object" };
+
+        public ClaudeToolPlan Plan(JsonElement input) => new(ToolAccess.Read, "Leak", null, "Leak?");
+
+        public Task<ClaudeToolOutput> CallAsync(JsonElement input, CancellationToken cancellationToken) => Task.FromResult(new ClaudeToolOutput(text));
+    }
+
+    [Fact]
+    public async Task No_tool_of_Karvons_tells_Claude_a_secret()
+    {
+        var key = Unique("tunnel-key-");
+        KnownSecrets.Add("karvon-ports/tulki.uz", key);
+        var server = KarvonTools.Create([new Leaky($"key {key}, token glpat-{new string('e', 24)}, Password=test")]);
+        var (text, _) = await ClaudeIdeToolsTests.Call(server, "leaky", new { });
+        Assert.Equal("key «secret: karvon-ports/tulki.uz», token «secret: a GitLab token», Password=test", text);
+    }
+
+    [AvaloniaFact]
+    public async Task A_prompt_with_a_secret_waits_for_the_users_say()
+    {
+        var (dir, log) = FakeClaude.Workspace();
+        var vm = new ClaudeViewModel(new Karvon.Services.Settings(), () => dir, () => null, () => [], () => FakeClaude.Executable);
+        await WaitUntil(() => vm.Commands.Count > 0, TimeSpan.FromSeconds(10));
+        var token = "ghp_" + new string('f', 36);
+
+        // Held: nothing is sent, the card says what was found.
+        vm.Prompt = $"Why does {token} not work?";
+        await vm.SendCommand.ExecuteAsync(null);
+        var held = Assert.Single(vm.Items.OfType<SecretCheckChatItem>());
+        Assert.Equal("Your message holds what looks like a GitHub token. Send it to Claude?", held.Question);
+        Assert.Empty(vm.Items.OfType<UserChatItem>());
+        Assert.Equal("", vm.Prompt);
+
+        // Not sent: back in the prompt box.
+        vm.DontSendCommand.Execute(held);
+        Assert.Equal($"Why does {token} not work?", vm.Prompt);
+        Assert.Equal("Not sent.", held.Outcome);
+
+        // Sent hidden: Claude gets what it is, not the token.
+        await vm.SendCommand.ExecuteAsync(null);
+        var again = vm.Items.OfType<SecretCheckChatItem>().Last();
+        await vm.SendHiddenCommand.ExecuteAsync(again);
+        await WaitUntil(() => !vm.IsRunning, TimeSpan.FromSeconds(10));
+        Assert.Equal("Why does «secret: a GitHub token» not work?", vm.Items.OfType<UserChatItem>().Last().Text);
+        var sent = FakeClaude.Log(log).Where(e => e.Kind == "in" && e.Data.GetProperty("type").GetString() == "user").Select(e => e.Data.GetRawText()).ToList();
+        Assert.Contains(sent, m => m.Contains("secret: a GitHub token", StringComparison.Ordinal));
+        Assert.DoesNotContain(sent, m => m.Contains(token, StringComparison.Ordinal));
+
+        // As it is, when the user says so.
+        vm.Prompt = $"Use {token} then";
+        await vm.SendCommand.ExecuteAsync(null);
+        await vm.SendAsIsCommand.ExecuteAsync(vm.Items.OfType<SecretCheckChatItem>().Last());
+        await WaitUntil(() => !vm.IsRunning, TimeSpan.FromSeconds(10));
+        Assert.Contains(FakeClaude.Log(log).Where(e => e.Kind == "in").Select(e => e.Data.GetRawText()), m => m.Contains(token, StringComparison.Ordinal));
+        await vm.DisposeAsync();
     }
 }

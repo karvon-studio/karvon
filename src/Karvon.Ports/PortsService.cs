@@ -123,6 +123,7 @@ public sealed class PortsSecrets(ICredentialStore? keyring)
     {
         lock (_session)
             _session[service] = key;
+        Karvon.Claude.Tools.KnownSecrets.Add(Key(service), key);
         if (keep)
             keyring?.Set(Key(service), $"Karvon: tunnel service {PortsSettings.NameOf(service)}", key);
         else

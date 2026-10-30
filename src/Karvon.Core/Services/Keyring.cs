@@ -13,9 +13,30 @@ namespace Karvon.Services;
 /// </summary>
 public static class Keyring
 {
-    static readonly Lazy<ICredentialStore?> Detected = new(Detect);
+    static readonly Lazy<ICredentialStore?> Detected = new(() => Detect() is { } store ? new Remembering(store) : null);
 
     public static ICredentialStore? System => Detected.Value;
+
+    /// <summary>The store, with each secret it gives or keeps made known (<see cref="Karvon.Claude.Tools.KnownSecrets"/>), so none reaches Claude.</summary>
+    sealed class Remembering(ICredentialStore store) : ICredentialStore
+    {
+        public string Name => store.Name;
+
+        public string? Get(string key)
+        {
+            var secret = store.Get(key);
+            Karvon.Claude.Tools.KnownSecrets.Add(key, secret);
+            return secret;
+        }
+
+        public bool Set(string key, string label, string secret)
+        {
+            Karvon.Claude.Tools.KnownSecrets.Add(key, secret);
+            return store.Set(key, label, secret);
+        }
+
+        public void Delete(string key) => store.Delete(key);
+    }
 
     static ICredentialStore? Detect()
     {

@@ -326,6 +326,36 @@ public sealed partial class PlanChatItem(ClaudePermissionRequest request, string
     public partial string? Outcome { get; set; }
 }
 
+/// <summary>
+/// A prompt held back before it went to Claude: it (or the editor's selection sent with it) holds what looks like a
+/// secret; the user sends it with them hidden, as it is, or not at all (it goes back into the prompt box).
+/// </summary>
+public sealed partial class SecretCheckChatItem(string text, ClaudeEditorContext? context, IReadOnlyList<ClaudeAttachment> images,
+    IReadOnlyList<string> found) : ChatItem
+{
+    public string Text { get; } = text;
+
+    public ClaudeEditorContext? Context { get; } = context;
+
+    public IReadOnlyList<ClaudeAttachment> Images { get; } = images;
+
+    /// <summary>What was found ("a GitHub token", "a password in a connection string").</summary>
+    public IReadOnlyList<string> Found { get; } = found;
+
+    public string Question => Found.Count == 1
+        ? $"Your message holds what looks like {Found[0]}. Send it to Claude?"
+        : $"Your message holds what looks like {string.Join(", ", Found.Take(Found.Count - 1))} and {Found[^1]}. Send it to Claude?";
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsPending))]
+    public partial bool IsResolved { get; set; }
+
+    public bool IsPending => !IsResolved;
+
+    [ObservableProperty]
+    public partial string? Outcome { get; set; }
+}
+
 /// <summary>An image (or other file) attached to a prompt.</summary>
 public sealed class ClaudeAttachment(string name, string mediaType, byte[] data)
 {

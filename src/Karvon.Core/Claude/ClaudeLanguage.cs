@@ -359,7 +359,32 @@ public sealed class ClaudeLanguage : INotifyPropertyChanged
         ["Yes"] = "Ha",
         ["esc to interrupt"] = "to‘xtatish uchun esc",
         ["to switch"] = "— almashtirish",
+
+        // A prompt held back for the secrets in it
+        ["Kept from Claude, for now"] = "Hozircha Claude’ga yuborilmadi",
+        ["Send it with them hidden"] = "Ularni yashirib yuborish",
+        ["Send it as it is"] = "Shundayligicha yuborish",
+        ["Don’t send it"] = "Yubormaslik",
+        ["Sent with the secrets hidden."] = "Sirlar yashirilib yuborildi.",
+        ["Sent as it is."] = "Shundayligicha yuborildi.",
+        ["Not sent."] = "Yuborilmadi.",
     };
+
+    /// <summary>What a secret found in a prompt is (<see cref="Karvon.Claude.Tools.Redaction.Find"/>), in Uzbek.</summary>
+    static readonly (string English, string Uzbek)[] SecretKinds =
+    [
+        ("a private key", "maxfiy kalit"), ("a GitHub token", "GitHub tokeni"), ("a GitLab token", "GitLab tokeni"),
+        ("a Slack token", "Slack tokeni"), ("a Stripe key", "Stripe kaliti"), ("an AWS access key", "AWS kirish kaliti"),
+        ("a Google API key", "Google API kaliti"), ("an API key", "API kaliti"), ("a password in a connection string", "ulanish satridagi parol"),
+        ("a password in a URL", "URL ichidagi parol"), ("a bearer token", "bearer token"), ("a secret Karvon keeps", "Karvon saqlaydigan sir"),
+    ];
+
+    static string SecretKindsInUzbek(string text)
+    {
+        foreach (var (english, uzbek) in SecretKinds)
+            text = text.Replace(english, uzbek, StringComparison.Ordinal);
+        return text.Replace(" and ", " va ", StringComparison.Ordinal);
+    }
 
     static readonly (Regex Pattern, Func<Match, string> Replace)[] UzbekPatterns =
     [
@@ -385,6 +410,8 @@ public sealed class ClaudeLanguage : INotifyPropertyChanged
         (new(@"^Allow Claude to overwrite (.+)\?$"), m => $"Claude {m.Groups[1].Value} faylini qayta yozsinmi?"),
         (new(@"^Allow Claude to make this edit to (.+)\?$"), m => $"Claude {m.Groups[1].Value} fayliga shu tahrirni kiritsinmi?"),
         (new(@"^Allow Claude to use (.+)\?$"), m => $"Claude {m.Groups[1].Value} vositasidan foydalansinmi?"),
+        (new(@"^Your message holds what looks like (.+)\. Send it to Claude\?$", RegexOptions.Singleline), m =>
+            $"Xabaringizda sirga o‘xshash narsa bor: {SecretKindsInUzbek(m.Groups[1].Value)}. Claude’ga yuborilsinmi?"),
         (new(@"^A subagent asks: (.+)$", RegexOptions.Singleline), m => "Yordamchi agent so‘rayapti: " + T(m.Groups[1].Value)),
         (new(@"^Yes, and switch to (.+) mode$"), m => $"Ha, va {m.Groups[1].Value} rejimiga o‘tish"),
         (new(@"^Yes, and don't ask again for (.+) in this (session|project)$"), m =>

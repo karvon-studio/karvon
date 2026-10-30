@@ -871,6 +871,24 @@
               </Border>
             </DataTemplate>
 
+            <DataTemplate DataType="vm:SecretCheckChatItem" x:DataType="vm:SecretCheckChatItem">
+              <Border Classes="card" Margin="0,10,0,4">
+                <StackPanel Spacing="8">
+                  <TextBlock Text="{v:L 'Kept from Claude, for now'}" FontWeight="SemiBold" />
+                  <TextBlock Text="{v:Tr Question}" TextWrapping="Wrap" />
+                  <StackPanel IsVisible="{Binding IsPending}" Spacing="5">
+                    <Button Classes="choice first" Content="{v:L 'Send it with them hidden'}"
+                            Command="{Binding $parent[UserControl].((vm:ClaudeViewModel)DataContext).SendHiddenCommand}" CommandParameter="{Binding}" />
+                    <Button Classes="choice" Content="{v:L 'Send it as it is'}"
+                            Command="{Binding $parent[UserControl].((vm:ClaudeViewModel)DataContext).SendAsIsCommand}" CommandParameter="{Binding}" />
+                    <Button Classes="choice" Content="{v:L 'Don’t send it'}"
+                            Command="{Binding $parent[UserControl].((vm:ClaudeViewModel)DataContext).DontSendCommand}" CommandParameter="{Binding}" />
+                  </StackPanel>
+                  <TextBlock Text="{v:Tr Outcome}" IsVisible="{Binding IsResolved}" Classes="muted" FontStyle="Italic" FontSize="12" />
+                </StackPanel>
+              </Border>
+            </DataTemplate>
+
             <DataTemplate DataType="vm:CompactChatItem" x:DataType="vm:CompactChatItem">
               <StackPanel Margin="0,14,0,4" Spacing="6">
                 <Grid ColumnDefinitions="*,Auto,*">

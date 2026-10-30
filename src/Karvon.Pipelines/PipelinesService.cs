@@ -33,6 +33,7 @@ public sealed class PipelineSecrets(ICredentialStore? keyring)
     {
         lock (_session)
             _session[remote.Authority] = token;
+        Karvon.Claude.Tools.KnownSecrets.Add(Key(remote), token);
         if (keep)
             keyring?.Set(Key(remote), $"Karvon: {remote.ProviderName} on {remote.Authority}", token);
         else

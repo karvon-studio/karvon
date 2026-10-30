@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using Karvon.Claude.Tools;
 
 namespace Karvon.Claude;
 
@@ -138,9 +139,10 @@ public sealed class ClaudeToolServer(IReadOnlyList<IClaudeTool> tools, string in
             }
             Called?.Invoke(tool, input, result);
         }
+        // Whatever a tool says, the secrets Karvon holds and the tokens told by their form do not reach Claude.
         return new JsonObject
         {
-            ["content"] = new JsonArray(new JsonObject { ["type"] = "text", ["text"] = result.Text }),
+            ["content"] = new JsonArray(new JsonObject { ["type"] = "text", ["text"] = Redaction.Secrets(result.Text) }),
             ["isError"] = result.IsError,
         };
     }

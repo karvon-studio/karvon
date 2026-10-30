@@ -78,6 +78,7 @@ public sealed class JiraSecrets(ICredentialStore? keyring)
     {
         lock (_session)
             _session[site.Id] = secret;
+        Karvon.Claude.Tools.KnownSecrets.Add(Key(site.Id), secret);
         if (keep)
             keyring?.Set(Key(site.Id), $"Karvon: Jira {site.Name} ({site.Url})", secret);
         else

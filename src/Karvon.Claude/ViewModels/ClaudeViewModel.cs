@@ -7,6 +7,7 @@ using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Karvon.Claude;
+using Karvon.Claude.Tools;
 using Karvon.Services;
 
 namespace Karvon.ViewModels;
@@ -343,6 +344,18 @@ public sealed partial class ClaudeViewModel : ObservableObject, IAsyncDisposable
         if (!isCommand)
             Attachments.Clear();
         var context = IncludeContext && !isCommand ? _editorContext() : null;
+        // A secret in the prompt, or in the selection that goes with it, waits for the user's say before it goes.
+        if (!isCommand && _settings.ClaudeKeepSecretsAway
+            && Redaction.Find(text + "\n" + context?.SelectedText) is { Count: > 0 } found)
+        {
+            Items.Add(new SecretCheckChatItem(text, context, images, found));
+            return;
+        }
+        await SendPromptAsync(text, context, images, isCommand);
+    }
+
+    async Task SendPromptAsync(string text, ClaudeEditorContext? context, IReadOnlyList<ClaudeAttachment> images, bool isCommand)
+    {
         Items.Add(new UserChatItem(text, context?.Label, images));
         _pendingModelCommand = isCommand && text.StartsWith("/model ", StringComparison.Ordinal) ? text[7..].Trim() : null;
         BeginTurn();
@@ -360,6 +373,43 @@ public sealed partial class ClaudeViewModel : ObservableObject, IAsyncDisposable
             EndTurn();
             Items.Add(new NoticeChatItem("Claude Code could not be started: " + ex.Message, isError: true));
         }
+    }
+
+    /// <summary>The held prompt goes, its secrets hidden (each by what it is) in it and in the selection that goes with it.</summary>
+    [RelayCommand]
+    async Task SendHidden(SecretCheckChatItem? item)
+    {
+        if (item is not { IsPending: true })
+            return;
+        item.IsResolved = true;
+        item.Outcome = "Sent with the secrets hidden.";
+        var context = item.Context is { SelectedText: { } selected } c ? c with { SelectedText = Redaction.Text(selected) } : item.Context;
+        await SendPromptAsync(Redaction.Text(item.Text), context, item.Images, isCommand: false);
+    }
+
+    /// <summary>The held prompt goes as the user wrote it.</summary>
+    [RelayCommand]
+    async Task SendAsIs(SecretCheckChatItem? item)
+    {
+        if (item is not { IsPending: true })
+            return;
+        item.IsResolved = true;
+        item.Outcome = "Sent as it is.";
+        await SendPromptAsync(item.Text, item.Context, item.Images, isCommand: false);
+    }
+
+    /// <summary>The held prompt does not go: it is back in the prompt box, its images attached again.</summary>
+    [RelayCommand]
+    void DontSend(SecretCheckChatItem? item)
+    {
+        if (item is not { IsPending: true })
+            return;
+        item.IsResolved = true;
+        item.Outcome = "Not sent.";
+        Prompt = item.Text;
+        foreach (var image in item.Images)
+            Attachments.Add(image);
+        FocusInputRequested?.Invoke();
     }
 
     /// <summary>"/name args" with no line breaks, as Claude Code reads slash commands.</summary>
