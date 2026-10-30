@@ -14,13 +14,45 @@ namespace Karvon.Services;
 public static class Keyring
 {
     /// <summary>Karvon's vault over the system keyring (the keyring itself when the vault cannot be opened), each secret made known.</summary>
-    static readonly Lazy<ICredentialStore?> Detected = new(() => Detect() is { } store ? new Remembering(VaultOver(store)) : null);
+    static readonly Lazy<ICredentialStore?> Detected = new(() => Detect() is { } store ? new Remembering(VaultOver(store)) : PassphraseOnly());
+
+    static string VaultFile => Path.Combine(Settings.ConfigDirectory, "vault.db");
+
+    /// <summary>No keyring to reach (a headless machine): a vault with a passphrase needs none.</summary>
+    static ICredentialStore? PassphraseOnly()
+    {
+        if (string.Equals(Environment.GetEnvironmentVariable("BENGINE_KEYRING"), "off", StringComparison.OrdinalIgnoreCase) || !File.Exists(VaultFile))
+            return null;
+        try
+        {
+            return SecretVault.Open(NoKeyring.Instance, VaultFile) is { HasPassphrase: true } vault ? new Remembering(_vault = vault) : null;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or Microsoft.Data.Sqlite.SqliteException)
+        {
+            return null;
+        }
+    }
+
+    sealed class NoKeyring : ICredentialStore
+    {
+        public static readonly NoKeyring Instance = new();
+
+        public string Name => "no keyring";
+
+        public string? Get(string key) => null;
+
+        public bool Set(string key, string label, string secret) => false;
+
+        public void Delete(string key)
+        {
+        }
+    }
 
     static ICredentialStore VaultOver(ICredentialStore keyring)
     {
         try
         {
-            return SecretVault.Open(keyring, Path.Combine(Settings.ConfigDirectory, "vault.db")) ?? keyring;
+            return (_vault = SecretVault.Open(keyring, VaultFile)) ?? (ICredentialStore)keyring;
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or Microsoft.Data.Sqlite.SqliteException)
         {
@@ -29,6 +61,18 @@ public static class Keyring
     }
 
     public static ICredentialStore? System => Detected.Value;
+
+    static SecretVault? _vault;
+
+    /// <summary>Karvon's vault, when there is one (a keyring to keep its key, or a passphrase); locked until its passphrase is given.</summary>
+    public static SecretVault? Vault
+    {
+        get
+        {
+            _ = Detected.Value;
+            return _vault;
+        }
+    }
 
     /// <summary>The store, with each secret it gives or keeps made known (<see cref="Karvon.Claude.Tools.KnownSecrets"/>), so none reaches Claude.</summary>
     sealed class Remembering(ICredentialStore store) : ICredentialStore

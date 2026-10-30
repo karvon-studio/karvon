@@ -48,7 +48,7 @@ Claude is shown to you under the call.
 | Secret | Kept in | What reaches it |
 | --- | --- | --- |
 | Jira, data source, tunnel, pipeline and SSH passwords Karvon keeps | Karvon's vault (`vault.db` in its settings folder, each entry AES-256-GCM, bound to its name) | Karvon. Its key is in the system keyring (`karvon-vault/key`); Claude's tools are refused the file and the keyring by the guard, and by the sandbox when it is on |
-| The vault's key | the system keyring | any process of yours that asks the keyring; Claude's shell is refused `secret-tool` by the guard, and on Linux the sandbox shuts out the keyring's socket |
+| The vault's key | the system keyring; with a passphrase (Tools > Vault > Set Passphrase), in no keyring: wrapped in the vault by a key drawn from the passphrase, which Karvon asks for as it starts | from the keyring, any process of yours that asks it (Claude's shell is refused `secret-tool` by the guard, and on Linux the sandbox shuts out the keyring's socket); with a passphrase, Karvon alone, once it is given |
 | SSH keys, kubeconfig, cloud CLI credentials, `gh` and `glab` tokens, Claude Code's own sign-in | their usual files under your home | the guard refuses Claude's tools these files; the sandbox denies reading them |
 | A project's `.env`, keys, certificates, `secrets.json` | the project | the guard refuses Claude's tools these files by name |
 | Secret-looking environment variables | Karvon's environment | not passed to `claude`: their names are listed in Output (Claude) |
@@ -72,7 +72,8 @@ Claude is shown to you under the call.
 | Read-only data sources and plan mode refuse changes | enforced | `ClaudeKarvonToolsTests.Database_tools_describe_query_and_refuse_changes_to_read_only_sources`, `ClaudeNegativeTests` (plan) |
 | The audit trail | enforced | `ClaudeToolPolicyTests.Each_session_keeps_what_was_asked_what_decided_it_and_what_ran`, `The_trail_keeps_what_Karvons_hooks_refused_without_the_secret_and_thirty_days` |
 | What Claude Code's own tools read (a file's contents, a command's output) scanned before the model sees it | enforced when on (off at first: MCP Servers > karvon > Scan what Claude Code sends the model), a gateway at `ANTHROPIC_BASE_URL`; a subscription's sign-in goes through it too | `ClaudeSecretsTests.The_gateway_hides_the_secrets_in_what_Claude_Code_sends_the_model`, `A_session_with_the_gateway_is_given_its_base_url` |
-| The vault unlocked by a passphrase, Touch ID or Windows Hello instead of the keyring | planned | |
+| The vault unlocked by a passphrase instead of the keyring, asked as Karvon starts | enforced when set | `VaultPassphraseTests` |
+| The vault unlocked by Touch ID or Windows Hello | planned | |
 | The IDE's own restricted mode for a folder not trusted yet (language servers' design-time builds, tasks) | planned | |
 | Rules and folder ties for ports, containers, clusters and data sources | planned | |
 

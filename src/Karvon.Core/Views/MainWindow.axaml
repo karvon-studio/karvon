@@ -263,6 +263,12 @@
           <MenuItem Header="_Sync Now" Command="{Binding SyncSettingsNowCommand}" IsVisible="{Binding IsSettingsSyncOn}" />
           <MenuItem Header="Turn _Off" Command="{Binding TurnOffSettingsSyncCommand}" IsVisible="{Binding IsSettingsSyncOn}" />
         </MenuItem>
+        <MenuItem Header="_Vault" IsVisible="{Binding HasVault}">
+          <MenuItem Header="_Set Passphrase..." Command="{Binding SetVaultPassphraseCommand}" IsVisible="{Binding CanSetVaultPassphrase}" />
+          <MenuItem Header="_Change Passphrase..." Command="{Binding SetVaultPassphraseCommand}" IsVisible="{Binding HasVaultPassphrase}" />
+          <MenuItem Header="_Remove Passphrase..." Command="{Binding RemoveVaultPassphraseCommand}" IsVisible="{Binding HasVaultPassphrase}" />
+          <MenuItem Header="_Unlock..." Command="{Binding UnlockVaultCommand}" IsVisible="{Binding IsVaultLocked}" />
+        </MenuItem>
         <Separator />
         <MenuItem Header="_Get Tools and Features..." Click="OnGetToolsAndFeatures" />
       </MenuItem>
