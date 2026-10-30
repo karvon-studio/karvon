@@ -14,7 +14,8 @@ public sealed record ClaudeStartOptions(
     ClaudeAccount? Account = null,
     ClaudeToolServer? Tools = null,
     string? McpConfigFile = null,
-    bool GuardSecrets = true);
+    bool GuardSecrets = true,
+    bool Sandbox = false);
 
 /// <summary>
 /// One running Claude Code CLI in headless streaming mode (the interface the Agent SDK uses): JSON lines on
@@ -132,6 +133,9 @@ public sealed class ClaudeSession : IAsyncDisposable
             args.AddRange(["--model", model]);
         if (options.Resume is { Length: > 0 } resume)
             args.AddRange(["--resume", resume]);
+        // Its shell in Claude Code's sandbox, the secrets out of its reach (beside the user's own settings).
+        if (options.Sandbox)
+            args.AddRange(["--settings", ClaudeSandbox.Settings()]);
         // In Karvon its tools come before the shell, as the session's system prompt says (Claude Code's own prompt kept).
         if (options.Tools?.SystemPrompt is { Length: > 0 } prompt)
             args.AddRange(["--append-system-prompt", prompt]);

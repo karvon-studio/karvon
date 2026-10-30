@@ -325,4 +325,27 @@ public class ClaudeSecretsTests
         Assert.NotNull(SecretGuard.Check("Bash", Input(new { command = $"sqlite3 {vault} .dump" }), null));
         Assert.NotNull(SecretGuard.Check("Bash", Input(new { command = $"cp {vault} /tmp/v.db" }), null));
     }
+
+    [Fact]
+    public async Task The_sandbox_keeps_the_secrets_unreadable_and_no_command_out_of_it()
+    {
+        using var settings = JsonDocument.Parse(ClaudeSandbox.Settings());
+        var sandbox = settings.RootElement.GetProperty("sandbox");
+        Assert.True(sandbox.GetProperty("enabled").GetBoolean());
+        Assert.False(sandbox.GetProperty("allowUnsandboxedCommands").GetBoolean());
+        Assert.False(sandbox.GetProperty("autoAllowBashIfSandboxed").GetBoolean());
+        var denied = sandbox.GetProperty("filesystem").GetProperty("denyRead").EnumerateArray().Select(p => p.GetString()).ToList();
+        Assert.Contains(Path.Combine(Home, ".ssh"), denied);
+        Assert.Contains(Path.GetFullPath(Karvon.Services.Settings.ConfigDirectory), denied);
+        Assert.Contains("nuget.org", sandbox.GetProperty("network").GetProperty("allowedDomains").EnumerateArray().Select(d => d.GetString()));
+
+        // Started with it, and without.
+        var (dir, log) = FakeClaude.Workspace();
+        await using (await ClaudeSession.StartAsync(new ClaudeStartOptions(FakeClaude.Executable, dir, Sandbox: true), TestContext.Current.CancellationToken))
+        {
+            var argv = FakeClaude.Log(log).First(e => e.Kind == "argv").Data.EnumerateArray().Select(a => a.GetString()).ToList();
+            Assert.Equal(ClaudeSandbox.Settings(), argv[argv.IndexOf("--settings") + 1]);
+        }
+        Assert.DoesNotContain("--settings", ClaudeSession.Arguments(new ClaudeStartOptions("claude", dir)));
+    }
 }

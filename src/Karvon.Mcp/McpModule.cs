@@ -118,6 +118,28 @@ public sealed partial class McpModule : KarvonModule, IMcpHost
         }
     }
 
+    bool IMcpHost.KeepSecretsAway
+    {
+        get => Workbench.Settings.ClaudeKeepSecretsAway;
+        set
+        {
+            Workbench.Settings.ClaudeKeepSecretsAway = value;
+            Workbench.SaveSettings();
+        }
+    }
+
+    bool IMcpHost.Sandbox
+    {
+        get => Workbench.Settings.ClaudeSandbox;
+        set
+        {
+            Workbench.Settings.ClaudeSandbox = value;
+            Workbench.SaveSettings();
+        }
+    }
+
+    string? IMcpHost.SandboxProblem => Karvon.Claude.ClaudeSandbox.Problem();
+
     IEnumerable<DocumentTab> IMcpHost.Documents => Workbench.Documents;
 
     void IMcpHost.ShowDocument(DocumentTab document) => Workbench.ShowDocument(document);

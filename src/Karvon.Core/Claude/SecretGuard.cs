@@ -119,6 +119,15 @@ public static class SecretFiles
         ".config/gcloud/access_tokens.db", ".azure/msal_token_cache.json", ".azure/accessTokens.json",
     ];
 
+    /// <summary>
+    /// The user's places that hold secrets, as full paths: the folders and files above, the SSH folder, Karvon's settings
+    /// (its vault); what a sandbox denies reading.
+    /// </summary>
+    public static IEnumerable<string> UserPlaces() =>
+        Folders.Concat(Files).Append(".ssh").Select(p => Path.GetFullPath(Path.Combine(Home, p)))
+            .Append(Path.GetFullPath(Karvon.Services.Settings.ConfigDirectory))
+            .Distinct(OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal);
+
     public static bool IsSecret(string path)
     {
         string full;

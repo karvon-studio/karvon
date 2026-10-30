@@ -81,6 +81,13 @@ public sealed class Settings
     /// </summary>
     public bool ClaudeKeepSecretsAway { get; set; } = true;
 
+    /// <summary>
+    /// Claude Code's shell runs in its own sandbox (bubblewrap on Linux, Seatbelt on macOS): what holds secrets not
+    /// readable, no command out of it, the package registries reached without a prompt (<see cref="Karvon.Claude.ClaudeSandbox"/>).
+    /// Off at first: some machines do not let it start, and on Linux it shuts out every Unix socket (ssh-agent's too).
+    /// </summary>
+    public bool ClaudeSandbox { get; set; }
+
     /// <summary>What Claude does with Karvon's tools shows in Karvon: a query's results, a container's logs, the build, a search...</summary>
     public bool ClaudeShowToolActivity { get; set; } = true;
 

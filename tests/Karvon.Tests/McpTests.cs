@@ -26,6 +26,12 @@ sealed class TestMcpHost(string? workspace) : IMcpHost
 
     public bool KarvonToolsFirst { get; set; } = true;
 
+    public bool KeepSecretsAway { get; set; } = true;
+
+    public bool Sandbox { get; set; }
+
+    public string? SandboxProblem => "bubblewrap is not installed.";
+
     public List<DocumentTab> Open { get; } = [];
 
     public List<string> Prompts { get; } = [];
@@ -558,6 +564,16 @@ public class McpTests
             Assert.True(first!.IsChecked);
             first.IsChecked = false;
             Assert.False(host.KarvonToolsFirst);
+            // Whether Claude Code's own tools are kept from the secrets, and its shell in the sandbox (why it cannot start, once on).
+            var boxes = page.GetVisualDescendants().OfType<CheckBox>().ToDictionary(c => c.Name!);
+            Assert.True(boxes["KeepSecretsAway"].IsChecked);
+            boxes["KeepSecretsAway"].IsChecked = false;
+            Assert.False(host.KeepSecretsAway);
+            Assert.False(boxes["Sandbox"].IsChecked);
+            Assert.Null(tools.SandboxProblem);
+            boxes["Sandbox"].IsChecked = true;
+            Assert.True(host.Sandbox);
+            Assert.Equal("bubblewrap is not installed.", tools.SandboxProblem);
             host.Open.Remove(tools);
             page.Content = null;
 

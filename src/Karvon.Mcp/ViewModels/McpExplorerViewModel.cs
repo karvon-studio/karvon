@@ -27,6 +27,15 @@ public interface IMcpHost
     /// <summary>Whether the sessions Karvon starts use its tools before the shell (a setting, for the sessions started after).</summary>
     bool KarvonToolsFirst { get; set; }
 
+    /// <summary>Whether Claude Code's own tools are kept away from the secrets on the machine (a setting, for the sessions started after).</summary>
+    bool KeepSecretsAway { get => true; set { } }
+
+    /// <summary>Whether Claude Code's shell runs in its sandbox (a setting, for the sessions started after).</summary>
+    bool Sandbox { get => false; set { } }
+
+    /// <summary>Why the sandbox cannot start on this machine; null when nothing stops it.</summary>
+    string? SandboxProblem => null;
+
     IEnumerable<DocumentTab> Documents { get; }
 
     void ShowDocument(DocumentTab document);
@@ -314,6 +323,36 @@ public sealed class McpBuiltInDocument(IReadOnlyList<McpBuiltInToolNode> tools, 
             OnPropertyChanged();
         }
     }
+
+    /// <summary>Claude Code's own tools kept from the files that hold secrets and the secret stores. For the sessions started after.</summary>
+    public bool KeepSecretsAway
+    {
+        get => host.KeepSecretsAway;
+        set
+        {
+            if (host.KeepSecretsAway == value)
+                return;
+            host.KeepSecretsAway = value;
+            OnPropertyChanged();
+        }
+    }
+
+    /// <summary>Claude Code's shell in its sandbox. For the sessions started after.</summary>
+    public bool Sandbox
+    {
+        get => host.Sandbox;
+        set
+        {
+            if (host.Sandbox == value)
+                return;
+            host.Sandbox = value;
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(SandboxProblem));
+        }
+    }
+
+    /// <summary>Why the sandbox, turned on, cannot start here.</summary>
+    public string? SandboxProblem => host.Sandbox ? host.SandboxProblem : null;
 
     public override string Key => "mcp:" + KarvonToolNames.Server;
 
