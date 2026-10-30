@@ -2,6 +2,7 @@ using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Text;
 using System.Text.Json;
+using Karvon.Claude.Tools;
 
 namespace Karvon.Claude;
 
@@ -119,9 +120,19 @@ public sealed class ClaudeSession : IAsyncDisposable
     /// <summary>The id of the PreToolUse hook that keeps Claude Code's own tools away from the secrets (<see cref="SecretGuard"/>).</summary>
     public const string SecretsHook = "karvon_secrets";
 
+    /// <summary>The PostToolUse hook that hides the secrets in what Claude Code's own tools give the model, so they can be given back.</summary>
+    public const string MasksHook = "karvon_masks";
+
+    /// <summary>JSON as it reads, «» and all (the marks are found in it).</summary>
+    static readonly JsonSerializerOptions Unescaped = new() { Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping };
+
+    /// <summary>The tools whose input a secret's mark is given its value again in (what writes or runs; Grep's pattern).</summary>
+    static readonly HashSet<string> Revealed = new(StringComparer.Ordinal) { "Edit", "MultiEdit", "Write", "NotebookEdit", "Bash", "Grep" };
+
     /// <summary>
     /// The hooks Karvon answers (as the Agent SDK's callbacks), before a call of Claude Code's own tools: whether it reaches
-    /// a secret (unless that is off), and for Bash whether one of Karvon's tools does it (when there are shell rules).
+    /// a secret (unless that is off), and a secret's marks given their values again; for Bash whether one of Karvon's tools
+    /// does it (when there are shell rules); after a call, its output's secrets marked.
     /// </summary>
     static object? Hooks(ClaudeToolServer? tools, bool guardSecrets)
     {
@@ -130,7 +141,13 @@ public sealed class ClaudeSession : IAsyncDisposable
             preToolUse.Add(new { matcher = SecretGuard.Tools, hookCallbackIds = new[] { SecretsHook } });
         if (tools is { ShellRules.Count: > 0 })
             preToolUse.Add(new { matcher = "Bash", hookCallbackIds = new[] { ShellHook } });
-        return preToolUse.Count > 0 ? new Dictionary<string, object> { ["PreToolUse"] = preToolUse } : null;
+        if (preToolUse.Count == 0)
+            return null;
+        var hooks = new Dictionary<string, object> { ["PreToolUse"] = preToolUse };
+        // What every tool gives the model, its secrets marked (Karvon's own tools hide theirs already).
+        if (guardSecrets)
+            hooks["PostToolUse"] = new[] { new { matcher = ".*", hookCallbackIds = new[] { MasksHook } } };
+        return hooks;
     }
 
     /// <summary>The command-line arguments for <paramref name="options"/> (the SDK's streaming invocation).</summary>
@@ -492,12 +509,32 @@ public sealed class ClaudeSession : IAsyncDisposable
     async Task AnswerHookAsync(string? requestId, JsonElement request)
     {
         object answer = new { };
-        if (ClaudeProtocol.Str(request, "callback_id") == SecretsHook && request.TryGetProperty("input", out var called)
+        if (ClaudeProtocol.Str(request, "callback_id") == MasksHook && request.TryGetProperty("input", out var done)
+            && ClaudeProtocol.Str(done, "tool_name") is { } doneTool && !doneTool.StartsWith(ClaudeToolServer.Prefix, StringComparison.Ordinal)
+            && done.TryGetProperty("tool_response", out var response)
+            && SecretMasks.Map(System.Text.Json.Nodes.JsonNode.Parse(response.GetRawText()), SecretMasks.Hide) is { } masked)
+        {
+            // The same shape as the tool's own output, every string of it with its secrets marked.
+            Audit?.Scanned(SecretMasks.Kinds(masked.ToJsonString(Unescaped)));
+            answer = new { hookSpecificOutput = new { hookEventName = "PostToolUse", updatedToolOutput = masked } };
+        }
+        else if (ClaudeProtocol.Str(request, "callback_id") == SecretsHook && request.TryGetProperty("input", out var called)
             && ClaudeProtocol.Str(called, "tool_name") is { } tool && called.TryGetProperty("tool_input", out var calledInput)
             && SecretGuard.Check(tool, calledInput, _workingDirectory) is { } reason)
         {
             Audit?.Decided(ClaudeProtocol.Str(called, "tool_use_id") ?? ClaudeProtocol.Str(request, "tool_use_id"), tool, "deny", "Karvon's guard of the secrets", reason);
             answer = new { hookSpecificOutput = new { hookEventName = "PreToolUse", permissionDecision = "deny", permissionDecisionReason = reason } };
+        }
+        else if (ClaudeProtocol.Str(request, "callback_id") == SecretsHook && request.TryGetProperty("input", out var writing)
+            && ClaudeProtocol.Str(writing, "tool_name") is { } writer && Revealed.Contains(writer) && writing.TryGetProperty("tool_input", out var written)
+            && SecretMasks.Map(System.Text.Json.Nodes.JsonNode.Parse(written.GetRawText()), SecretMasks.Reveal) is { } revealed)
+        {
+            // What Claude writes or runs with a secret's mark in it gets the value: the file is not left with a mark, the
+            // command runs with the password, and Claude never sees it (what the tool gives back is marked again).
+            if (SecretGuard.Check(writer, JsonDocument.Parse(revealed.ToJsonString()).RootElement, _workingDirectory) is { } refused)
+                answer = new { hookSpecificOutput = new { hookEventName = "PreToolUse", permissionDecision = "deny", permissionDecisionReason = refused } };
+            else
+                answer = new { hookSpecificOutput = new { hookEventName = "PreToolUse", updatedInput = revealed } };
         }
         else if (ClaudeProtocol.Str(request, "callback_id") == ShellHook && request.TryGetProperty("input", out var input)
             && ClaudeProtocol.Str(input, "tool_name") == "Bash" && input.TryGetProperty("tool_input", out var toolInput)

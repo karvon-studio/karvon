@@ -12,7 +12,7 @@ public static partial class Redaction
     public const string Mask = "***";
 
     /// <summary>The tokens told by their form, with what they are.</summary>
-    static readonly (string Name, Regex Pattern)[] Tokens =
+    internal static readonly (string Name, Regex Pattern)[] Tokens =
     [
         ("a private key", PrivateKey()),
         ("a GitHub token", GitHubToken()),
@@ -109,13 +109,13 @@ public static partial class Redaction
     private static partial Regex ModelApiKey();
 
     [GeneratedRegex(@"(?i)\b((?:password|pwd)\s*=\s*)[^;'""\s]+")]
-    private static partial Regex PasswordSetting();
+    internal static partial Regex PasswordSetting();
 
     [GeneratedRegex(@"(\w+://[^:/@\s]+:)[^@\s]+@")]
-    private static partial Regex UrlCredentials();
+    internal static partial Regex UrlCredentials();
 
     [GeneratedRegex(@"(?i)\b(bearer\s+)[A-Za-z0-9._~+/=-]{8,}")]
-    private static partial Regex BearerToken();
+    internal static partial Regex BearerToken();
 
     [GeneratedRegex(@"(?i)(password|passwd|passphrase|secret|token|api_?key|access_?key|private_?key|credential)")]
     private static partial Regex SecretName();

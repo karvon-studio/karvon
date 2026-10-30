@@ -263,6 +263,37 @@ def permission(tool, tool_input, suggestions, tool_id):
 
 def pre_tool_use(tool, tool_input, tool_id):
     """The host's PreToolUse hooks for the tool (as the Agent SDK's callbacks); the first denial, or None."""
+    return pre_tool_use_full(tool, tool_input, tool_id)[0]
+
+
+def hook_answer(event, callback, hook_input, tool_id):
+    request_id = str(uuid.uuid4())
+    out({"type": "control_request", "request_id": request_id, "request": {"subtype": "hook_callback", "callback_id": callback,
+         "input": {"session_id": SESSION, "cwd": CWD, "hook_event_name": event, **hook_input, "tool_use_id": tool_id}, "tool_use_id": tool_id}})
+    while True:
+        reply = read()
+        if reply.get("type") == "control_response" and reply["response"]["request_id"] == request_id:
+            answer = reply["response"]["response"]
+            log("hook", answer)
+            return answer.get("hookSpecificOutput") or {}
+        if reply.get("type") == "control_request":
+            handle_control(reply)
+
+
+def post_tool_use(tool, tool_input, tool_response, tool_id):
+    """The host's PostToolUse hooks, as Claude Code 2.1.312 runs them: an updatedToolOutput replaces what the model gets."""
+    for matcher in STATE["hooks"].get("PostToolUse", []):
+        if matcher.get("matcher") is not None and not re.fullmatch(matcher["matcher"], tool):
+            continue
+        for callback in matcher.get("hookCallbackIds", []):
+            specific = hook_answer("PostToolUse", callback, {"tool_name": tool, "tool_input": tool_input, "tool_response": tool_response}, tool_id)
+            if "updatedToolOutput" in specific:
+                tool_response = specific["updatedToolOutput"]
+    return tool_response
+
+
+def pre_tool_use_full(tool, tool_input, tool_id):
+    """The PreToolUse hooks' answer: the first denial (or None), and the input as a hook's updatedInput left it."""
     for matcher in STATE["hooks"].get("PreToolUse", []):
         # A matcher is a regular expression over the tool's name, as Claude Code reads it ("Edit|Write").
         if matcher.get("matcher") is not None and not re.fullmatch(matcher["matcher"], tool):
@@ -279,11 +310,13 @@ def pre_tool_use(tool, tool_input, tool_id):
                     log("hook", answer)
                     specific = answer.get("hookSpecificOutput") or {}
                     if specific.get("permissionDecision") == "deny":
-                        return specific.get("permissionDecisionReason", "denied")
+                        return specific.get("permissionDecisionReason", "denied"), tool_input
+                    if "updatedInput" in specific:
+                        tool_input = specific["updatedInput"]
                     break
                 if reply.get("type") == "control_request":
                     handle_control(reply)
-    return None
+    return None, tool_input
 
 
 def allowed(decision):
@@ -580,6 +613,38 @@ def turn(prompt, content, sent=None):
         karvon_tool("toolu_q2", "db_query", {"connection": "shop", "sql": "UPDATE users SET age = 32 WHERE id = 1"})
         karvon_tool("toolu_q3", "db_query", {"connection": "shop", "sql": "DELETE FROM users"})
         stream_text("Done with the database.")
+        result("ok")
+    elif "zettings" in p:
+        # A project's settings read as Claude Code's Read gives them, then its password used without being seen: copied
+        # by a command, written into a new file.
+        import subprocess
+        def run(tool_id, name, tool_input, act):
+            tool_use(tool_id, name, tool_input)
+            reason, given = pre_tool_use_full(name, tool_input, tool_id)
+            if reason is not None:
+                tool_result(tool_id, reason, True)
+                return None
+            response = post_tool_use(name, given, act(given), tool_id)
+            text = response["file"]["content"] if name == "Read" else response.get("stdout", "") if name == "Bash" else json.dumps(response)
+            log("model", text)
+            tool_result(tool_id, text)
+            return text
+        settings = os.path.join(CWD, "appsettings.Development.json")
+        def read_file(given):
+            with open(given["file_path"]) as f:
+                return {"type": "text", "file": {"filePath": given["file_path"], "content": f.read(), "numLines": 1, "startLine": 1, "totalLines": 1}}
+        seen = run("toolu_m1", "Read", {"file_path": settings}, read_file)
+        mark = re.search(r"«secret: [^»]+»", seen).group(0)
+        def bash(given):
+            done = subprocess.run(["sh", "-c", given["command"]], cwd=CWD, capture_output=True, text=True)
+            return {"stdout": done.stdout, "stderr": done.stderr, "interrupted": False, "isImage": False}
+        run("toolu_m2", "Bash", {"command": f"printf '%s' '{mark}' > copied.txt && cat copied.txt", "description": "Copy it"}, bash)
+        def write(given):
+            with open(given["file_path"], "w") as f:
+                f.write(given["content"])
+            return {"type": "create", "filePath": given["file_path"], "content": given["content"], "structuredPatch": []}
+        run("toolu_m3", "Write", {"file_path": os.path.join(CWD, "written.txt"), "content": f"Password={mark}\n"}, write)
+        stream_text("Done.")
         result("ok")
     elif "attack" in p:
         # What a workspace's files, its code or a tool's output may get Claude to try (a prompt injection), as Claude Code

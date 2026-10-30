@@ -11,8 +11,8 @@ namespace Karvon.Claude;
 /// <summary>
 /// A gateway inside Karvon for one Claude Code session (its <c>ANTHROPIC_BASE_URL</c>): what Claude Code sends the model,
 /// what its own tools read among it (a file's contents, a command's output), goes through it, and the secrets Karvon
-/// knows and the tokens told by their form are hidden in the conversation's messages before they go on. The same each
-/// time, so the prompt cache holds. The answers come back as they are, streamed. It listens on 127.0.0.1 only, at a path
+/// knows, the tokens told by their form and the passwords told by their place are marked in the conversation's messages
+/// before they go on (<see cref="SecretMasks"/>), the same each time, so the prompt cache holds. The answers come back as they are, streamed. It listens on 127.0.0.1 only, at a path
 /// of its own no other process knows; a Claude subscription's sign-in goes through it as an API key does (Claude Code
 /// 2.1.312 sends its OAuth bearer to the base URL it is given).
 /// </summary>
@@ -181,7 +181,8 @@ public sealed class ClaudeGateway : IAsyncDisposable
     {
         if (content is JsonValue value && value.TryGetValue<string>(out var text))
         {
-            var safe = Redaction.Secrets(text);
+            // Marked as Claude Code's own tools' outputs are (SecretMasks): what Claude writes back with a mark gets the value.
+            var safe = SecretMasks.Hide(text);
             if (safe != text)
             {
                 hidden.AddRange(Kinds(text, safe));
@@ -208,7 +209,7 @@ public sealed class ClaudeGateway : IAsyncDisposable
         var was = Marks(before);
         foreach (var kind in Marks(after))
             if (!was.Remove(kind))
-                yield return kind;
+                yield return System.Text.RegularExpressions.Regex.Replace(kind, " #\\d+$", "");
     }
 
     static List<string> Marks(string text)

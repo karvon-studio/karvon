@@ -506,7 +506,7 @@ public class ClaudeSecretsTests
         Assert.DoesNotContain(known, System.Text.Encoding.UTF8.GetString(sent.Body));
         using var json = JsonDocument.Parse(sent.Body);
         var messages = json.RootElement.GetProperty("messages");
-        Assert.Equal("why does «secret: a GitHub token» fail", messages[0].GetProperty("content").GetString());
+        Assert.Matches(@"^why does «secret: a GitHub token #\d+» fail$", messages[0].GetProperty("content").GetString());
         Assert.Equal("\"Password\": \"«secret: karvon-pipelines/gitlab»\"", messages[2].GetProperty("content")[0].GetProperty("content").GetString());
         Assert.Equal("/w/appsettings.json", messages[1].GetProperty("content")[0].GetProperty("input").GetProperty("file_path").GetString());
         Assert.Equal(["a GitHub token", "karvon-pipelines/gitlab"], hidden);
@@ -532,5 +532,77 @@ public class ClaudeSecretsTests
         Assert.Contains("ANTHROPIC_BASE_URL", FakeClaude.Log(log).First(e => e.Kind == "env").Data.EnumerateArray().Select(n => n.GetString()));
         await using var without = await ClaudeSession.StartAsync(new ClaudeStartOptions(FakeClaude.Executable, dir), TestContext.Current.CancellationToken);
         Assert.Null(without.Gateway);
+    }
+
+    [Fact]
+    public void Secrets_are_marked_by_place_and_key_and_given_back_by_their_marks()
+    {
+        var token = "ghp_" + new string('h', 36);
+        var text = string.Join("\n",
+            "     1\t{",
+            "     2\t  \"ConnectionStrings\": { \"Default\": \"Host=db;Password=conn-pa55;Database=shop\" },",
+            "     3\t  \"Jwt\": { \"SecretKey\": \"jwt-s3cret-value\", \"Issuer\": \"shop\" },",
+            "     4\t  \"Smtp\": { \"Password\": \"\", \"Host\": \"mail\" }",
+            "     5\t}",
+            "db:",
+            "  password: yaml-pa55",
+            "  user: app",
+            "export API_TOKEN='env-t0ken-value'",
+            "DB_PASSWORD=${DB_PASSWORD}",
+            "https://bob:url-pa55@git.example.test/repo.git",
+            $"token {token}");
+        var hidden = SecretMasks.Hide(text);
+        foreach (var secret in new[] { "conn-pa55", "jwt-s3cret-value", "yaml-pa55", "env-t0ken-value", "url-pa55", token })
+            Assert.DoesNotContain(secret, hidden);
+        // What is no secret stays: names, hosts, empty values, placeholders.
+        foreach (var plain in new[] { "\"Issuer\": \"shop\"", "\"Password\": \"\"", "user: app", "DB_PASSWORD=${DB_PASSWORD}", "Host=db;", "bob:" })
+            Assert.Contains(plain, hidden);
+        Assert.Matches(@"Password=«secret: a password #\d+»;Database", hidden);
+        Assert.Matches(@"export API_TOKEN='«secret: a secret #\d+»'", hidden);
+        // The same each time; given back whole.
+        Assert.Equal(hidden, SecretMasks.Hide(text));
+        Assert.Equal(text, SecretMasks.Reveal(hidden));
+        Assert.True(SecretMasks.HasMarks(hidden));
+        Assert.False(SecretMasks.HasMarks("«secret: a password #999999»"));
+        Assert.Equal(["a password", "a secret", "a GitHub token"], SecretMasks.Kinds(hidden));
+
+        // A tool's output keeps its shape, each string of it marked; none: nothing to replace.
+        var output = JsonNode.Parse($$"""{"stdout":"PASSWORD=out-pa55-word","stderr":"","interrupted":false,"lines":[1,2]}""");
+        var masked = SecretMasks.Map(output, SecretMasks.Hide)!.AsObject();
+        Assert.Equal(["stdout", "stderr", "interrupted", "lines"], masked.Select(p => p.Key));
+        Assert.Matches(@"^PASSWORD=«secret: a password #\d+»$", (string?)masked["stdout"]);
+        Assert.False((bool)masked["interrupted"]!);
+        Assert.Null(SecretMasks.Map(JsonNode.Parse("""{"stdout":"hello"}"""), SecretMasks.Hide));
+    }
+
+    [Fact]
+    public async Task What_Claude_Codes_tools_read_is_marked_and_what_it_writes_or_runs_gets_the_value()
+    {
+        var (dir, log) = FakeClaude.Workspace();
+        var password = Unique("pa55-");
+        File.WriteAllText(Path.Combine(dir, "appsettings.Development.json"),
+            $$"""{ "ConnectionStrings": { "Default": "Host=db;Database=shop;Username=app;Password={{password}}" } }""");
+        var audit = Path.Combine(Path.GetTempPath(), "karvon-audit-" + Guid.NewGuid().ToString("N"));
+        await using var session = await ClaudeSession.StartAsync(new ClaudeStartOptions(FakeClaude.Executable, dir, AuditDirectory: audit), TestContext.Current.CancellationToken);
+        var done = new TaskCompletionSource();
+        session.Event += e =>
+        {
+            if (e is ClaudeResult)
+                done.TrySetResult();
+        };
+        await session.SendUserMessageAsync("zettings, please");
+        await done.Task.WaitAsync(TimeSpan.FromSeconds(20), TestContext.Current.CancellationToken);
+
+        // What the model got: the settings with a mark for the password, never the password.
+        var model = FakeClaude.Log(log).Where(e => e.Kind == "model").Select(e => e.Data.GetString()!).ToList();
+        Assert.Equal(3, model.Count);
+        Assert.All(model, m => Assert.DoesNotContain(password, m));
+        var mark = System.Text.RegularExpressions.Regex.Match(model[0], @"Password=(«secret: a password #\d+»)").Groups[1].Value;
+        Assert.NotEmpty(mark);
+        // The command ran with the value (its output marked again); the file Claude wrote holds the value, not the mark.
+        Assert.Equal(password, File.ReadAllText(Path.Combine(dir, "copied.txt")));
+        Assert.Equal(mark, model[1]);
+        Assert.Equal($"Password={password}\n", File.ReadAllText(Path.Combine(dir, "written.txt")));
+        Assert.Contains(ClaudeAudit.Read(session.Audit!.File), e => (string?)e["kind"] == "scanned" && e["hidden"]!.AsArray().Any(h => (string?)h == "a password"));
     }
 }
