@@ -54,6 +54,9 @@ public sealed class ClaudeSession : IAsyncDisposable
     /// <summary>The gateway what it sends the model goes through (<see cref="ClaudeGateway"/>); null when it goes straight.</summary>
     public ClaudeGateway? Gateway { get; private init; }
 
+    /// <summary>Why the gateway asked for could not start (the session went straight to the API); null when it did, or was not asked for.</summary>
+    public string? GatewayProblem { get; private init; }
+
     static bool ThirdParty(IDictionary<string, string?> environment) =>
         new[] { "CLAUDE_CODE_USE_BEDROCK", "CLAUDE_CODE_USE_VERTEX", "CLAUDE_CODE_USE_FOUNDRY" }.Any(name =>
             environment.TryGetValue(name, out var value) && value is { Length: > 0 } and not "0" and not "false");
@@ -212,9 +215,20 @@ public sealed class ClaudeSession : IAsyncDisposable
         options.Account?.Apply(psi.Environment);
         // What Claude Code sends the model goes through Karvon's gateway, which hides the secrets in it (not with Bedrock,
         // Vertex or Foundry, whose own base URLs Claude Code uses).
-        var gateway = options.Gateway && !ThirdParty(psi.Environment)
-            ? ClaudeGateway.Start(psi.Environment.TryGetValue("ANTHROPIC_BASE_URL", out var own) ? own : null)
-            : null;
+        ClaudeGateway? gateway = null;
+        string? gatewayProblem = null;
+        if (options.Gateway && !ThirdParty(psi.Environment))
+        {
+            try
+            {
+                gateway = ClaudeGateway.Start(psi.Environment.TryGetValue("ANTHROPIC_BASE_URL", out var own) ? own : null);
+            }
+            catch (Exception ex) when (ex is System.Net.HttpListenerException or System.Net.Sockets.SocketException or IOException or UriFormatException)
+            {
+                // Without it the session goes straight to the API (the hook still marks what the tools give the model).
+                gatewayProblem = ex.Message;
+            }
+        }
         if (gateway is not null)
             psi.Environment["ANTHROPIC_BASE_URL"] = gateway.BaseUrl;
         var hidden = ClaudeEnvironment.Clean(psi.Environment);
@@ -222,6 +236,7 @@ public sealed class ClaudeSession : IAsyncDisposable
         var session = new ClaudeSession(process)
         {
             Gateway = gateway,
+            GatewayProblem = gatewayProblem,
             SessionId = options.Resume, _tools = options.Tools, _workingDirectory = options.WorkingDirectory, HiddenVariables = hidden,
             Audit = options.AuditDirectory is { } audit ? ClaudeAudit.Start(audit) : null,
         };

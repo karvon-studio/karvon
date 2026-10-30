@@ -210,7 +210,7 @@ public sealed partial class ClaudeViewModel : ObservableObject, IAsyncDisposable
             await StopSessionAsync();
             var session = await ClaudeSession.StartAsync(new ClaudeStartOptions(CliPath!, cwd, SelectedModel?.Value, PermissionMode, _resumeId, SelectedAccount, Tools, McpServersFor(cwd),
                 _settings.ClaudeKeepSecretsAway, _settings.ClaudeSandbox, WorkspaceTrust.IsTrusted(_settings.TrustedFolders, cwd),
-                Path.Combine(Settings.ConfigDirectory, "audit"), _settings.ClaudeGateway));
+                Path.Combine(Settings.ConfigDirectory, "audit"), _settings.ClaudeScanRequests));
             session.Event += ev => Dispatcher.UIThread.Post(() => Handle(session, ev));
             _session = session;
             _sessionCwd = cwd;
@@ -220,6 +220,8 @@ public sealed partial class ClaudeViewModel : ObservableObject, IAsyncDisposable
                 VariablesHidden?.Invoke(session.HiddenVariables);
             if (_settings.ClaudeSandbox && ClaudeSandbox.Problem() is { } problem)
                 Items.Add(new NoticeChatItem("Claude's shell is not in a sandbox here: " + problem, isError: true));
+            if (session.GatewayProblem is { } gateway)
+                Items.Add(new NoticeChatItem("Karvon's gateway could not start, so Claude Code talks to the API directly this time: " + gateway, isError: true));
             ApplyInitialization(session.Initialization);
             await ApplySessionSettingsAsync(session);
             _ = RefreshLimitsAsync(session);

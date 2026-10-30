@@ -34,14 +34,14 @@
         <StackPanel Spacing="2">
           <TextBlock Text="Keep the secrets away" />
           <TextBlock Classes="dkMuted" FontSize="12" TextWrapping="Wrap"
-                     Text="Claude Code's own tools do not read or change a file that holds secrets (.env, keys, certificates, credentials, the SSH keys, the kubeconfig, Karvon's vault), and a shell command that reads one or asks a secret store does not run. For the sessions started after." />
+                     Text="Claude Code's own tools do not read or change a file that holds secrets (.env, keys, certificates, credentials, the SSH keys, the kubeconfig, Karvon's vault), and a shell command that reads one or asks a secret store does not run. What its tools give the model has its secrets marked («secret: a password #1»), and a mark Claude writes back (an edit, a command) gets its value again: Claude works with the secret without seeing it. For the sessions started after." />
         </StackPanel>
       </CheckBox>
       <CheckBox Name="Gateway" IsChecked="{Binding Gateway}" Margin="0,0,0,10">
         <StackPanel Spacing="2">
           <TextBlock Text="Scan what Claude Code sends the model" />
           <TextBlock Classes="dkMuted" FontSize="12" TextWrapping="Wrap"
-                     Text="Its requests go through a gateway inside Karvon (its ANTHROPIC_BASE_URL, on this machine only), which hides the secrets Karvon knows and the tokens told by their form in them: what Claude Code's own tools read (a file, a command's output) among them. A Claude subscription's sign-in goes through it too. Not with Bedrock, Vertex or Foundry. For the sessions started after." />
+                     Text="Its requests go through a gateway inside Karvon (its ANTHROPIC_BASE_URL, on this machine only), which marks the secrets in them (the secrets Karvon keeps, tokens, passwords, secret-named keys): a file attached with @ among them; what Claude Code's own tools give it is marked by Karvon's hook already. A Claude subscription's sign-in goes through it too. On at first; not with Bedrock, Vertex or Foundry. For the sessions started after." />
         </StackPanel>
       </CheckBox>
       <CheckBox Name="Sandbox" IsChecked="{Binding Sandbox}" Margin="0,0,0,4">

@@ -89,11 +89,12 @@ public sealed class Settings
     public bool ClaudeSandbox { get; set; }
 
     /// <summary>
-    /// What Claude Code sends the model goes through a gateway inside Karvon (its ANTHROPIC_BASE_URL), which hides the
-    /// secrets in it: what Claude Code's own tools read among them (Karvon.Claude's ClaudeGateway). Off at
-    /// first: every request then goes through Karvon.
+    /// What Claude Code sends the model goes through a gateway inside Karvon (its ANTHROPIC_BASE_URL), which marks the
+    /// secrets in it (Karvon.Claude's ClaudeGateway): beside the hook that marks what Claude Code's own tools give it,
+    /// it covers what else a request holds (a file attached with @). On at first; a machine where the gateway cannot
+    /// start goes straight to the API, and says so. (0.3.10's ClaudeGateway, off at first, is not read.)
     /// </summary>
-    public bool ClaudeGateway { get; set; }
+    public bool ClaudeScanRequests { get; set; } = true;
 
     /// <summary>
     /// The user's rules for Karvon's tools: a tool's name ("db_query"), or its name and a target ("server_exec@prod-1",

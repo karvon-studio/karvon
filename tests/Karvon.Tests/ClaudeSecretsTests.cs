@@ -523,6 +523,16 @@ public class ClaudeSecretsTests
     }
 
     [Fact]
+    public void The_gateway_is_on_at_first_whatever_0_3_10_kept()
+    {
+        Assert.True(new Karvon.Services.Settings().ClaudeScanRequests);
+        // 0.3.10 kept "ClaudeGateway": false for everyone; it is not read.
+        Assert.True(JsonSerializer.Deserialize<Karvon.Services.Settings>("""{"ClaudeGateway": false}""")!.ClaudeScanRequests);
+        Assert.False(JsonSerializer.Deserialize<Karvon.Services.Settings>("""{"ClaudeScanRequests": false}""")!.ClaudeScanRequests);
+        Assert.Contains(nameof(Karvon.Services.Settings.ClaudeScanRequests), Karvon.Services.SettingsSync.Keys);
+    }
+
+    [Fact]
     public async Task A_session_with_the_gateway_is_given_its_base_url()
     {
         var (dir, log) = FakeClaude.Workspace();

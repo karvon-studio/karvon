@@ -143,10 +143,10 @@ public sealed partial class McpModule : KarvonModule, IMcpHost
 
     bool IMcpHost.Gateway
     {
-        get => Workbench.Settings.ClaudeGateway;
+        get => Workbench.Settings.ClaudeScanRequests;
         set
         {
-            Workbench.Settings.ClaudeGateway = value;
+            Workbench.Settings.ClaudeScanRequests = value;
             Workbench.SaveSettings();
         }
     }

@@ -37,7 +37,7 @@ public interface IMcpHost
     string? SandboxProblem => null;
 
     /// <summary>Whether what Claude Code sends the model goes through Karvon's gateway, which hides secrets (for the sessions started after).</summary>
-    bool Gateway { get => false; set { } }
+    bool Gateway { get => true; set { } }
 
     /// <summary>The user's rule for one of Karvon's tools ("allow", "ask", "deny"); null for none (as its access says).</summary>
     string? ToolRule(string tool) => null;
