@@ -114,6 +114,15 @@ public class DatabaseExplorerTests
         await Until(() => data.Rows.Count > 0 && !data.IsBusy);
         Assert.False(data.IsError, data.Status);
         Assert.Equal(3, data.Rows.Count);
+
+        // A filter the server rejects says why in the document's status, and Karvon goes on.
+        data.WhereText = "email = 'a@x.io' 'b@x.io'";
+        await data.ApplyFilterCommand.ExecuteAsync(null);
+        Assert.True(data.IsError);
+        Assert.Contains("syntax error", data.Status, StringComparison.OrdinalIgnoreCase);
+        await data.ClearFilterCommand.ExecuteAsync(null);
+        await Until(() => data.Rows.Count == 3 && !data.IsBusy);
+        Assert.False(data.IsError, data.Status);
         var tab = Assert.IsType<DatabaseDocument>(vm.ActiveDocument);
         Assert.Same(data, tab.Inner);
         Assert.Equal(data.Title, tab.Title);
