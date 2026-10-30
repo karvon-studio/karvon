@@ -16,6 +16,8 @@ public partial class App : Application
 
     public override void OnFrameworkInitializationCompleted()
     {
+        // What no code caught does not end Karvon Studio: it is logged and shown.
+        Services.ErrorReports.Install();
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
             Modules.ModuleCatalog.Create = BuiltInModules.Create;
@@ -41,6 +43,7 @@ public partial class App : Application
     static void Launch(IClassicDesktopStyleApplicationLifetime desktop)
     {
         var vm = new MainViewModel();
+        Services.ErrorReports.Reported += vm.ShowError;
         // As it exits: the update installed (when it is to be) and Karvon Studio started again (when asked to).
         desktop.Exit += (_, _) => Task.Run(() => AppUpdates.ExitAsync(AppUpdates.Current, vm.Settings, AppUpdates.RestartArguments)).GetAwaiter().GetResult();
         var solution = StartupArgs.FirstOrDefault(vm.CanOpen);

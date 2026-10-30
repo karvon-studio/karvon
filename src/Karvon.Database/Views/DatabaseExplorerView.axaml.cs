@@ -69,8 +69,13 @@ public partial class DatabaseExplorerView : UserControl, IDialogService, Modules
 
     private ExplorerViewModel? ViewModel => DataContext as ExplorerViewModel;
 
-    /// <summary>The window dialogs belong to: the main window, or the floating window the explorer is in.</summary>
-    private Window Owner => TopLevel.GetTopLevel(this) as Window ?? throw new InvalidOperationException("The Database Explorer is not in a window.");
+    /// <summary>
+    /// The window dialogs belong to: the one the explorer is in (the main window, or a floating one), else the main window
+    /// (the explorer closed or hidden while a database document asks: a result's export, a password).
+    /// </summary>
+    private Window Owner => TopLevel.GetTopLevel(this) as Window
+        ?? (Avalonia.Application.Current?.ApplicationLifetime as Avalonia.Controls.ApplicationLifetimes.IClassicDesktopStyleApplicationLifetime)?.MainWindow
+        ?? throw new InvalidOperationException("Karvon has no window to show the dialog in.");
 
     private IStorageProvider StorageProvider => Owner.StorageProvider;
 

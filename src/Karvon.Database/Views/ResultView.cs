@@ -193,6 +193,20 @@ public sealed class ResultView : UserControl
         };
     }
 
+    /// <summary>
+    /// Where to export: asked in the window this result is in (the Database Explorer may be closed, or in another).
+    /// </summary>
+    private async Task<string?> SaveAsAsync(string suggestedName)
+    {
+        if (TopLevel.GetTopLevel(this)?.StorageProvider is not { } storage)
+        {
+            return null;
+        }
+
+        var file = await storage.SaveFilePickerAsync(new Avalonia.Platform.Storage.FilePickerSaveOptions { SuggestedFileName = suggestedName, ShowOverwritePrompt = true });
+        return file is null ? null : Avalonia.Platform.Storage.StorageProviderExtensions.TryGetLocalPath(file);
+    }
+
     private MenuFlyout ExportFlyout()
     {
         var flyout = new MenuFlyout();
@@ -201,20 +215,30 @@ public sealed class ResultView : UserControl
             var item = new MenuItem { Header = label };
             item.Click += async (_, _) =>
             {
-                if (_bound is null || DatabaseExplorerView.Current is not IDialogService dialogs || await dialogs.SaveFileAsync($"result.{extension}") is not { } path)
+                if (_bound is null || await SaveAsAsync($"result.{extension}") is not { } path)
                 {
                     return;
                 }
 
                 var values = _bound.Values();
-                if (format == "xlsx")
+                try
                 {
-                    await File.WriteAllBytesAsync(path, XlsxWriter.Write("Result", _bound.Columns, values));
+                    if (format == "xlsx")
+                    {
+                        await File.WriteAllBytesAsync(path, XlsxWriter.Write("Result", _bound.Columns, values));
+                    }
+                    else
+                    {
+                        _grid.SelectedItems.Clear();
+                        await File.WriteAllTextAsync(path, Format(format));
+                    }
+
+                    _summary.Text = $"Exported to {Path.GetFileName(path)}.";
                 }
-                else
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
                 {
-                    _grid.SelectedItems.Clear();
-                    await File.WriteAllTextAsync(path, Format(format));
+                    // A folder that may not be written, a full disk: said where the result's rows are counted.
+                    _summary.Text = $"Not exported: {ex.Message}";
                 }
             };
             flyout.Items.Add(item);
