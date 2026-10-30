@@ -113,6 +113,15 @@ public sealed partial class ClaudeAudit
         Write("result", new JsonObject { ["toolUseId"] = toolUseId, ["tool"] = tool, ["isError"] = isError, ["chars"] = chars });
     }
 
+    /// <summary>What Karvon's gateway hid of a request to the model (what Claude Code's own tools read among it).</summary>
+    public void Scanned(IReadOnlyList<string> hidden)
+    {
+        var kinds = new JsonArray();
+        foreach (var kind in hidden)
+            kinds.Add(kind);
+        Write("scanned", new JsonObject { ["hidden"] = kinds });
+    }
+
     /// <summary>A trail's lines.</summary>
     public static IReadOnlyList<JsonObject> Read(string file) =>
         [.. System.IO.File.ReadAllLines(file).Where(l => l.Length > 0).Select(l => JsonNode.Parse(l)!.AsObject())];

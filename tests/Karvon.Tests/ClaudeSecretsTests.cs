@@ -441,4 +441,96 @@ public class ClaudeSecretsTests
         await vm.DisposeAsync();
         window.Close();
     }
+
+    sealed class Upstream : HttpMessageHandler
+    {
+        public List<(Uri Uri, string? Auth, string? Beta, byte[] Body)> Requests { get; } = [];
+
+        protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            var body = request.Content is null ? [] : await request.Content.ReadAsByteArrayAsync(cancellationToken);
+            lock (Requests)
+                Requests.Add((request.RequestUri!, request.Headers.Authorization?.ToString(),
+                    request.Headers.TryGetValues("anthropic-beta", out var beta) ? string.Join(",", beta) : null, body));
+            var events = "event: message_start\ndata: {\"type\":\"message_start\"}\n\nevent: message_stop\ndata: {\"type\":\"message_stop\"}\n\n";
+            var response = new HttpResponseMessage(System.Net.HttpStatusCode.OK) { Content = new StringContent(events, System.Text.Encoding.UTF8, "text/event-stream") };
+            response.Headers.Add("request-id", "req_1");
+            return response;
+        }
+    }
+
+    [Fact]
+    public async Task The_gateway_hides_the_secrets_in_what_Claude_Code_sends_the_model()
+    {
+        var known = Unique("vault-");
+        KnownSecrets.Add("karvon-pipelines/gitlab", known);
+        var token = "ghp_" + new string('g', 36);
+        var upstream = new Upstream();
+        await using var gateway = ClaudeGateway.Start("https://api.example.test", upstream);
+        List<string> hidden = [];
+        gateway.Hidden += kinds =>
+        {
+            lock (hidden)
+                hidden.AddRange(kinds);
+        };
+        Assert.StartsWith("http://127.0.0.1:", gateway.BaseUrl);
+        using var client = new HttpClient();
+        var body = JsonSerializer.Serialize(new
+        {
+            model = "claude-opus-5-5",
+            messages = new object[]
+            {
+                new { role = "user", content = $"why does {token} fail" },
+                new { role = "assistant", content = new object[] { new { type = "tool_use", id = "t1", name = "Read", input = new { file_path = "/w/appsettings.json" } } } },
+                new { role = "user", content = new object[] { new { type = "tool_result", tool_use_id = "t1", content = $"\"Password\": \"{known}\"" }, new { type = "text", text = "go on" } } },
+            },
+        });
+        using var request = new HttpRequestMessage(HttpMethod.Post, gateway.BaseUrl + "/v1/messages?beta=true")
+        {
+            Content = new StringContent(body, System.Text.Encoding.UTF8, "application/json"),
+        };
+        request.Headers.Authorization = new("Bearer", "sk-ant-oat01-test");
+        request.Headers.Add("anthropic-beta", "oauth-2025-04-20");
+        using var response = await client.SendAsync(request, TestContext.Current.CancellationToken);
+
+        // The answer as the API gave it, streamed back.
+        Assert.Equal(System.Net.HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal("text/event-stream", response.Content.Headers.ContentType?.MediaType);
+        Assert.Equal("req_1", response.Headers.GetValues("request-id").Single());
+        Assert.Contains("message_stop", await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
+        // What went on: the same path, sign-in and betas; the secrets in the messages hidden, the rest as it was.
+        var sent = Assert.Single(upstream.Requests);
+        Assert.Equal("https://api.example.test/v1/messages?beta=true", sent.Uri.ToString());
+        Assert.Equal(("Bearer sk-ant-oat01-test", "oauth-2025-04-20"), (sent.Auth, sent.Beta));
+        Assert.DoesNotContain(token, System.Text.Encoding.UTF8.GetString(sent.Body));
+        Assert.DoesNotContain(known, System.Text.Encoding.UTF8.GetString(sent.Body));
+        using var json = JsonDocument.Parse(sent.Body);
+        var messages = json.RootElement.GetProperty("messages");
+        Assert.Equal("why does «secret: a GitHub token» fail", messages[0].GetProperty("content").GetString());
+        Assert.Equal("\"Password\": \"«secret: karvon-pipelines/gitlab»\"", messages[2].GetProperty("content")[0].GetProperty("content").GetString());
+        Assert.Equal("/w/appsettings.json", messages[1].GetProperty("content")[0].GetProperty("input").GetProperty("file_path").GetString());
+        Assert.Equal(["a GitHub token", "karvon-pipelines/gitlab"], hidden);
+
+        // Nothing to hide: the very bytes go on. Only Claude Code's own path is served.
+        var plain = """{"model":"m",  "messages":[{"role":"user","content":"hello"}]}""";
+        using var counted = await client.PostAsync(gateway.BaseUrl + "/v1/messages/count_tokens", new StringContent(plain, System.Text.Encoding.UTF8, "application/json"),
+            TestContext.Current.CancellationToken);
+        Assert.Equal(plain, System.Text.Encoding.UTF8.GetString(upstream.Requests[1].Body));
+        Assert.Equal("https://api.example.test/v1/messages/count_tokens", upstream.Requests[1].Uri.ToString());
+        using var elsewhere = await client.GetAsync(new Uri(gateway.BaseUrl).GetLeftPart(UriPartial.Authority) + "/v1/models", TestContext.Current.CancellationToken);
+        Assert.NotEqual(System.Net.HttpStatusCode.OK, elsewhere.StatusCode);
+        Assert.Equal(2, upstream.Requests.Count);
+    }
+
+    [Fact]
+    public async Task A_session_with_the_gateway_is_given_its_base_url()
+    {
+        var (dir, log) = FakeClaude.Workspace();
+        await using var session = await ClaudeSession.StartAsync(new ClaudeStartOptions(FakeClaude.Executable, dir, Gateway: true), TestContext.Current.CancellationToken);
+        Assert.NotNull(session.Gateway);
+        Assert.Equal("https://api.anthropic.com/", session.Gateway.Upstream.ToString());
+        Assert.Contains("ANTHROPIC_BASE_URL", FakeClaude.Log(log).First(e => e.Kind == "env").Data.EnumerateArray().Select(n => n.GetString()));
+        await using var without = await ClaudeSession.StartAsync(new ClaudeStartOptions(FakeClaude.Executable, dir), TestContext.Current.CancellationToken);
+        Assert.Null(without.Gateway);
+    }
 }

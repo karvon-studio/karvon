@@ -141,6 +141,16 @@ public sealed partial class McpModule : KarvonModule, IMcpHost
 
     string? IMcpHost.SandboxProblem => Karvon.Claude.ClaudeSandbox.Problem();
 
+    bool IMcpHost.Gateway
+    {
+        get => Workbench.Settings.ClaudeGateway;
+        set
+        {
+            Workbench.Settings.ClaudeGateway = value;
+            Workbench.SaveSettings();
+        }
+    }
+
     string? IMcpHost.ToolRule(string tool) => Workbench.Settings.ClaudeToolRules.GetValueOrDefault(tool);
 
     void IMcpHost.SetToolRule(string tool, string? rule)

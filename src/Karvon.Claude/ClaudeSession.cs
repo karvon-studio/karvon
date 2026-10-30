@@ -17,7 +17,8 @@ public sealed record ClaudeStartOptions(
     bool GuardSecrets = true,
     bool Sandbox = false,
     bool Trusted = true,
-    string? AuditDirectory = null);
+    string? AuditDirectory = null,
+    bool Gateway = false);
 
 /// <summary>
 /// One running Claude Code CLI in headless streaming mode (the interface the Agent SDK uses): JSON lines on
@@ -48,6 +49,13 @@ public sealed class ClaudeSession : IAsyncDisposable
 
     /// <summary>The folder it was started in.</summary>
     public string? WorkingDirectory => _workingDirectory;
+
+    /// <summary>The gateway what it sends the model goes through (<see cref="ClaudeGateway"/>); null when it goes straight.</summary>
+    public ClaudeGateway? Gateway { get; private init; }
+
+    static bool ThirdParty(IDictionary<string, string?> environment) =>
+        new[] { "CLAUDE_CODE_USE_BEDROCK", "CLAUDE_CODE_USE_VERTEX", "CLAUDE_CODE_USE_FOUNDRY" }.Any(name =>
+            environment.TryGetValue(name, out var value) && value is { Length: > 0 } and not "0" and not "false");
 
     /// <summary>Its audit trail: each tool call Claude asked for, what decided it, what ran; null when none is kept.</summary>
     public ClaudeAudit? Audit { get; private init; }
@@ -185,14 +193,23 @@ public sealed class ClaudeSession : IAsyncDisposable
         psi.Environment.Remove("CLAUDECODE");
         psi.Environment["PWD"] = options.WorkingDirectory;
         options.Account?.Apply(psi.Environment);
+        // What Claude Code sends the model goes through Karvon's gateway, which hides the secrets in it (not with Bedrock,
+        // Vertex or Foundry, whose own base URLs Claude Code uses).
+        var gateway = options.Gateway && !ThirdParty(psi.Environment)
+            ? ClaudeGateway.Start(psi.Environment.TryGetValue("ANTHROPIC_BASE_URL", out var own) ? own : null)
+            : null;
+        if (gateway is not null)
+            psi.Environment["ANTHROPIC_BASE_URL"] = gateway.BaseUrl;
         var hidden = ClaudeEnvironment.Clean(psi.Environment);
         var process = Process.Start(psi) ?? throw new InvalidOperationException("Claude Code could not be started.");
         var session = new ClaudeSession(process)
         {
+            Gateway = gateway,
             SessionId = options.Resume, _tools = options.Tools, _workingDirectory = options.WorkingDirectory, HiddenVariables = hidden,
             Audit = options.AuditDirectory is { } audit ? ClaudeAudit.Start(audit) : null,
         };
         session.Audit?.SessionId = options.Resume;
+        gateway?.Hidden += kinds => session.Audit?.Scanned(kinds);
         try
         {
             using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
@@ -586,6 +603,8 @@ public sealed class ClaudeSession : IAsyncDisposable
         catch (Exception)
         {
         }
+        if (Gateway is { } gateway)
+            await gateway.DisposeAsync();
     }
 }
 

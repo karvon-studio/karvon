@@ -36,6 +36,9 @@ public interface IMcpHost
     /// <summary>Why the sandbox cannot start on this machine; null when nothing stops it.</summary>
     string? SandboxProblem => null;
 
+    /// <summary>Whether what Claude Code sends the model goes through Karvon's gateway, which hides secrets (for the sessions started after).</summary>
+    bool Gateway { get => false; set { } }
+
     /// <summary>The user's rule for one of Karvon's tools ("allow", "ask", "deny"); null for none (as its access says).</summary>
     string? ToolRule(string tool) => null;
 
@@ -363,6 +366,19 @@ public sealed class McpBuiltInDocument(IReadOnlyList<McpBuiltInToolNode> tools, 
             if (host.KeepSecretsAway == value)
                 return;
             host.KeepSecretsAway = value;
+            OnPropertyChanged();
+        }
+    }
+
+    /// <summary>What Claude Code sends the model through Karvon's gateway, its secrets hidden. For the sessions started after.</summary>
+    public bool Gateway
+    {
+        get => host.Gateway;
+        set
+        {
+            if (host.Gateway == value)
+                return;
+            host.Gateway = value;
             OnPropertyChanged();
         }
     }

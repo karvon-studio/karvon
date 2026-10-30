@@ -30,6 +30,8 @@ sealed class TestMcpHost(string? workspace) : IMcpHost
 
     public bool Sandbox { get; set; }
 
+    public bool Gateway { get; set; }
+
     public string? SandboxProblem => "bubblewrap is not installed.";
 
     public Dictionary<string, string> ToolRules { get; } = [];
@@ -587,6 +589,9 @@ public class McpTests
             Assert.True(boxes["KeepSecretsAway"].IsChecked);
             boxes["KeepSecretsAway"].IsChecked = false;
             Assert.False(host.KeepSecretsAway);
+            Assert.False(boxes["Gateway"].IsChecked);
+            boxes["Gateway"].IsChecked = true;
+            Assert.True(host.Gateway);
             Assert.False(boxes["Sandbox"].IsChecked);
             Assert.Null(tools.SandboxProblem);
             boxes["Sandbox"].IsChecked = true;

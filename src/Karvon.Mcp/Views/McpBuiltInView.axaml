@@ -37,6 +37,13 @@
                      Text="Claude Code's own tools do not read or change a file that holds secrets (.env, keys, certificates, credentials, the SSH keys, the kubeconfig, Karvon's vault), and a shell command that reads one or asks a secret store does not run. For the sessions started after." />
         </StackPanel>
       </CheckBox>
+      <CheckBox Name="Gateway" IsChecked="{Binding Gateway}" Margin="0,0,0,10">
+        <StackPanel Spacing="2">
+          <TextBlock Text="Scan what Claude Code sends the model" />
+          <TextBlock Classes="dkMuted" FontSize="12" TextWrapping="Wrap"
+                     Text="Its requests go through a gateway inside Karvon (its ANTHROPIC_BASE_URL, on this machine only), which hides the secrets Karvon knows and the tokens told by their form in them: what Claude Code's own tools read (a file, a command's output) among them. A Claude subscription's sign-in goes through it too. Not with Bedrock, Vertex or Foundry. For the sessions started after." />
+        </StackPanel>
+      </CheckBox>
       <CheckBox Name="Sandbox" IsChecked="{Binding Sandbox}" Margin="0,0,0,4">
         <StackPanel Spacing="2">
           <TextBlock Text="Run Claude's shell in a sandbox" />

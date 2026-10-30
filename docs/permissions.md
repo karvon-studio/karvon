@@ -71,7 +71,7 @@ Claude is shown to you under the call.
 | Servers tied to the folder | enforced | `ServersTests.Claude_lists_the_servers_and_a_production_command_is_destructive`, `ClaudeNegativeTests` |
 | Read-only data sources and plan mode refuse changes | enforced | `ClaudeKarvonToolsTests.Database_tools_describe_query_and_refuse_changes_to_read_only_sources`, `ClaudeNegativeTests` (plan) |
 | The audit trail | enforced | `ClaudeToolPolicyTests.Each_session_keeps_what_was_asked_what_decided_it_and_what_ran`, `The_trail_keeps_what_Karvons_hooks_refused_without_the_secret_and_thirty_days` |
-| What Claude Code's own tools read (a file's contents, a command's output) scanned before the model sees it | planned: a gateway at `ANTHROPIC_BASE_URL` | |
+| What Claude Code's own tools read (a file's contents, a command's output) scanned before the model sees it | enforced when on (off at first: MCP Servers > karvon > Scan what Claude Code sends the model), a gateway at `ANTHROPIC_BASE_URL`; a subscription's sign-in goes through it too | `ClaudeSecretsTests.The_gateway_hides_the_secrets_in_what_Claude_Code_sends_the_model`, `A_session_with_the_gateway_is_given_its_base_url` |
 | The vault unlocked by a passphrase, Touch ID or Windows Hello instead of the keyring | planned | |
 | The IDE's own restricted mode for a folder not trusted yet (language servers' design-time builds, tasks) | planned | |
 | Rules and folder ties for ports, containers, clusters and data sources | planned | |

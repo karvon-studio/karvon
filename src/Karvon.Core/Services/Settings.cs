@@ -89,6 +89,13 @@ public sealed class Settings
     public bool ClaudeSandbox { get; set; }
 
     /// <summary>
+    /// What Claude Code sends the model goes through a gateway inside Karvon (its ANTHROPIC_BASE_URL), which hides the
+    /// secrets in it: what Claude Code's own tools read among them (Karvon.Claude's ClaudeGateway). Off at
+    /// first: every request then goes through Karvon.
+    /// </summary>
+    public bool ClaudeGateway { get; set; }
+
+    /// <summary>
     /// The user's rules for Karvon's tools: a tool's name ("db_query"), or its name and a target ("server_exec@prod-1",
     /// "db_query@shop", "k8s_scale@prod"), to "allow", "ask" or "deny"; enforced by Karvon's tool server whatever Claude
     /// Code's permission mode (<see cref="Karvon.Claude.ClaudeToolPolicy"/>).
