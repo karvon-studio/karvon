@@ -34,6 +34,12 @@ abstract class ServerTool(Func<ServersExplorerViewModel> servers) : IClaudeTool
     /// <summary>The server a call names.</summary>
     public string? Target(JsonElement input) => Str(input, "server");
 
+    /// <summary>A server Claude may not reach in this folder: refused before anyone is asked about it.</summary>
+    public string? Refusal(JsonElement input) =>
+        Str(input, "server") is { } name && Servers.Find(name) is { } server && !Servers.IsForClaude(server.Host)
+            ? $"{name} is not one of the servers Claude may reach in this folder. {LetIn}"
+            : null;
+
     public async Task<ClaudeToolOutput> CallAsync(JsonElement input, CancellationToken cancellationToken)
     {
         try

@@ -418,8 +418,8 @@ public sealed class ClaudeSession : IAsyncDisposable
             // rules allow; what they deny is denied at once.
             if (ev is ClaudePermissionRequest request && _tools?.Decide(request.ToolName, request.Input, this) is { Rule: not ToolRule.Ask } decision)
             {
-                Audit?.Decided(request.ToolUseId, request.ToolName, decision.Rule == ToolRule.Allow ? "allow" : "deny", "the user's rules for Karvon's tools",
-                    decision.Rule == ToolRule.Deny ? decision.Refusal : null);
+                Audit?.Decided(request.ToolUseId, request.ToolName, decision.Rule == ToolRule.Allow ? "allow" : "deny",
+                    decision.Reason is null ? "the user's rules for Karvon's tools" : "the tool", decision.Rule == ToolRule.Deny ? decision.Refusal : null);
                 _ = AnswerQuietlyAsync(request, decision.Rule == ToolRule.Allow
                     ? ClaudePermissionDecision.AllowOnce(request.Input)
                     : ClaudePermissionDecision.Deny(decision.Refusal));

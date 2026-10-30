@@ -301,7 +301,10 @@ public class ClaudeKarvonToolsTests
         Assert.Equal(ToolAccess.Destructive, Plan(server, "container_remove", new { name = "db" }).Access);
         Assert.Null(server.Plan("Bash", JsonSerializer.SerializeToElement(new { command = "ls" })));
 
-        // A read-only source refuses a change before it runs.
+        // A read-only source refuses a change before it runs, and before anyone is asked about it.
+        var change = JsonSerializer.SerializeToElement(new { connection = "reports", sql = "UPDATE users SET age = 0" });
+        Assert.Equal(ToolRule.Deny, server.Decide(ClaudeToolServer.Prefix + "db_query", change)!.Rule);
+        Assert.Equal(ToolRule.Allow, server.Decide(ClaudeToolServer.Prefix + "db_query", JsonSerializer.SerializeToElement(new { connection = "reports", sql = "SELECT 1" }))!.Rule);
         var refused = await Call(server, "db_query", new { connection = "reports", sql = "UPDATE users SET age = 0" });
         Assert.True(IsError(refused));
         Assert.Contains("read-only", Text(refused));

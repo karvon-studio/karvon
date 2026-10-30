@@ -92,6 +92,17 @@ public sealed class ClaudeToolServer(IReadOnlyList<IClaudeTool> tools, string in
         {
             target = null;
         }
+        string? refusal;
+        try
+        {
+            refusal = tool.Refusal(input);
+        }
+        catch (Exception ex) when (ex is InvalidOperationException or JsonException or KeyNotFoundException)
+        {
+            refusal = null;
+        }
+        if (refusal is not null)
+            return new(tool.Name, ToolRule.Deny, PlanOf(tool, input) ?? new ClaudeToolPlan(ToolAccess.Read, tool.Name, null, ""), target) { Reason = refusal };
         // Input no plan can be made of asks.
         return PlanOf(tool, input) is { } plan
             ? new(tool.Name, ClaudeToolPolicy.Decide(tool, plan, target, Rules?.Invoke(), Trusted?.Invoke(caller) ?? true), plan, target)
@@ -108,7 +119,7 @@ public sealed class ClaudeToolServer(IReadOnlyList<IClaudeTool> tools, string in
             return null;
         if (decision.Rule == ToolRule.Deny)
         {
-            audit?.Decided(null, name, "deny", "the user's rules for Karvon's tools, at the call", decision.Refusal);
+            audit?.Decided(null, name, "deny", decision.Reason is null ? "the user's rules for Karvon's tools, at the call" : "the tool, at the call", decision.Refusal);
             return ClaudeToolOutput.Error(decision.Refusal);
         }
         if (_approved.TryRemove(Key(name, input), out var at) && DateTime.UtcNow - at < TimeSpan.FromMinutes(2))
@@ -253,8 +264,11 @@ public sealed class ClaudeToolServer(IReadOnlyList<IClaudeTool> tools, string in
 /// <summary>What the user's rules say of a call: its rule, its plan (the card's question) and what it reaches.</summary>
 public sealed record ClaudeToolDecision(string Tool, ToolRule Rule, ClaudeToolPlan Plan, string? Target)
 {
-    /// <summary>What Claude is told when the rules deny the call.</summary>
-    public string Refusal => $"The user's rules for Karvon's tools deny {Tool}{(Target is { Length: > 0 } ? $" on {Target}" : "")}. "
+    /// <summary>Why the tool refuses the call itself (<see cref="IClaudeTool.Refusal"/>); null when the rules decided.</summary>
+    public string? Reason { get; init; }
+
+    /// <summary>What Claude is told when the call is denied.</summary>
+    public string Refusal => Reason ?? $"The user's rules for Karvon's tools deny {Tool}{(Target is { Length: > 0 } ? $" on {Target}" : "")}. "
         + "Do not try it another way: tell the user what you wanted to do.";
 }
 

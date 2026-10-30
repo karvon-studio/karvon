@@ -105,6 +105,12 @@ public interface IClaudeTool
     /// </summary>
     string? Target(JsonElement input) => null;
 
+    /// <summary>
+    /// Why the call cannot run at all (a server Claude may not reach here, a data source of a folder not trusted yet), so
+    /// that no one is asked about it; null when it can.
+    /// </summary>
+    string? Refusal(JsonElement input) => null;
+
     Task<ClaudeToolOutput> CallAsync(JsonElement input, CancellationToken cancellationToken);
 }
 

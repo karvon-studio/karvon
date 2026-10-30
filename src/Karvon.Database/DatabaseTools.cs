@@ -63,6 +63,9 @@ abstract class DatabaseTool(IDatabaseToolHost host) : IClaudeTool
     /// <summary>The data source a call names.</summary>
     public string? Target(JsonElement input) => Str(input, "connection");
 
+    /// <summary>A data source of a folder not trusted yet: refused before anyone is asked about it.</summary>
+    public virtual string? Refusal(JsonElement input) => Host.Trusted ? null : NotTrusted;
+
     public async Task<ClaudeToolOutput> CallAsync(JsonElement input, CancellationToken cancellationToken)
     {
         try
@@ -273,6 +276,13 @@ sealed class DbQueryTool(IDatabaseToolHost host) : DatabaseTool(host)
         var sql = Str(input, "sql") ?? "";
         return SqlPlan(SqlAccess(sql, ProviderOf(input)), "Query", Str(input, "connection") ?? "", sql);
     }
+
+    /// <summary>A change to a read-only data source: refused before anyone is asked about it.</summary>
+    public override string? Refusal(JsonElement input) =>
+        base.Refusal(input) ?? (Host.DataSources().FirstOrDefault(s => s.Name.Equals(Str(input, "connection"), StringComparison.OrdinalIgnoreCase)) is { ReadOnly: true } server
+            && Str(input, "sql") is { } sql && SqlAccess(sql, server.Provider) != ToolAccess.Read
+                ? $"{server.Name} is a read-only data source: Karvon does not change it. Tell the user what you wanted to change."
+                : null);
 
     protected override async Task<ClaudeToolOutput> RunAsync(JsonElement input, CancellationToken cancellationToken)
     {
