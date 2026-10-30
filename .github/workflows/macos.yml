@@ -1,0 +1,51 @@
+name: macos
+
+# The macOS packages of a release that was built on another machine (the .dmg and the Homebrew cask cannot be made
+# off a Mac), by hand only: they are left as this run's artifacts, and whoever runs it uploads them to the release and
+# writes its SHA256SUMS again. Nothing here touches the release itself.
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: The release's tag (v1.2.3)
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  package-macos:
+    name: Package — ${{ matrix.rid }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { rid: osx-arm64, arch: arm64 }
+          - { rid: osx-x64, arch: x64 }
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.tag }}
+          submodules: true
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Version
+        env:
+          TAG: ${{ inputs.tag }}
+        run: echo "VERSION=${TAG#v}" >> "$GITHUB_ENV"
+
+      - name: Publish
+        run: dotnet publish src/Karvon -c Release -r ${{ matrix.rid }} --self-contained -o out -p:Version=$VERSION
+
+      - name: Package (.dmg, Homebrew cask)
+        run: deploy/macos/package.sh out "$VERSION" ${{ matrix.arch }} packages
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: karvon-${{ matrix.rid }}
+          path: packages/*
+          if-no-files-found: error
