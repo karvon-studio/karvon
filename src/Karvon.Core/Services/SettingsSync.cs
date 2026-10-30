@@ -90,7 +90,7 @@ public static class SettingsSync
     [
         nameof(Settings.EditorZoom), nameof(Settings.ClaudeModel), nameof(Settings.ClaudePermissionMode), nameof(Settings.ClaudeEffort),
         nameof(Settings.ClaudeRemoteControl), nameof(Settings.ClaudeKarvonTools), nameof(Settings.ClaudeKarvonToolsFirst), nameof(Settings.ClaudeShowToolActivity),
-        nameof(Settings.ClaudeKeepSecretsAway),
+        nameof(Settings.ClaudeKeepSecretsAway), nameof(Settings.ClaudeToolRules),
         nameof(Settings.ClaudeAllContainers), nameof(Settings.UpdatesCheck), nameof(Settings.UpdatesDownload), nameof(Settings.UpdatesInstallOnClose),
         nameof(Settings.DisabledModules), nameof(Settings.SkillSources), nameof(Settings.SkillsAgensi), nameof(Settings.SkillsMemorySource),
         nameof(Settings.SkillsSyncMemoryFiles), nameof(Settings.UiLanguage), nameof(Settings.MarkdownPreview), nameof(Settings.MarkdownPreviewBelow),

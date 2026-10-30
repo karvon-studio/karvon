@@ -579,6 +579,19 @@ def turn(prompt, content, sent=None):
         karvon_tool("toolu_q3", "db_query", {"connection": "shop", "sql": "DELETE FROM users"})
         stream_text("Done with the database.")
         result("ok")
+    elif "karvonrules" in p and "karvon" in sdk_servers():
+        mcp("karvon", "initialize", {"protocolVersion": "2025-11-25", "capabilities": {}, "clientInfo": {"name": "claude-code", "version": "2.1.308"}})
+        mcp("karvon", "notifications/initialized", notify=True)
+        # As in Bypass permissions: the tool called without asking anyone.
+        for tool_id in ("toolu_b1", "toolu_b2"):
+            tool_use(tool_id, "mcp__karvon__change", {"what": tool_id})
+            answer = mcp("karvon", "tools/call", {"name": "change", "arguments": {"what": tool_id}})
+            tool_result(tool_id, answer["result"]["content"][0]["text"], answer["result"].get("isError", False))
+        # Asked as any tool: the user's rules answer.
+        karvon_tool("toolu_b3", "refused", {})
+        karvon_tool("toolu_b4", "trusted", {})
+        stream_text("Done.")
+        result("ok")
     elif "outsidetext" in p and "karvon" in sdk_servers():
         # Two of Karvon's tools that give what others wrote: one of them with instructions to Claude in it.
         mcp("karvon", "initialize", {"protocolVersion": "2025-11-25", "capabilities": {}, "clientInfo": {"name": "claude-code", "version": "2.1.308"}})

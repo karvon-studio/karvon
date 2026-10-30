@@ -88,6 +88,13 @@ public sealed class Settings
     /// </summary>
     public bool ClaudeSandbox { get; set; }
 
+    /// <summary>
+    /// The user's rules for Karvon's tools: a tool's name ("db_query"), or its name and a target ("server_exec@prod-1",
+    /// "db_query@shop", "k8s_scale@prod"), to "allow", "ask" or "deny"; enforced by Karvon's tool server whatever Claude
+    /// Code's permission mode (<see cref="Karvon.Claude.ClaudeToolPolicy"/>).
+    /// </summary>
+    public Dictionary<string, string> ClaudeToolRules { get; set; } = [];
+
     /// <summary>What Claude does with Karvon's tools shows in Karvon: a query's results, a container's logs, the build, a search...</summary>
     public bool ClaudeShowToolActivity { get; set; } = true;
 

@@ -386,21 +386,24 @@ public sealed class ClaudeSession : IAsyncDisposable
         {
             if (ev is ClaudeInit init)
                 SessionId = init.SessionId;
-            // Reading or building through Karvon's tools needs no approval (as Read and Grep need none).
-            if (ev is ClaudePermissionRequest request && _tools?.Plan(request.ToolName, request.Input) is { Access: ToolAccess.Read or ToolAccess.Run })
+            // Reading or building through Karvon's tools needs no approval (as Read and Grep need none), nor what the user's
+            // rules allow; what they deny is denied at once.
+            if (ev is ClaudePermissionRequest request && _tools?.Decide(request.ToolName, request.Input) is { Rule: not ToolRule.Ask } decision)
             {
-                _ = AllowQuietlyAsync(request);
+                _ = AnswerQuietlyAsync(request, decision.Rule == ToolRule.Allow
+                    ? ClaudePermissionDecision.AllowOnce(request.Input)
+                    : ClaudePermissionDecision.Deny(decision.Refusal));
                 continue;
             }
             Event?.Invoke(ev);
         }
     }
 
-    async Task AllowQuietlyAsync(ClaudePermissionRequest request)
+    async Task AnswerQuietlyAsync(ClaudePermissionRequest request, ClaudePermissionDecision decision)
     {
         try
         {
-            await RespondToPermissionAsync(request.RequestId, ClaudePermissionDecision.AllowOnce(request.Input));
+            await RespondToPermissionAsync(request.RequestId, decision);
         }
         catch (InvalidOperationException)
         {
@@ -450,7 +453,7 @@ public sealed class ClaudeSession : IAsyncDisposable
         try
         {
             response = _tools is { } tools && serverName == ClaudeToolServer.Name
-                ? await tools.HandleAsync(message, _toolCalls.Token)
+                ? await tools.HandleAsync(message, _toolCalls.Token, this)
                 : ClaudeToolServer.Failure(id, -32601, $"There is no MCP server {serverName} in Karvon.");
         }
         catch (Exception ex)

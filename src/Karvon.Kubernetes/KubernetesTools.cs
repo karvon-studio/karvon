@@ -40,6 +40,9 @@ abstract class KubernetesTool(Func<KubernetesViewModel> window) : IClaudeTool
 
     public abstract ClaudeToolPlan Plan(JsonElement input);
 
+    /// <summary>The context a call works in: the one it names, else the window's.</summary>
+    public string? Target(JsonElement input) => ContextName(input);
+
     public async Task<ClaudeToolOutput> CallAsync(JsonElement input, CancellationToken cancellationToken)
     {
         try

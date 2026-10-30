@@ -171,7 +171,7 @@ public partial class ClaudeViewModel
     }
 
     /// <summary>A question shown here was answered on claude.ai: the card is closed, and Claude goes on.</summary>
-    void ApplyAnsweredElsewhere(string requestId)
+    void ApplyAnsweredElsewhere(string requestId, string outcome = "Answered on another device")
     {
         foreach (var item in Items)
         {
@@ -179,15 +179,17 @@ public partial class ClaudeViewModel
             {
                 case PermissionChatItem { IsPending: true } p when p.Request.RequestId == requestId:
                     p.IsResolved = true;
-                    p.Outcome = "Answered on another device";
+                    p.Outcome = outcome;
+                    // If it was allowed there, the call comes: Karvon's tool server does not ask again.
+                    Approved(p.Request);
                     break;
                 case QuestionChatItem { IsPending: true } q when q.Request.RequestId == requestId:
                     q.IsResolved = true;
-                    q.Outcome = "Answered on another device";
+                    q.Outcome = outcome;
                     break;
                 case PlanChatItem { IsPending: true } plan when plan.Request.RequestId == requestId:
                     plan.IsResolved = true;
-                    plan.Outcome = "Answered on another device";
+                    plan.Outcome = outcome;
                     break;
             }
         }

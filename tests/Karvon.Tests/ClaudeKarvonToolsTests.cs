@@ -63,8 +63,7 @@ public class ClaudeKarvonToolsTests
 {
     static async Task<JsonObject> Call(ClaudeToolServer server, string tool, object arguments)
     {
-        var message = JsonSerializer.SerializeToElement(new { jsonrpc = "2.0", id = 7, method = "tools/call", @params = new { name = tool, arguments } });
-        return (await server.HandleAsync(message, CancellationToken.None))["result"]!.AsObject();
+        return (await server.HandleAsync(ClaudeIdeToolsTests.Allowed(server, tool, arguments), CancellationToken.None))["result"]!.AsObject();
     }
 
     static string Text(JsonObject result) => result["content"]![0]!["text"]!.GetValue<string>();

@@ -99,7 +99,62 @@ public interface IClaudeTool
     /// <summary>What the call would do; computed again for the approval card and when it runs.</summary>
     ClaudeToolPlan Plan(JsonElement input);
 
+    /// <summary>
+    /// What the call reaches (a data source, a server, a cluster's context), as the tool finds it when the input names
+    /// none: what the user's rules for a target (<c>server_exec@prod-1</c>) are matched with; null for none.
+    /// </summary>
+    string? Target(JsonElement input) => null;
+
     Task<ClaudeToolOutput> CallAsync(JsonElement input, CancellationToken cancellationToken);
+}
+
+/// <summary>What the user's rules say of a call of one of Karvon's tools.</summary>
+public enum ToolRule
+{
+    Allow,
+    Ask,
+    Deny,
+}
+
+/// <summary>
+/// The user's rules for Karvon's tools (Settings' <c>ClaudeToolRules</c>: a tool's name, or its name and a target as
+/// <c>db_query@shop</c>, to allow, ask or deny), as Karvon's tool server enforces them whatever Claude Code's permission
+/// mode and its allow rules say. Without a rule a call goes as its access says: reading and running at once, a change
+/// asks; a destructive call asks every time, whatever a rule says, and a rule can deny anything.
+/// </summary>
+public static class ClaudeToolPolicy
+{
+    public static ToolRule Decide(IClaudeTool tool, ClaudeToolPlan plan, string? target, IReadOnlyDictionary<string, string>? rules)
+    {
+        var rule = (target is { Length: > 0 } ? Rule(rules, $"{tool.Name}@{target}") : null) ?? Rule(rules, tool.Name);
+        if (rule == ToolRule.Deny)
+            return ToolRule.Deny;
+        if (plan.Access == ToolAccess.Destructive)
+            return ToolRule.Ask;
+        return rule ?? (plan.Access is ToolAccess.Read or ToolAccess.Run ? ToolRule.Allow : ToolRule.Ask);
+    }
+
+    /// <summary>A rule's value as settings.json has it ("allow", "ask", "deny"); null for any other.</summary>
+    public static ToolRule? Parse(string? value) => value?.Trim().ToLowerInvariant() switch
+    {
+        "allow" => ToolRule.Allow,
+        "ask" => ToolRule.Ask,
+        "deny" => ToolRule.Deny,
+        _ => null,
+    };
+
+    static ToolRule? Rule(IReadOnlyDictionary<string, string>? rules, string key)
+    {
+        if (rules is null)
+            return null;
+        if (rules.TryGetValue(key, out var exact))
+            return Parse(exact);
+        // A target as the user wrote it: data sources and servers are found by name whatever its case.
+        foreach (var (name, value) in rules)
+            if (string.Equals(name, key, StringComparison.OrdinalIgnoreCase))
+                return Parse(value);
+        return null;
+    }
 }
 
 /// <summary>The name Karvon's tools have in Claude Code: its MCP server's, and the prefix of each tool (mcp__karvon__db_query).</summary>

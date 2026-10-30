@@ -140,6 +140,17 @@ public sealed partial class McpModule : KarvonModule, IMcpHost
 
     string? IMcpHost.SandboxProblem => Karvon.Claude.ClaudeSandbox.Problem();
 
+    string? IMcpHost.ToolRule(string tool) => Workbench.Settings.ClaudeToolRules.GetValueOrDefault(tool);
+
+    void IMcpHost.SetToolRule(string tool, string? rule)
+    {
+        if (rule is null)
+            Workbench.Settings.ClaudeToolRules.Remove(tool);
+        else
+            Workbench.Settings.ClaudeToolRules[tool] = rule;
+        Workbench.SaveSettings();
+    }
+
     IEnumerable<DocumentTab> IMcpHost.Documents => Workbench.Documents;
 
     void IMcpHost.ShowDocument(DocumentTab document) => Workbench.ShowDocument(document);

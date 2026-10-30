@@ -44,11 +44,15 @@ public sealed class ClaudeToolServer(IReadOnlyList<IClaudeTool> tools, string in
         toolName.StartsWith(Prefix, StringComparison.Ordinal) ? Tools.FirstOrDefault(t => t.Name == toolName.Substring(Prefix.Length)) : null;
 
     /// <summary>The plan of a call to one of these tools; null for any other tool, or input it cannot read.</summary>
-    public ClaudeToolPlan? Plan(string toolName, JsonElement input)
+    public ClaudeToolPlan? Plan(string toolName, JsonElement input) => Find(toolName) is { } tool ? PlanOf(tool, input) : null;
+
+    static ClaudeToolPlan? PlanOf(IClaudeTool tool, JsonElement input)
     {
         try
         {
-            return Find(toolName)?.Plan(input);
+            // A call that only reads has no question of its own: asked when the user's rules say so.
+            var plan = tool.Plan(input);
+            return plan.Question.Length == 0 ? plan with { Question = $"Allow Claude to use {tool.Name}?" } : plan;
         }
         catch (Exception ex) when (ex is InvalidOperationException or JsonException or KeyNotFoundException)
         {
@@ -56,8 +60,72 @@ public sealed class ClaudeToolServer(IReadOnlyList<IClaudeTool> tools, string in
         }
     }
 
+    /// <summary>The user's rules for these tools (<see cref="ClaudeToolPolicy"/>), read at each call; none: as each call's access says.</summary>
+    public Func<IReadOnlyDictionary<string, string>?>? Rules { get; set; }
+
+    /// <summary>
+    /// Asks the user about a call the rules say to ask for when Claude Code did not ask (Bypass permissions, auto mode, an
+    /// allow rule of its own): true when they allow it. Without it such a call does not run.
+    /// </summary>
+    public Func<ClaudeToolRequest, CancellationToken, Task<bool>>? Ask { get; set; }
+
+    readonly ConcurrentDictionary<string, DateTime> _approved = new();
+
+    /// <summary>The user allowed this call on Claude Code's prompt: it runs when it comes without being asked again (once, within two minutes).</summary>
+    public void Approve(string toolName, JsonElement input) => _approved[Key(toolName, input)] = DateTime.UtcNow;
+
+    /// <summary>What the user's rules say of a call of one of these tools; null for any other tool.</summary>
+    public ClaudeToolDecision? Decide(string toolName, JsonElement input) => Find(toolName) is { } tool ? Decide(tool, input) : null;
+
+    ClaudeToolDecision Decide(IClaudeTool tool, JsonElement input)
+    {
+        string? target;
+        try
+        {
+            target = tool.Target(input);
+        }
+        catch (Exception ex) when (ex is InvalidOperationException or JsonException or KeyNotFoundException)
+        {
+            target = null;
+        }
+        // Input no plan can be made of asks.
+        return PlanOf(tool, input) is { } plan
+            ? new(tool.Name, ClaudeToolPolicy.Decide(tool, plan, target, Rules?.Invoke()), plan, target)
+            : new(tool.Name, ToolRule.Ask, new ClaudeToolPlan(ToolAccess.Write, tool.Name, null, $"Allow Claude to use {tool.Name}?"), target);
+    }
+
+    /// <summary>Why the call does not run (the rules deny it, the user said no); null when it may.</summary>
+    async Task<ClaudeToolOutput?> RefuseAsync(IClaudeTool tool, JsonElement input, object? caller, CancellationToken cancellationToken)
+    {
+        var decision = Decide(tool, input);
+        if (decision.Rule == ToolRule.Allow)
+            return null;
+        if (decision.Rule == ToolRule.Deny)
+            return ClaudeToolOutput.Error(decision.Refusal);
+        if (_approved.TryRemove(Key(Prefix + tool.Name, input), out var at) && DateTime.UtcNow - at < TimeSpan.FromMinutes(2))
+            return null;
+        if (Ask is not { } ask)
+            return ClaudeToolOutput.Error("This call needs the user's yes, and Karvon could not ask them.");
+        return await ask(new ClaudeToolRequest(Prefix + tool.Name, input, decision.Plan, decision.Target, caller), cancellationToken)
+            ? null
+            : ClaudeToolOutput.Error("The user said no to this call. Do not try it another way: wait for what they say.");
+    }
+
+    /// <summary>A call as the user allowed it: its tool and its input, whatever order and spacing the JSON has.</summary>
+    static string Key(string toolName, JsonElement input) => toolName + "\n" + Canonical(input);
+
+    static string Canonical(JsonElement e) => e.ValueKind switch
+    {
+        JsonValueKind.Object => "{" + string.Join(",", e.EnumerateObject().OrderBy(p => p.Name, StringComparer.Ordinal)
+            .Select(p => JsonSerializer.Serialize(p.Name) + ":" + Canonical(p.Value))) + "}",
+        JsonValueKind.Array => "[" + string.Join(",", e.EnumerateArray().Select(Canonical)) + "]",
+        JsonValueKind.String => JsonSerializer.Serialize(e.GetString()),
+        _ => e.GetRawText(),
+    };
+
     /// <summary>Answers one JSON-RPC message: initialize, tools/list, tools/call, a notification.</summary>
-    public async Task<JsonObject> HandleAsync(JsonElement message, CancellationToken cancellationToken)
+    /// <param name="caller">The session the message came from (where the user is asked).</param>
+    public async Task<JsonObject> HandleAsync(JsonElement message, CancellationToken cancellationToken, object? caller = null)
     {
         var id = message.TryGetProperty("id", out var idValue) ? JsonNode.Parse(idValue.GetRawText()) : null;
         var method = message.TryGetProperty("method", out var m) ? m.GetString() : null;
@@ -91,7 +159,7 @@ public sealed class ClaudeToolServer(IReadOnlyList<IClaudeTool> tools, string in
                     })]),
                 });
             case "tools/call":
-                return Result(id, await CallAsync(id, parameters, cancellationToken));
+                return Result(id, await CallAsync(id, parameters, caller, cancellationToken));
             case "notifications/cancelled":
                 // The user interrupted Claude: a query or compose still running stops.
                 if (parameters.ValueKind == JsonValueKind.Object && parameters.TryGetProperty("requestId", out var cancelled)
@@ -107,7 +175,7 @@ public sealed class ClaudeToolServer(IReadOnlyList<IClaudeTool> tools, string in
         }
     }
 
-    async Task<JsonObject> CallAsync(JsonNode? id, JsonElement parameters, CancellationToken cancellationToken)
+    async Task<JsonObject> CallAsync(JsonNode? id, JsonElement parameters, object? caller, CancellationToken cancellationToken)
     {
         var name = parameters.ValueKind == JsonValueKind.Object && parameters.TryGetProperty("name", out var n) ? n.GetString() : null;
         var input = parameters.ValueKind == JsonValueKind.Object && parameters.TryGetProperty("arguments", out var a) && a.ValueKind == JsonValueKind.Object
@@ -123,7 +191,8 @@ public sealed class ClaudeToolServer(IReadOnlyList<IClaudeTool> tools, string in
             _running[key] = cts;
             try
             {
-                result = await tool.CallAsync(input, cts.Token);
+                // The user's rules, whatever Claude Code's permission mode let through.
+                result = await RefuseAsync(tool, input, caller, cts.Token) ?? await tool.CallAsync(input, cts.Token);
             }
             catch (OperationCanceledException)
             {
@@ -154,3 +223,15 @@ public sealed class ClaudeToolServer(IReadOnlyList<IClaudeTool> tools, string in
     public static JsonObject Failure(JsonNode? id, int code, string message) =>
         new() { ["jsonrpc"] = "2.0", ["id"] = id, ["error"] = new JsonObject { ["code"] = code, ["message"] = message } };
 }
+
+/// <summary>What the user's rules say of a call: its rule, its plan (the card's question) and what it reaches.</summary>
+public sealed record ClaudeToolDecision(string Tool, ToolRule Rule, ClaudeToolPlan Plan, string? Target)
+{
+    /// <summary>What Claude is told when the rules deny the call.</summary>
+    public string Refusal => $"The user's rules for Karvon's tools deny {Tool}{(Target is { Length: > 0 } ? $" on {Target}" : "")}. "
+        + "Do not try it another way: tell the user what you wanted to do.";
+}
+
+/// <summary>A call Karvon asks the user about itself: Claude Code did not.</summary>
+/// <param name="Caller">The session it came from; null when not known.</param>
+public sealed record ClaudeToolRequest(string ToolName, JsonElement Input, ClaudeToolPlan Plan, string? Target, object? Caller);

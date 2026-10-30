@@ -31,6 +31,9 @@ abstract class ServerTool(Func<ServersExplorerViewModel> servers) : IClaudeTool
 
     public abstract ClaudeToolPlan Plan(JsonElement input);
 
+    /// <summary>The server a call names.</summary>
+    public string? Target(JsonElement input) => Str(input, "server");
+
     public async Task<ClaudeToolOutput> CallAsync(JsonElement input, CancellationToken cancellationToken)
     {
         try

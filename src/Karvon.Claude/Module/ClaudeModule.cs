@@ -127,9 +127,12 @@ public sealed class ClaudeModule : KarvonModule, IClaudeService
         // The shell commands the tools do go to them (the IDE's and the modules' that are on), unless the user turned it off
         // (for the sessions started after).
         var settings = Workbench.Settings;
-        return KarvonTools.Create([.. Workbench.ClaudeTools(), .. tools.Select(t => t.Tool)],
+        var server = KarvonTools.Create([.. Workbench.ClaudeTools(), .. tools.Select(t => t.Tool)],
             [.. Karvon.Claude.Tools.IdeClaudeTools.ShellRules, .. Workbench.Modules.SelectMany(m => m.ClaudeShellRules())],
             () => settings.ClaudeKarvonToolsFirst);
+        // The user's rules for them, as they are at each call.
+        server.Rules = () => settings.ClaudeToolRules;
+        return server;
     }
 
     /// <summary>A call ran (on its own thread): shown on the UI thread.</summary>

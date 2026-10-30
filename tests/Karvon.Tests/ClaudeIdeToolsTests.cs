@@ -16,9 +16,19 @@ public class ClaudeIdeToolsTests
 {
     internal static async Task<(string Text, bool IsError)> Call(ClaudeToolServer server, string tool, object arguments)
     {
-        var message = JsonSerializer.SerializeToElement(new { jsonrpc = "2.0", id = 1, method = "tools/call", @params = new { name = tool, arguments } });
+        var message = Allowed(server, tool, arguments);
         var result = (await server.HandleAsync(message, CancellationToken.None))["result"]!;
         return (result["content"]![0]!["text"]!.GetValue<string>(), result["isError"]!.GetValue<bool>());
+    }
+
+    /// <summary>
+    /// A call's tools/call message, the call allowed as the user does on Claude Code's prompt (what changes asks: Karvon's
+    /// tool server runs it once allowed there).
+    /// </summary>
+    internal static JsonElement Allowed(ClaudeToolServer server, string tool, object arguments)
+    {
+        server.Approve(ClaudeToolServer.Prefix + tool, JsonSerializer.SerializeToElement(arguments));
+        return JsonSerializer.SerializeToElement(new { jsonrpc = "2.0", id = 1, method = "tools/call", @params = new { name = tool, arguments } });
     }
 
     internal static async Task<string> Text(ClaudeToolServer server, string tool, object arguments)

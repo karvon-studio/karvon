@@ -36,6 +36,14 @@ public interface IMcpHost
     /// <summary>Why the sandbox cannot start on this machine; null when nothing stops it.</summary>
     string? SandboxProblem => null;
 
+    /// <summary>The user's rule for one of Karvon's tools ("allow", "ask", "deny"); null for none (as its access says).</summary>
+    string? ToolRule(string tool) => null;
+
+    /// <summary>Sets it; null takes it away. For the calls from now on.</summary>
+    void SetToolRule(string tool, string? rule)
+    {
+    }
+
     IEnumerable<DocumentTab> Documents { get; }
 
     void ShowDocument(DocumentTab document);
@@ -253,6 +261,28 @@ public sealed partial class McpItemNode(McpServerNode server, string kind, strin
 public sealed class McpBuiltInToolNode(McpExplorerViewModel explorer, IClaudeTool tool) : McpTreeNode
 {
     public string Name { get; } = tool.Name;
+
+    /// <summary>The rules a tool can have, as the list shows them; the first is none.</summary>
+    public static IReadOnlyList<string> Rules { get; } = ["As its access says", "Allow", "Ask", "Deny"];
+
+    /// <summary>The user's rule for it, enforced by Karvon's tool server whatever Claude Code's permission mode.</summary>
+    public string Rule
+    {
+        get => ClaudeToolPolicy.Parse(explorer.Host.ToolRule(Name)) switch
+        {
+            Karvon.Claude.ToolRule.Allow => "Allow",
+            Karvon.Claude.ToolRule.Ask => "Ask",
+            Karvon.Claude.ToolRule.Deny => "Deny",
+            _ => Rules[0],
+        };
+        set
+        {
+            if (value == Rule)
+                return;
+            explorer.Host.SetToolRule(Name, value is "Allow" or "Ask" or "Deny" ? value.ToLowerInvariant() : null);
+            OnPropertyChanged();
+        }
+    }
 
     public string Access { get; } = AccessOf(tool);
 

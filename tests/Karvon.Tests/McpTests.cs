@@ -32,6 +32,18 @@ sealed class TestMcpHost(string? workspace) : IMcpHost
 
     public string? SandboxProblem => "bubblewrap is not installed.";
 
+    public Dictionary<string, string> ToolRules { get; } = [];
+
+    public string? ToolRule(string tool) => ToolRules.GetValueOrDefault(tool);
+
+    public void SetToolRule(string tool, string? rule)
+    {
+        if (rule is null)
+            ToolRules.Remove(tool);
+        else
+            ToolRules[tool] = rule;
+    }
+
     public List<DocumentTab> Open { get; } = [];
 
     public List<string> Prompts { get; } = [];
@@ -574,6 +586,15 @@ public class McpTests
             boxes["Sandbox"].IsChecked = true;
             Assert.True(host.Sandbox);
             Assert.Equal("bubblewrap is not installed.", tools.SandboxProblem);
+            // Each tool's rule, in the list beside it: kept in the settings, none taken away.
+            var rules = page.GetVisualDescendants().OfType<ComboBox>().Where(c => c.Name == "Rule").ToList();
+            Assert.Equal(tools.Tools.Count, rules.Count);
+            var containers = tools.Tools.Single(t => t.Name == "container_list");
+            Assert.Equal("As its access says", containers.Rule);
+            rules[tools.Tools.ToList().IndexOf(containers)].SelectedItem = "Deny";
+            Assert.Equal("deny", host.ToolRules["container_list"]);
+            containers.Rule = "As its access says";
+            Assert.False(host.ToolRules.ContainsKey("container_list"));
             host.Open.Remove(tools);
             page.Content = null;
 

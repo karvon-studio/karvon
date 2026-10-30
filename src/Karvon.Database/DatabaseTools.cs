@@ -57,6 +57,9 @@ abstract class DatabaseTool(IDatabaseToolHost host) : IClaudeTool
 
     public abstract ClaudeToolPlan Plan(JsonElement input);
 
+    /// <summary>The data source a call names.</summary>
+    public string? Target(JsonElement input) => Str(input, "connection");
+
     public async Task<ClaudeToolOutput> CallAsync(JsonElement input, CancellationToken cancellationToken)
     {
         try

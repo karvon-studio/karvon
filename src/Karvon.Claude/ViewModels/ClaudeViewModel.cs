@@ -117,7 +117,19 @@ public sealed partial class ClaudeViewModel : ObservableObject, IAsyncDisposable
     /// The host's own tools for Claude (Karvon: the Database Explorer's data sources and the Docker engine), given to each CLI
     /// it starts; null for none.
     /// </summary>
-    public ClaudeToolServer? Tools { get; set; }
+    public ClaudeToolServer? Tools
+    {
+        get => _toolServer;
+        set
+        {
+            _toolServer = value;
+            // What the user's rules ask for and Claude Code did not ask (Bypass permissions, auto mode): asked on a card here.
+            if (value is not null)
+                value.Ask = AskAboutToolAsync;
+        }
+    }
+
+    ClaudeToolServer? _toolServer;
 
     /// <summary>For a session's folder: a file of MCP servers the session gets beside its own (--mcp-config), or null.</summary>
     public Func<string, string?>? McpServers { get; set; }
@@ -1101,6 +1113,13 @@ public sealed partial class ClaudeViewModel : ObservableObject, IAsyncDisposable
 
     async Task RespondAsync(ClaudePermissionRequest request, ClaudePermissionDecision decision)
     {
+        // Karvon's own question: its tool server waits for the answer, not Claude Code.
+        if (_asks.TryRemove(request.RequestId, out var asked))
+        {
+            asked.TrySetResult(decision.Allow);
+            UpdateStatus();
+            return;
+        }
         if (_session is not { } session)
             return;
         try
@@ -1120,6 +1139,7 @@ public sealed partial class ClaudeViewModel : ObservableObject, IAsyncDisposable
         if (item is not { IsPending: true })
             return;
         Resolve(item, "Allowed");
+        Approved(item.Request);
         await RespondAsync(item.Request, ClaudePermissionDecision.AllowOnce(item.Request.Input));
     }
 

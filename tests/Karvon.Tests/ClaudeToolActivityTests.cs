@@ -17,7 +17,7 @@ namespace Karvon.Tests;
 public class ClaudeToolActivityTests
 {
     static Task<System.Text.Json.Nodes.JsonObject> CallAsync(MainViewModel vm, string tool, object arguments) =>
-        ClaudeOf(vm).Claude.Tools!.HandleAsync(JsonSerializer.SerializeToElement(new { jsonrpc = "2.0", id = 1, method = "tools/call", @params = new { name = tool, arguments } }), CancellationToken.None);
+        ClaudeOf(vm).Claude.Tools!.HandleAsync(ClaudeIdeToolsTests.Allowed(ClaudeOf(vm).Claude.Tools!, tool, arguments), CancellationToken.None);
 
     static string Database()
     {
