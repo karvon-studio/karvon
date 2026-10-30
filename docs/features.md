@@ -382,6 +382,8 @@ Every session Karvon starts (new or resumed) uses them **before the shell**: its
 command one of them does (`dotnet build` or `test`, `npm run test`, `psql`, `docker ps`, `ssh` to one of the Servers,
 `curl` to Jira's API) is sent to the tool instead; the same command again goes through, for what the tools cannot do.
 Turned off with **Before the shell** on the karvon page of the MCP Servers window, for the sessions started after.
+What Claude may do with them, what asks and what refuses, where your secrets are kept and what can reach them:
+[permissions.md](permissions.md).
 
 ## Karvon Studio Installer and updates (Tools > Get Tools and Features)
 
