@@ -247,4 +247,82 @@ public class ClaudeSecretsTests
         Assert.Contains(FakeClaude.Log(log).Where(e => e.Kind == "in").Select(e => e.Data.GetRawText()), m => m.Contains(token, StringComparison.Ordinal));
         await vm.DisposeAsync();
     }
+
+    sealed class MemoryKeyring : Bengine.Introspection.Servers.ICredentialStore
+    {
+        public Dictionary<string, string> Entries { get; } = [];
+
+        public string Name => "memory";
+
+        public string? Get(string key) => Entries.GetValueOrDefault(key);
+
+        public bool Set(string key, string label, string secret)
+        {
+            Entries[key] = secret;
+            return true;
+        }
+
+        public void Delete(string key) => Entries.Remove(key);
+    }
+
+    [Fact]
+    public void The_vault_keeps_secrets_encrypted_in_its_database_and_takes_over_the_keyrings()
+    {
+        var dir = Directory.CreateTempSubdirectory("karvon-vault-").FullName;
+        try
+        {
+            var path = Path.Combine(dir, "vault.db");
+            var keyring = new MemoryKeyring();
+            keyring.Entries["karvon-jira/old"] = "kept-in-the-keyring-before";
+            var vault = Karvon.Services.SecretVault.Open(keyring, path)!;
+
+            // The keyring keeps only the vault's key; the secrets are in the database, encrypted.
+            var secret = Unique("db-password-");
+            Assert.True(vault.Set("bengine/shop", "Karvon: shop", secret));
+            Assert.Equal(secret, vault.Get("bengine/shop"));
+            Assert.Equal(["karvon-jira/old", Karvon.Services.SecretVault.KeyName], keyring.Entries.Keys.Order(StringComparer.Ordinal));
+            Assert.DoesNotContain(secret, File.ReadAllText(path, System.Text.Encoding.Latin1));
+            if (!OperatingSystem.IsWindows())
+                Assert.Equal(UnixFileMode.UserRead | UnixFileMode.UserWrite, File.GetUnixFileMode(path));
+
+            // What the keyring kept before moves into the vault when it is asked for.
+            Assert.Equal("kept-in-the-keyring-before", vault.Get("karvon-jira/old"));
+            Assert.False(keyring.Entries.ContainsKey("karvon-jira/old"));
+            Assert.Equal("kept-in-the-keyring-before", vault.Get("karvon-jira/old"));
+
+            // Opened again with the keyring's key, it reads them; with another key, nothing.
+            Assert.Equal(secret, Karvon.Services.SecretVault.Open(keyring, path)!.Get("bengine/shop"));
+            Assert.Null(Karvon.Services.SecretVault.Open(new MemoryKeyring(), path)!.Get("bengine/shop"));
+
+            // An entry moved to another name does not open.
+            using (var connection = new Microsoft.Data.Sqlite.SqliteConnection($"Data Source={path};Pooling=False"))
+            {
+                connection.Open();
+                using var command = connection.CreateCommand();
+                command.CommandText = "UPDATE secrets SET name = 'bengine/other' WHERE name = 'bengine/shop'";
+                command.ExecuteNonQuery();
+            }
+            Assert.Null(vault.Get("bengine/other"));
+
+            vault.Delete("karvon-jira/old");
+            Assert.Null(vault.Get("karvon-jira/old"));
+            // Its key is not a secret of the vault's to give or take.
+            Assert.Null(vault.Get(Karvon.Services.SecretVault.KeyName));
+            Assert.False(vault.Set(Karvon.Services.SecretVault.KeyName, "x", "y"));
+        }
+        finally
+        {
+            Directory.Delete(dir, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void Claude_Codes_tools_may_not_open_the_vault()
+    {
+        var vault = Path.Combine(Karvon.Services.Settings.ConfigDirectory, "vault.db");
+        Assert.True(SecretFiles.IsSecret(vault));
+        Assert.NotNull(SecretGuard.Check("Read", Input(new { file_path = vault }), null));
+        Assert.NotNull(SecretGuard.Check("Bash", Input(new { command = $"sqlite3 {vault} .dump" }), null));
+        Assert.NotNull(SecretGuard.Check("Bash", Input(new { command = $"cp {vault} /tmp/v.db" }), null));
+    }
 }

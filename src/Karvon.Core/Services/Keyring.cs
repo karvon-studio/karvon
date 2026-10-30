@@ -13,7 +13,20 @@ namespace Karvon.Services;
 /// </summary>
 public static class Keyring
 {
-    static readonly Lazy<ICredentialStore?> Detected = new(() => Detect() is { } store ? new Remembering(store) : null);
+    /// <summary>Karvon's vault over the system keyring (the keyring itself when the vault cannot be opened), each secret made known.</summary>
+    static readonly Lazy<ICredentialStore?> Detected = new(() => Detect() is { } store ? new Remembering(VaultOver(store)) : null);
+
+    static ICredentialStore VaultOver(ICredentialStore keyring)
+    {
+        try
+        {
+            return SecretVault.Open(keyring, Path.Combine(Settings.ConfigDirectory, "vault.db")) ?? keyring;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or Microsoft.Data.Sqlite.SqliteException)
+        {
+            return keyring;
+        }
+    }
 
     public static ICredentialStore? System => Detected.Value;
 

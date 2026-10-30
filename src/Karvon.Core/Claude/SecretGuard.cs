@@ -49,7 +49,7 @@ public static partial class SecretGuard
         "cat", "tac", "less", "more", "head", "tail", "bat", "batcat", "nl", "xxd", "od", "hexdump", "base64", "base32", "strings",
         "cp", "scp", "rsync", "tar", "zip", "7z", "grep", "egrep", "fgrep", "rg", "ag", "awk", "gawk", "sed", "cut", "sort", "uniq",
         "diff", "cmp", "jq", "yq", "openssl", "gpg", "curl", "wget", "nc", "python", "python3", "node", "perl", "ruby", "php",
-        "type", "Get-Content", "gc",
+        "type", "Get-Content", "gc", "sqlite3", "sqlitebrowser",
     ];
 
     /// <summary>A secret store's name, when the command asks it for a secret.</summary>
@@ -94,7 +94,8 @@ public static partial class SecretGuard
 
 /// <summary>
 /// The files that hold secrets: a project's (.env, keys, certificates, credentials, secrets.json) and the user's (SSH's
-/// private keys, the cloud CLIs' credentials, the kubeconfig, the keyrings, Claude Code's own sign-in, Karvon's settings).
+/// private keys, the cloud CLIs' credentials, the kubeconfig, the keyrings, Claude Code's own sign-in, Karvon's settings
+/// and its vault).
 /// </summary>
 public static class SecretFiles
 {
@@ -106,7 +107,7 @@ public static class SecretFiles
     static readonly string[] Folders =
     [
         ".gnupg", ".kube", ".password-store", ".local/share/keyrings", ".config/karvon", ".microsoft/usersecrets", ".aws/sso/cache",
-        "AppData/Roaming/Microsoft/UserSecrets", "AppData/Roaming/Microsoft/Credentials", "AppData/Local/Microsoft/Credentials",
+        "AppData/Roaming/Microsoft/UserSecrets", "AppData/Roaming/Microsoft/Credentials", "AppData/Local/Microsoft/Credentials", "AppData/Roaming/karvon",
         "Library/Keychains",
     ];
 
@@ -132,6 +133,9 @@ public static class SecretFiles
         if (Under(full, Path.Combine(Home, ".ssh")))
             return !IsPublicSshFile(Path.GetFileName(full));
         if (Folders.Any(f => Under(full, Path.Combine(Home, f))) || Files.Any(f => full.Equals(Path.GetFullPath(Path.Combine(Home, f)), Comparison)))
+            return true;
+        // Karvon's settings, wherever they are: its vault is there.
+        if (Under(full, Karvon.Services.Settings.ConfigDirectory))
             return true;
         // Another Claude Code account's sign-in (CLAUDE_CONFIG_DIR, ~/.claude-NAME).
         if (Path.GetFileName(full) == ".credentials.json" && Path.GetFileName(Path.GetDirectoryName(full) ?? "").StartsWith(".claude", Comparison))
