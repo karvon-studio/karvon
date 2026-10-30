@@ -11,6 +11,7 @@ karvontools (Karvon's own MCP server: a query, a change, a destructive change); 
 """
 import json
 import os
+import re
 import sys
 import threading
 import time
@@ -261,7 +262,8 @@ def permission(tool, tool_input, suggestions, tool_id):
 def pre_tool_use(tool, tool_input, tool_id):
     """The host's PreToolUse hooks for the tool (as the Agent SDK's callbacks); the first denial, or None."""
     for matcher in STATE["hooks"].get("PreToolUse", []):
-        if matcher.get("matcher") not in (None, tool):
+        # A matcher is a regular expression over the tool's name, as Claude Code reads it ("Edit|Write").
+        if matcher.get("matcher") is not None and not re.fullmatch(matcher["matcher"], tool):
             continue
         for callback in matcher.get("hookCallbackIds", []):
             request_id = str(uuid.uuid4())
@@ -518,6 +520,17 @@ def turn(prompt, content, sent=None):
             tool_result("toolu_edit", "The user doesn't want to proceed with this tool use.", True)
         stream_text("Done.")
         result("Done.")
+    elif "secretfile" in p:
+        # Claude Code's own tools at the secrets: a project's .env, an SSH key by the shell, the keyring; then a file that is none.
+        for tool_id, name, tool_input in [("toolu_env", "Read", {"file_path": os.path.join(CWD, ".env")}),
+                                          ("toolu_key", "Bash", {"command": "cat ~/.ssh/id_ed25519", "description": "Read the key"}),
+                                          ("toolu_store", "Bash", {"command": "secret-tool lookup application karvon-studio key karvon-jira/acme", "description": "Ask the keyring"}),
+                                          ("toolu_ok", "Read", {"file_path": os.path.join(CWD, "Program.cs")})]:
+            tool_use(tool_id, name, tool_input)
+            reason = pre_tool_use(name, tool_input, tool_id)
+            tool_result(tool_id, reason if reason is not None else "ok", reason is not None)
+        stream_text("Done.")
+        result("ok")
     elif "shell first" in p:
         # Bash for what Karvon's tools do, then for what they don't: a hook's denial goes back to the model as the result.
         # The build again (the model decided Karvon's tools cannot do it), then a command they don't do.
@@ -623,6 +636,8 @@ def turn(prompt, content, sent=None):
 
 
 log("argv", ARGS)
+# The names of the variables it was started with (never their values).
+log("env", sorted(os.environ))
 while True:
     message = read()
     if message.get("type") == "control_request":

@@ -109,6 +109,9 @@ public sealed partial class ClaudeViewModel : ObservableObject, IAsyncDisposable
     /// <summary>A web link in an answer was clicked.</summary>
     public event Action<string>? OpenUrlRequested;
 
+    /// <summary>A session started without the variables of Karvon's environment that hold a secret: their names.</summary>
+    public event Action<IReadOnlyList<string>>? VariablesHidden;
+
     /// <summary>
     /// The host's own tools for Claude (Karvon: the Database Explorer's data sources and the Docker engine), given to each CLI
     /// it starts; null for none.
@@ -189,10 +192,13 @@ public sealed partial class ClaudeViewModel : ObservableObject, IAsyncDisposable
         try
         {
             await StopSessionAsync();
-            var session = await ClaudeSession.StartAsync(new ClaudeStartOptions(CliPath!, cwd, SelectedModel?.Value, PermissionMode, _resumeId, SelectedAccount, Tools, McpServersFor(cwd)));
+            var session = await ClaudeSession.StartAsync(new ClaudeStartOptions(CliPath!, cwd, SelectedModel?.Value, PermissionMode, _resumeId, SelectedAccount, Tools, McpServersFor(cwd),
+                _settings.ClaudeKeepSecretsAway));
             session.Event += ev => Dispatcher.UIThread.Post(() => Handle(session, ev));
             _session = session;
             _sessionCwd = cwd;
+            if (session.HiddenVariables.Count > 0)
+                VariablesHidden?.Invoke(session.HiddenVariables);
             ApplyInitialization(session.Initialization);
             await ApplySessionSettingsAsync(session);
             _ = RefreshLimitsAsync(session);

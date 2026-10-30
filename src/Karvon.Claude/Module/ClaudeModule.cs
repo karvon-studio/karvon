@@ -82,6 +82,8 @@ public sealed class ClaudeModule : KarvonModule, IClaudeService
             Workbench.CheckExternalChanges();
         };
         claude.AttentionRequested += () => Workbench.ShowToolWindow(ToolWindowId);
+        claude.VariablesHidden += names =>
+            Output.Append($"{DateTime.Now:HH:mm:ss}  Kept from Claude Code (they hold a secret): {string.Join(", ", names)}");
         return claude;
     }
 

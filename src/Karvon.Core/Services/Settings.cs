@@ -75,6 +75,12 @@ public sealed class Settings
     /// </summary>
     public bool ClaudeKarvonToolsFirst { get; set; } = true;
 
+    /// <summary>
+    /// Claude Code's own tools are kept away from the secrets on the machine: the files that hold them are not read or
+    /// changed, and a shell command that reads one or asks a secret store does not run (Karvon's PreToolUse hook).
+    /// </summary>
+    public bool ClaudeKeepSecretsAway { get; set; } = true;
+
     /// <summary>What Claude does with Karvon's tools shows in Karvon: a query's results, a container's logs, the build, a search...</summary>
     public bool ClaudeShowToolActivity { get; set; } = true;
 

@@ -56,6 +56,13 @@ static class ShellCommand
         return false;
     }
 
+    /// <summary>The simple commands' words, without the assignments and the sudo before them.</summary>
+    public static IEnumerable<List<string>> Words(string command) =>
+        Commands(command).Select(c => c.Words.SkipWhile(w => w is "do" or "then" or "else" or "sudo" || IsAssignment(w)).ToList()).Where(w => w.Count > 0);
+
+    /// <summary>A path a command was given (~ expanded), from the folder it runs in; null when the shell would expand it.</summary>
+    public static string? PathOf(string word, string? folder) => Resolve(folder, word);
+
     static bool IsAssignment(string word) =>
         word.IndexOf('=') is var eq and > 0 && (char.IsLetter(word[0]) || word[0] == '_') && word[..eq].All(c => char.IsLetterOrDigit(c) || c == '_');
 

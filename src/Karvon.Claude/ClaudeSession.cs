@@ -13,7 +13,8 @@ public sealed record ClaudeStartOptions(
     string? Resume = null,
     ClaudeAccount? Account = null,
     ClaudeToolServer? Tools = null,
-    string? McpConfigFile = null);
+    string? McpConfigFile = null,
+    bool GuardSecrets = true);
 
 /// <summary>
 /// One running Claude Code CLI in headless streaming mode (the interface the Agent SDK uses): JSON lines on
@@ -87,18 +88,30 @@ public sealed class ClaudeSession : IAsyncDisposable
 
     public string? SessionId { get; private set; }
 
+    /// <summary>The variables of Karvon's environment that hold a secret, kept from the CLI (<see cref="ClaudeEnvironment"/>).</summary>
+    public IReadOnlyList<string> HiddenVariables { get; private init; } = [];
+
     public bool HasExited => _process.HasExited;
 
     /// <summary>The id of the PreToolUse hook Karvon answers for Bash (its shell rules).</summary>
     public const string ShellHook = "karvon_shell";
 
+    /// <summary>The id of the PreToolUse hook that keeps Claude Code's own tools away from the secrets (<see cref="SecretGuard"/>).</summary>
+    public const string SecretsHook = "karvon_secrets";
+
     /// <summary>
-    /// The hooks Karvon answers (as the Agent SDK's callbacks): before each Bash call, whether one of Karvon's tools does
-    /// it; none without shell rules.
+    /// The hooks Karvon answers (as the Agent SDK's callbacks), before a call of Claude Code's own tools: whether it reaches
+    /// a secret (unless that is off), and for Bash whether one of Karvon's tools does it (when there are shell rules).
     /// </summary>
-    static object? Hooks(ClaudeToolServer? tools) => tools is { ShellRules.Count: > 0 }
-        ? new Dictionary<string, object> { ["PreToolUse"] = new[] { new { matcher = "Bash", hookCallbackIds = new[] { ShellHook } } } }
-        : null;
+    static object? Hooks(ClaudeToolServer? tools, bool guardSecrets)
+    {
+        List<object> preToolUse = [];
+        if (guardSecrets)
+            preToolUse.Add(new { matcher = SecretGuard.Tools, hookCallbackIds = new[] { SecretsHook } });
+        if (tools is { ShellRules.Count: > 0 })
+            preToolUse.Add(new { matcher = "Bash", hookCallbackIds = new[] { ShellHook } });
+        return preToolUse.Count > 0 ? new Dictionary<string, object> { ["PreToolUse"] = preToolUse } : null;
+    }
 
     /// <summary>The command-line arguments for <paramref name="options"/> (the SDK's streaming invocation).</summary>
     public static List<string> Arguments(ClaudeStartOptions options)
@@ -153,13 +166,17 @@ public sealed class ClaudeSession : IAsyncDisposable
         psi.Environment.Remove("CLAUDECODE");
         psi.Environment["PWD"] = options.WorkingDirectory;
         options.Account?.Apply(psi.Environment);
+        var hidden = ClaudeEnvironment.Clean(psi.Environment);
         var process = Process.Start(psi) ?? throw new InvalidOperationException("Claude Code could not be started.");
-        var session = new ClaudeSession(process) { SessionId = options.Resume, _tools = options.Tools, _workingDirectory = options.WorkingDirectory };
+        var session = new ClaudeSession(process)
+        {
+            SessionId = options.Resume, _tools = options.Tools, _workingDirectory = options.WorkingDirectory, HiddenVariables = hidden,
+        };
         try
         {
             using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
             timeout.CancelAfter(TimeSpan.FromSeconds(60));
-            session.Initialization = await session.RequestAsync(new { subtype = "initialize", hooks = Hooks(options.Tools) }, timeout.Token);
+            session.Initialization = await session.RequestAsync(new { subtype = "initialize", hooks = Hooks(options.Tools, options.GuardSecrets) }, timeout.Token);
         }
         catch (Exception ex)
         {
@@ -388,13 +405,18 @@ public sealed class ClaudeSession : IAsyncDisposable
     }
 
     /// <summary>
-    /// Karvon's PreToolUse hook: a Bash command one of Karvon's tools does is denied the first time, its reason the tool to
-    /// use instead; the same command again, and anything else, goes on as it would (nothing said).
+    /// Karvon's PreToolUse hooks: a call that reaches a secret is denied, with why; a Bash command one of Karvon's tools does
+    /// is denied the first time, its reason the tool to use instead; the same command again, and anything else, goes on
+    /// as it would (nothing said).
     /// </summary>
     async Task AnswerHookAsync(string? requestId, JsonElement request)
     {
         object answer = new { };
-        if (ClaudeProtocol.Str(request, "callback_id") == ShellHook && request.TryGetProperty("input", out var input)
+        if (ClaudeProtocol.Str(request, "callback_id") == SecretsHook && request.TryGetProperty("input", out var called)
+            && ClaudeProtocol.Str(called, "tool_name") is { } tool && called.TryGetProperty("tool_input", out var calledInput)
+            && SecretGuard.Check(tool, calledInput, _workingDirectory) is { } reason)
+            answer = new { hookSpecificOutput = new { hookEventName = "PreToolUse", permissionDecision = "deny", permissionDecisionReason = reason } };
+        else if (ClaudeProtocol.Str(request, "callback_id") == ShellHook && request.TryGetProperty("input", out var input)
             && ClaudeProtocol.Str(input, "tool_name") == "Bash" && input.TryGetProperty("tool_input", out var toolInput)
             && ClaudeProtocol.Str(toolInput, "command") is { } command && _tools?.ShellRuleFor(command, _workingDirectory) is { } rule
             && FirstRedirect(command))

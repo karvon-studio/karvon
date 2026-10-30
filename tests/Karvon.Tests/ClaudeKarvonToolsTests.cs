@@ -112,8 +112,9 @@ public class ClaudeKarvonToolsTests
         var entries = FakeClaude.Log(log);
         var argv = entries.First(e => e.Kind == "argv").Data.EnumerateArray().Select(a => a.GetString()).ToList();
         Assert.Equal("""{"mcpServers":{"karvon":{"type":"sdk","name":"karvon"}}}""", argv[argv.IndexOf("--mcp-config") + 1]);
-        // Without shell rules no hook is registered.
-        Assert.False(Initialize(entries).TryGetProperty("hooks", out var hooks) && hooks.ValueKind != JsonValueKind.Null);
+        // Without shell rules the only hook is the one that keeps the secrets away.
+        var only = Assert.Single(Initialize(entries).GetProperty("hooks").GetProperty("PreToolUse").EnumerateArray());
+        Assert.Equal(ClaudeSession.SecretsHook, only.GetProperty("hookCallbackIds")[0].GetString());
         var mcp = entries.Where(e => e.Kind == "mcp").Select(e => e.Data).ToList();
         Assert.Equal("karvon", mcp[0].GetProperty("response").GetProperty("result").GetProperty("serverInfo").GetProperty("name").GetString());
         Assert.Equal(10, mcp[2].GetProperty("response").GetProperty("result").GetProperty("tools").GetArrayLength());
@@ -155,15 +156,16 @@ public class ClaudeKarvonToolsTests
         var entries = FakeClaude.Log(log);
         var argv = entries.First(e => e.Kind == "argv").Data.EnumerateArray().Select(a => a.GetString()).ToList();
         Assert.Equal(KarvonTools.SystemPrompt, argv[argv.IndexOf("--append-system-prompt") + 1]);
-        var hooks = Initialize(entries).GetProperty("hooks").GetProperty("PreToolUse")[0];
-        Assert.Equal("Bash", hooks.GetProperty("matcher").GetString());
-        Assert.Equal(ClaudeSession.ShellHook, hooks.GetProperty("hookCallbackIds")[0].GetString());
+        var hooks = Initialize(entries).GetProperty("hooks").GetProperty("PreToolUse").EnumerateArray().ToList();
+        var shell = hooks.Single(h => h.GetProperty("matcher").GetString() == "Bash");
+        Assert.Equal(ClaudeSession.ShellHook, shell.GetProperty("hookCallbackIds")[0].GetString());
+        // Each command is asked of both hooks (the secrets' first): only the first build is denied, by the shell rules.
         var answers = entries.Where(e => e.Kind == "hook").Select(e => e.Data).ToList();
-        Assert.Equal(3, answers.Count);
-        var deny = answers[0].GetProperty("hookSpecificOutput");
+        Assert.Equal(6, answers.Count);
+        var deny = Assert.Single(answers, a => a.TryGetProperty("hookSpecificOutput", out _)).GetProperty("hookSpecificOutput");
         Assert.Equal(("PreToolUse", "deny"), (deny.GetProperty("hookEventName").GetString(), deny.GetProperty("permissionDecision").GetString()));
         Assert.EndsWith("run the same command again: Karvon lets it through then.", deny.GetProperty("permissionDecisionReason").GetString());
-        Assert.All(answers.Skip(1), a => Assert.False(a.TryGetProperty("hookSpecificOutput", out _)));
+        Assert.True(answers.IndexOf(answers.First(a => a.TryGetProperty("hookSpecificOutput", out _))) == 1);
         await vm.DisposeAsync();
         window.Close();
     }
