@@ -19,6 +19,46 @@ public sealed class DocumentsModule : KarvonModule
 
     internal DocumentSessions Sessions => _sessions ??= new(ct => Engines is { } engines ? engines(ct) : LoadAsync(ct));
 
+    /// <summary>The previews' documents, apart from Claude's.</summary>
+    DocumentSessions Previews => _previews ??= new(ct => Engines is { } engines ? engines(ct) : LoadAsync(ct));
+
+    DocumentSessions? _previews;
+
+    /// <summary>The files a preview shows: those the engines open that are not text (a .csv stays in the editor).</summary>
+    static readonly HashSet<string> Shown = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ".pdf", ".docx", ".doc", ".odt", ".rtf", ".xlsx", ".xlsm", ".xls", ".xlsb", ".ods", ".pptx",
+    };
+
+    public override IReadOnlyList<Avalonia.Controls.Templates.IDataTemplate> DocumentTemplates =>
+        [Document<DocumentPreviewTab>(_ => new Views.DocumentPreviewView())];
+
+    public override bool OpensFile(string path) => Shown.Contains(Path.GetExtension(path));
+
+    public override ViewModels.DocumentTab OpenFile(string path) => new DocumentPreviewTab(path, Previews);
+
+    /// <summary>A document Claude opened or saved: shown in Karvon (drawn again when it is open already), a text format in the editor.</summary>
+    public override Task ShowClaudeToolAsync(string tool, System.Text.Json.JsonElement input, ClaudeToolOutput output)
+    {
+        var file = tool switch
+        {
+            // "Document 3: /path/Report.docx (Word)."
+            "document_open" => output.Text.StartsWith("Document ", StringComparison.Ordinal) && int.TryParse(output.Text[9..output.Text.IndexOf(':')], out var id)
+                ? Sessions.Find(id)?.Path : null,
+            "document_save" => output.Text.StartsWith("Saved ", StringComparison.Ordinal) ? output.Text[6..^1] : null,
+            _ => null,
+        };
+        if (file is null || !File.Exists(file))
+            return Task.CompletedTask;
+        if (Workbench.Documents.OfType<DocumentPreviewTab>().FirstOrDefault(d => d.Key == file) is { } open)
+        {
+            Workbench.ShowDocument(open);
+            return open.LoadAsync();
+        }
+        Workbench.OpenFile(file);
+        return Task.CompletedTask;
+    }
+
     public override string Id => "documents";
 
     public override string Name => "Documents";
@@ -88,6 +128,7 @@ public sealed class DocumentsModule : KarvonModule
     public override void Dispose()
     {
         _sessions?.Dispose();
+        _previews?.Dispose();
         _library?.Dispose();
         base.Dispose();
     }

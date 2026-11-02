@@ -1,7 +1,10 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using Avalonia.Headless.XUnit;
 using Karvon.Claude;
 using Karvon.Documents;
+using Karvon.Views;
+using static Karvon.Tests.UiTests;
 
 namespace Karvon.Tests;
 
@@ -297,6 +300,89 @@ public class DocumentsTests
         }
         finally
         {
+            Directory.Delete(folder, recursive: true);
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task Word_Excel_PowerPoint_and_PDF_files_open_in_Karvon_their_pages_drawn_and_shown_again_when_Claude_saves_them()
+    {
+        Assert.SkipUnless(BuiltLibrary() is not null, "Build native/documents (cargo build --release) or set KARVON_DOCUMENTS_LIBRARY to try the engines.");
+        using var library = new DocumentLibrary(BuiltLibrary()!);
+        var folder = Directory.CreateTempSubdirectory("karvon-preview-").FullName;
+        var vm = NewViewModel();
+        var module = vm.Module<DocumentsModule>()!;
+        module.Engines = _ => Task.FromResult<IDocumentEngines>(library);
+        var main = new MainWindow { DataContext = vm, Width = 1400, Height = 900 };
+        main.Show();
+        var tools = DocumentClaudeTools.Create(module.Sessions, () => folder).ToDictionary(t => t.Name);
+        async Task<string> Call(string tool, object input)
+        {
+            var output = await tools[tool].CallAsync(Input(input), default);
+            Assert.False(output.IsError, output.Text);
+            return output.Text;
+        }
+        async Task<DocumentPreviewTab> Open(string file)
+        {
+            vm.OpenDocument(Path.Combine(folder, file));
+            var tab = Assert.IsType<DocumentPreviewTab>(vm.ActiveDocument);
+            await WaitUntil(() => tab.Pages.Count > 0 && tab.Pages[0].Image is not null, TimeSpan.FromSeconds(30));
+            Assert.True(tab.Pages[0].Image is not null, tab.Status);
+            return tab;
+        }
+        try
+        {
+            // The engines' own samples, saved as files of a project.
+            await Call("document_open", new { kind = "word", template = "report" });
+            await Call("document_save", new { document = 1, path = "Report.docx" });
+            await Call("document_save", new { document = 1, path = "Report.pdf" });
+            await Call("document_open", new { kind = "excel", template = "budget" });
+            await Call("document_save", new { document = 2, path = "Budget.xlsx" });
+            await Call("document_open", new { kind = "powerpoint", template = "Harbor" });
+            await Call("document_call", new { document = 3, tool = "add_text_box", arguments = new { x = 80, y = 170, w = 800, text = "Quarterly review", size = 54 } });
+            await Call("document_call", new { document = 3, tool = "add_text_box", arguments = new { x = 80, y = 280, w = 800, text = "Documents open in Karvon Studio, drawn by its document engines", size = 24, color = "#2F6F8F" } });
+            await Call("document_save", new { document = 3, path = "Deck.pptx" });
+
+            // Opened from Solution Explorer or File > Open: a document of their own, its pages drawn by the engines.
+            var word = await Open("Report.docx");
+            Assert.Equal(("Report.docx", "Word"), (word.Title, word.KindText));
+            Assert.Matches(@"^\d+ pages?$", word.Status);
+            Snapshot(main, "documents-word");
+            var excel = await Open("Budget.xlsx");
+            Snapshot(main, "documents-excel");
+            var deck = await Open("Deck.pptx");
+            Snapshot(main, "documents-powerpoint");
+            var pdf = await Open("Report.pdf");
+            Assert.Equal(word.Pages.Count, pdf.Pages.Count);
+
+            // As wide as the view as it opens; zoomed, the pages' size follows; opened again, the same tab comes to the front.
+            Assert.True(pdf.FitWidth);
+            Assert.Equal(pdf.Pages[0].Width * pdf.Zoom, pdf.Pages[0].DisplayWidth, 3);
+            pdf.ActualSizeCommand.Execute(null);
+            pdf.ZoomInCommand.Execute(null);
+            Assert.Equal(("125 %", false), (pdf.ZoomText, pdf.FitWidth));
+            Assert.Equal(pdf.Pages[0].Width * 1.25, pdf.Pages[0].DisplayWidth, 3);
+            Snapshot(main, "documents-pdf");
+            vm.OpenDocument(Path.Combine(folder, "Report.docx"));
+            Assert.Same(word, vm.ActiveDocument);
+            Assert.Equal(4, vm.Documents.OfType<DocumentPreviewTab>().Count());
+
+            // Claude saves the deck with another slide: the tab in Karvon shows it.
+            await Call("document_open", new { path = "Deck.pptx" });
+            await Call("document_call", new { document = 4, tool = "add_slide", arguments = new { layout = "title" } });
+            var saved = await tools["document_save"].CallAsync(Input(new { document = 4 }), default);
+            await module.ShowClaudeToolAsync("document_save", Input(new { document = 4 }), saved);
+            Assert.Same(deck, vm.ActiveDocument);
+            await WaitUntil(() => deck.Pages.Count == 2, TimeSpan.FromSeconds(30));
+            Assert.Equal(2, deck.Pages.Count);
+
+            // A .csv stays in the editor.
+            File.WriteAllText(Path.Combine(folder, "rows.csv"), "a,b\n1,2\n");
+            Assert.False(module.OpensFile(Path.Combine(folder, "rows.csv")));
+        }
+        finally
+        {
+            main.Close();
             Directory.Delete(folder, recursive: true);
         }
     }

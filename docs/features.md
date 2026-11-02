@@ -309,13 +309,18 @@ allows, its scripts and their text, the network) before it is installed, updated
 licensed to run through Agensi, so "Use in Claude Code" gives Claude Code its MCP server and the skill loads on demand
 (a paid one is bought only when you agree).
 
-## Documents (Claude Code's document tools)
+## Documents (PDF, Word, Excel, PowerPoint)
 
-PDF, Word (.docx, .doc, .odt, .rtf), Excel (.xlsx, .xls, .ods, .csv) and PowerPoint (.pptx) files as Claude Code's
-tools, through document engines in Karvon's own process: [PdfCraft](https://github.com/storytold/pdfcraft),
+PDF, Word (.docx, .doc, .odt, .rtf), Excel (.xlsx, .xls, .ods, .csv) and PowerPoint (.pptx) files open in Karvon and
+are Claude Code's tools, through document engines in Karvon's own process: [PdfCraft](https://github.com/storytold/pdfcraft),
 [WordCraft](https://github.com/storytold/wordcraft), [GridCraft](https://github.com/storytold/gridcraft) and
 [DeckCraft](https://github.com/storytold/deckcraft) (MIT or Apache-2.0), headless, in one library built from
 `native/documents` and downloaded the first time a document is opened (Tools > Get Tools and Features lists it).
+
+Opened from Solution Explorer or File > Open, such a file is a document of its own: its pages as the engines draw them
+(a Word, Excel or PowerPoint file as its engine writes it as a PDF), each while it is in view, as wide as the window or
+zoomed (Ctrl+wheel), drawn again when the file changes; Open Externally hands it to the system's program. A `.csv`
+stays in the editor.
 
 - `document_open` opens a file, or starts a new Word, Excel or PowerPoint document, in memory, and lists its engine's tools.
 - `document_call` runs one of them on it: its text or structure, cells read and written, a page drawn (Claude sees the
@@ -323,6 +328,8 @@ tools, through document engines in Karvon's own process: [PdfCraft](https://gith
   tokens go to tools a session does not use.
 - `document_save` writes it, to its own file or to another format by the extension (a .docx or a .pptx as .pdf); it
   asks first, as does a command that names a file. `document_close` closes it.
+
+A file Claude opens or saves shows in Karvon (its tab drawn again if it is open), as the other tools' work does.
 
 A script that reads or writes such files with python-docx, openpyxl, python-pptx or pypdf in the command, or
 `soffice --convert-to`, is sent to these tools while "Before the shell" (MCP Servers > karvon) is on.

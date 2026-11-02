@@ -1,6 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <!-- The Documents module: PDF, Word, Excel and PowerPoint files as Claude Code's tools, through document engines in Karvon's own process. -->
   <PropertyGroup>
+    <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
     <RootNamespace>Karvon.Documents</RootNamespace>
   </PropertyGroup>
   <ItemGroup>

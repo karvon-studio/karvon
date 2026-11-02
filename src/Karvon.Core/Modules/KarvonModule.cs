@@ -247,6 +247,12 @@ public abstract partial class KarvonModule : ObservableObject, IDisposable, IAsy
     /// <summary>Its items of the main menu (Tools > NuGet Package Manager, Tools > Trust ASP.NET Core Development Certificate).</summary>
     public virtual IReadOnlyList<ModuleMainMenuItem> MainMenus => [];
 
+    /// <summary>Whether it shows a file itself, in a document of its own (a PDF, a Word file), rather than the editor.</summary>
+    public virtual bool OpensFile(string path) => false;
+
+    /// <summary>The document that shows a file it <see cref="OpensFile"/>; its key is the file's path.</summary>
+    public virtual ViewModels.DocumentTab OpenFile(string path) => throw new NotSupportedException($"{Name} shows no {Path.GetExtension(path)} file.");
+
     /// <summary>Whether it opens a workspace file (.NET's: a .sln, a .slnx, a project file); the core opens folders.</summary>
     public virtual bool OpensWorkspace(string path) => false;
 

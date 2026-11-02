@@ -1,0 +1,46 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:v="using:Karvon.Views"
+             xmlns:d="using:Karvon.Documents"
+             x:Class="Karvon.Documents.Views.DocumentPreviewView"
+             x:DataType="d:DocumentPreviewTab">
+  <DockPanel>
+    <!-- The document's bar: what it is, its pages, zoom, drawn again, opened in another program -->
+    <Border DockPanel.Dock="Top" Background="{StaticResource VsEnvironmentBrush}" BorderBrush="{StaticResource VsBorderBrush}" BorderThickness="0,0,0,1" Padding="8,3">
+      <DockPanel>
+        <StackPanel Orientation="Horizontal" Spacing="2" DockPanel.Dock="Right">
+          <Button Name="ZoomOutButton" Classes="tbi" Command="{Binding ZoomOutCommand}" ToolTip.Tip="Zoom Out"><v:VsIcon Kind="Minus" /></Button>
+          <Button Name="ZoomText" Classes="tb" MinWidth="56" Command="{Binding ActualSizeCommand}" ToolTip.Tip="Actual Size" Content="{Binding ZoomText}" />
+          <Button Name="ZoomInButton" Classes="tbi" Command="{Binding ZoomInCommand}" ToolTip.Tip="Zoom In"><v:VsIcon Kind="Plus" /></Button>
+          <ToggleButton Name="FitWidthButton" Classes="tb" IsChecked="{Binding FitWidth}" ToolTip.Tip="The pages as wide as the view" Content="Fit Width" />
+          <Border Classes="tbsep" />
+          <Button Name="ReloadButton" Classes="tbi" Command="{Binding ReloadCommand}" ToolTip.Tip="Reload"><v:VsIcon Kind="Refresh" /></Button>
+          <Button Name="OpenExternallyButton" Classes="tb" Command="{Binding OpenExternallyCommand}" ToolTip.Tip="Open with the program the system opens it with" Content="Open Externally" />
+        </StackPanel>
+        <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+          <TextBlock Text="{Binding KindText}" FontWeight="SemiBold" VerticalAlignment="Center" />
+          <TextBlock Name="StatusText" Text="{Binding Status}" Foreground="{StaticResource VsGrayTextBrush}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+          <ProgressBar IsIndeterminate="True" Width="80" IsVisible="{Binding IsLoading}" VerticalAlignment="Center" />
+        </StackPanel>
+      </DockPanel>
+    </Border>
+    <!-- The pages, one under another, each drawn while it is in view -->
+    <ScrollViewer Name="PagesScroll" HorizontalScrollBarVisibility="Auto" Background="#3C3C3C">
+      <ItemsControl Name="PagesList" ItemsSource="{Binding Pages}" Margin="0,16">
+        <ItemsControl.ItemsPanel>
+          <ItemsPanelTemplate>
+            <VirtualizingStackPanel />
+          </ItemsPanelTemplate>
+        </ItemsControl.ItemsPanel>
+        <ItemsControl.ItemTemplate>
+          <DataTemplate x:DataType="d:PreviewPage">
+            <Border Background="White" Width="{Binding DisplayWidth}" Height="{Binding DisplayHeight}" Margin="16,0,16,16"
+                    HorizontalAlignment="Center" BoxShadow="0 2 8 0 #60000000">
+              <Image Source="{Binding Image}" Stretch="Fill" />
+            </Border>
+          </DataTemplate>
+        </ItemsControl.ItemTemplate>
+      </ItemsControl>
+    </ScrollViewer>
+  </DockPanel>
+</UserControl>

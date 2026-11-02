@@ -456,7 +456,7 @@ public partial class MainViewModel : ObservableObject
         var existing = Editors.FirstOrDefault(d => d.FilePath == path);
         if (existing is null)
         {
-            if (!File.Exists(path) || IsBinary(path))
+            if (!File.Exists(path) || activate && OpenModuleFile(path) || IsBinary(path))
                 return null;
             EditorHost host;
             try
@@ -481,6 +481,21 @@ public partial class MainViewModel : ObservableObject
         if (activate)
             ActiveDocument = existing;
         return existing;
+    }
+
+    /// <summary>A file a module shows itself (a PDF, a Word file): its document, in front (the one open already, if it is); false for none.</summary>
+    bool OpenModuleFile(string path)
+    {
+        if (Modules.FirstOrDefault(m => m.OpensFile(path)) is not { } module)
+            return false;
+        var document = Documents.FirstOrDefault(d => d is not DocumentViewModel && d.Key == path);
+        if (document is null)
+        {
+            document = module.OpenFile(path);
+            Documents.Add(document);
+        }
+        ActiveDocument = document;
+        return true;
     }
 
     static bool IsBinary(string path) => Path.GetExtension(path).ToLowerInvariant() is

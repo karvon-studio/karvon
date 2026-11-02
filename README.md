@@ -45,7 +45,7 @@ update as it closes.
 - **Git**, **Terminal** and **NuGet**.
 - **Database Explorer**, **Docker Explorer**, **Servers** (SSH), **Jira**, **Ports** (port forwarding), **Pipelines** (GitHub Actions, GitLab CI), **Pull Requests**, **Kubernetes**, **HTTP Client** (.http files), **MCP Servers** and **Skills**.
 - **Claude Code**, your own `claude` CLI, with Karvon's tools: the build, the tests, the debugger, the databases.
-- **Documents**: Claude reads and changes PDF, Word, Excel and PowerPoint files through Karvon's own document engines.
+- **Documents**: PDF, Word, Excel and PowerPoint files open in Karvon, and Claude reads and changes them, through its own document engines.
 - **Karvon Studio Installer** (`karvon --installer`, or Tools > Get Tools and Features) and **updates**.
 
 The details, language by language, are in [docs/features.md](docs/features.md); how a module plugs in is in
