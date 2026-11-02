@@ -40,8 +40,14 @@ public sealed record ClaudeToolOutput(string Text, bool IsError = false)
     /// </summary>
     public string? Outside { get; init; }
 
+    /// <summary>The pictures it returns after its text (a page drawn), for Claude to look at.</summary>
+    public IReadOnlyList<ClaudeToolImage> Images { get; init; } = [];
+
     public static ClaudeToolOutput Error(string message) => new(message, true);
 }
+
+/// <summary>A picture a tool returns: its type (image/png) and its bytes in base64.</summary>
+public sealed record ClaudeToolImage(string MimeType, string Data);
 
 /// <summary>
 /// A shell command one of Karvon's tools does (dotnet build, docker ps, psql, ssh to a server, Jira's API by curl): Claude's

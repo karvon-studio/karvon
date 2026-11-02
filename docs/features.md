@@ -309,6 +309,24 @@ allows, its scripts and their text, the network) before it is installed, updated
 licensed to run through Agensi, so "Use in Claude Code" gives Claude Code its MCP server and the skill loads on demand
 (a paid one is bought only when you agree).
 
+## Documents (Claude Code's document tools)
+
+PDF, Word (.docx, .doc, .odt, .rtf), Excel (.xlsx, .xls, .ods, .csv) and PowerPoint (.pptx) files as Claude Code's
+tools, through document engines in Karvon's own process: [PdfCraft](https://github.com/storytold/pdfcraft),
+[WordCraft](https://github.com/storytold/wordcraft), [GridCraft](https://github.com/storytold/gridcraft) and
+[DeckCraft](https://github.com/storytold/deckcraft) (MIT or Apache-2.0), headless, in one library built from
+`native/documents` and downloaded the first time a document is opened (Tools > Get Tools and Features lists it).
+
+- `document_open` opens a file, or starts a new Word, Excel or PowerPoint document, in memory, and lists its engine's tools.
+- `document_call` runs one of them on it: its text or structure, cells read and written, a page drawn (Claude sees the
+  picture), any of the engine's commands. `document_tools` gives one's arguments only when they are needed, so few
+  tokens go to tools a session does not use.
+- `document_save` writes it, to its own file or to another format by the extension (a .docx or a .pptx as .pdf); it
+  asks first, as does a command that names a file. `document_close` closes it.
+
+A script that reads or writes such files with python-docx, openpyxl, python-pptx or pypdf in the command, or
+`soffice --convert-to`, is sent to these tools while "Before the shell" (MCP Servers > karvon) is on.
+
 ## Terminal
 
 Your `$SHELL` in a real pty, in the solution folder; a console app's own console while it runs (see Build and run).

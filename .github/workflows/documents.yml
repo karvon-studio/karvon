@@ -1,0 +1,51 @@
+name: documents
+
+# The document engines' library (native/documents) for each platform, by hand only: left as this run's artifacts, which
+# whoever runs it uploads to a documents-<version> prerelease and pins the hashes of in DocumentEnginesLocator.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build — ${{ matrix.rid }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { rid: linux-x64, os: ubuntu-22.04, target: x86_64-unknown-linux-gnu, library: libkarvon_documents.so }
+          - { rid: win-x64, os: windows-latest, target: x86_64-pc-windows-msvc, library: karvon_documents.dll }
+          - { rid: osx-arm64, os: macos-latest, target: aarch64-apple-darwin, library: libkarvon_documents.dylib }
+          - { rid: osx-x64, os: macos-latest, target: x86_64-apple-darwin, library: libkarvon_documents.dylib }
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash
+        working-directory: native/documents
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Rust
+        run: |
+          rustup update stable
+          rustup default stable
+          rustup target add ${{ matrix.target }}
+
+      - name: Version
+        run: echo "VERSION=$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -1)" >> "$GITHUB_ENV"
+
+      - name: Build
+        env:
+          MACOSX_DEPLOYMENT_TARGET: "12.0"
+        run: cargo build --release --locked --target ${{ matrix.target }}
+
+      - name: Package
+        run: ${{ runner.os == 'Windows' && 'python' || 'python3' }} package.py target/${{ matrix.target }}/release/${{ matrix.library }} "$VERSION" ${{ matrix.rid }} packages
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: karvon-documents-${{ matrix.rid }}
+          path: native/documents/packages/*
+          if-no-files-found: error

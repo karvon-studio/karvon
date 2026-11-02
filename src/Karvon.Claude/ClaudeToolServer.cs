@@ -248,9 +248,12 @@ public sealed class ClaudeToolServer(IReadOnlyList<IClaudeTool> tools, string in
         if (ran && (caller as ClaudeSession)?.Audit is { } audit)
             audit.Ran(Prefix + name, input, started, DateTime.UtcNow - started, result.IsError, result.Text, text, result.Outside,
                 result.Outside is null ? 0 : OutsideText.Find(text).Count);
+        var content = new JsonArray(new JsonObject { ["type"] = "text", ["text"] = sent });
+        foreach (var image in result.Images)
+            content.Add(new JsonObject { ["type"] = "image", ["data"] = image.Data, ["mimeType"] = image.MimeType });
         return new JsonObject
         {
-            ["content"] = new JsonArray(new JsonObject { ["type"] = "text", ["text"] = sent }),
+            ["content"] = content,
             ["isError"] = result.IsError,
         };
     }

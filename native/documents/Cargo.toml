@@ -1,0 +1,32 @@
+[package]
+name = "karvon-documents"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.95"
+license = "MIT"
+publish = false
+description = "Karvon Studio's document engines in its own process: PdfCraft, WordCraft, GridCraft and DeckCraft's MCP servers, headless, behind a C ABI"
+
+[lib]
+crate-type = ["cdylib"]
+
+# The engines as their open-source repositories have them, each at the commit Karvon pins (Apache-2.0 or MIT).
+[dependencies]
+pdfcraft-automation = { git = "https://github.com/storytold/pdfcraft", rev = "7437bde378f43856eada40af25b983812e615e8a" }
+wordcraft-mcp = { git = "https://github.com/storytold/wordcraft", rev = "159b84f54c74e9e82fb3109b758ae7dd6f4e3ab0" }
+gridcraft-mcp = { git = "https://github.com/storytold/gridcraft", rev = "84acf6293b1dc1fc09837524e035d674eb4d6741" }
+deckcraft-mcp = { git = "https://github.com/storytold/deckcraft", rev = "d5e30557eb9a846cd3eda43aa1552d88e25339b3" }
+serde_json = "1"
+
+# PdfCraft's own patched copies of these (its vendor/ folder), as its workspace builds with them.
+[patch.crates-io]
+hayro = { git = "https://github.com/storytold/pdfcraft", rev = "7437bde378f43856eada40af25b983812e615e8a" }
+hayro-interpret = { git = "https://github.com/storytold/pdfcraft", rev = "7437bde378f43856eada40af25b983812e615e8a" }
+hayro-syntax = { git = "https://github.com/storytold/pdfcraft", rev = "7437bde378f43856eada40af25b983812e615e8a" }
+hayro-jbig2 = { git = "https://github.com/storytold/pdfcraft", rev = "7437bde378f43856eada40af25b983812e615e8a" }
+lopdf = { git = "https://github.com/storytold/pdfcraft", rev = "7437bde378f43856eada40af25b983812e615e8a" }
+
+[profile.release]
+lto = "thin"
+codegen-units = 1
+strip = true
