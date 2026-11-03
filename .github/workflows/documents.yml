@@ -10,15 +10,18 @@ permissions:
 
 jobs:
   build:
-    name: Build — ${{ matrix.rid }}
+    name: Build — ${{ matrix.name }}
+    # A build takes 6-20 minutes; a stuck one stops here, not at GitHub's 6 hours.
+    timeout-minutes: 40
     strategy:
       fail-fast: false
       matrix:
         include:
-          - { rid: linux-x64, os: ubuntu-22.04, target: x86_64-unknown-linux-gnu, library: libkarvon_documents.so }
-          - { rid: win-x64, os: windows-latest, target: x86_64-pc-windows-msvc, library: karvon_documents.dll }
-          - { rid: osx-arm64, os: macos-latest, target: aarch64-apple-darwin, library: libkarvon_documents.dylib }
-          - { rid: osx-x64, os: macos-latest, target: x86_64-apple-darwin, library: libkarvon_documents.dylib }
+          - { name: linux-x64, os: ubuntu-22.04, builds: "linux-x64:x86_64-unknown-linux-gnu", library: libkarvon_documents.so }
+          - { name: win-x64, os: windows-latest, builds: "win-x64:x86_64-pc-windows-msvc", library: karvon_documents.dll }
+          # Both Macs on one runner, in one cargo run that builds their build scripts and macros once: macOS minutes
+          # cost the most.
+          - { name: osx, os: macos-latest, builds: "osx-arm64:aarch64-apple-darwin osx-x64:x86_64-apple-darwin", library: libkarvon_documents.dylib }
     runs-on: ${{ matrix.os }}
     defaults:
       run:
@@ -31,7 +34,7 @@ jobs:
         run: |
           rustup update stable
           rustup default stable
-          rustup target add ${{ matrix.target }}
+          for build in ${{ matrix.builds }}; do rustup target add "${build#*:}"; done
 
       - name: Version
         run: echo "VERSION=$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -1)" >> "$GITHUB_ENV"
@@ -39,13 +42,16 @@ jobs:
       - name: Build
         env:
           MACOSX_DEPLOYMENT_TARGET: "12.0"
-        run: cargo build --release --locked --target ${{ matrix.target }}
+        run: cargo build --release --locked $(for build in ${{ matrix.builds }}; do echo "--target ${build#*:}"; done)
 
       - name: Package
-        run: ${{ runner.os == 'Windows' && 'python' || 'python3' }} package.py target/${{ matrix.target }}/release/${{ matrix.library }} "$VERSION" ${{ matrix.rid }} packages
+        run: |
+          for build in ${{ matrix.builds }}; do
+            ${{ runner.os == 'Windows' && 'python' || 'python3' }} package.py "target/${build#*:}/release/${{ matrix.library }}" "$VERSION" "${build%%:*}" packages
+          done
 
       - uses: actions/upload-artifact@v4
         with:
-          name: karvon-documents-${{ matrix.rid }}
+          name: karvon-documents-${{ matrix.name }}
           path: native/documents/packages/*
           if-no-files-found: error
