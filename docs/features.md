@@ -334,6 +334,26 @@ A file Claude opens or saves shows in Karvon (its tab drawn again if it is open)
 A script that reads or writes such files with python-docx, openpyxl, python-pptx or pypdf in the command, or
 `soffice --convert-to`, is sent to these tools while "Before the shell" (MCP Servers > karvon) is on.
 
+## Browser (View > Browser)
+
+Karvon's own Chrome: the installed Google Chrome (or Chromium, or Edge) with a profile of Karvon's, in its own window,
+which Claude Code drives. Chrome does not allow remote control of your everyday profile, so this one is Karvon's: the
+sites you sign in to there stay signed in, its cookies stay, and Chrome's password manager keeps what you save in it. It
+stays open when Karvon closes, and Karvon finds it again the next time. The Browser window starts and closes it, opens
+an address, shows its tabs (a click brings one to the front), and keeps the sign-ins Karvon fills in for Claude.
+
+- `browser_open` opens a page (in a new tab), back, forward, reload; `browser_snapshot` reads the page as an outline (its
+  headings, text and controls, each control with a ref), cheaper than a picture; `browser_screenshot` is the picture.
+- `browser_click`, `browser_type`, `browser_select` and `browser_press` act on a control by its ref, as the mouse and the
+  keyboard do, and wait for a page they open; `browser_wait` waits for a text.
+- `browser_logs` is the page's console (errors, dialogs) or its network (each request and its status); `browser_eval`
+  runs a script in it; `browser_tabs` lists, chooses and closes tabs.
+- `browser_login` signs in with a sign-in saved in the Browser window: Karvon types the password into the page itself, so
+  Claude never sees it, and `browser_type` refuses a password field.
+
+This machine's sites and those open in the browser already go at once; a site not open yet, a form sent, a script and
+a sign-in ask first. A confirm or prompt a page shows is turned down, an alert closed, and both said in its console.
+
 ## Terminal
 
 Your `$SHELL` in a real pty, in the solution folder; a console app's own console while it runs (see Build and run).

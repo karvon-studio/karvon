@@ -1,0 +1,86 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:v="using:Karvon.Views"
+             xmlns:b="using:Karvon.Browser"
+             xmlns:bvm="using:Karvon.Browser.ViewModels"
+             x:Class="Karvon.Browser.Views.BrowserView"
+             x:DataType="bvm:BrowserViewModel">
+  <UserControl.Styles>
+    <StyleInclude Source="avares://Karvon.Core/Themes/ExplorerStyles.axaml" />
+    <Style Selector="Grid.row">
+      <Setter Property="MinHeight" Value="24" />
+      <Setter Property="Background" Value="Transparent" />
+    </Style>
+    <Style Selector="Grid.row:pointerover">
+      <Setter Property="Background" Value="#2A2D2E" />
+    </Style>
+    <Style Selector="Grid.row TextBlock">
+      <Setter Property="VerticalAlignment" Value="Center" />
+      <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+    </Style>
+  </UserControl.Styles>
+
+  <DockPanel>
+    <!-- Start, stop, an address in the current tab -->
+    <Border DockPanel.Dock="Top" Padding="4,2">
+      <Grid ColumnDefinitions="Auto,*,Auto">
+        <StackPanel Orientation="Horizontal" Spacing="2">
+          <Button Name="StartButton" Classes="tbi" Command="{Binding StartCommand}" IsVisible="{Binding !IsRunning}" ToolTip.Tip="Start Karvon's Chrome"><v:VsIcon Kind="DockerPlay" /></Button>
+          <Button Name="StopButton" Classes="tbi" Command="{Binding StopCommand}" IsVisible="{Binding IsRunning}" ToolTip.Tip="Close Karvon's Chrome"><v:VsIcon Kind="DockerStop" /></Button>
+          <TextBlock Name="StatusText" Text="{Binding StatusText}" Classes="dkMuted" FontSize="11.5" Margin="6,0,10,0" VerticalAlignment="Center" />
+        </StackPanel>
+        <TextBox Name="AddressBox" Grid.Column="1" Classes="search" Text="{Binding Address}" PlaceholderText="An address to open (localhost:5000, https://...)" MinHeight="22">
+          <TextBox.KeyBindings>
+            <KeyBinding Gesture="Enter" Command="{Binding GoCommand}" />
+          </TextBox.KeyBindings>
+        </TextBox>
+        <Button Name="GoButton" Grid.Column="2" Classes="tbi" Command="{Binding GoCommand}" ToolTip.Tip="Open" Margin="2,0,0,0"><v:VsIcon Kind="ArrowRight" /></Button>
+      </Grid>
+    </Border>
+
+    <ScrollViewer HorizontalScrollBarVisibility="Disabled">
+      <StackPanel Margin="10,4">
+        <!-- The tabs: a click brings one to the front of Chrome's window -->
+        <TextBlock Text="Tabs" Classes="dkHeader" IsVisible="{Binding IsRunning}" />
+        <ItemsControl Name="TabList" ItemsSource="{Binding Tabs}">
+          <ItemsControl.ItemTemplate>
+            <DataTemplate x:DataType="b:BrowserTab">
+              <Grid Classes="row" ColumnDefinitions="2*,3*">
+                <Button Classes="dkLink" HorizontalAlignment="Left" Command="{Binding $parent[UserControl].((bvm:BrowserViewModel)DataContext).ShowTabCommand}" CommandParameter="{Binding}"
+                        ToolTip.Tip="Bring it to the front">
+                  <TextBlock Text="{Binding Title}" TextTrimming="CharacterEllipsis" />
+                </Button>
+                <TextBlock Grid.Column="1" Text="{Binding Url}" Classes="dkMuted" FontFamily="{StaticResource VsCodeFont}" FontSize="11.5" />
+              </Grid>
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+        <StackPanel IsVisible="{Binding !IsRunning}" Spacing="6" MaxWidth="720" HorizontalAlignment="Left" Margin="0,4,0,8">
+          <TextBlock Classes="dkMuted" TextWrapping="Wrap"
+                     Text="Karvon's Chrome opens in its own window with a profile of Karvon's: the sites you sign in to stay signed in, and Chrome's password manager keeps what you save. Claude Code opens pages, reads, clicks and types in it with its browser tools; a site not open yet, a form sent and a script ask you first." />
+          <TextBlock Name="ProfileText" Classes="dkMuted" FontSize="11" Text="{Binding ProfileText}" />
+        </StackPanel>
+
+        <!-- The sign-ins Karvon fills in for Claude (browser_login), their passwords in the vault -->
+        <Grid ColumnDefinitions="*,Auto" Margin="0,10,0,2">
+          <TextBlock Text="Saved sign-ins" Classes="dkHeader" VerticalAlignment="Center" />
+          <Button Name="AddLoginButton" Grid.Column="1" Classes="tbi" Command="{Binding AddLoginCommand}" IsEnabled="{Binding CanKeepLogins}" ToolTip.Tip="Add a Sign-in…"><v:VsIcon Kind="Plus" /></Button>
+        </Grid>
+        <ItemsControl Name="LoginList" ItemsSource="{Binding Logins}">
+          <ItemsControl.ItemTemplate>
+            <DataTemplate x:DataType="b:BrowserLogin">
+              <Grid Classes="row" ColumnDefinitions="2*,2*,Auto">
+                <TextBlock Text="{Binding Host}" />
+                <TextBlock Grid.Column="1" Text="{Binding Username}" Classes="dkMuted" />
+                <Button Grid.Column="2" Classes="tbi" Command="{Binding $parent[UserControl].((bvm:BrowserViewModel)DataContext).RemoveLoginCommand}" CommandParameter="{Binding}"
+                        ToolTip.Tip="Forget"><v:VsIcon Kind="Trash" /></Button>
+              </Grid>
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+        <TextBlock Classes="dkMuted" FontSize="11.5" TextWrapping="Wrap" IsVisible="{Binding !HasLogins}" MaxWidth="720" HorizontalAlignment="Left"
+                   Text="None yet. A sign-in saved here is filled into a site's page by Karvon when Claude asks (browser_login): its password stays in Karvon's vault, and Claude never sees it." />
+      </StackPanel>
+    </ScrollViewer>
+  </DockPanel>
+</UserControl>

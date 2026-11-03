@@ -1,0 +1,37 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:bvm="using:Karvon.Browser.ViewModels"
+             x:Class="Karvon.Browser.Views.BrowserOverlay"
+             x:DataType="bvm:BrowserViewModel">
+  <UserControl.Styles>
+    <StyleInclude Source="avares://Karvon.Core/Themes/ExplorerStyles.axaml" />
+  </UserControl.Styles>
+
+  <!-- Over the window: the Browser window's dialogs. Clicks pass through otherwise. -->
+  <Panel Name="DialogLayer" IsVisible="{Binding HasDialog}" Background="#99000000">
+    <ContentControl Content="{Binding Dialog}" HorizontalAlignment="Center" VerticalAlignment="Center">
+      <ContentControl.DataTemplates>
+        <DataTemplate DataType="bvm:AddLoginDialog">
+          <Border Classes="dkCard" Width="460" Padding="22,18" Background="#2B2B2F">
+            <StackPanel Spacing="8">
+              <TextBlock Text="{Binding Title}" FontSize="16" FontWeight="SemiBold" />
+              <TextBlock Text="Site" Classes="dkMuted" />
+              <TextBox Name="SiteBox" Classes="dkField" Text="{Binding Site}" PlaceholderText="https://example.com" />
+              <TextBlock Text="Name" Classes="dkMuted" />
+              <TextBox Name="UsernameBox" Classes="dkField" Text="{Binding Username}" PlaceholderText="you@example.com" />
+              <TextBlock Text="Password" Classes="dkMuted" />
+              <TextBox Name="PasswordBox" Classes="dkField" PasswordChar="•" RevealPassword="False" Text="{Binding Password}" />
+              <TextBlock Classes="dkMuted" FontSize="11" TextWrapping="Wrap"
+                         Text="The password goes into Karvon's vault. Karvon types it into the site's page when Claude asks to sign in, after you allow it; Claude never sees it." />
+              <TextBlock Name="Problem" Text="{Binding Problem}" Foreground="#F14C4C" TextWrapping="Wrap" IsVisible="{Binding Problem, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+              <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right" Margin="0,6,0,0">
+                <Button Classes="dkOutline" Command="{Binding CancelCommand}" Content="Cancel" IsCancel="True" />
+                <Button Classes="dkPrimary" Command="{Binding ConfirmCommand}" Content="{Binding ConfirmText}" IsEnabled="{Binding CanConfirm}" IsDefault="True" />
+              </StackPanel>
+            </StackPanel>
+          </Border>
+        </DataTemplate>
+      </ContentControl.DataTemplates>
+    </ContentControl>
+  </Panel>
+</UserControl>
