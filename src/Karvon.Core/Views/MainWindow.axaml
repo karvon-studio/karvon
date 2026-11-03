@@ -35,6 +35,7 @@
     <KeyBinding Gesture="Ctrl+Alt+I" Command="{Binding ShowImmediateWindowCommand}" />
     <KeyBinding Gesture="Ctrl+Alt+E" Command="{Binding ShowExceptionSettingsCommand}" />
     <KeyBinding Gesture="Ctrl+Alt+F2" Command="{Binding ShowDiagnosticToolsCommand}" />
+    <KeyBinding Gesture="Ctrl+Shift+F9" Command="{Binding DeleteAllBreakpointsCommand}" />
   </Window.KeyBindings>
 
   <DockPanel>
@@ -46,6 +47,7 @@
           <MenuItem Header="_Project..." InputGesture="Ctrl+Shift+N" Click="OnNewProject" />
         </MenuItem>
         <MenuItem Header="_Open Project/Solution..." InputGesture="Ctrl+Shift+O" Command="{Binding OpenSolutionCommand}" />
+        <MenuItem Header="Open F_ile..." InputGesture="Ctrl+O" Command="{Binding OpenFileCommand}" />
         <MenuItem Header="Open _Folder..." Command="{Binding OpenFolderCommand}" />
         <MenuItem Header="Clone _Repository..." Click="OnCloneRepository" />
         <MenuItem Name="RecentMenu" Header="Recent _Solutions" />
@@ -60,9 +62,11 @@
       <MenuItem Header="_Edit">
         <MenuItem Header="_Undo" InputGesture="Ctrl+Z" Click="OnUndo" />
         <MenuItem Header="_Redo" InputGesture="Ctrl+Y" Click="OnRedo" />
+        <MenuItem Header="_Duplicate" InputGesture="Ctrl+D" Click="OnDuplicate" />
         <Separator />
         <MenuItem Header="_Find..." InputGesture="Ctrl+F" Click="OnFind" />
         <MenuItem Header="Find in _Files..." InputGesture="Ctrl+Shift+F" Click="OnFindInFiles" />
+        <MenuItem Header="Go To _Line..." InputGesture="Ctrl+G" Click="OnGoToLine" />
         <Separator />
         <MenuItem Header="_Advanced">
           <!-- Avalonia's KeyGesture cannot express chords, so the chord is shown as text. -->
@@ -71,6 +75,34 @@
               <Grid ColumnDefinitions="*,Auto">
                 <TextBlock Text="Format Document" />
                 <TextBlock Grid.Column="1" Text="Ctrl+K, Ctrl+D" Margin="32,0,0,0" Foreground="{StaticResource VsGrayTextBrush}" />
+              </Grid>
+            </MenuItem.Header>
+          </MenuItem>
+          <MenuItem Header="Make _Uppercase" InputGesture="Ctrl+Shift+U" Click="OnMakeUppercase" />
+          <MenuItem Header="Make _Lowercase" InputGesture="Ctrl+U" Click="OnMakeLowercase" />
+          <MenuItem Header="Move Selected Lines U_p" InputGesture="Alt+Up" Click="OnMoveLinesUp" />
+          <MenuItem Header="Move Selected Lines Do_wn" InputGesture="Alt+Down" Click="OnMoveLinesDown" />
+          <MenuItem Click="OnCommentSelection">
+            <MenuItem.Header>
+              <Grid ColumnDefinitions="*,Auto">
+                <TextBlock Text="Comment Selection" />
+                <TextBlock Grid.Column="1" Text="Ctrl+K, Ctrl+C" Margin="32,0,0,0" Foreground="{StaticResource VsGrayTextBrush}" />
+              </Grid>
+            </MenuItem.Header>
+          </MenuItem>
+          <MenuItem Click="OnUncommentSelection">
+            <MenuItem.Header>
+              <Grid ColumnDefinitions="*,Auto">
+                <TextBlock Text="Uncomment Selection" />
+                <TextBlock Grid.Column="1" Text="Ctrl+K, Ctrl+U" Margin="32,0,0,0" Foreground="{StaticResource VsGrayTextBrush}" />
+              </Grid>
+            </MenuItem.Header>
+          </MenuItem>
+          <MenuItem Click="OnToggleLineComment">
+            <MenuItem.Header>
+              <Grid ColumnDefinitions="*,Auto">
+                <TextBlock Text="Toggle Line Comment" />
+                <TextBlock Grid.Column="1" Text="Ctrl+K, Ctrl+/" Margin="32,0,0,0" Foreground="{StaticResource VsGrayTextBrush}" />
               </Grid>
             </MenuItem.Header>
           </MenuItem>
@@ -115,9 +147,16 @@
         <MenuItem Header="Re_name..." InputGesture="F2" Click="OnRename" />
       </MenuItem>
       <MenuItem Name="ViewMenu" Header="_View">
-        <MenuItem Header="Solution _Explorer" Click="OnShowSolutionExplorer" />
-        <MenuItem Header="E_rror List" Click="OnShowErrorList" />
-        <MenuItem Header="_Output" Click="OnShowOutput" />
+        <MenuItem Header="Solution _Explorer" InputGesture="Ctrl+Alt+L" Click="OnShowSolutionExplorer" />
+        <MenuItem Click="OnShowErrorList">
+          <MenuItem.Header>
+            <Grid ColumnDefinitions="*,Auto">
+              <TextBlock Text="Error List" />
+              <TextBlock Grid.Column="1" Text="Ctrl+\, E" Margin="32,0,0,0" Foreground="{StaticResource VsGrayTextBrush}" />
+            </Grid>
+          </MenuItem.Header>
+        </MenuItem>
+        <MenuItem Header="_Output" InputGesture="Ctrl+Alt+O" Click="OnShowOutput" />
         <MenuItem Header="_Test Explorer" Click="OnShowTestExplorer" />
         <MenuItem Header="_Git Changes" Command="{Binding ShowGitChangesCommand}" />
         <!-- The modules' tool windows go here (MainWindow.Modules.cs) -->
@@ -129,6 +168,7 @@
             </Grid>
           </MenuItem.Header>
         </MenuItem>
+        <MenuItem Header="F_ull Screen" InputGesture="Shift+Alt+Enter" Click="OnFullScreen" />
         <Separator />
         <MenuItem Click="OnZoomIn">
           <MenuItem.Header>
@@ -188,11 +228,25 @@
         <MenuItem Header="Step Ou_t" InputGesture="Shift+F11" Command="{Binding StepOutCommand}" />
         <Separator />
         <MenuItem Header="Toggle _Breakpoint" InputGesture="F9" Click="OnToggleBreakpoint" />
-        <MenuItem Header="Delete _All Breakpoints" Command="{Binding DeleteAllBreakpointsCommand}" />
+        <MenuItem Header="Delete _All Breakpoints" InputGesture="Ctrl+Shift+F9" Command="{Binding DeleteAllBreakpointsCommand}" />
         <Separator />
-        <MenuItem Header="_Locals" Click="OnShowLocals" />
-        <MenuItem Header="_Watch" Click="OnShowWatch" />
-        <MenuItem Header="_Call Stack" Click="OnShowCallStack" />
+        <MenuItem Click="OnShowLocals">
+          <MenuItem.Header>
+            <Grid ColumnDefinitions="*,Auto">
+              <TextBlock Text="Locals" />
+              <TextBlock Grid.Column="1" Text="Ctrl+Alt+V, L" Margin="32,0,0,0" Foreground="{StaticResource VsGrayTextBrush}" />
+            </Grid>
+          </MenuItem.Header>
+        </MenuItem>
+        <MenuItem Click="OnShowWatch">
+          <MenuItem.Header>
+            <Grid ColumnDefinitions="*,Auto">
+              <TextBlock Text="Watch" />
+              <TextBlock Grid.Column="1" Text="Ctrl+Alt+W, 1" Margin="32,0,0,0" Foreground="{StaticResource VsGrayTextBrush}" />
+            </Grid>
+          </MenuItem.Header>
+        </MenuItem>
+        <MenuItem Header="_Call Stack" InputGesture="Ctrl+Alt+C" Click="OnShowCallStack" />
         <MenuItem Header="_Breakpoints" InputGesture="Ctrl+Alt+B" Command="{Binding ShowBreakpointsWindowCommand}" />
         <MenuItem Header="_Immediate" InputGesture="Ctrl+Alt+I" Command="{Binding ShowImmediateWindowCommand}" />
         <MenuItem Header="E_xception Settings" InputGesture="Ctrl+Alt+E" Command="{Binding ShowExceptionSettingsCommand}" />
@@ -223,7 +277,14 @@
             </Grid>
           </MenuItem.Header>
         </MenuItem>
-        <MenuItem Header="Run _Failed Tests" Command="{Binding RunFailedTestsCommand}" />
+        <MenuItem Command="{Binding RunFailedTestsCommand}">
+          <MenuItem.Header>
+            <Grid ColumnDefinitions="*,Auto">
+              <TextBlock Text="Run Failed Tests" />
+              <TextBlock Grid.Column="1" Text="Ctrl+R, F" Margin="32,0,0,0" Foreground="{StaticResource VsGrayTextBrush}" />
+            </Grid>
+          </MenuItem.Header>
+        </MenuItem>
         <MenuItem Header="Re_fresh Tests" Command="{Binding RefreshTestsCommand}" />
         <MenuItem Header="_Cancel Test Run" Command="{Binding CancelTestRunCommand}" />
         <Separator />

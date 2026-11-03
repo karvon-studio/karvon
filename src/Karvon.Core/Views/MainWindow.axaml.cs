@@ -21,7 +21,9 @@ public partial class MainWindow : Window, IDialogService
     // From the close being asked until it is done or cancelled (the Database Explorer is not made again meanwhile).
     bool _closing;
     bool _outputScrollPending;
-    Key? _chord;
+    // A Visual Studio chord's first key, as it is written ("Ctrl+R"), until the second.
+    string? _chord;
+    WindowState _beforeFullScreen;
 
     public MainWindow()
     {
@@ -127,6 +129,9 @@ public partial class MainWindow : Window, IDialogService
         var ctrl = PlatformKeys.HasCommand(e.KeyModifiers);
         if (e.Key is Key.LeftCtrl or Key.RightCtrl or Key.LeftShift or Key.RightShift or Key.LeftAlt or Key.RightAlt or Key.LWin or Key.RWin)
             return;
+        // The editor's chord waits for its second key (Ctrl+K, Ctrl+C / Ctrl+M, Ctrl+O): the key is the editor's.
+        if (ActiveHost is { IsInChord: true })
+            return;
         // A module's tool window key (Ctrl+Alt+S: the Database Explorer, as Visual Studio's Server Explorer).
         // Ctrl+Esc: Claude Code, as in the VS Code extension.
         if (Vm is { } toolVm && _moduleGestures.FirstOrDefault(g => g.Gesture.Matches(e)) is { Tool: { } tool })
@@ -163,34 +168,88 @@ public partial class MainWindow : Window, IDialogService
         if (FocusManager?.GetFocusedElement() is Visual focused
             && (focused is Exclr8.Terminal.TerminalControl || focused.FindAncestorOfType<Exclr8.Terminal.TerminalControl>() is not null))
             return;
-        // Visual Studio chords: Ctrl+R, A / Ctrl+R, L / Ctrl+R, Ctrl+R / Ctrl+E, T.
+        // Visual Studio chords: Ctrl+R, A / Ctrl+R, L / Ctrl+R, F / Ctrl+R, Ctrl+R / Ctrl+E, T / Ctrl+\, E /
+        // Ctrl+Alt+V, L / Ctrl+Alt+W, 1.
         if (_chord is { } first && Vm is { } chordVm)
         {
             _chord = null;
             e.Handled = true;
             switch (first, e.Key)
             {
-                case (Key.R, Key.A) when ctrl:
+                case ("Ctrl+R", Key.A) when ctrl:
                     chordVm.DebugAllTestsCommand.Execute(null);
                     break;
-                case (Key.R, Key.A):
+                case ("Ctrl+R", Key.A):
                     chordVm.RunAllTestsCommand.Execute(null);
                     break;
-                case (Key.R, Key.L):
+                case ("Ctrl+R", Key.L):
                     chordVm.RepeatLastTestRunCommand.Execute(null);
                     break;
-                case (Key.R, Key.R):
+                case ("Ctrl+R", Key.F) when !ctrl:
+                    chordVm.RunFailedTestsCommand.Execute(null);
+                    break;
+                case ("Ctrl+R", Key.R):
                     OnRename(this, new RoutedEventArgs());
                     break;
-                case (Key.E, Key.T):
+                case ("Ctrl+E", Key.T):
                     chordVm.ShowToolWindow(ToolWindows.TestExplorer);
+                    break;
+                case ("Ctrl+\\", Key.E):
+                    chordVm.ShowToolWindow(ToolWindows.ErrorList);
+                    break;
+                case ("Ctrl+Alt+V", Key.L):
+                    chordVm.ShowToolWindow(ToolWindows.Locals);
+                    break;
+                case ("Ctrl+Alt+W", Key.D1 or Key.NumPad1):
+                    chordVm.ShowToolWindow(ToolWindows.Watch);
+                    break;
+                default:
+                    chordVm.SetStatus($"The key combination ({first}, {e.Key}) is not a command.");
                     break;
             }
             return;
         }
-        if (ctrl && !e.KeyModifiers.HasFlag(KeyModifiers.Shift) && e.Key is Key.R or Key.E)
+        var alt = e.KeyModifiers.HasFlag(KeyModifiers.Alt);
+        var shift = e.KeyModifiers.HasFlag(KeyModifiers.Shift);
+        if (ctrl && !shift && (alt ? e.Key is Key.V or Key.W : e.Key is Key.R or Key.E or Key.OemPipe or Key.OemBackslash) && Vm is { } waitingVm)
         {
-            _chord = e.Key;
+            _chord = (alt ? "Ctrl+Alt+" : "Ctrl+") + (e.Key is Key.OemPipe or Key.OemBackslash ? "\\" : e.Key.ToString());
+            waitingVm.SetStatus($"({_chord}) was pressed. Waiting for second key of chord...");
+            e.Handled = true;
+            return;
+        }
+        // Visual Studio's tool windows: Ctrl+Alt+L Solution Explorer, Ctrl+Alt+O Output, Ctrl+Alt+C Call Stack.
+        if (ctrl && alt && !shift && e.Key is Key.L or Key.O or Key.C)
+        {
+            if (e.Key == Key.L)
+                OnShowSolutionExplorer(this, new RoutedEventArgs());
+            else
+                Vm?.ShowToolWindow(e.Key == Key.O ? ToolWindows.Output : ToolWindows.CallStack);
+            e.Handled = true;
+            return;
+        }
+        if (ctrl && shift && !alt && e.Key == Key.F)
+        {
+            OnFindInFiles(this, new RoutedEventArgs());
+            e.Handled = true;
+            return;
+        }
+        // Ctrl+O here, not a key binding: the window's key bindings come before the editor's chords.
+        if (ctrl && !shift && !alt && e.Key == Key.O && Vm is { } openVm)
+        {
+            openVm.OpenFileCommand.Execute(null);
+            e.Handled = true;
+            return;
+        }
+        if (ctrl && !shift && !alt && e.Key == Key.G && ActiveHost is not null)
+        {
+            OnGoToLine(this, new RoutedEventArgs());
+            e.Handled = true;
+            return;
+        }
+        if (e.Key == Key.Enter && e.KeyModifiers == (KeyModifiers.Shift | KeyModifiers.Alt))
+        {
+            OnFullScreen(this, new RoutedEventArgs());
             e.Handled = true;
             return;
         }
@@ -205,8 +264,8 @@ public partial class MainWindow : Window, IDialogService
             ExplorerSearch.Focus();
             e.Handled = true;
         }
-        // Ctrl+Tab, Ctrl on a Mac too (Cmd+Tab is the system's).
-        else if (e.KeyModifiers.HasFlag(KeyModifiers.Control) && e.Key == Key.Tab && Vm is { Documents.Count: > 1 } vm)
+        // Ctrl+Tab, Ctrl on a Mac too (Cmd+Tab is the system's), and Visual Studio's Ctrl+F6: the next document (Shift: the one before).
+        else if ((e.KeyModifiers.HasFlag(KeyModifiers.Control) && e.Key == Key.Tab || ctrl && !alt && e.Key == Key.F6) && Vm is { Documents.Count: > 1 } vm)
         {
             var i = vm.ActiveDocument is null ? 0 : vm.Documents.IndexOf(vm.ActiveDocument);
             var step = e.KeyModifiers.HasFlag(KeyModifiers.Shift) ? -1 : 1;
@@ -942,11 +1001,39 @@ public partial class MainWindow : Window, IDialogService
         if (Vm is not { } vm || vm.Solution is null)
             return;
         var initial = ActiveHost?.Editor.SelectedText ?? "";
-        if (await PromptAsync("Find in Files", "Find what:", initial) is { Length: > 0 } text)
+        if (await (vm.Dialogs ?? this).PromptAsync("Find in Files", "Find what:", initial) is { Length: > 0 } text)
             await vm.FindInFilesAsync(text);
     }
 
+    /// <summary>Edit > Go To Line (Ctrl+G): the line asked for in the active editor.</summary>
+    async void OnGoToLine(object? sender, RoutedEventArgs e)
+    {
+        if (Vm is not { } vm || ActiveHost is not { } host)
+            return;
+        var lines = host.Document.LineCount;
+        var current = host.Editor.TextArea.Caret.Line.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        if (await (vm.Dialogs ?? this).PromptAsync("Go To Line", $"Line number (1 - {lines}):", current) is { } answer
+            && int.TryParse(answer.Trim(), System.Globalization.CultureInfo.InvariantCulture, out var line))
+            host.GoToLine(Math.Clamp(line, 1, lines));
+    }
+
     void OnFormatDocument(object? sender, RoutedEventArgs e) => _ = ActiveHost?.FormatDocumentAsync();
+
+    void OnDuplicate(object? sender, RoutedEventArgs e) => ActiveHost?.Duplicate();
+
+    void OnMakeUppercase(object? sender, RoutedEventArgs e) => ActiveHost?.ChangeCase(upper: true);
+
+    void OnMakeLowercase(object? sender, RoutedEventArgs e) => ActiveHost?.ChangeCase(upper: false);
+
+    void OnMoveLinesUp(object? sender, RoutedEventArgs e) => ActiveHost?.MoveSelectedLines(down: false);
+
+    void OnMoveLinesDown(object? sender, RoutedEventArgs e) => ActiveHost?.MoveSelectedLines(down: true);
+
+    void OnCommentSelection(object? sender, RoutedEventArgs e) => ActiveHost?.ToggleLineComment(comment: true);
+
+    void OnUncommentSelection(object? sender, RoutedEventArgs e) => ActiveHost?.ToggleLineComment(comment: false);
+
+    void OnToggleLineComment(object? sender, RoutedEventArgs e) => ActiveHost?.ToggleLineComment(comment: null);
 
     void OnGoToDefinition(object? sender, RoutedEventArgs e)
     {
@@ -982,6 +1069,18 @@ public partial class MainWindow : Window, IDialogService
     // ---- Zoom -------------------------------------------------------------------------------------------------
 
     void OnZoomIn(object? sender, RoutedEventArgs e) => ActiveHost?.ZoomIn();
+
+    /// <summary>View > Full Screen (Shift+Alt+Enter): the window over the whole screen, or back as it was.</summary>
+    void OnFullScreen(object? sender, RoutedEventArgs e)
+    {
+        if (WindowState == WindowState.FullScreen)
+            WindowState = _beforeFullScreen;
+        else
+        {
+            _beforeFullScreen = WindowState;
+            WindowState = WindowState.FullScreen;
+        }
+    }
 
     void OnZoomOut(object? sender, RoutedEventArgs e) => ActiveHost?.ZoomOut();
 

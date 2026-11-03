@@ -304,6 +304,16 @@ public partial class MainViewModel : ObservableObject
         await OpenSolutionAsync(folder);
     }
 
+    /// <summary>File > Open > File (Ctrl+O): the files picked, each in an editor.</summary>
+    [RelayCommand]
+    async Task OpenFile()
+    {
+        if (Dialogs is null)
+            return;
+        foreach (var file in await Dialogs.PickFilesAsync("Open File"))
+            OpenDocument(file);
+    }
+
     public async Task OpenSolutionAsync(string path)
     {
         SolutionInfo solution;

@@ -48,6 +48,9 @@ public sealed partial class EditorHost : IDisposable, IDebugLineSource
     bool _flushScheduled;
     bool _chordCtrlK;
     bool _chordCtrlM;
+
+    /// <summary>Ctrl+K or Ctrl+M was pressed: the next key is the chord's (Ctrl+M, Ctrl+O, not the window's Ctrl+O).</summary>
+    public bool IsInChord => _chordCtrlK || _chordCtrlM;
     CompletionWindow? _completionWindow;
     OverloadInsightWindow? _insightWindow;
     CancellationTokenSource? _diagnosticsCts;
@@ -843,6 +846,7 @@ public sealed partial class EditorHost : IDisposable, IDebugLineSource
         // The command modifier: Ctrl, Cmd on a Mac.
         var ctrl = Karvon.Views.PlatformKeys.HasCommand(e.KeyModifiers);
         var shift = e.KeyModifiers.HasFlag(KeyModifiers.Shift);
+        var alt = e.KeyModifiers.HasFlag(KeyModifiers.Alt);
         if (_chordCtrlM)
         {
             _chordCtrlM = false;
@@ -860,6 +864,7 @@ public sealed partial class EditorHost : IDisposable, IDebugLineSource
                 case Key.D when ctrl: _ = FormatDocumentAsync(); break;
                 case Key.C when ctrl: ToggleLineComment(comment: true); break;
                 case Key.U when ctrl: ToggleLineComment(comment: false); break;
+                case Key.OemQuestion or Key.Divide when ctrl: ToggleLineComment(comment: null); break;
                 default: StatusMessage?.Invoke("The key combination (Ctrl+K, " + e.Key + ") is not a command."); break;
             }
             return;
@@ -926,6 +931,42 @@ public sealed partial class EditorHost : IDisposable, IDebugLineSource
                 break;
             case Key.F9 when _breakpoints is not null:
                 ToggleBreakpoint(Editor.TextArea.Caret.Line);
+                e.Handled = true;
+                break;
+            // Visual Studio's text editing keys (EditorHost.EditCommands.cs).
+            case Key.D when ctrl && !shift && !alt:
+                Duplicate();
+                e.Handled = true;
+                break;
+            case Key.Up or Key.Down when e.KeyModifiers == KeyModifiers.Alt:
+                MoveSelectedLines(down: e.Key == Key.Down);
+                e.Handled = true;
+                break;
+            case Key.L when ctrl && !alt:
+                if (shift)
+                    DeleteLines();
+                else
+                    CutLines();
+                e.Handled = true;
+                break;
+            case Key.Enter when ctrl && !alt:
+                OpenLine(below: shift);
+                e.Handled = true;
+                break;
+            case Key.U when ctrl && !alt:
+                ChangeCase(upper: shift);
+                e.Handled = true;
+                break;
+            case Key.OemCloseBrackets when ctrl && !alt:
+                GoToMatchingBrace(select: shift);
+                e.Handled = true;
+                break;
+            case Key.W when ctrl && !shift && !alt:
+                SelectCurrentWord();
+                e.Handled = true;
+                break;
+            case Key.F3 when ctrl && !alt:
+                FindNextSelected(backward: shift);
                 e.Handled = true;
                 break;
         }
@@ -1309,15 +1350,16 @@ public sealed partial class EditorHost : IDisposable, IDebugLineSource
         }
     }
 
-    void ToggleLineComment(bool comment)
+    /// <summary>Ctrl+K, Ctrl+C: the selected lines commented out; Ctrl+K, Ctrl+U: back in; Ctrl+K, Ctrl+/ (null): out unless all are.</summary>
+    public void ToggleLineComment(bool? comment)
     {
-        var prefix = FilePath.EndsWith(".cs", StringComparison.OrdinalIgnoreCase) ? "//" : IsRazor ? "@*" : null;
-        if (prefix is null)
+        if (CommentSyntax(FilePath) is not var (prefix, suffix))
             return;
-        var suffix = prefix == "@*" ? "*@" : "";
         var selection = Editor.TextArea.Selection;
         var startLine = Document.GetLineByOffset(selection.IsEmpty ? Editor.CaretOffset : selection.SurroundingSegment.Offset).LineNumber;
         var endLine = Document.GetLineByOffset(selection.IsEmpty ? Editor.CaretOffset : selection.SurroundingSegment.EndOffset).LineNumber;
+        var commentOut = comment ?? Enumerable.Range(startLine, endLine - startLine + 1).Select(n => Document.GetText(Document.GetLineByNumber(n)).TrimStart())
+            .Any(text => text.Length > 0 && !text.StartsWith(prefix, StringComparison.Ordinal));
         Document.BeginUpdate();
         try
         {
@@ -1326,7 +1368,7 @@ public sealed partial class EditorHost : IDisposable, IDebugLineSource
                 var line = Document.GetLineByNumber(n);
                 var text = Document.GetText(line);
                 var indent = text.Length - text.TrimStart().Length;
-                if (comment)
+                if (commentOut)
                 {
                     if (text.Trim().Length == 0)
                         continue;
