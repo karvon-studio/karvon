@@ -238,6 +238,30 @@ public class DocumentsTests
         Assert.False(rule.Matches("pip install requests"));
     }
 
+    [Fact]
+    public void Linux_macOS_and_Windows_have_a_build_of_the_engines()
+    {
+        Assert.Equal(["linux-x64", "osx-arm64", "osx-x64", "win-x64"], DocumentEnginesLocator.AllBuilds.Keys.Order());
+        Assert.All(DocumentEnginesLocator.AllBuilds.Values, sha256 => Assert.Matches("^[0-9a-f]{64}$", sha256));
+    }
+
+    [Fact]
+    public async Task Every_platforms_build_of_the_engines_is_as_pinned()
+    {
+        Assert.SkipUnless(Environment.GetEnvironmentVariable("KARVON_DOWNLOAD_LIVE") == "1", "Set KARVON_DOWNLOAD_LIVE=1 to download every platform's document engines.");
+        var ct = TestContext.Current.CancellationToken;
+        using var http = new HttpClient();
+        foreach (var (platform, sha256) in DocumentEnginesLocator.AllBuilds)
+        {
+            var bytes = await http.GetByteArrayAsync($"https://github.com/{Karvon.Updates.UpdateFeed.Repository}/releases/download/documents-{DocumentEnginesLocator.Version}/karvon-documents-{DocumentEnginesLocator.Version}-{platform}.zip", ct);
+            Assert.Equal(sha256, Convert.ToHexStringLower(System.Security.Cryptography.SHA256.HashData(bytes)));
+            using var zip = new System.IO.Compression.ZipArchive(new MemoryStream(bytes));
+            var library = platform.StartsWith("win", StringComparison.Ordinal) ? "karvon_documents.dll" : platform.StartsWith("osx", StringComparison.Ordinal) ? "libkarvon_documents.dylib" : "libkarvon_documents.so";
+            Assert.NotNull(zip.GetEntry(library));
+            Assert.Contains(zip.Entries, entry => entry.FullName.StartsWith("licenses/pdfcraft-", StringComparison.Ordinal));
+        }
+    }
+
     /// <summary>The library built from native/documents (cargo build --release), or the one KARVON_DOCUMENTS_LIBRARY names.</summary>
     static string? BuiltLibrary()
     {
