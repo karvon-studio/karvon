@@ -246,7 +246,7 @@
         <MenuItem Header="Compare with _Unmodified" Command="{Binding CompareActiveWithUnmodifiedCommand}" />
         <MenuItem Header="View Branch _History" Command="{Binding ShowHistoryCommand}" />
         <MenuItem Header="_Blame (Annotate)" Command="{Binding ToggleBlameCommand}" />
-        <MenuItem Header="Show _Line Blame" ToggleType="CheckBox" IsChecked="{Binding LineBlame}" />
+        <MenuItem Header="Show _Line Blame" ToggleType="CheckBox" IsChecked="{Binding LineBlame}" Command="{Binding ToggleLineBlameCommand}" />
         <MenuItem Header="Manage _Worktrees" Command="{Binding ManageWorktreesCommand}" />
         <Separator />
         <MenuItem Header="_Fetch" Command="{Binding FetchCommand}" />

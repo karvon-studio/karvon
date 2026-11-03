@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using Avalonia.Headless.XUnit;
+using Avalonia.LogicalTree;
 using Karvon.Git;
 using Karvon.ViewModels;
 using Karvon.Views;
@@ -204,9 +205,15 @@ public class GitExtrasTests
         Assert.Null(doc.Host.LineBlameText);
         await WaitUntil(() => doc.Host.LineBlameText == "Not committed yet", TimeSpan.FromSeconds(10));
 
-        vm.LineBlame = false;
+        // Git > Show Line Blame clicked: Avalonia's menu item runs its command (a check box item does not check itself).
+        var item = window.GetLogicalDescendants().OfType<Avalonia.Controls.MenuItem>().Single(i => i.Header as string == "Show _Line Blame");
+        item.Command!.Execute(item.CommandParameter);
+        Assert.False(vm.LineBlame);
+        Assert.False(item.IsChecked);
         Assert.Null(doc.Host.LineBlameText);
-        vm.LineBlame = true;
+        item.Command.Execute(item.CommandParameter);
+        Assert.True(vm.LineBlame);
+        Assert.True(item.IsChecked);
         window.Close();
     }
 }

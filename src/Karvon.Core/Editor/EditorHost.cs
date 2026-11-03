@@ -30,6 +30,8 @@ public sealed partial class EditorHost : IDisposable, IDebugLineSource
     static readonly IBrush LineNumberBrush = new SolidColorBrush(Color.Parse("#2B91AF"));
     static readonly IBrush SelectionBrush = new SolidColorBrush(Color.Parse("#264F78"));
 
+    static EditorHost() => FindPanel.Install();
+
     readonly DiagnosticRenderer _diagnostics;
     readonly TextMate.Installation? _textMate;
     readonly TextEditor _primary;

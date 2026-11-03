@@ -18,6 +18,7 @@ public partial class App : Application
     {
         // What no code caught does not end Karvon Studio: it is logged and shown.
         Services.ErrorReports.Install();
+        Editor.FindPanel.Install();
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
             Modules.ModuleCatalog.Create = BuiltInModules.Create;

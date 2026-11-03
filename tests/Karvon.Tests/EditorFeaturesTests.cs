@@ -1,9 +1,11 @@
+using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Headless;
 using Avalonia.Headless.XUnit;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Threading;
+using Avalonia.VisualTree;
 using AvaloniaEdit;
 using Karvon.Editor;
 using Karvon.Modules;
@@ -41,6 +43,27 @@ public class EditorFeaturesTests
         window.Show();
         await vm.OpenSolutionAsync(dir);
         return (vm, window, file);
+    }
+
+    [AvaloniaFact]
+    public async Task The_find_panels_X_closes_it()
+    {
+        var (vm, window, file) = await OpenFolderAsync("notes.txt", "foo bar foo baz foo\n");
+        var host = vm.OpenDocument(file)!.Host;
+        await WaitUntil(() => host.Editor.TextArea.IsEffectivelyVisible && TopLevel.GetTopLevel(host.Editor) is not null, TimeSpan.FromSeconds(5));
+        var panel = host.Editor.SearchPanel;
+        panel.Open();
+        panel.SearchPattern = "foo";
+        Dispatcher.UIThread.RunJobs();
+        var close = panel.GetVisualDescendants().OfType<Button>().Single(b => b.Command is CommunityToolkit.Mvvm.Input.IRelayCommand);
+        await WaitUntil(() => close.Bounds.Width > 0, TimeSpan.FromSeconds(5));
+        Assert.True(close.IsEffectivelyEnabled);
+        var point = close.TranslatePoint(new Point(close.Bounds.Width / 2, close.Bounds.Height / 2), window)!.Value;
+        window.MouseDown(point, MouseButton.Left);
+        window.MouseUp(point, MouseButton.Left);
+        Dispatcher.UIThread.RunJobs();
+        Assert.True(panel.IsClosed);
+        window.Close();
     }
 
     [AvaloniaFact]
