@@ -2,7 +2,7 @@
 # Linux packages for Karvon: .deb (Debian/Ubuntu: `karvon` command, menu entry and icon; apt installs the
 # dependencies), .AppImage (any distribution, no install) and .tar.gz (unpack anywhere).
 # None needs a .NET runtime: Karvon is published self-contained. Working on solutions still needs the
-# .NET SDK, as for any .NET IDE. Used by .github/workflows/release.yml and runnable locally:
+# .NET SDK, as for any .NET IDE. Run locally:
 #   dotnet publish src/Karvon -c Release -r linux-x64 --self-contained -o out -p:Version=1.2.3
 #   deploy/linux/package.sh out 1.2.3 dist
 # The AppImage needs appimagetool (APPIMAGETOOL or on PATH); without it the .deb and .tar.gz are built.
