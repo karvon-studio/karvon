@@ -9,7 +9,7 @@ using static Karvon.Tests.UiTests;
 
 namespace Karvon.Tests;
 
-/// <summary>Vitest's and Jest's tests in Test Explorer, found and run by the package's own copy.</summary>
+/// <summary>Vitest's, Jest's and Playwright's tests in Test Explorer, found and run by the package's own copy.</summary>
 public class JsTestFrameworkTests
 {
     static string NewPackage(string framework = "vitest")
@@ -170,5 +170,79 @@ public class JsTestFrameworkTests
         Assert.True(await vm.CloseSolutionCoreAsync());
         window.Close();
         Directory.Delete(dir, recursive: true);
+    }
+
+    [Fact]
+    public void Playwrights_report_gives_each_test_of_each_project_and_how_it_went()
+    {
+        var dir = Path.Combine(Path.GetTempPath(), "karvon-playwright-" + Guid.NewGuid().ToString("N"));
+        var framework = new PlaywrightFramework(dir, new Karvon.Modules.TestFrameworkStart(dir, "", _ => { }));
+        var json = $$$"""
+            {"config":{"rootDir":{{{System.Text.Json.JsonSerializer.Serialize(Path.Combine(dir, "tests"))}}},"projects":[{"name":"chromium"},{"name":"firefox"}]},
+             "suites":[{"title":"shop.spec.ts","file":"shop.spec.ts","line":0,"specs":[
+               {"title":"opens","file":"shop.spec.ts","line":3,"tests":[{"projectName":"chromium","status":"skipped","results":[]},{"projectName":"firefox","status":"skipped","results":[]}]}],
+               "suites":[{"title":"cart","file":"shop.spec.ts","line":5,"specs":[{"title":"adds","file":"shop.spec.ts","line":6,"tests":[
+                 {"projectName":"chromium","status":"expected","results":[{"status":"passed","duration":120}]},
+                 {"projectName":"firefox","status":"unexpected","results":[{"status":"failed","duration":80,
+                   "error":{"message":"Error: expect(locator).toBeVisible() failed","stack":"Error: expect(locator).toBeVisible() failed\n    at shop.spec.ts:8:3"}}]}]}]}]}]}
+            """;
+        var results = framework.Read(json);
+        Assert.Equal(["shop.spec.ts::opens [chromium]", "shop.spec.ts::opens [firefox]", "shop.spec.ts::cart > adds [chromium]", "shop.spec.ts::cart > adds [firefox]"],
+            results.Select(r => r.Item.Id.Replace("tests/", "")));
+        var failed = results[3];
+        Assert.Equal((Path.Combine(dir, "tests", "shop.spec.ts"), 6, TestState.Failed), (failed.Item.File, failed.Item.Line, failed.State));
+        Assert.Equal(("Error: expect(locator).toBeVisible() failed", "at shop.spec.ts:8:3"), (failed.Message, failed.Stack));
+        Assert.Equal((TestState.Passed, TimeSpan.FromMilliseconds(120)), (results[2].State, results[2].Duration));
+        Assert.Equal(TestState.Skipped, results[0].State);
+    }
+
+    [AvaloniaFact]
+    public async Task Playwright_runs_the_test_Claude_wrote_from_its_steps_in_the_browser()
+    {
+        Assert.SkipUnless(Environment.GetEnvironmentVariable("KARVON_TYPESCRIPT_LIVE") == "1", "Set KARVON_TYPESCRIPT_LIVE=1 to install Playwright from npm and run it.");
+        Assert.SkipUnless(Karvon.Browser.ChromeLocator.Find() is not null, "Chrome is not installed (the test runs in it).");
+        using var shop = new BrowserTests.Shop();
+        var dir = Path.Combine(Path.GetTempPath(), "karvon-playwright-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(Path.Combine(dir, "tests"));
+        File.WriteAllText(Path.Combine(dir, "package.json"), """{ "name": "shop-tests", "private": true, "devDependencies": { "@playwright/test": "^1.50.0" } }""");
+        // The installed Chrome: no browser of Playwright's to download.
+        File.WriteAllText(Path.Combine(dir, "playwright.config.ts"), """
+            import { defineConfig } from '@playwright/test';
+            export default defineConfig({ testDir: 'tests', use: { channel: 'chrome', headless: true } });
+            """);
+        var spec = Path.Combine(dir, "tests", "shop.spec.ts");
+        Karvon.Browser.BrowserStep[] steps =
+        [
+            new("goto", Text: shop.Url + "/"),
+            new("select", "combobox", "Size", Values: ["M"]),
+            new("click", "button", "Add to cart"),
+            new("expect", Text: "1 item"),
+            new("click", "link", "Sign in"),
+            new("login", "textbox", "Email", "nbk@example.com") { Site = shop.Url },
+            new("expect", Text: "password ok"),
+        ];
+        File.WriteAllText(spec, Karvon.Browser.BrowserTestWriter.Write(spec, "signs in and adds to the cart", steps, null));
+        var variable = Karvon.Browser.BrowserTestWriter.PasswordVariable(shop.Url);
+        Environment.SetEnvironmentVariable(variable, "s3cret!");
+        Assert.SkipUnless(await InstallAsync(dir), "Node.js is not installed.");
+        var vm = NewViewModel();
+        var window = new MainWindow { DataContext = vm, Width = 1280, Height = 800 };
+        window.Show();
+        try
+        {
+            await vm.OpenSolutionAsync(dir);
+            await vm.RunAllTestsCommand.ExecuteAsync(null);
+            Assert.True(vm.TestSummary.StartsWith("Test run finished: 1 test(s) (1 Passed", StringComparison.Ordinal), vm.TestSummary + "\n" + vm.TestsOutput.Document.Text);
+            var file = Assert.Single(Assert.Single(vm.TestRoots).Children);
+            Assert.Equal(("tests/shop.spec.ts", "signs in and adds to the cart", TestState.Passed), (file.Name, file.Children.Single().Name, file.Children.Single().State));
+            Snapshot(window, "playwright-tests");
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable(variable, null);
+            Assert.True(await vm.CloseSolutionCoreAsync());
+            window.Close();
+            Directory.Delete(dir, recursive: true);
+        }
     }
 }

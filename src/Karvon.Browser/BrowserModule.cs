@@ -65,7 +65,7 @@ public sealed class BrowserModule : KarvonModule
         if (!Browser.IsRunning)
             await Browser.FindRunningAsync(ct);
         return Browser;
-    }, Logins);
+    }, Logins, () => Workbench.Workspace);
 
     /// <summary>Karvon lets go of Chrome, which stays open.</summary>
     public override void Dispose()

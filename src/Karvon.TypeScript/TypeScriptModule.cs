@@ -22,7 +22,7 @@ public sealed class TypeScriptModule : KarvonModule
         + "references, rename and formatting, installed the first time one of them opens (no Node.js needed). In a folder, the "
         + "package.json scripts build, run and test it (with npm, pnpm, yarn or bun), and F5 debugs the app or a launch.json "
         + "configuration with js-debug, the JavaScript debugger of VS Code (installed the first time; it runs on Node.js). "
-        + "Test Explorer runs and debugs a package's Vitest or Jest tests. VS Code's HTML, CSS (with SCSS and Less) and JSON "
+        + "Test Explorer runs and debugs a package's Vitest, Jest or Playwright tests. VS Code's HTML, CSS (with SCSS and Less) and JSON "
         + "language servers serve those files (installed the first time one of them opens; they run on Node.js). In a folder with "
         + "its own ESLint, ESLint checks the JavaScript and TypeScript files as you type, once you let it run there.";
 
@@ -144,9 +144,9 @@ public sealed class TypeScriptModule : KarvonModule
 
     public override IReadOnlyList<Templates.ProjectTemplate> ProjectTemplates => TypeScriptTemplates.All;
 
-    /// <summary>Test Explorer: the Vitest and Jest tests of the packages that depend on them.</summary>
+    /// <summary>Test Explorer: the Vitest, Jest and Playwright tests of the packages that depend on them.</summary>
     public override IReadOnlyList<Testing.TestFramework> TestFrameworks(TestFrameworkStart start) =>
-        [.. VitestFramework.In(start), .. JestFramework.In(start)];
+        [.. VitestFramework.In(start), .. JestFramework.In(start), .. PlaywrightFramework.In(start)];
 
     /// <summary>A solution's frontends: the package.json folders beside its projects.</summary>
     public override IReadOnlyList<WorkspaceProject> WorkspaceProjects(string workspace) => PackageScripts.Projects(workspace);

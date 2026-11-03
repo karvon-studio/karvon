@@ -154,7 +154,7 @@ public abstract partial class JsTestFramework(string packageDirectory, TestFrame
     /// The package's copy under js-debug, as VS Code debugs it: the process that runs the test files is a child session
     /// (one file at a time), stepping goes into the test's code only. Why it could not start, or null.
     /// </summary>
-    async Task<string?> DebugAsync(Func<DebugLaunch, Task<string>> debugAsync, IReadOnlyList<string> args)
+    protected async Task<string?> DebugAsync(Func<DebugLaunch, Task<string>> debugAsync, IReadOnlyList<string> args, IReadOnlyDictionary<string, string>? environment = null)
     {
         if (Entry() is not { } entry)
             return NotInstalled;
@@ -172,12 +172,14 @@ public abstract partial class JsTestFramework(string packageDirectory, TestFrame
             ["skipFiles"] = new JsonArray("<node_internals>/**", "**/node_modules/**"),
             ["env"] = new JsonObject { ["NO_COLOR"] = "1", ["FORCE_COLOR"] = "0", ["CI"] = "1" },
         };
+        foreach (var (name, value) in environment ?? new Dictionary<string, string>())
+            configuration["env"]![name] = value;
         await debugAsync(new DebugLaunch($"{Name}: {Project}", configuration) { Source = Package });
         return null;
     }
 
     /// <summary>Runs the package's copy on Node.js in its folder, its output in Output (Tests); why it could not, or null.</summary>
-    protected async Task<string?> RunAsync(IReadOnlyList<string> args, CancellationToken ct)
+    protected async Task<string?> RunAsync(IReadOnlyList<string> args, CancellationToken ct, IReadOnlyDictionary<string, string>? extra = null)
     {
         if (Entry() is not { } entry)
             return NotInstalled;
@@ -186,6 +188,8 @@ public abstract partial class JsTestFramework(string packageDirectory, TestFrame
         Start.Log($"> {Package} {string.Join(' ', args.Select(TaskVariables.QuoteForShell))}   ({Project})");
         // No colors in what it prints.
         var environment = new Dictionary<string, string> { ["PATH"] = Start.Path, ["NO_COLOR"] = "1", ["FORCE_COLOR"] = "0", ["CI"] = "1" };
+        foreach (var (name, value) in extra ?? new Dictionary<string, string>())
+            environment[name] = value;
         using var runner = ProcessRunner.Start(node, [entry, .. args], PackageDirectory, Start.Log, environment);
         await runner.WaitAsync(ct);
         return null;

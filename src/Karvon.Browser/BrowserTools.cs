@@ -14,21 +14,37 @@ namespace Karvon.Browser;
 /// </summary>
 public static class BrowserClaudeTools
 {
-    public static IEnumerable<IClaudeTool> Create(Func<CancellationToken, Task<ManagedBrowser>> browser, BrowserLogins logins)
+    public static IEnumerable<IClaudeTool> Create(Func<CancellationToken, Task<ManagedBrowser>> browser, BrowserLogins logins, Func<string?>? workspace = null)
     {
-        var state = new BrowserToolState(browser, logins);
+        var state = new BrowserToolState(browser, logins, workspace ?? (() => null));
         return
         [
             new BrowserOpenTool(state), new BrowserSnapshotTool(state), new BrowserClickTool(state), new BrowserTypeTool(state),
             new BrowserSelectTool(state), new BrowserPressTool(state), new BrowserScreenshotTool(state), new BrowserEvalTool(state),
             new BrowserLogsTool(state), new BrowserTabsTool(state), new BrowserWaitTool(state), new BrowserLoginTool(state),
+            new BrowserTestTool(state),
         ];
     }
 }
 
 /// <summary>What the tools share: the browser, the sign-ins, and the last outline's controls (for what a call will do, before it runs).</summary>
-sealed class BrowserToolState(Func<CancellationToken, Task<ManagedBrowser>> browser, BrowserLogins logins)
+sealed class BrowserToolState(Func<CancellationToken, Task<ManagedBrowser>> browser, BrowserLogins logins, Func<string?> workspace)
 {
+    /// <summary>The steps Claude took since the last test written (or since it began again), for browser_test.</summary>
+    public List<BrowserStep> Steps { get; } = [];
+
+    public Func<string?> Workspace => workspace;
+
+    public void Record(BrowserStep step)
+    {
+        lock (Steps)
+            Steps.Add(step);
+    }
+
+    /// <summary>A step on a control, by the role and name the page script told.</summary>
+    public void Record(string kind, JsonObject control, string? text = null, IReadOnlyList<string>? values = null) =>
+        Record(new BrowserStep(kind, control["role"]?.GetValue<string>(), control["name"]?.GetValue<string>(), text, values));
+
     public Func<CancellationToken, Task<ManagedBrowser>> Browser => browser;
 
     public BrowserLogins Logins => logins;
@@ -184,9 +200,15 @@ sealed class BrowserOpenTool(BrowserToolState state) : BrowserTool(state)
         await browser.StartAsync(ct);
         BrowserTab tab;
         if (Address(input) is { } url)
+        {
             tab = Bool(input, "new_tab") ? await browser.NewTabAsync(url, ct) : await browser.NavigateAsync(url, ct);
+            State.Record(new BrowserStep("goto", Text: tab.Url));
+        }
         else if (Str(input, "action") is { } action and ("back" or "forward" or "reload"))
+        {
             tab = await browser.GoAsync(action, ct);
+            State.Record(new BrowserStep(action));
+        }
         else
             tab = browser.Current ?? throw new InvalidOperationException("The browser has no tab.");
         return Bool(input, "snapshot") ? await SnapshotAsync(browser, null, ct) : new ClaudeToolOutput($"{Line(tab)}\n(browser_snapshot reads the page)");
@@ -245,6 +267,7 @@ sealed class BrowserClickTool(BrowserToolState state) : BrowserTool(state)
         var reference = Ref(input);
         var point = Checked(await browser.PageAsync("point", JsonValue.Create(reference), ct));
         await browser.ClickAsync(point["x"]!.GetValue<double>(), point["y"]!.GetValue<double>(), Bool(input, "double") ? 2 : 1, Str(input, "button") ?? "left", ct);
+        State.Record(Bool(input, "double") ? "dblclick" : "click", point);
         return await AfterAsync(browser, input, $"Clicked {Describe(point, reference)}.", ct);
     }
 }
@@ -296,8 +319,12 @@ sealed class BrowserTypeTool(BrowserToolState state) : BrowserTool(state)
             throw new InvalidOperationException("A password field: browser_login fills a sign-in Karvon keeps, without Claude seeing it.");
         await browser.InsertTextAsync(text, ct);
         State.Typed = field;
+        State.Record("fill", field, Bool(input, "append") ? null : text);
         if (Bool(input, "submit"))
+        {
             await browser.PressAsync("Enter", ct);
+            State.Record(new BrowserStep("press", Text: "Enter"));
+        }
         return await AfterAsync(browser, input, $"Typed into {Describe(field, reference)}{(Bool(input, "submit") ? " and pressed Enter" : "")}.", ct);
     }
 }
@@ -332,6 +359,7 @@ sealed class BrowserSelectTool(BrowserToolState state) : BrowserTool(state)
         var names = (chosen["chosen"] as JsonArray ?? []).Select(c => c?.GetValue<string>()).ToList();
         if (names.Count == 0)
             throw new InvalidOperationException($"No option of {Describe(chosen, reference)} is {string.Join(" or ", values.Select(x => x?.ToString()))}.");
+        State.Record("select", chosen, values: [.. names.OfType<string>()]);
         return await AfterAsync(browser, input, $"Chose {string.Join(", ", names)} in {Describe(chosen, reference)}.", ct);
     }
 }
@@ -364,6 +392,7 @@ sealed class BrowserPressTool(BrowserToolState state) : BrowserTool(state)
     {
         var key = Str(input, "key") is { Length: > 0 } k ? k : throw new InvalidOperationException("'key' is required.");
         await browser.PressAsync(key, ct);
+        State.Record(new BrowserStep("press", Text: key));
         return await AfterAsync(browser, input, $"Pressed {key}.", ct);
     }
 }
@@ -528,7 +557,10 @@ sealed class BrowserWaitTool(BrowserToolState state) : BrowserTool(state)
         while (DateTime.UtcNow < end)
         {
             if (await browser.PageAsync("text", JsonValue.Create(text), ct) is JsonValue shown && shown.GetValue<bool>())
+            {
+                State.Record(new BrowserStep("expect", Text: text));
                 return new ClaudeToolOutput($"\"{text}\" shows.");
+            }
             await Task.Delay(250, ct);
         }
         return ClaudeToolOutput.Error($"\"{text}\" did not show in {seconds} s.");
@@ -577,9 +609,10 @@ sealed class BrowserLoginTool(BrowserToolState state) : BrowserTool(state)
         var fields = Checked(await browser.PageAsync("login", null, ct));
         if (fields["password"]?.GetValue<bool>() != true)
             throw new InvalidOperationException("The page has no password field to fill: open the site's sign-in page first.");
+        JsonObject? user = null;
         if (fields["user"]?.GetValue<bool>() == true)
         {
-            Checked(await browser.PageAsync("focus", new JsonObject { ["ref"] = "karvon-user", ["clear"] = true }, ct));
+            user = Checked(await browser.PageAsync("focus", new JsonObject { ["ref"] = "karvon-user", ["clear"] = true }, ct));
             await browser.InsertTextAsync(login.Username, ct);
         }
         var field = Checked(await browser.PageAsync("focus", new JsonObject { ["ref"] = "karvon-password", ["clear"] = true }, ct));
@@ -590,6 +623,88 @@ sealed class BrowserLoginTool(BrowserToolState state) : BrowserTool(state)
             State.Typed = field;
             await browser.PressAsync("Enter", ct);
         }
+        // A test signs in again with the name, its password from the environment.
+        State.Record(new BrowserStep("login", user?["role"]?.GetValue<string>(), user?["name"]?.GetValue<string>(), login.Username) { Site = login.Origin });
         return await AfterAsync(browser, input, $"Filled in the sign-in of {login.Username} at {login.Host}{(submit ? " and sent it" : "")}.", ct);
     }
+}
+
+/// <summary>
+/// <c>browser_test</c>: the steps Claude took in the browser written as a Playwright test (TypeScript, JavaScript, Python
+/// or C#, by the file's extension), each control by its role and name, the texts it should show at its end; with no
+/// file, the steps listed; 'reset' begins them again.
+/// </summary>
+sealed class BrowserTestTool(BrowserToolState state) : BrowserTool(state)
+{
+    public override string Name => "browser_test";
+
+    public override string Description =>
+        "Writes the steps taken in Karvon's browser since the last test (or since 'reset') as a Playwright test: a .ts or .js file "
+        + "(@playwright/test), .py (pytest-playwright) or .cs (Microsoft.Playwright.NUnit), each control by its role and name, the "
+        + "'expect' texts checked at its end; a sign-in's password is read from an environment variable, never written. With no "
+        + "path, lists the steps. Call it with 'reset' before a flow to test, then take the flow's steps, then write it. Test "
+        + "Explorer runs it.";
+
+    public override JsonObject InputSchema => Schema("""
+        {"type":"object","properties":{
+          "path":{"type":"string","description":"The test file; relative to the solution's folder (tests/shop.spec.ts). An existing .ts, .js or .py file gets the test after what it has."},
+          "name":{"type":"string","description":"The test's name (signs in and adds to the cart)."},
+          "expect":{"type":"array","items":{"type":"string"},"description":"Texts the page should show at the end."},
+          "reset":{"type":"boolean","description":"Begin the steps again (nothing is written)."}}}
+        """);
+
+    string? PathOf(JsonElement input) =>
+        Str(input, "path") is { Length: > 0 } path
+            ? Path.GetFullPath(path.StartsWith('~') ? Environment.GetFolderPath(Environment.SpecialFolder.UserProfile) + path[1..] : path,
+                State.Workspace() ?? Environment.GetFolderPath(Environment.SpecialFolder.UserProfile))
+            : null;
+
+    public override string? Target(JsonElement input) => PathOf(input);
+
+    public override ClaudeToolPlan Plan(JsonElement input) =>
+        PathOf(input) is { } path
+            ? new(ToolAccess.Write, "Browser test", path, $"Allow Claude to write a Playwright test into {Path.GetFileName(path)}?")
+            {
+                Warning = File.Exists(path) ? $"{path} exists: the test goes after what it has." : null,
+            }
+            : new(ToolAccess.Read, "Browser test", Bool(input, "reset") ? "begin again" : "steps", "");
+
+    protected override Task<ClaudeToolOutput> RunAsync(ManagedBrowser browser, JsonElement input, CancellationToken ct)
+    {
+        List<BrowserStep> steps;
+        lock (State.Steps)
+        {
+            if (Bool(input, "reset"))
+            {
+                State.Steps.Clear();
+                return Task.FromResult(new ClaudeToolOutput("The steps begin again: take the flow's, then write the test with browser_test and a path."));
+            }
+            steps = [.. State.Steps];
+        }
+        if (PathOf(input) is not { } path)
+            return Task.FromResult(new ClaudeToolOutput(steps.Count == 0 ? "No steps yet." : string.Join("\n", steps.Select((s, i) => $"{i + 1}. {Line(s)}"))));
+        if (steps.Count == 0)
+            throw new InvalidOperationException("No steps were taken in the browser since the last test: take the flow's steps first.");
+        var expected = input.TryGetProperty("expect", out var e) && e.ValueKind == JsonValueKind.Array
+            ? e.EnumerateArray().Select(x => x.GetString()).OfType<string>().Where(x => x.Length > 0).Select(x => new BrowserStep("expect", Text: x)) : [];
+        var existing = File.Exists(path) ? File.ReadAllText(path) : null;
+        var text = BrowserTestWriter.Write(path, Str(input, "name") is { Length: > 0 } name ? name : "flow", [.. steps, .. expected], existing);
+        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+        File.WriteAllText(path, text);
+        lock (State.Steps)
+            State.Steps.Clear();
+        return Task.FromResult(new ClaudeToolOutput($"Wrote the test ({steps.Count} step(s)) into {path}."));
+    }
+
+    static string Line(BrowserStep step) => step.Kind switch
+    {
+        "goto" => $"open {step.Text}",
+        "fill" => $"type \"{step.Text}\" into {step.Role} \"{step.Name}\"",
+        "select" => $"choose {string.Join(", ", step.Values ?? [])} in {step.Role} \"{step.Name}\"",
+        "press" => $"press {step.Text}",
+        "expect" => $"\"{step.Text}\" shows",
+        "login" => $"sign in to {step.Site} as {step.Text}",
+        "back" or "forward" or "reload" => step.Kind,
+        _ => $"{step.Kind} {step.Role} \"{step.Name}\"",
+    };
 }

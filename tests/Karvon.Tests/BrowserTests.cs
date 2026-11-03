@@ -33,7 +33,7 @@ public class BrowserTests
     }
 
     /// <summary>A shop of this machine's: a page to search, choose and add to the cart; a sign-in that greets whoever signs in.</summary>
-    sealed class Shop : IDisposable
+    internal sealed class Shop : IDisposable
     {
         readonly HttpListener _listener = new();
 
@@ -219,6 +219,25 @@ public class BrowserTests
             Assert.Contains("password ok", signedIn.Text);
             Assert.DoesNotContain("s3cret!", signedIn.Text);
 
+            // The steps written as a Playwright test: each control by its role and name, the password from the environment.
+            var steps = (await Call("browser_test", new { })).Text;
+            Assert.Contains("type \"socks\" into textbox \"Search\"", steps);
+            Assert.Contains("sign in to " + shop.Url + " as nbk@example.com", steps);
+            var spec = Path.Combine(profile + "-tests", "shop.spec.ts");
+            Assert.Equal((ToolAccess.Write, "Allow Claude to write a Playwright test into shop.spec.ts?"),
+                (tools["browser_test"].Plan(Input(new { path = spec })).Access, tools["browser_test"].Plan(Input(new { path = spec })).Question));
+            await Call("browser_test", new { path = spec, name = "signs in and adds to the cart", expect = new[] { "password ok" } });
+            var written = File.ReadAllText(spec);
+            Assert.StartsWith("import { test, expect } from '@playwright/test';\n\ntest(\"signs in and adds to the cart\", async ({ page }) => {\n  await page.goto(\"" + shop.Url + "/\");", written);
+            Assert.Contains("  await page.getByRole(\"combobox\", { name: \"Size\" }).selectOption([\"M\"]);", written);
+            Assert.Contains("  await page.getByRole(\"button\", { name: \"Add to cart\" }).click();", written);
+            Assert.Contains("  await expect(page.getByText(\"1 item\").first()).toBeVisible();", written);
+            Assert.Contains("  await page.getByRole(\"textbox\", { name: \"Email\" }).fill(\"nbk@example.com\");", written);
+            Assert.Contains($"process.env[\"{BrowserTestWriter.PasswordVariable(shop.Url)}\"]", written);
+            Assert.DoesNotContain("s3cret!", written);
+            Assert.Equal("No steps yet.", (await Call("browser_test", new { })).Text);
+            Directory.Delete(profile + "-tests", recursive: true);
+
             // Tabs: another opened, chosen, closed; back where it was.
             await Call("browser_open", new { url = shop.Url, new_tab = true });
             Assert.Equal(2, browser.Tabs.Count);
@@ -305,5 +324,55 @@ public class BrowserTests
         {
             Directory.Delete(folder, recursive: true);
         }
+    }
+
+    [Fact]
+    public void Steps_are_written_as_a_Playwright_test_in_TypeScript_Python_or_CSharp()
+    {
+        BrowserStep[] steps =
+        [
+            new("goto", Text: "https://shop.example/"),
+            new("fill", "textbox", "Search", "socks"),
+            new("select", "combobox", "Size", Values: ["M"]),
+            new("click", "button", "Add to cart"),
+            new("expect", Text: "1 item"),
+            new("login", "textbox", "Email", "nbk@example.com") { Site = "https://shop.example" },
+        ];
+        Assert.Equal("SHOP_EXAMPLE_PASSWORD", BrowserTestWriter.PasswordVariable("https://shop.example"));
+        Assert.Equal("HOST_127_0_0_1_5000_PASSWORD", BrowserTestWriter.PasswordVariable("http://127.0.0.1:5000"));
+
+        Assert.Equal("""
+            import os
+
+            from playwright.sync_api import Page, expect
+
+
+            def test_adds_to_the_cart(page: Page):
+                page.goto("https://shop.example/")
+                page.get_by_role("textbox", name="Search").fill("socks")
+                page.get_by_role("combobox", name="Size").select_option(["M"])
+                page.get_by_role("button", name="Add to cart").click()
+                expect(page.get_by_text("1 item").first).to_be_visible()
+                # The sign-in Karvon keeps for https://shop.example: its password from SHOP_EXAMPLE_PASSWORD, never in the test.
+                page.get_by_role("textbox", name="Email").fill("nbk@example.com")
+                page.locator('input[type="password"]').first.fill(os.environ.get("SHOP_EXAMPLE_PASSWORD", ""))
+                page.locator('input[type="password"]').first.press("Enter")
+
+            """, BrowserTestWriter.Write("test_shop.py", "adds to the cart", steps, null));
+
+        var csharp = BrowserTestWriter.Write("tests/Shop.Tests.cs", "adds to the cart", steps, null);
+        Assert.Contains("public class ShopTests : PageTest", csharp);
+        Assert.Contains("    public async Task AddsToTheCart()", csharp);
+        Assert.Contains("        await Page.GetByRole(AriaRole.Combobox, new() { Name = \"Size\" }).SelectOptionAsync(new[] { \"M\" });", csharp);
+        Assert.Contains("        await Expect(Page.GetByText(\"1 item\").First).ToBeVisibleAsync();", csharp);
+        Assert.Contains("Environment.GetEnvironmentVariable(\"SHOP_EXAMPLE_PASSWORD\")", csharp);
+        Assert.Throws<InvalidOperationException>(() => BrowserTestWriter.Write("Shop.cs", "x", steps, "class A {}"));
+
+        // A file that is there gets the test after what it has (its imports once).
+        var first = BrowserTestWriter.Write("shop.spec.ts", "one", steps[..1], null);
+        var both = BrowserTestWriter.Write("shop.spec.ts", "two", steps[..1], first);
+        Assert.Equal(1, Regex.Count(both, "import \\{ test"));
+        Assert.Contains("test(\"two\"", both);
+        Assert.Throws<InvalidOperationException>(() => BrowserTestWriter.Write("shop.rb", "x", steps, null));
     }
 }

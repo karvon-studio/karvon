@@ -7,7 +7,7 @@ What Karvon Studio does, in detail; the [README](../README.md) has the short ver
 | Language | Language server | Debugger | Build and run | Tests |
 |---|---|---|---|---|
 | C#, ASP.NET Core, Blazor | Roslyn, Razor included | netcoredbg | `dotnet build`, launch profiles | xUnit, NUnit, MSTest |
-| TypeScript, JavaScript | TypeScript 7, ESLint | js-debug (Node.js, Chrome, Edge) | `package.json` scripts | Vitest, Jest |
+| TypeScript, JavaScript | TypeScript 7, ESLint | js-debug (Node.js, Chrome, Edge) | `package.json` scripts | Vitest, Jest, Playwright |
 | HTML, CSS, SCSS, Less, JSON | VS Code's | | | |
 | Python | Pyright | debugpy | the folder's `.venv`, uv | pytest |
 | Go | gopls | Delve | `go build`, `vet`, `run` | `go test` |
@@ -125,7 +125,8 @@ the trace are deleted as soon as they are read.
 ## Test Explorer
 
 Discover, Run All / Failed / Selected, theory rows, durations, failures with stack traces; .NET's
-tests (xUnit, NUnit, MSTest), Vitest's and Jest's (by the package's own copy), pytest's (by the workspace's .venv),
+tests (xUnit, NUnit, MSTest), Vitest's, Jest's and Playwright's (by the package's own copy; each project of a Playwright
+configuration a test of its own), pytest's (by the workspace's .venv),
 go test's, cargo test's, CTest's and JUnit's, run or debugged.
 **Code coverage** (Test > Analyze Code Coverage for All Tests): .NET's tests run with coverlet's collector (the test
 project needs the coverlet.collector package), then every file's lines are colored beside the text (covered green,
@@ -350,6 +351,10 @@ an address, shows its tabs (a click brings one to the front), and keeps the sign
   runs a script in it; `browser_tabs` lists, chooses and closes tabs.
 - `browser_login` signs in with a sign-in saved in the Browser window: Karvon types the password into the page itself, so
   Claude never sees it, and `browser_type` refuses a password field.
+- `browser_test` writes the steps Claude took (since it began them again) as a Playwright test: `.ts` or `.js`
+  (@playwright/test), `.py` (pytest-playwright) or `.cs` (Microsoft.Playwright.NUnit), each control by its role and name,
+  the texts it should show at the end; a sign-in's password is read from an environment variable
+  (`GITHUB_COM_PASSWORD`), never written. Test Explorer runs it.
 
 This machine's sites and those open in the browser already go at once; a site not open yet, a form sent, a script and
 a sign-in ask first. A confirm or prompt a page shows is turned down, an alert closed, and both said in its console.

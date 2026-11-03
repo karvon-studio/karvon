@@ -161,11 +161,15 @@
       const el = find(arg.ref);
       if (!el || el.tagName.toLowerCase() !== 'select') return { error: 'No list ' + arg.ref + ' on the page now: take a new browser_snapshot.' };
       const wanted = arg.values.map(v => String(v).toLowerCase());
-      let chosen = [];
-      for (const option of el.options) {
-        option.selected = wanted.includes(option.value.toLowerCase()) || wanted.includes(clean(option.text).toLowerCase());
-        if (option.selected) chosen.push(clean(option.text));
+      const matches = o => wanted.includes(o.value.toLowerCase()) || wanted.includes(clean(o.text).toLowerCase());
+      if (el.multiple) {
+        for (const option of el.options) option.selected = matches(option);
+      } else {
+        // One choice: the first that matches (a list of one choice always has one chosen).
+        const index = Array.from(el.options).findIndex(matches);
+        if (index >= 0) el.selectedIndex = index;
       }
+      const chosen = Array.from(el.options).some(matches) ? Array.from(el.selectedOptions).map(o => clean(o.text)) : [];
       el.dispatchEvent(new Event('input', { bubbles: true }));
       el.dispatchEvent(new Event('change', { bubbles: true }));
       return Object.assign(describe(el), { chosen });
