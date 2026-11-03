@@ -1,3 +1,5 @@
+using CommunityToolkit.Mvvm.Input;
+
 namespace Karvon.ViewModels;
 
 /// <summary>View > Inlay Hints, CodeLens, Sticky Scroll and Minimap: in every editor, kept in the settings.</summary>
@@ -26,6 +28,19 @@ public partial class MainViewModel
         get => Settings.Minimap;
         set => SetEditorView(value, Settings.Minimap, v => Settings.Minimap = v, (host, v) => host.ShowMinimap = v);
     }
+
+    // The View menu's check boxes: Avalonia's menu item runs its command, it does not check itself.
+    [RelayCommand]
+    void ToggleInlayHints() => InlayHints = !InlayHints;
+
+    [RelayCommand]
+    void ToggleCodeLens() => CodeLens = !CodeLens;
+
+    [RelayCommand]
+    void ToggleStickyScroll() => StickyScroll = !StickyScroll;
+
+    [RelayCommand]
+    void ToggleMinimap() => Minimap = !Minimap;
 
     void SetEditorView(bool value, bool current, Action<bool> keep, Action<Editor.EditorHost, bool> apply, [System.Runtime.CompilerServices.CallerMemberName] string? name = null)
     {

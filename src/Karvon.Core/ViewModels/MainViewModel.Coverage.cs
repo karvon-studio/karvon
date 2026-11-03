@@ -45,6 +45,9 @@ public partial class MainViewModel
 
     partial void OnShowCoverageColoringChanged(bool value) => ApplyCoverage();
 
+    [RelayCommand]
+    void ToggleCoverageColoring() => ShowCoverageColoring = !ShowCoverageColoring;
+
     /// <summary>Every framework's tests run with coverage measured (those that can), the reports merged and shown.</summary>
     [RelayCommand(CanExecute = nameof(CanRunTests))]
     public async Task AnalyzeCodeCoverage()

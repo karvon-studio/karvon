@@ -29,6 +29,9 @@ public partial class MainViewModel
         }
     }
 
+    [RelayCommand]
+    void ToggleHotReload() => HotReload = !HotReload;
+
     /// <summary>The program running applies code changes as they are saved.</summary>
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(ApplyHotReloadCommand))]

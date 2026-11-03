@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Nodes;
 
 namespace Karvon.Services;
 
@@ -238,18 +239,36 @@ public sealed class Settings
             RecentTemplates.RemoveRange(5, RecentTemplates.Count - 5);
     }
 
-    public static Settings Load()
+    /// <summary>The settings file (the configuration folder's, or a test's own).</summary>
+    string? _file;
+
+    /// <summary>The settings as they were read or last written here: what changed since is what <see cref="Save"/> writes.</summary>
+    JsonNode? _saved;
+
+    static readonly Lock Gate = new();
+
+    public static Settings Load(string? file = null)
     {
+        file ??= FilePath;
         try
         {
-            if (File.Exists(FilePath))
-                return JsonSerializer.Deserialize<Settings>(File.ReadAllText(FilePath)) ?? new Settings();
+            Settings? settings = null;
+            if (File.Exists(file))
+            {
+                lock (Gate)
+                using (Lock(file))
+                    settings = JsonSerializer.Deserialize<Settings>(File.ReadAllText(file));
+            }
+            settings ??= new Settings();
+            settings._file = file;
+            settings._saved = JsonSerializer.SerializeToNode(settings);
+            return settings;
         }
         catch (Exception)
         {
             // Corrupt settings should never block startup.
         }
-        return new Settings();
+        return new Settings { _file = file };
     }
 
     /// <summary>Settings Sync on this machine: null when it is off.</summary>
@@ -262,18 +281,94 @@ public sealed class Settings
     [System.Text.Json.Serialization.JsonIgnore]
     public bool InMemory { get; set; }
 
+    /// <summary>
+    /// Written: what changed here since it was read or last written, over the file as it is now. Another Karvon Studio
+    /// may have written it since, and what that one changed stays (each writing its whole settings brought back what
+    /// the other had changed, a setting turned off coming back on). The file is replaced whole, never seen half written.
+    /// </summary>
     public void Save()
     {
         Saved?.Invoke();
         if (InMemory)
             return;
+        var file = _file ?? FilePath;
         try
         {
-            Directory.CreateDirectory(Path.GetDirectoryName(FilePath)!);
-            File.WriteAllText(FilePath, JsonSerializer.Serialize(this, new JsonSerializerOptions { WriteIndented = true }));
+            Directory.CreateDirectory(Path.GetDirectoryName(file)!);
+            var mine = JsonSerializer.SerializeToNode(this)!;
+            lock (Gate)
+            using (Lock(file))
+            {
+                var merged = _saved is not null && Read(file) is JsonObject theirs ? Merge(_saved, mine, theirs)! : mine;
+                var temporary = $"{file}.{Environment.ProcessId}.tmp";
+                File.WriteAllText(temporary, merged.ToJsonString(new JsonSerializerOptions { WriteIndented = true }));
+                File.Move(temporary, file, overwrite: true);
+            }
+            _saved = mine;
         }
-        catch (IOException)
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
         }
+    }
+
+    static JsonNode? Read(string file)
+    {
+        try
+        {
+            return File.Exists(file) ? JsonNode.Parse(File.ReadAllText(file)) : null;
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// The file to this process until disposed: another Karvon Studio reading or writing it waits. Null when it cannot be
+    /// had (a folder it cannot write, another holding it for seconds): read or written then all the same.
+    /// </summary>
+    static FileStream? Lock(string file)
+    {
+        for (var attempt = 0; attempt < 40; attempt++)
+        {
+            try
+            {
+                return new FileStream(file + ".lock", FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None);
+            }
+            catch (IOException)
+            {
+                Thread.Sleep(50);
+            }
+            catch (UnauthorizedAccessException)
+            {
+                return null;
+            }
+        }
+        return null;
+    }
+
+    /// <summary>Theirs with what changed here since <paramref name="saved"/>: an object member by member, anything else whole.</summary>
+    static JsonNode? Merge(JsonNode? saved, JsonNode? mine, JsonNode? theirs)
+    {
+        if (JsonNode.DeepEquals(saved, mine))
+            return theirs?.DeepClone();
+        if (saved is not JsonObject before || mine is not JsonObject now || theirs is not JsonObject other)
+            return mine?.DeepClone();
+        var merged = new JsonObject();
+        foreach (var name in now.Select(p => p.Key).Union(other.Select(p => p.Key)).Union(before.Select(p => p.Key)))
+        {
+            var was = before.TryGetPropertyValue(name, out var savedValue);
+            var here = now.TryGetPropertyValue(name, out var value);
+            var there = other.TryGetPropertyValue(name, out var theirValue);
+            if (was == here && JsonNode.DeepEquals(savedValue, value))
+            {
+                // Not changed here: as the other left it.
+                if (there)
+                    merged[name] = theirValue?.DeepClone();
+            }
+            else if (here)
+                merged[name] = was && there ? Merge(savedValue, value, theirValue) : value?.DeepClone();
+        }
+        return merged;
     }
 }

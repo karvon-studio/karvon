@@ -46,22 +46,42 @@ public class EditorFeaturesTests
     }
 
     [AvaloniaFact]
-    public async Task The_find_panels_X_closes_it()
+    public async Task The_find_panels_buttons_find_replace_and_close_it()
     {
         var (vm, window, file) = await OpenFolderAsync("notes.txt", "foo bar foo baz foo\n");
         var host = vm.OpenDocument(file)!.Host;
         await WaitUntil(() => host.Editor.TextArea.IsEffectivelyVisible && TopLevel.GetTopLevel(host.Editor) is not null, TimeSpan.FromSeconds(5));
         var panel = host.Editor.SearchPanel;
         panel.Open();
+        panel.IsReplaceMode = true;
         panel.SearchPattern = "foo";
+        panel.ReplacePattern = "qux";
         Dispatcher.UIThread.RunJobs();
-        var close = panel.GetVisualDescendants().OfType<Button>().Single(b => b.Command is CommunityToolkit.Mvvm.Input.IRelayCommand);
-        await WaitUntil(() => close.Bounds.Width > 0, TimeSpan.FromSeconds(5));
-        Assert.True(close.IsEffectivelyEnabled);
-        var point = close.TranslatePoint(new Point(close.Bounds.Width / 2, close.Bounds.Height / 2), window)!.Value;
-        window.MouseDown(point, MouseButton.Left);
-        window.MouseUp(point, MouseButton.Left);
-        Dispatcher.UIThread.RunJobs();
+        Assert.Equal((0, 3), (host.Editor.SelectionStart, host.Editor.SelectionLength));
+
+        // ↑, ↓, the X, Replace and Replace All, in the panel's order, clicked.
+        var buttons = panel.GetVisualDescendants().OfType<Button>().Where(b => b.Command is CommunityToolkit.Mvvm.Input.IRelayCommand).ToList();
+        Assert.Equal(5, buttons.Count);
+        var (previous, next, close, replace, replaceAll) = (buttons[0], buttons[1], buttons[2], buttons[3], buttons[4]);
+        await WaitUntil(() => buttons.All(b => b.Bounds.Width > 0), TimeSpan.FromSeconds(5));
+        void Click(Button button)
+        {
+            Assert.True(button.IsEffectivelyEnabled);
+            var point = button.TranslatePoint(new Point(button.Bounds.Width / 2, button.Bounds.Height / 2), window)!.Value;
+            window.MouseDown(point, MouseButton.Left);
+            window.MouseUp(point, MouseButton.Left);
+            Dispatcher.UIThread.RunJobs();
+        }
+        Click(next);
+        Click(next);
+        Assert.Equal(16, host.Editor.SelectionStart);
+        Click(previous);
+        Assert.Equal(8, host.Editor.SelectionStart);
+        Click(replace);
+        Assert.Equal("foo bar qux baz foo\n", host.Document.Text);
+        Click(replaceAll);
+        Assert.Equal("qux bar qux baz qux\n", host.Document.Text);
+        Click(close);
         Assert.True(panel.IsClosed);
         window.Close();
     }

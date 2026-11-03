@@ -2,6 +2,7 @@ using System.Text.Json;
 using Avalonia;
 using Avalonia.Headless;
 using Avalonia.Headless.XUnit;
+using Avalonia.LogicalTree;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 using Karvon.Claude;
@@ -111,6 +112,27 @@ public class UiTests
         frame?.Save(path, new Avalonia.Media.Imaging.PngBitmapEncoderOptions());
         GC.KeepAlive(frame);
         return path;
+    }
+
+    [AvaloniaFact]
+    public void Every_check_box_of_the_menus_turns_off_and_on_again()
+    {
+        var vm = NewViewModel();
+        var window = new MainWindow { DataContext = vm, Width = 1280, Height = 800 };
+        window.Show();
+        // Avalonia's check box menu item runs its command when clicked, it does not check itself: each has one.
+        var items = window.GetLogicalDescendants().OfType<Avalonia.Controls.MenuItem>().Where(i => i.ToggleType == Avalonia.Controls.MenuItemToggleType.CheckBox).ToList();
+        Assert.Equal(7, items.Count);
+        foreach (var item in items)
+        {
+            var was = item.IsChecked;
+            Assert.True(item.Command?.CanExecute(item.CommandParameter), $"{item.Header} has a command");
+            item.Command!.Execute(item.CommandParameter);
+            Assert.Equal(!was, item.IsChecked);
+            item.Command.Execute(item.CommandParameter);
+            Assert.Equal(was, item.IsChecked);
+        }
+        window.Close();
     }
 
     [AvaloniaFact]
