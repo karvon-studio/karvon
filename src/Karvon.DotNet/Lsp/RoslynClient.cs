@@ -52,10 +52,7 @@ public sealed class RoslynClient : LspClient
                  })
             psi.ArgumentList.Add(a);
         DotnetCli.ApplyEnvironment(psi);
-        // The server is configured for server GC, which on a many-core desktop keeps gigabytes of per-core heap
-        // reserve on top of the solution's live data. Workstation (background) GC stays close to what is live;
-        // DOTNET_gcServer=1 in Karvon's environment brings server GC back.
-        psi.Environment.TryAdd("DOTNET_gcServer", "0");
+        ApplyGc(psi);
 
         var (process, rpc) = Launch(psi);
         var client = new RoslynClient(process, rpc, root);
@@ -65,6 +62,20 @@ public sealed class RoslynClient : LspClient
         else
             await client.Rpc.NotifyAsync("solution/open", new { solution = ToUri(solutionPath) });
         return client;
+    }
+
+    /// <summary>
+    /// The server's garbage collector, for a desktop beside an IDE rather than a build machine (Karvon's own environment's
+    /// DOTNET_gcServer or DOTNET_GCConserveMemory wins). Measured on Karvon's own solution, 25 files open and analyzed:
+    /// - its configuration's server GC keeps per-core heaps (1.4 GB settled, even with .NET 10's DATAS), workstation
+    ///   (background) GC stays near what is live (1.1 GB);
+    /// - ConserveMemory=9 compacts what is free in the older generations sooner: 0.84-0.87 GB settled (-20 to -24%), the
+    ///   load as fast and the peak the same (1.8 GB, live data); 5 gave -5%, 7 -16%, a smaller gen0 nothing more.
+    /// </summary>
+    internal static void ApplyGc(ProcessStartInfo psi)
+    {
+        psi.Environment.TryAdd("DOTNET_gcServer", "0");
+        psi.Environment.TryAdd("DOTNET_GCConserveMemory", "9");
     }
 
     /// <summary>Projects the solution has now (added, or a project file renamed): Roslyn loads them beside those it has.</summary>

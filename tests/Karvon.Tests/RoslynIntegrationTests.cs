@@ -18,6 +18,22 @@ public class RoslynIntegrationTests
     }
 
     [Fact]
+    public void Roslyn_runs_with_a_desktops_garbage_collector_unless_Karvons_environment_says_otherwise()
+    {
+        var psi = new System.Diagnostics.ProcessStartInfo("roslyn");
+        psi.Environment.Remove("DOTNET_gcServer");
+        psi.Environment.Remove("DOTNET_GCConserveMemory");
+        RoslynClient.ApplyGc(psi);
+        Assert.Equal(("0", "9"), (psi.Environment["DOTNET_gcServer"], psi.Environment["DOTNET_GCConserveMemory"]));
+
+        var given = new System.Diagnostics.ProcessStartInfo("roslyn");
+        given.Environment["DOTNET_gcServer"] = "1";
+        given.Environment["DOTNET_GCConserveMemory"] = "0";
+        RoslynClient.ApplyGc(given);
+        Assert.Equal(("1", "0"), (given.Environment["DOTNET_gcServer"], given.Environment["DOTNET_GCConserveMemory"]));
+    }
+
+    [Fact]
     public async Task Csharp_and_razor_intellisense_work()
     {
         var ct = TestContext.Current.CancellationToken;
