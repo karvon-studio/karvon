@@ -60,6 +60,9 @@
     <Style Selector="Ellipse.dot.running">
       <Setter Property="Fill" Value="#8B8B8B" />
     </Style>
+    <Style Selector="Ellipse.dot.redirected">
+      <Setter Property="Fill" Value="#8B8B8B" />
+    </Style>
     <Style Selector="Ellipse.dot.error">
       <Setter Property="Fill" Value="#F85149" />
     </Style>
@@ -694,7 +697,7 @@
               <StackPanel Margin="0,6,0,0">
                 <Grid ColumnDefinitions="16,*">
                   <Ellipse Width="7" Height="7" Margin="0,6,0,0" VerticalAlignment="Top" HorizontalAlignment="Left"
-                           Classes="dot" Classes.running="{Binding IsRunning}" Classes.error="{Binding IsError}" />
+                           Classes="dot" Classes.running="{Binding IsRunning}" Classes.redirected="{Binding IsRedirected}" Classes.error="{Binding IsError}" />
                   <Button Grid.Column="1" Classes="row" Command="{Binding $parent[UserControl].((vm:ClaudeViewModel)DataContext).ToggleExpandCommand}"
                           CommandParameter="{Binding}" ToolTip.Tip="{v:L 'Show details'}">
                     <TextBlock TextWrapping="Wrap">
@@ -720,7 +723,7 @@
                       <DataTemplate x:DataType="vm:ToolChatItem">
                         <Grid ColumnDefinitions="12,*" Margin="0,1">
                           <Ellipse Width="5" Height="5" Margin="1,6,0,0" VerticalAlignment="Top" HorizontalAlignment="Left"
-                                   Classes="dot" Classes.running="{Binding IsRunning}" Classes.error="{Binding IsError}" />
+                                   Classes="dot" Classes.running="{Binding IsRunning}" Classes.redirected="{Binding IsRedirected}" Classes.error="{Binding IsError}" />
                           <TextBlock Grid.Column="1" TextTrimming="CharacterEllipsis" FontSize="12">
                             <Run Text="{Binding Title}" FontWeight="SemiBold" />
                             <Run Text=" " />

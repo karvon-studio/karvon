@@ -65,9 +65,12 @@ public sealed record ClaudeShellRule(string Name, Func<string, bool> Matches, st
     /// </summary>
     public bool InWorkspace { get; init; }
 
-    /// <summary>Whether <paramref name="command"/> is the rule's, run in <paramref name="workspace"/> (null: wherever).</summary>
+    /// <summary>
+    /// Whether <paramref name="command"/> is the rule's, run in <paramref name="workspace"/> (null: wherever). A loop that
+    /// sleeps is waiting for something, which none of Karvon's tools does: it is the shell's.
+    /// </summary>
     public bool Applies(string command, string? workspace) =>
-        Matches(command) && !(InWorkspace && workspace is not null && ShellCommand.RunsElsewhere(command, workspace, Matches));
+        Matches(command) && !ShellCommand.Polls(command) && !(InWorkspace && workspace is not null && ShellCommand.RunsElsewhere(command, workspace, Matches));
 
     /// <summary>
     /// A rule for a program run as a command: at a line's start, after ; &amp;&amp; || | ( ` $( or a newline, after a loop's

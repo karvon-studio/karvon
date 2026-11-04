@@ -637,9 +637,10 @@ public sealed partial class ClaudeViewModel : ObservableObject, IAsyncDisposable
                 {
                     if (!_tools.TryGetValue(result.ToolUseId, out var tool))
                         continue;
-                    tool.State = result.IsError ? ToolState.Error : ToolState.Done;
+                    var redirect = result.IsError ? ClaudeSession.RedirectOf(result.Content) : null;
+                    tool.State = redirect is not null ? ToolState.Redirected : result.IsError ? ToolState.Error : ToolState.Done;
                     // What others wrote, as Claude got it marked: the text shown, and what in it reads as instructions to Claude.
-                    var content = result.Content;
+                    var content = redirect ?? result.Content;
                     if (OutsideText.Read(content) is { } outside)
                     {
                         content = outside.Text;
@@ -648,7 +649,7 @@ public sealed partial class ClaudeViewModel : ObservableObject, IAsyncDisposable
                                 + string.Join("; ", found.Select(f => $"«{f}»"));
                     }
                     tool.Result = content;
-                    tool.Summary = tool.WasDenied ? "Denied by you" : Summarize(tool, content, result.IsError);
+                    tool.Summary = tool.WasDenied ? "Denied by you" : redirect is not null ? "Not run: Karvon has a tool for this" : Summarize(tool, content, result.IsError);
                     foreach (var step in tool.Children.Where(c => c.IsRunning))
                         step.State = ToolState.Done;
                     changed |= !result.IsError && FileChangingTools.Contains(tool.Name);

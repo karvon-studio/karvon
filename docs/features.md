@@ -431,7 +431,7 @@ testing and stepping run at once; a change asks first, one call at a time (destr
 sources refuse changes, and secrets in logs and variables are hidden.
 Every session Karvon starts (new or resumed) uses them **before the shell**: its system prompt says so, and a Bash
 command one of them does (`dotnet build` or `test`, `npm run test`, `psql`, `docker ps`, `ssh` to one of the Servers,
-`curl` to Jira's API) is sent to the tool instead; the same command again goes through, for what the tools cannot do.
+`curl` to Jira's API) is sent to the tool instead; the same command again goes through, for what the tools cannot do. A loop that sleeps, or kubectl waiting for a rollout, goes through at once: no tool waits. The row of a command sent to the tools is grey, as nothing failed.
 Turned off with **Before the shell** on the karvon page of the MCP Servers window, for the sessions started after.
 What Claude may do with them, what asks and what refuses, where your secrets are kept and what can reach them:
 [permissions.md](permissions.md).

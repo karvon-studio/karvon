@@ -2,6 +2,8 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using Avalonia.Controls;
 using Avalonia.Headless.XUnit;
+using Avalonia.Threading;
+using Avalonia.VisualTree;
 using Bengine.Enums;
 using Bengine.Introspection.Servers;
 using Microsoft.Data.Sqlite;
@@ -161,6 +163,13 @@ public class ClaudeKarvonToolsTests
         await WaitUntil(() => !vm.IsRunning, TimeSpan.FromSeconds(10));
         var build = vm.Items.OfType<ToolChatItem>().First();
         Assert.Contains("mcp__karvon__run_build", build.Result);
+        // Nothing failed: the row is neither red nor says it was an error.
+        Assert.Equal((ToolState.Redirected, false, "Not run: Karvon has a tool for this"), (build.State, build.IsError, build.Summary));
+        Assert.DoesNotContain("hook error", build.Result);
+        Dispatcher.UIThread.RunJobs();
+        var dots = window.GetVisualDescendants().OfType<Avalonia.Controls.Shapes.Ellipse>().Where(e => e.Classes.Contains("dot")).ToList();
+        Assert.True(dots[0].Classes.Contains("redirected"));
+        Assert.DoesNotContain(dots, d => d.Classes.Contains("error"));
 
         var entries = FakeClaude.Log(log);
         var argv = entries.First(e => e.Kind == "argv").Data.EnumerateArray().Select(a => a.GetString()).ToList();
@@ -177,6 +186,15 @@ public class ClaudeKarvonToolsTests
         Assert.True(answers.IndexOf(answers.First(a => a.TryGetProperty("hookSpecificOutput", out _))) == 1);
         await vm.DisposeAsync();
         window.Close();
+    }
+
+    [Fact]
+    public void Only_Karvons_redirect_reads_as_one_a_refusal_stays_an_error()
+    {
+        const string use = "Use mcp__karvon__run_build. If they cannot do this one, run the same command again: Karvon lets it through then.";
+        Assert.Equal(use, ClaudeSession.RedirectOf("PreToolUse:Bash hook error: " + use));
+        Assert.Null(ClaudeSession.RedirectOf("PreToolUse:Bash hook error: Karvon does not let Claude read this key."));
+        Assert.Null(ClaudeSession.RedirectOf("Exit code 1"));
     }
 
     [Fact]
@@ -221,6 +239,10 @@ public class ClaudeKarvonToolsTests
     [InlineData("acli jira workitem view ABC-1", "jira cli")]
     [InlineData("for i in 1 2 3; do dotnet test --no-build --filter Unit; done", "dotnet build")]
     [InlineData("if true; then npm test; fi", "npm scripts")]
+    [InlineData("sleep 5; docker ps", "docker")]
+    // A loop that sleeps is waiting for something, which no tool does.
+    [InlineData("while true; do docker ps; sleep 5; done", null)]
+    [InlineData("for i in $(seq 1 36); do out=$(docker ps 2>&1); if [ -n \"$out\" ]; then exit 0; fi; sleep 5; done", null)]
     [InlineData("dotnet --version", null)]
     [InlineData("dotnet add package Foo", null)]
     [InlineData("echo dotnet build", null)]

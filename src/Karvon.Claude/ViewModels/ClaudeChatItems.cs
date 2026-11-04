@@ -72,6 +72,9 @@ public enum ToolState
     WaitingForApproval,
     Done,
     Error,
+
+    /// <summary>Karvon sent the command to its tools: it did not run, and nothing failed.</summary>
+    Redirected,
 }
 
 public sealed record TodoEntry(string Content, string Status)
@@ -157,7 +160,7 @@ public sealed partial class ToolChatItem : ChatItem
     partial void OnIsExpandedChanged(bool value) => OnChildrenShown();
 
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(IsRunning), nameof(IsError), nameof(IsDone), nameof(ShowDiff))]
+    [NotifyPropertyChangedFor(nameof(IsRunning), nameof(IsError), nameof(IsDone), nameof(IsRedirected), nameof(ShowDiff))]
     public partial ToolState State { get; set; }
 
     public bool IsRunning => State is ToolState.Running or ToolState.WaitingForApproval;
@@ -165,6 +168,8 @@ public sealed partial class ToolChatItem : ChatItem
     public bool IsError => State == ToolState.Error;
 
     public bool IsDone => State == ToolState.Done;
+
+    public bool IsRedirected => State == ToolState.Redirected;
 
     /// <summary>The one-line outcome under the call ("Read 42 lines", the first output line...).</summary>
     [ObservableProperty]

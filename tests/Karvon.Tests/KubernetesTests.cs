@@ -388,8 +388,14 @@ public class KubernetesTests
     [InlineData("kubectl apply -f deploy.yaml", false)]
     [InlineData("kubectl delete deployment web", false)]
     [InlineData("kubectl exec -it web-abc -- sh", false)]
+    [InlineData("sleep 5; kubectl get pods", true)]
+    [InlineData("for i in 1 2 3; do kubectl -n shop get pods; done", true)]
+    // Waiting for a rollout: the tools read one moment of it.
+    [InlineData("kubectl --context dev -n shop rollout status deploy/web --timeout=180s 2>&1 | tail -2; kubectl --context dev -n shop get pods -l app=web", false)]
+    [InlineData("kubectl -n shop wait --for=condition=ready pod/web-def; kubectl -n shop get pods", false)]
+    [InlineData("for i in $(seq 1 36); do out=$(kubectl --context dev -n shop get pods -l app=web --no-headers 2>&1); if [ -n \"$out\" ]; then exit 0; fi; sleep 5; done", false)]
     public void Kubectls_reading_goes_to_the_Kubernetes_tools(string command, bool redirected) =>
-        Assert.Equal(redirected, new KubernetesModule().ClaudeShellRules().Any(r => r.Matches(command)));
+        Assert.Equal(redirected, new KubernetesModule().ClaudeShellRules().Any(r => r.Applies(command, null)));
 }
 
 static class JsonNodeKeys

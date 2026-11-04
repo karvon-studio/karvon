@@ -311,6 +311,7 @@ public sealed class ClaudeLanguage : INotifyPropertyChanged
         ["No matches"] = "Mos kelmadi",
         ["(No output)"] = "(Natija yo‘q)",
         ["Denied by you"] = "Siz rad etdingiz",
+        ["Not run: Karvon has a tool for this"] = "Ishga tushirilmadi: Karvonda buning uchun vosita bor",
         ["Allowed"] = "Ruxsat berildi",
         ["Denied"] = "Rad etildi",
         ["Cancelled"] = "Bekor qilindi",

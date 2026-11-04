@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using Avalonia.Controls.Templates;
 using CommunityToolkit.Mvvm.ComponentModel;
 using Karvon.Claude;
@@ -63,11 +64,16 @@ public sealed partial class KubernetesModule : KarvonModule, IKubernetesHost
     public override IEnumerable<IClaudeTool> ClaudeTools() => KubernetesClaudeTools.Create(EnsureWindow);
 
     /// <summary>kubectl's reading and the changes the tools make: Karvon's tools instead (the user sees them in its window).</summary>
-    public override IEnumerable<ClaudeShellRule> ClaudeShellRules() =>
-    [
-        ClaudeShellRule.Command("kubectl",
-            @"kubectl(\s+(-n|--namespace|--context)(\s+|=)\S+)*\s+(get|describe|logs|events|rollout\s+restart|scale|delete\s+pods?)\b", Use),
-    ];
+    public override IEnumerable<ClaudeShellRule> ClaudeShellRules()
+    {
+        var rule = ClaudeShellRule.Command("kubectl",
+            @"kubectl(\s+(-n|--namespace|--context)(\s+|=)\S+)*\s+(get|describe|logs|events|rollout\s+restart|scale|delete\s+pods?)\b", Use);
+        // The tools read one moment of a rollout: a command that waits for it is the shell's, with what it reads after.
+        return [rule with { Matches = command => !WaitsForRollout().IsMatch(command) && rule.Matches(command) }];
+    }
+
+    [GeneratedRegex(@"\bkubectl(\s+(-n|--namespace|--context)(\s+|=)\S+)*\s+(rollout\s+status|wait)\b")]
+    private static partial Regex WaitsForRollout();
 
     const string Use =
         "Karvon reaches the user's clusters through their kubectl, in the context its Kubernetes window has: use mcp__karvon__k8s_get, "

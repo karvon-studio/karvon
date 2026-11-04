@@ -120,6 +120,8 @@ public sealed class ClaudeSession : IAsyncDisposable
     /// <summary>The id of the PreToolUse hook Karvon answers for Bash (its shell rules).</summary>
     public const string ShellHook = "karvon_shell";
 
+    const string RedirectNote = "If they cannot do this one, run the same command again: Karvon lets it through then.";
+
     /// <summary>The id of the PreToolUse hook that keeps Claude Code's own tools away from the secrets (<see cref="SecretGuard"/>).</summary>
     public const string SecretsHook = "karvon_secrets";
 
@@ -558,7 +560,7 @@ public sealed class ClaudeSession : IAsyncDisposable
         {
             Audit?.Decided(ClaudeProtocol.Str(input, "tool_use_id") ?? ClaudeProtocol.Str(request, "tool_use_id"), "Bash", "deny", "Karvon's tools before the shell", rule.Name);
             answer = new { hookSpecificOutput = new { hookEventName = "PreToolUse", permissionDecision = "deny", permissionDecisionReason =
-                rule.Use + " If they cannot do this one, run the same command again: Karvon lets it through then." } };
+                rule.Use + " " + RedirectNote } };
         }
         try
         {
@@ -568,6 +570,19 @@ public sealed class ClaudeSession : IAsyncDisposable
         {
             // The CLI exited meanwhile.
         }
+    }
+
+    /// <summary>
+    /// What a Bash result is when Karvon's hook sent the command to its tools (the reason, without the CLI's "hook error"
+    /// before it), or null for any other result: nothing failed then, the command just did not run.
+    /// </summary>
+    public static string? RedirectOf(string result)
+    {
+        if (!result.Contains(RedirectNote, StringComparison.Ordinal))
+            return null;
+        const string before = "hook error: ";
+        var at = result.IndexOf(before, StringComparison.Ordinal);
+        return at < 0 ? result : result[(at + before.Length)..];
     }
 
     bool FirstRedirect(string command)

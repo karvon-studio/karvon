@@ -56,6 +56,13 @@ static class ShellCommand
         return false;
     }
 
+    /// <summary>Whether <paramref name="command"/> is a loop that sleeps: it waits for something.</summary>
+    public static bool Polls(string command)
+    {
+        var commands = Words(command).ToList();
+        return commands.Any(c => c[0] is "for" or "while" or "until") && commands.Any(c => c[0] == "sleep");
+    }
+
     /// <summary>The simple commands' words, without the assignments and the sudo before them.</summary>
     public static IEnumerable<List<string>> Words(string command) =>
         Commands(command).Select(c => c.Words.SkipWhile(w => w is "do" or "then" or "else" or "sudo" || IsAssignment(w)).ToList()).Where(w => w.Count > 0);

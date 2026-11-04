@@ -575,7 +575,7 @@ def turn(prompt, content, sent=None):
             tool_use(tool_id, "Bash", tool_input)
             reason = pre_tool_use("Bash", tool_input, tool_id)
             if reason is not None:
-                tool_result(tool_id, reason, True)
+                tool_result(tool_id, "PreToolUse:Bash hook error: " + reason, True)
                 continue
             decision = permission("Bash", tool_input, [], tool_id)
             tool_result(tool_id, "total 0" if allowed(decision) else decision.get("message", "denied"), not allowed(decision))
