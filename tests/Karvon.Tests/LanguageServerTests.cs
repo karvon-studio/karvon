@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using Avalonia.Headless;
 using Avalonia.Headless.XUnit;
 using Karvon.Lsp;
 using Karvon.Modules;
@@ -117,6 +118,29 @@ public class LanguageServerTests
         doc.Host.Save();
         Assert.True(await vm.CloseSolutionCoreAsync());
         Assert.Empty(vm.ModuleLanguageServers);
+        window.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task Ctrl_F12_goes_to_the_implementation()
+    {
+        var dir = Path.Combine(Path.GetTempPath(), "karvon-impl-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(dir);
+        var file = Path.Combine(dir, "plan.fake");
+        File.WriteAllText(file, "use thing\nimpl thing\n");
+        var vm = NewViewModel(modules: [.. Karvon.BuiltInModules.Create(), new FakeLanguageModule()]);
+        var window = new MainWindow { DataContext = vm, Width = 1280, Height = 800 };
+        window.Show();
+        await vm.OpenSolutionAsync(dir);
+        var host = vm.OpenDocument(file)!.Host;
+        await WaitUntil(() => host.HasLanguageServer && host.Editor.TextArea.IsEffectivelyVisible, TimeSpan.FromSeconds(10));
+        host.Editor.TextArea.Focus();
+        host.Editor.CaretOffset = 5;
+
+        window.KeyPress(Avalonia.Input.Key.F12, Avalonia.Input.RawInputModifiers.Control, Avalonia.Input.PhysicalKey.F12, null);
+        await WaitUntil(() => host.CaretPosition.Line == 2, TimeSpan.FromSeconds(10));
+        Assert.Equal((2, 6), host.CaretPosition);
+        Assert.True(await vm.CloseSolutionCoreAsync());
         window.Close();
     }
 

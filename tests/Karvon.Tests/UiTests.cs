@@ -1720,4 +1720,41 @@ public class UiTests
 
         Assert.True(await vm.CloseSolutionCoreAsync());
     }
+
+    [AvaloniaFact]
+    public async Task Csharp_snippets_are_in_intellisense_and_tab_twice_inserts_one()
+    {
+        var sln = await SampleSolution.GetAsync();
+        var vm = NewViewModel();
+        var window = new MainWindow { DataContext = vm, Width = 1600, Height = 1000 };
+        window.Show();
+        await vm.OpenSolutionAsync(sln);
+        var doc = vm.OpenDocument(SampleSolution.PathOf(sln, "Components/Greeting.razor.cs"))!;
+        await WaitUntil(() => vm.ServerStatus == "IntelliSense: ready", TimeSpan.FromMinutes(5));
+        var host = doc.Host;
+        await WaitUntil(() => host.Editor.TextArea.IsEffectivelyVisible, TimeSpan.FromSeconds(5));
+        host.Editor.TextArea.Focus();
+
+        // "prop" typed in a class: IntelliSense lists the snippet; Tab takes it, Tab again inserts it, its type selected.
+        var text = host.Document.Text;
+        host.Editor.CaretOffset = text.IndexOf('{', text.IndexOf("class ", StringComparison.Ordinal)) + 1;
+        host.Editor.TextArea.PerformTextInput("\n    ");
+        foreach (var c in "prop")
+            host.Editor.TextArea.PerformTextInput(c.ToString());
+        await WaitUntil(() => host.CompletionLabels.Contains("prop"), TimeSpan.FromSeconds(30));
+        Assert.Contains("prop", host.CompletionLabels);
+        window.KeyPress(Avalonia.Input.Key.Tab, Avalonia.Input.RawInputModifiers.None, Avalonia.Input.PhysicalKey.Tab, null);
+        Dispatcher.UIThread.RunJobs();
+        Assert.Equal(0, host.CompletionItemCount);
+        window.KeyPress(Avalonia.Input.Key.Tab, Avalonia.Input.RawInputModifiers.None, Avalonia.Input.PhysicalKey.Tab, null);
+        Dispatcher.UIThread.RunJobs();
+        Assert.Contains("\n    public int MyProperty { get; set; }", host.Document.Text);
+        Assert.Equal("int", host.Editor.SelectedText);
+        window.KeyPress(Avalonia.Input.Key.Escape, Avalonia.Input.RawInputModifiers.None, Avalonia.Input.PhysicalKey.Escape, null);
+
+        while (host.Editor.CanUndo)
+            host.Editor.Undo();
+        Assert.False(doc.IsDirty);
+        Assert.True(await vm.CloseSolutionCoreAsync());
+    }
 }

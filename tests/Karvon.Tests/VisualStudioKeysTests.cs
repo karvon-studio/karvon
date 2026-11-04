@@ -247,4 +247,121 @@ public class VisualStudioKeysTests
         Assert.Equal(WindowState.Normal, window.WindowState);
         window.Close();
     }
+
+    [AvaloniaFact]
+    public async Task Csharp_snippets_expand_on_tab_and_tab_goes_through_their_fields()
+    {
+        var (_, window, _, host) = await OpenAsync(("Shape.cs", ""));
+        void At(string text, string after)
+        {
+            host.Document.Text = text;
+            host.Editor.TextArea.ClearSelection();
+            host.Editor.CaretOffset = text.IndexOf(after, StringComparison.Ordinal) + after.Length;
+        }
+        void Type(string text)
+        {
+            host.Editor.TextArea.PerformTextInput(text);
+            Dispatcher.UIThread.RunJobs();
+        }
+
+        // prop, Tab: the property, its type selected; typed over, Tab to its name, Shift+Tab back; Enter ends it after it.
+        At("class Shape\n{\n    prop\n}\n", "prop");
+        Press(window, Key.Tab, RawInputModifiers.None, PhysicalKey.Tab);
+        Assert.Equal("class Shape\n{\n    public int MyProperty { get; set; }\n}\n", host.Document.Text);
+        Assert.Equal("int", host.Editor.SelectedText);
+        Assert.True(host.IsInSnippet);
+        Type("string");
+        Press(window, Key.Tab, RawInputModifiers.None, PhysicalKey.Tab);
+        Assert.Equal("MyProperty", host.Editor.SelectedText);
+        Type("Name");
+        Press(window, Key.Tab, Shift, PhysicalKey.Tab);
+        Assert.Equal("string", host.Editor.SelectedText);
+        Press(window, Key.Enter, RawInputModifiers.None, PhysicalKey.Enter);
+        Assert.Equal("class Shape\n{\n    public string Name { get; set; }\n}\n", host.Document.Text);
+        Assert.Equal((3, 37), host.CaretPosition);
+        Assert.False(host.IsInSnippet);
+
+        // for: the index's copies follow it; Tab goes round the fields; Escape ends it where the caret is. One undo takes it all back.
+        At("class Shape\n{\n    void Draw()\n    {\n        for\n    }\n}\n", "for");
+        Press(window, Key.Tab, RawInputModifiers.None, PhysicalKey.Tab);
+        Assert.Equal("class Shape\n{\n    void Draw()\n    {\n        for (int i = 0; i < length; i++)\n        {\n            \n        }\n    }\n}\n", host.Document.Text);
+        Assert.Equal("i", host.Editor.SelectedText);
+        Type("j");
+        Assert.Contains("for (int j = 0; j < length; j++)", host.Document.Text);
+        Press(window, Key.Tab, RawInputModifiers.None, PhysicalKey.Tab);
+        Assert.Equal("length", host.Editor.SelectedText);
+        Press(window, Key.Tab, RawInputModifiers.None, PhysicalKey.Tab);
+        Assert.Equal("j", host.Editor.SelectedText);
+        Press(window, Key.Escape, RawInputModifiers.None, PhysicalKey.Escape);
+        Assert.False(host.IsInSnippet);
+        Assert.Equal((5, 19), host.CaretPosition);
+
+        // ctor: the class's name, the caret in its body (no fields: no session); cw: in the parentheses.
+        At("class Shape\n{\n    ctor\n}\n", "ctor");
+        Press(window, Key.Tab, RawInputModifiers.None, PhysicalKey.Tab);
+        Assert.Equal("class Shape\n{\n    public Shape()\n    {\n        \n    }\n}\n", host.Document.Text);
+        Assert.Equal((5, 9), host.CaretPosition);
+        Assert.False(host.IsInSnippet);
+        At("class Shape\n{\n    void Draw()\n    {\n        cw\n    }\n}\n", "cw");
+        Press(window, Key.Tab, RawInputModifiers.None, PhysicalKey.Tab);
+        Assert.Contains("        Console.WriteLine();\n", host.Document.Text);
+        Assert.Equal((5, 27), host.CaretPosition);
+
+        // Not a shortcut, or one in another word or after a ".": Tab is Tab.
+        At("class Shape\n{\n    x.prop\n}\n", "prop");
+        Press(window, Key.Tab, RawInputModifiers.None, PhysicalKey.Tab);
+        Assert.DoesNotContain("MyProperty", host.Document.Text);
+        Assert.False(host.IsInSnippet);
+        window.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task Navigate_backward_and_forward_go_where_the_caret_was_across_files()
+    {
+        var lines = string.Join("\n", Enumerable.Range(1, 30).Select(i => $"line {i}"));
+        var (vm, window, _, a) = await OpenAsync(("a.txt", lines), ("b.txt", lines));
+        void Line(EditorHost host, int line)
+        {
+            host.Editor.CaretOffset = host.Document.GetLineByNumber(line).Offset;
+            Dispatcher.UIThread.RunJobs();
+        }
+        (string, int) Where()
+        {
+            Dispatcher.UIThread.RunJobs();
+            return (vm.ActiveEditor!.FileName, vm.ActiveEditor.Host.CaretPosition.Line);
+        }
+        void Mouse(Avalonia.Input.MouseButton button)
+        {
+            window.MouseDown(new Avalonia.Point(700, 450), button, RawInputModifiers.None);
+            window.MouseUp(new Avalonia.Point(700, 450), button, RawInputModifiers.None);
+            Dispatcher.UIThread.RunJobs();
+        }
+
+        // A jump of lines leaves a point, a step does not; another file leaves one too.
+        Line(a, 20);
+        Line(a, 22);
+        var b = vm.OpenDocument(Path.Combine(Path.GetDirectoryName(a.FilePath)!, "b.txt"))!.Host;
+        await WaitUntil(() => b.Editor.TextArea.IsEffectivelyVisible, TimeSpan.FromSeconds(5));
+        Line(b, 5);
+
+        // Ctrl+-, the mouse's back button: back through them; Ctrl+Shift+-, its forward button: forward again.
+        Press(window, Key.OemMinus, Ctrl, PhysicalKey.Minus);
+        Assert.Equal(("a.txt", 22), Where());
+        Mouse(Avalonia.Input.MouseButton.XButton1);
+        Assert.Equal(("a.txt", 1), Where());
+        Press(window, Key.OemMinus, Ctrl | Shift, PhysicalKey.Minus);
+        Assert.Equal(("a.txt", 22), Where());
+        Mouse(Avalonia.Input.MouseButton.XButton2);
+        Assert.Equal(("b.txt", 5), Where());
+
+        // A go-to (definition, a result) is a point to come back from, whatever the distance.
+        vm.NavigateTo(a.FilePath, new Karvon.Lsp.LspRange(new(2, 0), new(2, 0)));
+        Assert.Equal(("a.txt", 3), Where());
+        Mouse(Avalonia.Input.MouseButton.XButton1);
+        Assert.Equal(("b.txt", 5), Where());
+
+        // Ctrl+- no longer zooms out (Ctrl+Shift+, does).
+        Assert.Equal(1.0, b.Zoom);
+        window.Close();
+    }
 }

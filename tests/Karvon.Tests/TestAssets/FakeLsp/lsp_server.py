@@ -1,5 +1,5 @@
 """A language server for the tests, over stdio: it pushes a warning for each TODO in a file it is given (when it opens
-and on each change), and answers completion and hover. What it does not serve it refuses, as a real server would.
+and on each change), and answers completion, hover and Go To Implementation (each "impl " line). What it does not serve it refuses, as a real server would.
 Given a word (lsp_server.py FIXME), it is a linter's: it warns of that word instead. With --hints it also gives inlay hints
 (value: after each "call("), a code lens on each "def " line (resolved: "2 references"), and a Fix All of the TODOs, as
 Roslyn offers one (its client command, then codeAction/resolveFixAll). With --symbols it outlines a file (a function for
@@ -54,7 +54,7 @@ while True:
     message = read()
     method, params, id = message.get("method"), message.get("params") or {}, message.get("id")
     if method == "initialize":
-        capabilities = {"textDocumentSync": 2, "hoverProvider": True, "completionProvider": {"triggerCharacters": ["."]}}
+        capabilities = {"textDocumentSync": 2, "hoverProvider": True, "implementationProvider": True, "completionProvider": {"triggerCharacters": ["."]}}
         if hints:
             capabilities.update({"inlayHintProvider": True, "codeLensProvider": {"resolveProvider": True}, "codeActionProvider": {"resolveProvider": True}})
         send({"jsonrpc": "2.0", "id": id, "result": {"capabilities": capabilities, "serverInfo": {"name": "fake"}}})
@@ -88,6 +88,11 @@ while True:
         publish(uri)
     elif method == "textDocument/completion":
         send({"jsonrpc": "2.0", "id": id, "result": {"isIncomplete": False, "items": [{"label": "fakeAlpha", "kind": 3}, {"label": "fakeBeta", "kind": 6}]}})
+    elif method == "textDocument/implementation":
+        uri = params["textDocument"]["uri"]
+        found = [{"uri": uri, "range": {"start": {"line": i, "character": 5}, "end": {"line": i, "character": len(line)}}}
+                 for i, line in enumerate(documents[uri].split("\n")) if line.startswith("impl ")]
+        send({"jsonrpc": "2.0", "id": id, "result": found})
     elif method == "textDocument/hover":
         send({"jsonrpc": "2.0", "id": id, "result": {"contents": {"kind": "markdown", "value": "Fake hover"}}})
     elif method == "textDocument/inlayHint" and hints:

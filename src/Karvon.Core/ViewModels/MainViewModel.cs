@@ -237,6 +237,7 @@ public partial class MainViewModel : ObservableObject
         UpdateCaretText();
         if (value is not DocumentViewModel editor)
             return;
+        TrackNavigation(editor);
         // Like VS, refresh squiggles for the document the user switches to.
         editor.Host.ScheduleDiagnostics(150);
         if (Solution is not null && !_restoringState)
@@ -517,8 +518,10 @@ public partial class MainViewModel : ObservableObject
         var host = doc.Host;
         host.CaretMoved += () =>
         {
-            if (ActiveDocument == doc)
-                UpdateCaretText();
+            if (ActiveDocument != doc)
+                return;
+            UpdateCaretText();
+            TrackNavigation(doc);
         };
         host.DiagnosticsChanged += RefreshErrorList;
         host.StatusMessage += text => SetStatus(text);
@@ -717,10 +720,8 @@ public partial class MainViewModel : ObservableObject
 
     public void NavigateTo(string path, LspRange range)
     {
-        var doc = OpenDocument(path);
-        if (doc is null)
-            return;
-        Dispatcher.UIThread.Post(() => doc.Host.NavigateTo(range), DispatcherPriority.Loaded);
+        RememberNavigation();
+        Show(path, range);
     }
 
     [RelayCommand]

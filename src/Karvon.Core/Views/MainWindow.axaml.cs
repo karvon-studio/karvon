@@ -68,6 +68,18 @@ public partial class MainWindow : Window, IDialogService
         Activated += (_, _) => Vm?.CheckExternalChanges();
         Opened += (_, _) => FloatPendingToolWindows();
         AddHandler(KeyDownEvent, OnWindowKeyDown, RoutingStrategies.Tunnel);
+        // The mouse's back and forward buttons: Navigate Backward and Forward, wherever the pointer is.
+        AddHandler(PointerPressedEvent, (_, e) =>
+        {
+            var kind = e.GetCurrentPoint(this).Properties.PointerUpdateKind;
+            if (kind is not (PointerUpdateKind.XButton1Pressed or PointerUpdateKind.XButton2Pressed) || Vm is not { } vm)
+                return;
+            if (kind == PointerUpdateKind.XButton1Pressed)
+                vm.NavigateBackward();
+            else
+                vm.NavigateForward();
+            e.Handled = true;
+        }, RoutingStrategies.Tunnel, handledEventsToo: true);
         RecentMenu.SubmenuOpened += (_, _) => BuildRecentMenu();
         WindowMenu.SubmenuOpened += (_, _) => UpdateWindowMenu();
         // Ctrl+wheel zooms the Output window too, independently of the editors.
@@ -244,6 +256,16 @@ public partial class MainWindow : Window, IDialogService
         if (ctrl && !shift && !alt && e.Key == Key.G && ActiveHost is not null)
         {
             OnGoToLine(this, new RoutedEventArgs());
+            e.Handled = true;
+            return;
+        }
+        // Ctrl+-, Ctrl+Shift+-: Navigate Backward, Forward.
+        if (ctrl && !alt && e.Key == Key.OemMinus && Vm is { } navigateVm)
+        {
+            if (shift)
+                navigateVm.NavigateForward();
+            else
+                navigateVm.NavigateBackward();
             e.Handled = true;
             return;
         }
@@ -1219,6 +1241,8 @@ public partial class MainWindow : Window, IDialogService
             F12 / Ctrl+Click  Go to definition
             Ctrl+F12          Go to implementation
             Shift+F12         Find all references
+            Ctrl+- / Ctrl+Shift+-  Navigate backward / forward (the mouse's back / forward)
+            prop, Tab, Tab    C# code snippet (ctor, for, foreach, cw...); Tab to its next field, Enter ends it
             F2                Rename
             Ctrl+K, Ctrl+D    Format document
             Ctrl+K, Ctrl+C/U  Comment / uncomment lines

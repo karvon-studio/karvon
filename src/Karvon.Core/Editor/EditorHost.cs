@@ -685,6 +685,8 @@ public sealed partial class EditorHost : IDisposable, IDebugLineSource
         var start = list.Items[0].TextEdit is { } edit
             ? Math.Min(TextPositions.ToOffset(Document, edit.Range.Start), now)
             : FindWordStart(caret);
+        if (triggerCharacter is null)
+            list = list with { Items = [.. list.Items, .. SnippetCompletions(start)] };
         ShowCompletion(list, start);
     }
 
@@ -891,6 +893,9 @@ public sealed partial class EditorHost : IDisposable, IDebugLineSource
                 RequestCompletion(null);
                 e.Handled = true;
                 break;
+            case Key.Tab when e.KeyModifiers == KeyModifiers.None && ExpandSnippet():
+                e.Handled = true;
+                break;
             case Key.F12 when shift:
                 _ = FindReferencesAsync(Editor.CaretOffset);
                 e.Handled = true;
@@ -919,7 +924,6 @@ public sealed partial class EditorHost : IDisposable, IDebugLineSource
                 e.Handled = true;
                 break;
             case Key.OemComma when ctrl && shift:
-            case Key.OemMinus when ctrl:
             case Key.Subtract when ctrl:
                 ZoomOut();
                 e.Handled = true;

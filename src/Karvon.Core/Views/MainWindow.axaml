@@ -168,6 +168,22 @@
             </Grid>
           </MenuItem.Header>
         </MenuItem>
+        <MenuItem Command="{Binding NavigateBackwardCommand}">
+          <MenuItem.Header>
+            <Grid ColumnDefinitions="*,Auto">
+              <TextBlock Text="Navigate Backward" />
+              <TextBlock Grid.Column="1" Text="Ctrl+-" Margin="32,0,0,0" Foreground="{StaticResource VsGrayTextBrush}" />
+            </Grid>
+          </MenuItem.Header>
+        </MenuItem>
+        <MenuItem Command="{Binding NavigateForwardCommand}">
+          <MenuItem.Header>
+            <Grid ColumnDefinitions="*,Auto">
+              <TextBlock Text="Navigate Forward" />
+              <TextBlock Grid.Column="1" Text="Ctrl+Shift+-" Margin="32,0,0,0" Foreground="{StaticResource VsGrayTextBrush}" />
+            </Grid>
+          </MenuItem.Header>
+        </MenuItem>
         <MenuItem Header="F_ull Screen" InputGesture="Shift+Alt+Enter" Click="OnFullScreen" />
         <Separator />
         <MenuItem Click="OnZoomIn">
