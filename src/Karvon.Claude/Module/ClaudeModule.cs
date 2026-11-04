@@ -240,7 +240,7 @@ public sealed class ClaudeModule : KarvonModule, IClaudeService
         Claude.AddFiles(paths);
     }
 
-    public Task<string> AuthenticateMcpAsync(string name) => Claude.AuthenticateMcpAsync(name);
+    public Task<string> AuthenticateMcpAsync(string name, Action? signedIn = null) => Claude.AuthenticateMcpAsync(name, signedIn);
 
     public async Task<string?> AddMcpServerAsync(string name, string transport, string target, string scope)
     {

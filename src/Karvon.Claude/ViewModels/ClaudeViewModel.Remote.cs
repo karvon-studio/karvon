@@ -77,6 +77,10 @@ public partial class ClaudeViewModel
             _ = TurnRemoteControlOnAsync(session);
     }
 
+    /// <summary>Why the CLI says it cannot be offered: it does not look at the sign-in for this (a sign-in's trouble comes back when it is turned on).</summary>
+    const string RemoteControlRefused = "Claude Code does not offer Remote Control here: it works only straight to api.anthropic.com (no cloud provider, "
+        + "ANTHROPIC_BASE_URL or proxy of your own in the way), and your organization's settings may turn it off.";
+
     async Task TurnRemoteControlOnAsync(ClaudeSession session)
     {
         if (_remoteSession == session && RemoteControlState != "off")
@@ -84,7 +88,7 @@ public partial class ClaudeViewModel
         if (session.IsRemoteControlAvailable == false)
         {
             SaveRemoteControl(false);
-            Items.Add(new NoticeChatItem("Remote Control needs a claude.ai sign-in (not an API key or a cloud provider).", isError: true));
+            Items.Add(new NoticeChatItem(RemoteControlRefused, isError: true));
             return;
         }
         _remoteSession = session;

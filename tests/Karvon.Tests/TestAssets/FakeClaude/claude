@@ -127,7 +127,8 @@ def handle_control(message):
             ],
             "account": {"email": "tests@example.invalid", "organization": "Tests Org", "subscriptionType": "Claude Pro", "apiProvider": "firstParty"},
             "current_permission_mode": "default",
-            "remote_control_available": True,
+            # As the real CLI: only straight to the API, and not looking at the sign-in.
+            "remote_control_available": os.environ.get("ANTHROPIC_BASE_URL", "https://api.anthropic.com").split("/")[2] == "api.anthropic.com" and not os.path.exists(".fake-claude-no-remote"),
         }
     elif subtype == "set_permission_mode":
         mode = request.get("mode")
@@ -177,6 +178,8 @@ def handle_control(message):
             {"name": "claude.ai Docs", "status": "connected", "scope": "claudeai", "source": "claudeai", "config": {"type": "claudeai-proxy"}},
         ]
         servers += [{"name": a["name"], "status": "connected", "scope": a["scope"], "source": a["scope"], "config": {"type": a["type"]}} for a in added_servers()]
+        if os.path.exists(".fake-claude-figma"):
+            servers.append({"name": "figma", "status": "connected" if os.path.exists(".fake-claude-figma-tokens") else "needs-auth", "scope": "local", "source": "local", "config": {"type": "http"}})
         response = {"mcpServers": servers}
     elif subtype == "mcp_toggle":
         name = request.get("serverName")
@@ -186,6 +189,11 @@ def handle_control(message):
             STATE["disabled"].add(name)
     elif subtype == "mcp_reconnect":
         STATE["reconnected"].add(request.get("serverName"))
+    elif subtype == "mcp_authenticate" and request.get("serverName") == "figma":
+        # As the real CLI: asking again clears the tokens and starts over; the browser finishes it later.
+        if os.path.exists(".fake-claude-figma-tokens"):
+            os.remove(".fake-claude-figma-tokens")
+        response = {"authUrl": "https://www.figma.example.invalid/oauth/mcp", "requiresUserAction": True, "callbackExpected": True, "redirectScheme": "localhost", "callbackPort": 50094}
     elif subtype == "mcp_authenticate":
         STATE["authenticated"].add(request.get("serverName"))
         response = {"authUrl": "https://auth.example.invalid/authorize?client=karvon", "requiresUserAction": True}

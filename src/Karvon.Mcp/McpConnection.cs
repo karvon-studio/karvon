@@ -231,11 +231,16 @@ public sealed partial class McpConnection(McpServerDefinition server, string? wo
         };
     }
 
+    const string RegistrationRefused = "it does not let Karvon register to sign in";
+
+    /// <summary>The last sign-in ended at the server's no to Karvon's registration: only another app can sign in to it.</summary>
+    public bool IsRegistrationRefused => Status == McpStatus.Failed && Error?.StartsWith(RegistrationRefused, StringComparison.Ordinal) == true;
+
     /// <summary>A server that lets in only the apps it knows says no to Karvon's registration: what to do instead.</summary>
     static string Explain(string message) =>
         message.Contains("Dynamic client registration failed with status Forbidden", StringComparison.Ordinal)
         || message.Contains("Dynamic client registration failed with status Unauthorized", StringComparison.Ordinal)
-            ? "it does not let Karvon register to sign in: it lets in only the apps it knows (Claude Code may be one: Sign in with Claude Code), or the client it gave you (oauth.clientId in Claude Code's settings)."
+            ? RegistrationRefused + ": it lets in only the apps it knows (Claude Code may be one: Sign in with Claude Code), or the client it gave you (oauth.clientId in Claude Code's settings)."
             : message;
 
     /// <summary>The message, and what lies under it ("Failed to connect transport." says little; "No such file" says why).</summary>

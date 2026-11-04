@@ -83,9 +83,12 @@ sealed class TestMcpHost(string? workspace) : IMcpHost
 
     public List<string> ClaudeSignIns { get; } = [];
 
-    public Task<string> SignInWithClaudeAsync(string name)
+    public Action? ClaudeSignedIn { get; private set; }
+
+    public Task<string> SignInWithClaudeAsync(string name, Action signedIn)
     {
         ClaudeSignIns.Add(name);
+        ClaudeSignedIn = signedIn;
         return Task.FromResult($"Finish signing in to {name} in your browser.");
     }
 
@@ -434,10 +437,20 @@ public class McpTests
             Assert.Equal("failed: it does not let Karvon register to sign in: it lets in only the apps it knows (Claude Code may be one: Sign in with Claude Code), "
                 + "or the client it gave you (oauth.clientId in Claude Code's settings).", known.StatusText);
             Assert.Empty(host.Urls);
-            Assert.True(known.CanSignInWithClaude);
-            await known.SignInWithClaudeCommand.ExecuteAsync(null);
+            // One click: Karvon's own sign-in was refused, so Claude Code's has started.
             Assert.Equal(["known"], host.ClaudeSignIns);
             Assert.Equal("Finish signing in to known in your browser.", host.Statuses[^1]);
+            Assert.True(known.CanSignInWithClaude);
+
+            // Finished in the browser: the row says so and offers no second sign-in, which would clear Claude Code's tokens.
+            host.ClaudeSignedIn!();
+            await WaitUntil(() => known.IsSignedInWithClaude, TimeSpan.FromSeconds(5));
+            Assert.Equal("Claude Code is signed in: its sessions use it", known.StatusText);
+            Assert.Equal("running", known.DotKind);
+            Assert.False(known.HasFailed);
+            Assert.False(known.NeedsSignIn);
+            Assert.False(known.CanSignInWithClaude);
+            Assert.Equal("Claude Code is signed in to known: its sessions use it.", host.Statuses[^1]);
         }
         finally
         {

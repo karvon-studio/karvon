@@ -352,7 +352,7 @@ public sealed partial class McpServerPageViewModel : ObservableObject, IDisposab
     Task ConnectAgain() => _explorer.ConnectAsync(Node);
 
     [RelayCommand]
-    Task SignIn() => Node.Connection.SignInAsync();
+    Task SignIn() => Node.SignInCommand.ExecuteAsync(null);
 
     [RelayCommand]
     Task Edit() => _explorer.EditAsync(Node);

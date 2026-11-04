@@ -333,8 +333,8 @@ public sealed class ClaudeLanguage : INotifyPropertyChanged
         ["Remote Control is on · Click to open the conversation at claude.ai/code · /remote-control turns it off"] =
             "Remote Control yoqilgan · Suhbatni claude.ai/code’da ochish uchun bosing · /remote-control uni o‘chiradi",
         ["Continue this conversation from claude.ai/code or the Claude app (on/off)"] = "Bu suhbatni claude.ai/code yoki Claude ilovasidan davom ettirish (on/off)",
-        ["Remote Control needs a claude.ai sign-in (not an API key or a cloud provider)."] =
-            "Remote Control uchun claude.ai akkaunti bilan kirish kerak (API kalit yoki bulut provayderi emas).",
+        ["Claude Code does not offer Remote Control here: it works only straight to api.anthropic.com (no cloud provider, ANTHROPIC_BASE_URL or proxy of your own in the way), and your organization's settings may turn it off."] =
+            "Claude Code bu yerda Remote Control bermaydi: u faqat to‘g‘ridan-to‘g‘ri api.anthropic.com bilan ishlaydi (bulut provayderi, o‘zingizning ANTHROPIC_BASE_URL yoki proksi bo‘lmasa), tashkilotingiz sozlamalari ham uni o‘chirishi mumkin.",
         ["Remote Control disconnected."] = "Remote Control uzildi.",
         ["Approved, editing automatically"] = "Tasdiqlandi, avtomatik tahrirlanmoqda",
         ["Approved, asking before edits"] = "Tasdiqlandi, tahrirdan oldin so‘raladi",

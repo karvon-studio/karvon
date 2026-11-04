@@ -9,44 +9,47 @@ using Karvon.Claude.Tools;
 namespace Karvon.Claude;
 
 /// <summary>
-/// A gateway inside Karvon for one Claude Code session (its <c>ANTHROPIC_BASE_URL</c>): what Claude Code sends the model,
+/// A gateway inside Karvon for one Claude Code session (its HTTPS proxy, or its <c>ANTHROPIC_BASE_URL</c> when the user has
+/// their own way to the API): what Claude Code sends the model,
 /// what its own tools read among it (a file's contents, a command's output), goes through it, and the secrets Karvon
 /// knows, the tokens told by their form and the passwords told by their place are marked in the conversation's messages
 /// before they go on (<see cref="SecretMasks"/>), the same each time, so the prompt cache holds. The answers come back as they are, streamed. It listens on 127.0.0.1 only, at a path
 /// of its own no other process knows; a Claude subscription's sign-in goes through it as an API key does (Claude Code
 /// 2.1.312 sends its OAuth bearer to the base URL it is given).
 /// </summary>
-public sealed class ClaudeGateway : IAsyncDisposable
+public sealed partial class ClaudeGateway : IAsyncDisposable
 {
     /// <summary>Where the requests go on: the API, or the base URL the user had set (their own gateway).</summary>
     public Uri Upstream { get; }
 
-    /// <summary>What Claude Code is given as its ANTHROPIC_BASE_URL.</summary>
-    public string BaseUrl { get; }
+    /// <summary>What Claude Code is given as its ANTHROPIC_BASE_URL; null when it goes through <see cref="ProxyUrl"/>.</summary>
+    public string? BaseUrl { get; }
 
     /// <summary>What was hidden of a request (the kinds, «secret: …» as Claude got them), as it went.</summary>
     public event Action<IReadOnlyList<string>>? Hidden;
 
-    readonly HttpListener _listener = new();
+    readonly HttpListener? _listener;
     readonly HttpClient _client;
     readonly string _prefix;
     readonly CancellationTokenSource _stop = new();
 
-    ClaudeGateway(Uri upstream, HttpMessageHandler? handler)
+    ClaudeGateway(Uri upstream, HttpMessageHandler? handler, bool listen = true)
     {
         Upstream = upstream;
-        var port = FreePort();
-        _prefix = "/" + Convert.ToHexString(RandomNumberGenerator.GetBytes(12)).ToLowerInvariant();
-        BaseUrl = $"http://127.0.0.1:{port}{_prefix}";
-        _listener.Prefixes.Add(BaseUrl + "/");
         _client = new HttpClient(handler ?? new SocketsHttpHandler { AutomaticDecompression = DecompressionMethods.None }) { Timeout = Timeout.InfiniteTimeSpan };
+        _prefix = "/" + Convert.ToHexString(RandomNumberGenerator.GetBytes(12)).ToLowerInvariant();
+        if (!listen)
+            return;
+        BaseUrl = $"http://127.0.0.1:{FreePort()}{_prefix}";
+        _listener = new HttpListener();
+        _listener.Prefixes.Add(BaseUrl + "/");
     }
 
     /// <summary>A gateway to <paramref name="upstream"/> (the API when null), listening.</summary>
     public static ClaudeGateway Start(string? upstream = null, HttpMessageHandler? handler = null)
     {
         var gateway = new ClaudeGateway(new Uri((upstream is { Length: > 0 } ? upstream : "https://api.anthropic.com").TrimEnd('/') + "/"), handler);
-        gateway._listener.Start();
+        gateway._listener!.Start();
         _ = gateway.ServeAsync();
         return gateway;
     }
@@ -67,7 +70,7 @@ public sealed class ClaudeGateway : IAsyncDisposable
             HttpListenerContext context;
             try
             {
-                context = await _listener.GetContextAsync();
+                context = await _listener!.GetContextAsync();
             }
             catch (Exception ex) when (ex is HttpListenerException or ObjectDisposedException or InvalidOperationException)
             {
@@ -226,12 +229,13 @@ public sealed class ClaudeGateway : IAsyncDisposable
         _stop.Cancel();
         try
         {
-            _listener.Stop();
-            _listener.Close();
+            _listener?.Stop();
+            _listener?.Close();
         }
         catch (ObjectDisposedException)
         {
         }
+        StopProxy();
         _client.Dispose();
         return ValueTask.CompletedTask;
     }

@@ -233,7 +233,7 @@ public interface IClaudeService
     Task<string> PrintAsync(string directory, string prompt);
 
     /// <summary>Claude Code signs in to one of its MCP servers; what it said.</summary>
-    Task<string> AuthenticateMcpAsync(string name);
+    Task<string> AuthenticateMcpAsync(string name, Action? signedIn = null);
 
     /// <summary><c>claude mcp add</c>: why it failed, or null.</summary>
     Task<string?> AddMcpServerAsync(string name, string transport, string target, string scope);

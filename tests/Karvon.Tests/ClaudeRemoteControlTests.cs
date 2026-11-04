@@ -159,6 +159,97 @@ public class ClaudeRemoteControlTests
         window.Close();
     }
 
+    [AvaloniaFact]
+    public async Task Remote_control_says_what_the_cli_means_when_it_is_not_offered()
+    {
+        var (dir, _) = FakeClaude.Workspace();
+        File.WriteAllText(Path.Combine(dir, ".fake-claude-no-remote"), "");
+        var settings = new Karvon.Services.Settings();
+        var vm = new ClaudeViewModel(settings, () => dir, () => null, () => [], () => FakeClaude.Executable);
+        await vm.ToggleRemoteControlCommand.ExecuteAsync(null);
+        var notice = vm.Items.OfType<NoticeChatItem>().Last();
+        Assert.True(notice.IsError);
+        Assert.StartsWith("Claude Code does not offer Remote Control here: it works only straight to api.anthropic.com", notice.Text);
+        Assert.DoesNotContain("sign-in", notice.Text);
+        Assert.False(settings.ClaudeRemoteControl);
+        Assert.Equal("off", vm.RemoteControlState);
+        await vm.DisposeAsync();
+    }
+
+    [AvaloniaFact]
+    public async Task Remote_control_is_on_through_the_gateway()
+    {
+        var (dir, log) = FakeClaude.Workspace();
+        var settings = new Karvon.Services.Settings();
+        Assert.True(settings.ClaudeScanRequests);
+        var vm = new ClaudeViewModel(settings, () => dir, () => null, () => [], () => FakeClaude.Executable);
+        await vm.ToggleRemoteControlCommand.ExecuteAsync(null);
+        await WaitUntil(() => vm.IsRemoteControlOn, TimeSpan.FromSeconds(10));
+        Assert.DoesNotContain(vm.Items.OfType<NoticeChatItem>(), n => n.IsError);
+        var names = FakeClaude.Log(log).First(e => e.Kind == "env").Data.EnumerateArray().Select(n => n.GetString()).ToList();
+        Assert.Contains("HTTPS_PROXY", names);
+        Assert.DoesNotContain("ANTHROPIC_BASE_URL", names);
+        await vm.DisposeAsync();
+    }
+
+    [AvaloniaFact]
+    public async Task A_sign_in_to_a_server_happens_once_and_says_when_it_is_done()
+    {
+        var (dir, log) = FakeClaude.Workspace();
+        File.WriteAllText(Path.Combine(dir, ".fake-claude-figma"), "");
+        var tokens = Path.Combine(dir, ".fake-claude-figma-tokens");
+        var vm = new ClaudeViewModel(new Karvon.Services.Settings(), () => dir, () => null, () => [], () => FakeClaude.Executable);
+        List<string> opened = [];
+        vm.OpenUrlRequested += opened.Add;
+        var signedIn = 0;
+
+        var said = await vm.AuthenticateMcpAsync("figma", () => signedIn++);
+        Assert.StartsWith("Finish signing in to figma in your browser", said);
+        Assert.Equal(["https://www.figma.example.invalid/oauth/mcp"], opened);
+        Assert.Equal(0, signedIn);
+
+        // Clicked again while the browser is on it: the same page, no new sign-in.
+        said = await vm.AuthenticateMcpAsync("figma", () => signedIn++);
+        Assert.StartsWith("Finish signing in to figma in your browser", said);
+        Assert.Equal(2, opened.Count);
+        Assert.Single(ControlRequests(log, "mcp_authenticate"));
+
+        // The browser finishes it: everyone who waited hears.
+        File.WriteAllText(tokens, "");
+        await WaitUntil(() => signedIn == 2, TimeSpan.FromSeconds(10));
+        Assert.Equal("Signed in to figma.", vm.McpMessage);
+
+        // Clicked after that: it stays signed in (the CLI would clear the tokens).
+        said = await vm.AuthenticateMcpAsync("figma", () => signedIn++);
+        Assert.Equal("Claude Code is signed in to figma: its sessions use it.", said);
+        Assert.Equal(3, signedIn);
+        Assert.Single(ControlRequests(log, "mcp_authenticate"));
+        Assert.True(File.Exists(tokens));
+        await vm.DisposeAsync();
+    }
+
+    [AvaloniaFact]
+    public async Task A_sign_in_left_unfinished_says_so_and_can_start_again()
+    {
+        var (dir, log) = FakeClaude.Workspace();
+        File.WriteAllText(Path.Combine(dir, ".fake-claude-figma"), "");
+        var vm = new ClaudeViewModel(new Karvon.Services.Settings(), () => dir, () => null, () => [], () => FakeClaude.Executable);
+        var wait = ClaudeViewModel.McpSignInWait;
+        ClaudeViewModel.McpSignInWait = TimeSpan.FromMilliseconds(200);
+        try
+        {
+            await vm.AuthenticateMcpAsync("figma");
+            await WaitUntil(() => vm.McpMessage == "The sign-in to figma was not finished.", TimeSpan.FromSeconds(10));
+            await vm.AuthenticateMcpAsync("figma");
+            Assert.Equal(2, ControlRequests(log, "mcp_authenticate").Count);
+        }
+        finally
+        {
+            ClaudeViewModel.McpSignInWait = wait;
+        }
+        await vm.DisposeAsync();
+    }
+
     [Fact]
     public void Remote_control_events_are_read_from_the_cli()
     {

@@ -223,16 +223,16 @@ public sealed class ClaudeSession : IAsyncDisposable
         {
             try
             {
-                gateway = ClaudeGateway.Start(psi.Environment.TryGetValue("ANTHROPIC_BASE_URL", out var own) ? own : null);
+                gateway = ClaudeGateway.StartFor(psi.Environment);
             }
-            catch (Exception ex) when (ex is System.Net.HttpListenerException or System.Net.Sockets.SocketException or IOException or UriFormatException)
+            catch (Exception ex) when (ex is System.Net.HttpListenerException or System.Net.Sockets.SocketException or IOException or UriFormatException
+                or UnauthorizedAccessException or System.Security.Cryptography.CryptographicException)
             {
                 // Without it the session goes straight to the API (the hook still marks what the tools give the model).
                 gatewayProblem = ex.Message;
             }
         }
-        if (gateway is not null)
-            psi.Environment["ANTHROPIC_BASE_URL"] = gateway.BaseUrl;
+        gateway?.Apply(psi.Environment);
         var hidden = ClaudeEnvironment.Clean(psi.Environment);
         var process = Process.Start(psi) ?? throw new InvalidOperationException("Claude Code could not be started.");
         var session = new ClaudeSession(process)

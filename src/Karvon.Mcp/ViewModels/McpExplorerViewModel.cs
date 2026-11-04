@@ -59,7 +59,8 @@ public interface IMcpHost
     void OpenUrl(string url);
 
     /// <summary>Claude Code signs in to one of its servers (the apps a server lets in may be Claude Code and not Karvon).</summary>
-    Task<string> SignInWithClaudeAsync(string name);
+    /// <summary>What to tell the user now; <paramref name="signedIn"/> runs when the sign-in has finished (it may be at once).</summary>
+    Task<string> SignInWithClaudeAsync(string name, Action signedIn);
 
     /// <summary>Where the servers' sign-in tokens are kept; null for this session only.</summary>
     Bengine.Introspection.Servers.ICredentialStore? Keyring { get; }
@@ -148,12 +149,18 @@ public sealed partial class McpServerNode : McpTreeNode
 
     public string DefinedIn => $"Defined in {McpConfigs.Describe(Definition.Origin)}: {_explorer.Configs.FileOf(Definition.Origin)}";
 
-    public string StatusText => Connection.StatusText;
+    /// <summary>Claude Code signed in to it, in its own name: its sessions use it, whatever Karvon's own connection says.</summary>
+    [ObservableProperty]
+    public partial bool IsSignedInWithClaude { get; set; }
+
+    bool ClaudeHasIt => IsSignedInWithClaude && !Connection.IsConnected;
+
+    public string StatusText => ClaudeHasIt ? "Claude Code is signed in: its sessions use it" : Connection.StatusText;
 
     public bool IsConnected => Connection.IsConnected;
 
     /// <summary>The dot: green connected, amber connecting or signing in, red failed, gray not connected.</summary>
-    public string DotKind => Connection.Status switch
+    public string DotKind => ClaudeHasIt ? "running" : Connection.Status switch
     {
         McpStatus.Connected => "running",
         McpStatus.Connecting or McpStatus.NeedsSignIn => "paused",
@@ -161,9 +168,9 @@ public sealed partial class McpServerNode : McpTreeNode
         _ => "stopped",
     };
 
-    public bool HasFailed => Connection.Status is McpStatus.Failed or McpStatus.NeedsSignIn;
+    public bool HasFailed => !ClaudeHasIt && Connection.Status is McpStatus.Failed or McpStatus.NeedsSignIn;
 
-    public bool NeedsSignIn => Connection.Status == McpStatus.NeedsSignIn;
+    public bool NeedsSignIn => !ClaudeHasIt && Connection.Status == McpStatus.NeedsSignIn;
 
     /// <summary>A URL: it can be signed in to (again) from the tree.</summary>
     public bool CanSignIn => Connection.CanSignIn && !Connection.IsSigningIn;
@@ -219,14 +226,25 @@ public sealed partial class McpServerNode : McpTreeNode
     [RelayCommand]
     Task Disconnect() => Connection.DisconnectAsync();
 
+    /// <summary>One click: a server that says no to Karvon's registration goes to Claude Code's sign-in, if it is one of its servers.</summary>
     [RelayCommand]
-    Task SignIn() => Connection.SignInAsync();
+    async Task SignIn()
+    {
+        await Connection.SignInAsync();
+        if (Connection.IsRegistrationRefused && CanSignInWithClaude)
+            await SignInWithClaude();
+    }
 
     [RelayCommand]
     Task SignOut() => Connection.SignOutAsync();
 
     [RelayCommand]
-    async Task SignInWithClaude() => _explorer.Host.Status(await _explorer.Host.SignInWithClaudeAsync(Name));
+    async Task SignInWithClaude() => _explorer.Host.Status(await _explorer.Host.SignInWithClaudeAsync(Name, () => Dispatcher.UIThread.Post(() =>
+    {
+        IsSignedInWithClaude = true;
+        Update();
+        _explorer.Host.Status($"Claude Code is signed in to {Name}: its sessions use it.");
+    })));
 
     [RelayCommand]
     Task Edit() => _explorer.EditAsync(this);
