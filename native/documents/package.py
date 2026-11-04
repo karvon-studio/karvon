@@ -44,6 +44,8 @@ with zipfile.ZipFile(target, "w", zipfile.ZIP_DEFLATED, compresslevel=9) as z:
         for extra in sorted((root / "assets").rglob("*")) if (root / "assets").exists() else []:
             if extra.is_file() and (extra.name.startswith(("LICENSE", "OFL")) or extra.name.endswith("LICENSE.txt")):
                 z.write(extra, f"licenses/{key}/{extra.relative_to(root)}")
+    # The fonts Karvon's copy of GridCraft's PDF writer embeds (Liberation, SIL OFL 1.1).
+    z.write(here / "vendor" / "gridcraft-pdf" / "fonts" / "LICENSE.txt", "licenses/liberation-fonts/LICENSE.txt")
     z.writestr("README.txt", f"Karvon Studio's document engines {version} ({rid}): PdfCraft, WordCraft, GridCraft and DeckCraft "
                f"(github.com/storytold), headless, in one library built from native/documents of Karvon's sources. "
                f"The engines' licenses and notices are in licenses/: {', '.join(sorted(roots))}.\n")

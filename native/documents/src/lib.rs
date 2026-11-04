@@ -54,7 +54,7 @@ fn out(s: String) -> *mut c_char {
 /// The library's version, for Karvon to tell which one it loaded.
 #[unsafe(no_mangle)]
 pub extern "C" fn karvon_documents_version() -> *const c_char {
-    c"0.1.0".as_ptr()
+    concat!(env!("CARGO_PKG_VERSION"), "\0").as_ptr().cast()
 }
 
 /// A server of `kind` (pdf, word, excel, slides); null for another kind or when it could not start.

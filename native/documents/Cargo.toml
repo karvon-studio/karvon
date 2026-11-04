@@ -1,6 +1,6 @@
 [package]
 name = "karvon-documents"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2024"
 rust-version = "1.95"
 license = "MIT"
@@ -25,6 +25,10 @@ hayro-interpret = { git = "https://github.com/storytold/pdfcraft", rev = "7437bd
 hayro-syntax = { git = "https://github.com/storytold/pdfcraft", rev = "7437bde378f43856eada40af25b983812e615e8a" }
 hayro-jbig2 = { git = "https://github.com/storytold/pdfcraft", rev = "7437bde378f43856eada40af25b983812e615e8a" }
 lopdf = { git = "https://github.com/storytold/pdfcraft", rev = "7437bde378f43856eada40af25b983812e615e8a" }
+
+# GridCraft's PDF writer, with embedded fonts: its own draws Cyrillic as "?" (storytold/gridcraft#446). See its README.
+[patch."https://github.com/storytold/gridcraft"]
+gridcraft-pdf = { path = "vendor/gridcraft-pdf" }
 
 [profile.release]
 lto = "thin"

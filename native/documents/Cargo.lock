@@ -1781,7 +1781,6 @@ dependencies = [
 [[package]]
 name = "gridcraft-pdf"
 version = "0.6.1"
-source = "git+https://github.com/storytold/gridcraft?rev=84acf6293b1dc1fc09837524e035d674eb4d6741#84acf6293b1dc1fc09837524e035d674eb4d6741"
 
 [[package]]
 name = "gridcraft-xlsx"
@@ -2280,7 +2279,7 @@ dependencies = [
 
 [[package]]
 name = "karvon-documents"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "deckcraft-mcp",
  "gridcraft-mcp",

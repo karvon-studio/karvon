@@ -1,0 +1,9 @@
+[package]
+name = "gridcraft-pdf"
+version = "0.6.1"
+edition = "2024"
+license = "MIT OR Apache-2.0"
+publish = false
+description = "GridCraft's PDF writer at the commit Karvon pins, with embedded fonts for what the standard ones cannot encode"
+
+[dependencies]

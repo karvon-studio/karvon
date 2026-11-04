@@ -278,7 +278,7 @@ public class DocumentsTests
     {
         Assert.SkipUnless(BuiltLibrary() is not null, "Build native/documents (cargo build --release) or set KARVON_DOCUMENTS_LIBRARY to try the engines.");
         using var library = new DocumentLibrary(BuiltLibrary()!);
-        Assert.Equal("0.1.0", library.Version);
+        Assert.Equal("0.1.1", library.Version);
         var folder = Directory.CreateTempSubdirectory("karvon-documents-live-").FullName;
         using var sessions = new DocumentSessions(_ => Task.FromResult<IDocumentEngines>(library));
         var tools = DocumentClaudeTools.Create(sessions, () => folder).ToDictionary(t => t.Name);
@@ -321,6 +321,37 @@ public class DocumentsTests
             await Call("document_open", new { path = "Deck.pptx" });
             Assert.Contains("Quarterly review", await Call("document_call", new { document = 7, tool = "inspect_slide", arguments = new { index = 0 } }));
             Assert.True(new FileInfo(Path.Combine(folder, "Deck.pdf")).Length > 0);
+        }
+        finally
+        {
+            Directory.Delete(folder, recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task An_excel_sheet_keeps_its_cyrillic_in_the_pdf_its_preview_is_drawn_from()
+    {
+        Assert.SkipUnless(BuiltLibrary() is not null, "Build native/documents (cargo build --release) or set KARVON_DOCUMENTS_LIBRARY to try the engines.");
+        using var library = new DocumentLibrary(BuiltLibrary()!);
+        var folder = Directory.CreateTempSubdirectory("karvon-documents-cyrillic-").FullName;
+        using var sessions = new DocumentSessions(_ => Task.FromResult<IDocumentEngines>(library));
+        var tools = DocumentClaudeTools.Create(sessions, () => folder).ToDictionary(t => t.Name);
+        async Task<string> Call(string tool, object input)
+        {
+            var output = await tools[tool].CallAsync(Input(input), default);
+            Assert.False(output.IsError, output.Text);
+            return output.Text;
+        }
+        try
+        {
+            await Call("document_open", new { kind = "excel" });
+            await Call("document_call", new { document = 1, tool = "write_range", arguments = new { range = "A1", values = new object[][] { ["Ҳисобга киритилган", "Қорақалпоғистон"], ["Ўзбекистон 2019", "Café"] } } });
+            await Call("document_call", new { document = 1, tool = "execute_command", arguments = new { command = "file.exportPdf", @params = new { path = Path.Combine(folder, "Sheet.pdf"), sheets = "all" } } });
+            await Call("document_open", new { path = "Sheet.pdf" });
+            var text = await Call("document_call", new { document = 2, tool = "text_extract" });
+            foreach (var cell in new[] { "Ҳисобга киритилган", "Қорақалпоғистон", "Ўзбекистон 2019", "Café" })
+                Assert.Contains(cell, text);
+            Assert.DoesNotContain("??", text);
         }
         finally
         {
