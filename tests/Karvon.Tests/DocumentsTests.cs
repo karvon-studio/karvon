@@ -410,4 +410,55 @@ public class DocumentsTests
             Directory.Delete(folder, recursive: true);
         }
     }
+
+    [AvaloniaFact]
+    public async Task Claude_closing_a_document_closes_the_preview_it_opened_but_not_the_users()
+    {
+        var folder = Directory.CreateTempSubdirectory("karvon-preview-close-").FullName;
+        foreach (var name in new[] { "Claudes.docx", "Twice.docx", "Users.docx", "Pinned.docx" })
+            File.WriteAllBytes(Path.Combine(folder, name), [1]);
+        var vm = NewViewModel();
+        var module = vm.Module<DocumentsModule>()!;
+        module.Engines = _ => Task.FromResult<IDocumentEngines>(new FakeEngines());
+        var main = new MainWindow { DataContext = vm, Width = 1400, Height = 900 };
+        main.Show();
+        var tools = DocumentClaudeTools.Create(module.Sessions, () => folder).ToDictionary(t => t.Name);
+        async Task Claude(string tool, object arguments)
+        {
+            var input = Input(arguments);
+            var output = await tools[tool].CallAsync(input, default);
+            Assert.False(output.IsError, output.Text);
+            await module.ShowClaudeToolAsync(tool, input, output);
+        }
+        string[] Tabs() => [.. vm.Documents.OfType<DocumentPreviewTab>().Select(d => d.Title).Order()];
+        try
+        {
+            // Claude opens two files, one of them twice; the user had one open, and pins another Claude opened.
+            vm.OpenDocument(Path.Combine(folder, "Users.docx"));
+            await Claude("document_open", new { path = "Claudes.docx" });
+            await Claude("document_open", new { path = "Twice.docx" });
+            await Claude("document_open", new { path = "Twice.docx" });
+            await Claude("document_open", new { path = "Users.docx" });
+            await Claude("document_open", new { path = "Pinned.docx" });
+            Assert.Equal(["Claudes.docx", "Pinned.docx", "Twice.docx", "Users.docx"], Tabs());
+            vm.Documents.OfType<DocumentPreviewTab>().Single(d => d.Title == "Pinned.docx").IsPinned = true;
+
+            // Each closes with Claude's last document on it; the user's and the pinned one stay.
+            await Claude("document_close", new { document = 1 });
+            await WaitUntil(() => Tabs().Length == 3, TimeSpan.FromSeconds(5));
+            Assert.Equal(["Pinned.docx", "Twice.docx", "Users.docx"], Tabs());
+            await Claude("document_close", new { document = 2 });
+            Assert.Equal(["Pinned.docx", "Twice.docx", "Users.docx"], Tabs());
+            await Claude("document_close", new { document = 3 });
+            await WaitUntil(() => Tabs().Length == 2, TimeSpan.FromSeconds(5));
+            await Claude("document_close", new { document = 4 });
+            await Claude("document_close", new { document = 5 });
+            Assert.Equal(["Pinned.docx", "Users.docx"], Tabs());
+        }
+        finally
+        {
+            main.Close();
+            Directory.Delete(folder, recursive: true);
+        }
+    }
 }

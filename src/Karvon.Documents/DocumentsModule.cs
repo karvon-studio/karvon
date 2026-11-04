@@ -37,26 +37,59 @@ public sealed class DocumentsModule : KarvonModule
 
     public override ViewModels.DocumentTab OpenFile(string path) => new DocumentPreviewTab(path, Previews);
 
-    /// <summary>A document Claude opened or saved: shown in Karvon (drawn again when it is open already), a text format in the editor.</summary>
+    /// <summary>The previews Claude's documents opened, by file, each with the documents that show it: it closes with the last of them.</summary>
+    readonly Dictionary<string, HashSet<int>> _claudePreviews = new(OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal);
+
+    DocumentPreviewTab? Preview(string file) => Workbench.Documents.OfType<DocumentPreviewTab>().FirstOrDefault(d => d.Key == file);
+
+    static int? DocumentIn(System.Text.Json.JsonElement input) =>
+        input.TryGetProperty("document", out var d) && d.TryGetInt32(out var id) ? id : null;
+
+    /// <summary>
+    /// A document Claude opened or saved: shown in Karvon (drawn again when it is open already), a text format in the editor.
+    /// Claude closing it closes the preview that opened for it; one the user had open, or pinned, stays.
+    /// </summary>
     public override Task ShowClaudeToolAsync(string tool, System.Text.Json.JsonElement input, ClaudeToolOutput output)
     {
-        var file = tool switch
+        if (tool == "document_close")
         {
-            // "Document 3: /path/Report.docx (Word)."
-            "document_open" => output.Text.StartsWith("Document ", StringComparison.Ordinal) && int.TryParse(output.Text[9..output.Text.IndexOf(':')], out var id)
-                ? Sessions.Find(id)?.Path : null,
-            "document_save" => output.Text.StartsWith("Saved ", StringComparison.Ordinal) ? output.Text[6..^1] : null,
-            _ => null,
-        };
+            if (DocumentIn(input) is { } closed)
+                CloseClaudePreviews(closed);
+            return Task.CompletedTask;
+        }
+        int? id = null;
+        string? file = null;
+        // "Document 3: /path/Report.docx (Word)."
+        if (tool == "document_open" && output.Text.StartsWith("Document ", StringComparison.Ordinal) && int.TryParse(output.Text[9..output.Text.IndexOf(':')], out var opened))
+            (id, file) = (opened, Sessions.Find(opened)?.Path);
+        else if (tool == "document_save" && output.Text.StartsWith("Saved ", StringComparison.Ordinal))
+            (id, file) = (DocumentIn(input), output.Text[6..^1]);
         if (file is null || !File.Exists(file))
             return Task.CompletedTask;
-        if (Workbench.Documents.OfType<DocumentPreviewTab>().FirstOrDefault(d => d.Key == file) is { } open)
+        var open = Preview(file);
+        if (open is null)
+            _claudePreviews[file] = [];
+        if (id is { } document && _claudePreviews.TryGetValue(file, out var documents))
+            documents.Add(document);
+        if (open is not null)
         {
             Workbench.ShowDocument(open);
             return open.LoadAsync();
         }
         Workbench.OpenFile(file);
         return Task.CompletedTask;
+    }
+
+    void CloseClaudePreviews(int document)
+    {
+        foreach (var (file, documents) in _claudePreviews.ToList())
+        {
+            if (!documents.Remove(document) || documents.Count > 0)
+                continue;
+            _claudePreviews.Remove(file);
+            if (Preview(file) is { IsPinned: false } tab)
+                Workbench.CloseDocument(tab);
+        }
     }
 
     public override string Id => "documents";
