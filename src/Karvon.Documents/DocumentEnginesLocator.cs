@@ -12,15 +12,15 @@ namespace Karvon.Documents;
 /// </summary>
 public static class DocumentEnginesLocator
 {
-    public const string Version = "0.1.0";
+    public const string Version = "0.1.1";
 
     /// <summary>Each platform's zip and its SHA-256.</summary>
     internal static readonly IReadOnlyDictionary<string, string> AllBuilds = new Dictionary<string, string>
     {
-        ["linux-x64"] = "542f82cfc8203abaafc99bb2278d019cbcaf8c61c4d2710be8dad3f288f1ce96",
-        ["osx-arm64"] = "63a4d96e505a2fcb04714774bb45658f18cd17df29d4ddbc950b490e8cc7fdd7",
-        ["osx-x64"] = "7e3a307289a546d77db9f4f49cd957cddad7f4de64143f4b59a0c61295722f9f",
-        ["win-x64"] = "4b99d2270e088d96dcb7cbdaacbc57b899861b8a40f1829574ccec27773097f1",
+        ["linux-x64"] = "c6f0019ee06cad68f19af37151a5a87079727c3135bc9ad503172e3b9581f2d2",
+        ["osx-arm64"] = "1804bb570e896539543f7e0c4910cda2f8b6a88e6957eab4b606da3471c05f81",
+        ["osx-x64"] = "2e953bbeae2d1d0ec081282bec8e95893752ac4398bd87a070e40365dfdb4034",
+        ["win-x64"] = "da5267ed0791b69fbf67b3733b4c28a22f072f1fc5de1fd165fcbcfb485641ff",
     };
 
     static string Root => Path.Combine(Karvon.Modules.ModuleComponent.DataRoot, "documents");
@@ -51,7 +51,7 @@ public static class DocumentEnginesLocator
         if (!AllBuilds.TryGetValue(Platform, out var sha256))
             throw new InvalidOperationException($"The document engines {Version} have no build for {Platform} (only for {string.Join(", ", AllBuilds.Keys.Order())}).");
         var url = $"https://github.com/{Updates.UpdateFeed.Repository}/releases/download/documents-{Version}/karvon-documents-{Version}-{Platform}.zip";
-        log($"Downloading {url} (about 36 MB) ...");
+        log($"Downloading {url} (about 38 MB) ...");
         var staging = $"{InstallRoot}.tmp-{Environment.ProcessId}";
         var archive = staging + ".download";
         if (Directory.Exists(staging))
