@@ -92,7 +92,7 @@
     <!-- ===== Title strip ===== -->
     <Border DockPanel.Dock="Top" Background="{StaticResource VsEnvironmentBrush}" BorderBrush="{StaticResource VsBorderBrush}" BorderThickness="0,0,0,1" Padding="24,10">
       <StackPanel Orientation="Horizontal" Spacing="10">
-        <Image Source="/Assets/karvon.png" Width="22" Height="22" />
+        <Image Source="/Assets/karvon-small.png" Width="22" Height="22" />
         <TextBlock Text="Karvon Studio Installer" FontSize="15" VerticalAlignment="Center" />
       </StackPanel>
     </Border>
@@ -113,7 +113,7 @@
 
           <Border Name="ProductCard" Background="#2D2D30" BorderBrush="{StaticResource VsBorderBrush}" BorderThickness="1" CornerRadius="3" Padding="22,18">
             <Grid ColumnDefinitions="Auto,*,Auto">
-              <Image Source="/Assets/karvon.png" Width="56" Height="56" VerticalAlignment="Top" Margin="0,2,18,0" />
+              <Image Source="/Assets/karvon-small.png" Width="56" Height="56" VerticalAlignment="Top" Margin="0,2,18,0" />
               <StackPanel Grid.Column="1" Spacing="5">
                 <TextBlock Text="Karvon Studio" FontSize="19" FontWeight="SemiBold" />
                 <TextBlock Name="VersionText" Classes="gray" Text="{Binding VersionText}" />

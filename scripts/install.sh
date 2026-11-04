@@ -24,6 +24,9 @@ chmod +x "$bin_dir/karvon"
 
 cp "$repo/src/Karvon.Core/Assets/karvon.svg" "$icons_dir/scalable/apps/karvon.svg"
 cp "$repo/src/Karvon.Core/Assets/karvon.png" "$icons_dir/256x256/apps/karvon.png"
+for size in 16 24 32 48 64; do
+  install -D -m 644 "$repo/deploy/icons/karvon-$size.png" "$icons_dir/${size}x${size}/apps/karvon.png"
+done
 
 cat > "$apps_dir/karvon.desktop" <<DESKTOP
 [Desktop Entry]

@@ -12,7 +12,6 @@ VERSION=$2
 ARCH=$3
 DIST=$(mkdir -p "$4" && cd "$4" && pwd)
 HERE=$(cd "$(dirname "$0")" && pwd)
-ASSETS=$(cd "$HERE/../../src/Karvon.Core/Assets" && pwd)
 WORK=$(mktemp -d)
 trap 'rm -rf "$WORK"' EXIT
 
@@ -29,12 +28,19 @@ chmod 755 "$APP/Contents/MacOS/Karvon"
 # How it updates itself: its bundle replaced by the next .dmg's.
 echo dmg > "$APP/Contents/MacOS/karvon-distribution"
 
-# Its icon, from the PNG, at every size macOS asks for.
+# Its icon at every size macOS asks for: the small ones as drawn for them, the rest from macOS's own, with its margin.
+ICONS="$HERE/../icons"
 ICONSET="$WORK/karvon.iconset"
 mkdir -p "$ICONSET"
+icon() {
+  case $1 in
+    16 | 32 | 64) cp "$ICONS/karvon-$1.png" "$2" ;;
+    *) sips -z "$1" "$1" "$ICONS/karvon-macos.png" --out "$2" >/dev/null ;;
+  esac
+}
 for size in 16 32 128 256 512; do
-  sips -z $size $size "$ASSETS/karvon.png" --out "$ICONSET/icon_${size}x${size}.png" >/dev/null
-  sips -z $((size * 2)) $((size * 2)) "$ASSETS/karvon.png" --out "$ICONSET/icon_${size}x${size}@2x.png" >/dev/null
+  icon $size "$ICONSET/icon_${size}x${size}.png"
+  icon $((size * 2)) "$ICONSET/icon_${size}x${size}@2x.png"
 done
 iconutil -c icns "$ICONSET" -o "$APP/Contents/Resources/karvon.icns"
 

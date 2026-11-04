@@ -42,6 +42,10 @@ ln -s /opt/karvon/Karvon "$DEB/usr/bin/karvon"
 install -m 644 "$HERE/karvon.desktop" "$DEB/usr/share/applications/karvon.desktop"
 install -m 644 "$ASSETS/karvon.png" "$DEB/usr/share/icons/hicolor/256x256/apps/karvon.png"
 install -m 644 "$ASSETS/karvon.svg" "$DEB/usr/share/icons/hicolor/scalable/apps/karvon.svg"
+# The small sizes: drawn for them (one camel), not the large icon scaled down.
+for size in 16 24 32 48 64; do
+  install -D -m 644 "$HERE/../icons/karvon-$size.png" "$DEB/usr/share/icons/hicolor/${size}x${size}/apps/karvon.png"
+done
 cat > "$DEB/DEBIAN/control" <<CONTROL
 Package: karvon-studio
 Version: $VERSION
