@@ -39,13 +39,17 @@ public class UiTests
 {
     internal static async Task WaitUntil(Func<bool> condition, TimeSpan timeout)
     {
+        // From a plain [Fact], off the UI thread, RunJobs would take another test's job off the queue and fail on it, losing it.
+        var onUiThread = Dispatcher.UIThread.CheckAccess();
         var end = DateTime.UtcNow + timeout;
         while (!condition() && DateTime.UtcNow < end)
         {
-            Dispatcher.UIThread.RunJobs();
+            if (onUiThread)
+                Dispatcher.UIThread.RunJobs();
             await Task.Delay(100);
         }
-        Dispatcher.UIThread.RunJobs();
+        if (onUiThread)
+            Dispatcher.UIThread.RunJobs();
     }
 
     /// <summary>A view model with no remembered per-solution state, so tests do not depend on each other's order.</summary>
