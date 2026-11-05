@@ -361,6 +361,7 @@ public class JwcTests
         Assert.SkipUnless(HasJwc() && Environment.GetEnvironmentVariable("JWC_DATABASE_URL") is { Length: > 0 },
             "Set KARVON_JWC_LIVE=1 and JWC_DATABASE_URL to a scratch database, with jwc installed, to run its tests and serve.");
         var dir = await MadeBy("empty");
+        Karvon.ViewModels.MainViewModel? vm = null;
         try
         {
             File.WriteAllText(Path.Combine(dir, "src", "checks.jwc"), """
@@ -383,7 +384,7 @@ public class JwcTests
             var app = Path.Combine(dir, "src", "app.jwc");
             File.WriteAllText(app, File.ReadAllText(app).Replace("8080", port.Port.ToString(System.Globalization.CultureInfo.InvariantCulture), StringComparison.Ordinal));
 
-            var vm = NewViewModel();
+            vm = NewViewModel();
             var window = new MainWindow { DataContext = vm, Width = 1280, Height = 800 };
             window.Show();
             await vm.OpenSolutionAsync(dir);
@@ -439,12 +440,14 @@ public class JwcTests
                 }
             }, TimeSpan.FromSeconds(30));
             Assert.True(answer?.Contains("saved", StringComparison.Ordinal) == true, answer + "\n" + vm.DebugOutput.Document.Text + "\n" + vm.TasksOutput.Document.Text);
-            await vm.StopCommand.ExecuteAsync(null);
             Assert.True(await vm.CloseSolutionCoreAsync());
             window.Close();
         }
         finally
         {
+            // Whatever failed above: no server left listening.
+            if (vm is not null)
+                await vm.StopCommand.ExecuteAsync(null);
             Directory.Delete(dir, recursive: true);
         }
     }
