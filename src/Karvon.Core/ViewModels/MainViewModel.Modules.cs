@@ -278,13 +278,20 @@ public partial class MainViewModel : IWorkbench
 
     Task<IReadOnlyList<string>> IWorkbench.PickFilesAsync(string title) => Dialogs?.PickFilesAsync(title) ?? Task.FromResult<IReadOnlyList<string>>([]);
 
+    /// <summary>Any thread may ask (a tool's, a download's); the window's list changes on the UI thread.</summary>
     OutputChannel IWorkbench.Output(string name)
     {
-        if (OutputChannels.FirstOrDefault(c => c.Name == name) is { } channel)
+        lock (_outputsByName)
+        {
+            if (_outputsByName.TryGetValue(name, out var channel))
+                return channel;
+            channel = _outputsByName[name] = new OutputChannel(name);
+            if (Avalonia.Threading.Dispatcher.UIThread.CheckAccess())
+                OutputChannels.Add(channel);
+            else
+                Avalonia.Threading.Dispatcher.UIThread.Post(() => OutputChannels.Add(channel));
             return channel;
-        channel = new OutputChannel(name);
-        OutputChannels.Add(channel);
-        return channel;
+        }
     }
 
     void IWorkbench.ShowOutput(OutputChannel channel)

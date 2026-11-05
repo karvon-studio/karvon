@@ -50,6 +50,54 @@ public class ErrorReportsTests
             ErrorReports.Reported -= Show;
         }
     }
+
+    [AvaloniaFact]
+    public void The_status_bar_sends_the_user_to_Output_and_the_error_is_there()
+    {
+        var vm = NewViewModel();
+        var window = new Karvon.Views.MainWindow { DataContext = vm };
+        window.Show();
+        vm.ShowToolWindow(Karvon.ViewModels.ToolWindows.Output);
+        Dispatcher.UIThread.RunJobs();
+        var shown = Avalonia.VisualTree.VisualExtensions.GetVisualDescendants(window).OfType<AvaloniaEdit.TextEditor>().Single(e => e.Name == "OutputEditor");
+        Assert.Equal("", shown.Text);
+
+        // Nothing to read in the channel it showed (Build, at the start): the window shows the error.
+        var marker = "boom-" + Guid.NewGuid().ToString("N");
+        vm.ShowError(new IOException(marker));
+        Dispatcher.UIThread.RunJobs();
+        Assert.Equal("Karvon", vm.SelectedOutput.Name);
+        Assert.Contains(marker, shown.Text);
+
+        // A channel with text may be being read: it stays, and the error waits in its own.
+        vm.SelectedOutput = vm.BuildOutput;
+        vm.BuildOutput.Append("Build started");
+        var later = marker + "-later";
+        vm.ShowError(new IOException(later));
+        Dispatcher.UIThread.RunJobs();
+        Assert.Same(vm.BuildOutput, vm.SelectedOutput);
+        Assert.Contains(later, vm.OutputChannels.Single(c => c.Name == "Karvon").Document.Text);
+        window.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task A_channel_asked_for_on_another_thread_keeps_its_text()
+    {
+        var vm = NewViewModel();
+        Karvon.Modules.IWorkbench workbench = vm;
+        // As a document tool's download does: the channel asked for and written to off the UI thread.
+        var channel = await Task.Run(() =>
+        {
+            var made = workbench.Output("Off the UI thread");
+            made.Append("first");
+            return made;
+        }, TestContext.Current.CancellationToken);
+        Assert.Same(channel, workbench.Output("Off the UI thread"));
+        Dispatcher.UIThread.RunJobs();
+        channel.Append("second");
+        Assert.Equal("first\nsecond\n", channel.Document.Text);
+        Assert.Single(vm.OutputChannels, c => c.Name == "Off the UI thread");
+    }
 }
 
 /// <summary>A query's result exported while the Database Explorer is not in a window (closed, or hidden).</summary>

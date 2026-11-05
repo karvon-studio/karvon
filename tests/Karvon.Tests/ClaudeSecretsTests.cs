@@ -699,6 +699,76 @@ public class ClaudeSecretsTests
     }
 
     [Fact]
+    public async Task A_tunnel_that_ends_in_a_reset_leaves_no_error_nobody_looked_at()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        List<Exception> unseen = [];
+        void Unseen(object? sender, UnobservedTaskExceptionEventArgs e)
+        {
+            // Other tests' tasks end here too: only the copies of a tunnel count.
+            if (e.Exception.ToString().Contains("CopyToAsync", StringComparison.Ordinal))
+                lock (unseen)
+                    unseen.Add(e.Exception);
+        }
+        TaskScheduler.UnobservedTaskException += Unseen;
+        try
+        {
+            await using var gateway = ClaudeGateway.StartProxy();
+            await ResetATunnelAsync(gateway, ct);
+
+            // What nobody looked at shows when the tasks are collected.
+            for (var i = 0; i < 5; i++)
+            {
+                GC.Collect();
+                GC.WaitForPendingFinalizers();
+                await Task.Delay(50, ct);
+            }
+            lock (unseen)
+                Assert.Empty(unseen);
+        }
+        finally
+        {
+            TaskScheduler.UnobservedTaskException -= Unseen;
+        }
+    }
+
+    /// <summary>A CONNECT whose far side then resets the connection, until the tunnel has closed. Not inlined, so its tasks are collectable.</summary>
+    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]
+    static async Task ResetATunnelAsync(ClaudeGateway gateway, CancellationToken ct)
+    {
+        var elsewhere = new System.Net.Sockets.TcpListener(System.Net.IPAddress.Loopback, 0);
+        elsewhere.Start();
+        try
+        {
+            var port = ((System.Net.IPEndPoint)elsewhere.LocalEndpoint).Port;
+            var accepting = elsewhere.AcceptTcpClientAsync(ct);
+            var (client, answer) = await ConnectThroughAsync(gateway, $"127.0.0.1:{port}", ct);
+            using (client)
+            {
+                Assert.StartsWith("HTTP/1.1 200", answer);
+                // Close(0) sends the reset: TcpClient's Dispose would shut down first, which reads as a clean end.
+                using (var accepted = await accepting)
+                    accepted.Client.Close(0);
+                var one = new byte[1];
+                var stream = client.GetStream();
+                try
+                {
+                    while (await stream.ReadAsync(one, ct).AsTask().WaitAsync(TimeSpan.FromSeconds(10), ct) > 0)
+                    {
+                    }
+                }
+                catch (IOException)
+                {
+                }
+            }
+        }
+        finally
+        {
+            elsewhere.Stop();
+        }
+    }
+
+    [Fact]
     public async Task The_gateway_as_a_proxy_tunnels_other_hosts_unread_and_refuses_anything_else()
     {
         var ct = TestContext.Current.CancellationToken;

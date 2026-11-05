@@ -209,12 +209,20 @@ public sealed partial class ClaudeGateway
         await PipeAsync(client, stream);
     }
 
-    /// <summary>Both ways until either side ends.</summary>
+    /// <summary>Both ways until either side ends, by closing or by a reset: each is how a tunnel ends, and the other side sees the connection close.</summary>
     async Task PipeAsync(Stream a, Stream b)
     {
         using var done = CancellationTokenSource.CreateLinkedTokenSource(_stop.Token);
-        await Task.WhenAny(a.CopyToAsync(b, done.Token), b.CopyToAsync(a, done.Token));
+        Task[] copies = [a.CopyToAsync(b, done.Token), b.CopyToAsync(a, done.Token)];
+        await Task.WhenAny(copies);
         await done.CancelAsync();
+        try
+        {
+            await Task.WhenAll(copies);
+        }
+        catch (Exception ex) when (ex is IOException or SocketException or OperationCanceledException or ObjectDisposedException)
+        {
+        }
     }
 
     static async Task<Stream> ConnectTlsAsync(string host, int port, CancellationToken cancellationToken)

@@ -45,12 +45,14 @@ public sealed partial class OutputChannel : ObservableObject
 
     readonly AnsiText _ansi = new();
     readonly List<OutputSpan> _spans = [];
+    TextDocument? _document;
 
     public OutputChannel(string name) => Name = name;
 
     public string Name { get; }
 
-    public TextDocument Document { get; } = new();
+    /// <summary>Made at its first use, on the UI thread: a document answers only to the thread that made it, and a channel may be made on any.</summary>
+    public TextDocument Document => _document ??= new();
 
     /// <summary>The colored runs of the text, in order.</summary>
     public IReadOnlyList<OutputSpan> Spans => _spans;

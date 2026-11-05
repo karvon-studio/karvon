@@ -102,6 +102,8 @@ public partial class MainViewModel : ObservableObject
         WatchSettingsSync();
         ServerOutput = new OutputChannel("Language Server");
         OutputChannels = [BuildOutput, DebugOutput, ServerOutput, GitOutput];
+        foreach (var channel in OutputChannels)
+            _outputsByName[channel.Name] = channel;
         SelectedOutput = BuildOutput;
         InitializeDebugging();
         StartModules();
@@ -123,6 +125,7 @@ public partial class MainViewModel : ObservableObject
     public ObservableCollection<ProjectInfo> StartupProjects { get; } = [];
     public ObservableCollection<string> LaunchProfiles { get; } = [];
     public ObservableCollection<OutputChannel> OutputChannels { get; }
+    readonly Dictionary<string, OutputChannel> _outputsByName = [];
     public IReadOnlyList<string> Configurations { get; } = ["Debug", "Release"];
     public IReadOnlyList<string> RecentSolutions => Settings.RecentSolutions;
 
