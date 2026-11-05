@@ -66,6 +66,7 @@ src/Karvon.Cpp/         module: C and C++ (clangd, CodeLLDB, CMake's configure/b
 src/Karvon.Lldb/        CodeLLDB, which the Rust and C and C++ modules debug with
 src/Karvon.Java/        module: Java (jdtls with java-debug in it, Maven's and Gradle's builds, JUnit in Test Explorer)
 src/Karvon.Kotlin/      module: Kotlin (JetBrains' kotlin-lsp and its debugger, Gradle's tests in Test Explorer, a template)
+src/Karvon.Jwc/         module: JWC (jwc lsp, jwc fmt, jwc check/build/lint/serve/run, jwc test in Test Explorer, a grammar and an icon)
 src/Karvon.Claude/      module: Claude Code (its session, protocol and view model, and the panel)
 external/bengine/       Bengine (submodule): the schema AST and the live-database layer the Database Explorer uses
 ```

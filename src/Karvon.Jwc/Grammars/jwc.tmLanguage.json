@@ -1,0 +1,574 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "JWC",
+  "scopeName": "source.jwc",
+  "fileTypes": [
+    "jwc"
+  ],
+  "patterns": [
+    {
+      "include": "#comments"
+    },
+    {
+      "include": "#strings"
+    },
+    {
+      "include": "#numbers"
+    },
+    {
+      "include": "#declarations"
+    },
+    {
+      "include": "#route-header"
+    },
+    {
+      "include": "#schema-header"
+    },
+    {
+      "include": "#placeholders"
+    },
+    {
+      "include": "#builtin-namespaces"
+    },
+    {
+      "include": "#builtin-functions"
+    },
+    {
+      "include": "#validation-rules"
+    },
+    {
+      "include": "#column-modifiers"
+    },
+    {
+      "include": "#query-keywords"
+    },
+    {
+      "include": "#type-names"
+    },
+    {
+      "include": "#boolean-null"
+    },
+    {
+      "include": "#keywords"
+    },
+    {
+      "include": "#operators"
+    },
+    {
+      "include": "#punctuation"
+    },
+    {
+      "include": "#type-references"
+    },
+    {
+      "include": "#identifiers"
+    }
+  ],
+  "repository": {
+    "comments": {
+      "patterns": [
+        {
+          "include": "#block-comment"
+        },
+        {
+          "name": "comment.line.documentation.jwc",
+          "match": "///.*$"
+        },
+        {
+          "name": "comment.line.double-slash.jwc",
+          "match": "//.*$"
+        }
+      ]
+    },
+    "strings": {
+      "patterns": [
+        {
+          "name": "string.quoted.raw.jwc",
+          "comment": "r\"...\" — only \\\" is an escape; every other backslash is text.",
+          "begin": "\\br\"",
+          "end": "\"",
+          "beginCaptures": {
+            "0": {
+              "name": "punctuation.definition.string.begin.jwc"
+            }
+          },
+          "endCaptures": {
+            "0": {
+              "name": "punctuation.definition.string.end.jwc"
+            }
+          },
+          "patterns": [
+            {
+              "name": "constant.character.escape.jwc",
+              "match": "\\\\\""
+            }
+          ]
+        },
+        {
+          "name": "string.quoted.double.jwc",
+          "begin": "\"",
+          "end": "\"",
+          "beginCaptures": {
+            "0": {
+              "name": "punctuation.definition.string.begin.jwc"
+            }
+          },
+          "endCaptures": {
+            "0": {
+              "name": "punctuation.definition.string.end.jwc"
+            }
+          },
+          "patterns": [
+            {
+              "name": "constant.character.escape.jwc",
+              "match": "\\\\[\"\\\\nrt0]"
+            }
+          ]
+        }
+      ]
+    },
+    "numbers": {
+      "patterns": [
+        {
+          "name": "constant.numeric.float.jwc",
+          "match": "\\b[0-9]+\\.[0-9]+\\b"
+        },
+        {
+          "name": "constant.numeric.integer.jwc",
+          "match": "\\b[0-9]+\\b"
+        }
+      ]
+    },
+    "declarations": {
+      "patterns": [
+        {
+          "name": "meta.declaration.jwc",
+          "match": "\\b(database)\\s+([A-Za-z_][A-Za-z0-9_]*)\\s*(:)\\s*([A-Za-z_][A-Za-z0-9_]*)",
+          "captures": {
+            "1": {
+              "name": "keyword.declaration.jwc"
+            },
+            "2": {
+              "name": "entity.name.type.database.jwc"
+            },
+            "3": {
+              "name": "punctuation.separator.colon.jwc"
+            },
+            "4": {
+              "name": "support.type.engine.jwc"
+            }
+          }
+        },
+        {
+          "name": "meta.declaration.jwc",
+          "match": "\\b(table|view)\\s+([A-Za-z_][A-Za-z0-9_]*)\\s+(of)\\s+([A-Za-z_][A-Za-z0-9_]*)\\.([A-Za-z_][A-Za-z0-9_]*)",
+          "captures": {
+            "1": {
+              "name": "keyword.declaration.jwc"
+            },
+            "2": {
+              "name": "entity.name.type.jwc"
+            },
+            "3": {
+              "name": "keyword.other.of.jwc"
+            },
+            "4": {
+              "name": "entity.name.type.database.jwc"
+            },
+            "5": {
+              "name": "entity.name.namespace.schema.jwc"
+            }
+          }
+        },
+        {
+          "name": "meta.declaration.jwc",
+          "match": "\\b(class|enum|error|service|middleware|job)\\s+([A-Za-z_][A-Za-z0-9_]*)",
+          "captures": {
+            "1": {
+              "name": "keyword.declaration.jwc"
+            },
+            "2": {
+              "name": "entity.name.type.jwc"
+            }
+          }
+        },
+        {
+          "name": "meta.declaration.jwc",
+          "match": "\\b(function)\\s+([A-Za-z_][A-Za-z0-9_]*)",
+          "captures": {
+            "1": {
+              "name": "storage.type.function.jwc"
+            },
+            "2": {
+              "name": "entity.name.function.jwc"
+            }
+          }
+        },
+        {
+          "name": "meta.declaration.jwc",
+          "match": "\\b(namespace|import)\\s+([A-Za-z_][A-Za-z0-9_.]*)",
+          "captures": {
+            "1": {
+              "name": "keyword.control.import.jwc"
+            },
+            "2": {
+              "name": "entity.name.namespace.jwc"
+            }
+          }
+        },
+        {
+          "name": "keyword.declaration.jwc",
+          "match": "\\b(errorHandler|server|test)\\b"
+        }
+      ]
+    },
+    "route-header": {
+      "patterns": [
+        {
+          "name": "meta.route.jwc",
+          "match": "\\b(route)\\s+(GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS)\\s+(\"[^\"]*\")",
+          "captures": {
+            "1": {
+              "name": "keyword.control.route.jwc"
+            },
+            "2": {
+              "name": "support.type.http-method.jwc"
+            },
+            "3": {
+              "name": "string.quoted.double.route-path.jwc"
+            }
+          }
+        },
+        {
+          "name": "meta.route.jwc",
+          "match": "\\b(routes|socket)\\s+(\"[^\"]*\")",
+          "captures": {
+            "1": {
+              "name": "keyword.control.route.jwc"
+            },
+            "2": {
+              "name": "string.quoted.double.route-path.jwc"
+            }
+          }
+        },
+        {
+          "name": "keyword.control.route.jwc",
+          "match": "\\b(routes|route|socket|static)\\b"
+        },
+        {
+          "match": "\\b(on)\\s+(open|message|close)\\b",
+          "captures": {
+            "1": {
+              "name": "keyword.control.route.jwc"
+            },
+            "2": {
+              "name": "support.type.socket-event.jwc"
+            }
+          }
+        }
+      ]
+    },
+    "schema-header": {
+      "patterns": [
+        {
+          "name": "meta.declaration.jwc",
+          "match": "\\b(schema)\\s+([A-Za-z_][A-Za-z0-9_]*)\\s+(of)\\s+([A-Za-z_][A-Za-z0-9_]*)",
+          "captures": {
+            "1": {
+              "name": "keyword.declaration.jwc"
+            },
+            "2": {
+              "name": "entity.name.namespace.schema.jwc"
+            },
+            "3": {
+              "name": "keyword.other.of.jwc"
+            },
+            "4": {
+              "name": "entity.name.type.database.jwc"
+            }
+          }
+        }
+      ]
+    },
+    "placeholders": {
+      "patterns": [
+        {
+          "name": "variable.other.binding.jwc",
+          "match": "@[A-Za-z_][A-Za-z0-9_]*"
+        }
+      ]
+    },
+    "builtin-namespaces": {
+      "patterns": [
+        {
+          "name": "meta.builtin.jwc",
+          "match": "\\b(array|cache|console|crypto|date|debug|directory|file|hash|http|jwt|mail|redis|request|response|string)\\.([a-z_][A-Za-z0-9_]*)",
+          "captures": {
+            "1": {
+              "name": "support.class.builtin.jwc"
+            },
+            "2": {
+              "name": "support.function.builtin.jwc"
+            }
+          }
+        }
+      ]
+    },
+    "builtin-functions": {
+      "patterns": [
+        {
+          "name": "support.function.response.jwc",
+          "match": "\\b(json|text|html|created|accepted|noContent|notFound|badRequest|unauthorized|forbidden|conflict|internalError|statusCode|redirect|redirectExternal|serve)\\s*(?=\\()"
+        },
+        {
+          "name": "support.function.builtin.jwc",
+          "match": "\\b(env|int|bigint|smallint|numeric|boolean|uuid|timestamptz|enum|count|sum|avg|min|max|distinct)\\s*(?=\\()"
+        }
+      ]
+    },
+    "validation-rules": {
+      "patterns": [
+        {
+          "name": "support.function.rule.jwc",
+          "match": "\\b(minLength|maxLength|minItems|maxItems|pattern|oneOf)\\s*(?=\\()"
+        },
+        {
+          "name": "support.function.rule.jwc",
+          "match": "\\brequired\\b"
+        }
+      ]
+    },
+    "column-modifiers": {
+      "patterns": [
+        {
+          "name": "storage.modifier.jwc",
+          "match": "\\b(primary)\\s+(key)\\b"
+        },
+        {
+          "name": "storage.modifier.jwc",
+          "match": "\\b(foreign)\\s+(key)\\b"
+        },
+        {
+          "name": "storage.modifier.jwc",
+          "match": "\\b(on)\\s+(update|delete)\\b"
+        },
+        {
+          "name": "storage.modifier.jwc",
+          "match": "\\b(no)\\s+(action)\\b"
+        },
+        {
+          "name": "storage.modifier.jwc",
+          "match": "\\b(set)\\s+(null)\\b"
+        },
+        {
+          "name": "storage.modifier.jwc",
+          "match": "\\b(identity|unique|private|server|default|references|check|index|cascade|restrict|transient)\\b"
+        }
+      ]
+    },
+    "query-keywords": {
+      "patterns": [
+        {
+          "name": "keyword.other.query.jwc",
+          "match": "\\b(group)\\s+(by)\\b"
+        },
+        {
+          "name": "keyword.other.query.jwc",
+          "match": "\\b(on)\\s+(conflict)\\b"
+        },
+        {
+          "name": "keyword.other.query.jwc",
+          "match": "\\b(do)\\s+(nothing|update)\\b"
+        },
+        {
+          "name": "keyword.other.query.jwc",
+          "match": "\\b(or)\\s+(throw)\\b"
+        },
+        {
+          "name": "keyword.other.query.jwc",
+          "match": "\\b(nulls)\\s+(first|last)\\b"
+        },
+        {
+          "name": "meta.page-clause.jwc",
+          "match": "\\b(page)\\b(?:\\s+(after)\\b)?",
+          "captures": {
+            "1": {
+              "name": "keyword.other.query.jwc"
+            },
+            "2": {
+              "name": "keyword.other.query.jwc"
+            }
+          }
+        },
+        {
+          "name": "keyword.other.query.jwc",
+          "match": "\\b(size|max)\\b(?=\\s+(?:@|[0-9]))"
+        },
+        {
+          "name": "keyword.other.query.jwc",
+          "match": "\\bin\\b(?=\\s*\\()"
+        },
+        {
+          "name": "keyword.other.query.jwc",
+          "match": "\\b(select|insert|into|update|delete|from|where|having|orderby|limit|offset|first|join|left|inner|cross|full|right|as|set|conflict|nothing|exists|except|buffered|under|asc|desc|like|ilike)\\b"
+        }
+      ]
+    },
+    "type-names": {
+      "patterns": [
+        {
+          "name": "support.type.jwc",
+          "match": "\\b(smallint|int|bigint|numeric|boolean|varchar|text|timestamptz|date|time|interval|uuid|jsonb|inet|bytea)\\b"
+        }
+      ]
+    },
+    "boolean-null": {
+      "patterns": [
+        {
+          "name": "constant.language.boolean.jwc",
+          "match": "\\b(true|false)\\b"
+        },
+        {
+          "name": "constant.language.null.jwc",
+          "match": "\\bnull\\b"
+        }
+      ]
+    },
+    "keywords": {
+      "patterns": [
+        {
+          "name": "keyword.control.jwc",
+          "match": "\\b(if|else|for|while|break|continue|return|throw|catch|transaction|assert|dispatch)\\b"
+        },
+        {
+          "name": "keyword.declaration.jwc",
+          "match": "\\b(let|const|use|with|raises|provides|requires|was|using|retries|backoff|every)\\b"
+        },
+        {
+          "name": "keyword.operator.logical.jwc",
+          "match": "\\b(and|or|not)\\b"
+        }
+      ]
+    },
+    "operators": {
+      "patterns": [
+        {
+          "name": "keyword.operator.optional-compare.jwc",
+          "match": "==\\?"
+        },
+        {
+          "name": "keyword.operator.comparison.jwc",
+          "match": "(==|!=|<=|>=|<|>)"
+        },
+        {
+          "name": "keyword.operator.coalesce.jwc",
+          "match": "\\?\\?"
+        },
+        {
+          "name": "keyword.operator.spread.jwc",
+          "match": "\\.\\.\\."
+        },
+        {
+          "name": "keyword.operator.optional-assign.jwc",
+          "match": "=\\?"
+        },
+        {
+          "name": "keyword.operator.logical.jwc",
+          "match": "!(?!=)"
+        },
+        {
+          "name": "keyword.operator.optional.jwc",
+          "match": "\\?"
+        },
+        {
+          "name": "keyword.operator.assignment.jwc",
+          "match": "(?<![=!<>])=(?!=)"
+        },
+        {
+          "name": "keyword.operator.arithmetic.jwc",
+          "match": "[+\\-*/%]"
+        }
+      ]
+    },
+    "punctuation": {
+      "patterns": [
+        {
+          "name": "punctuation.terminator.statement.jwc",
+          "match": ";"
+        },
+        {
+          "name": "punctuation.separator.colon.jwc",
+          "match": ":"
+        },
+        {
+          "name": "punctuation.separator.comma.jwc",
+          "match": ","
+        },
+        {
+          "name": "punctuation.accessor.dot.jwc",
+          "match": "\\."
+        },
+        {
+          "name": "punctuation.section.block.begin.jwc",
+          "match": "\\{"
+        },
+        {
+          "name": "punctuation.section.block.end.jwc",
+          "match": "\\}"
+        },
+        {
+          "name": "punctuation.section.parens.begin.jwc",
+          "match": "\\("
+        },
+        {
+          "name": "punctuation.section.parens.end.jwc",
+          "match": "\\)"
+        },
+        {
+          "name": "punctuation.section.brackets.begin.jwc",
+          "match": "\\["
+        },
+        {
+          "name": "punctuation.section.brackets.end.jwc",
+          "match": "\\]"
+        }
+      ]
+    },
+    "type-references": {
+      "patterns": [
+        {
+          "name": "entity.name.type.jwc",
+          "match": "\\b[A-Z][A-Za-z0-9_]*\\b"
+        }
+      ]
+    },
+    "identifiers": {
+      "patterns": [
+        {
+          "name": "variable.other.jwc",
+          "match": "\\b[a-z_][A-Za-z0-9_]*\\b"
+        }
+      ]
+    },
+    "block-comment": {
+      "name": "comment.block.jwc",
+      "begin": "/\\*",
+      "end": "\\*/",
+      "beginCaptures": {
+        "0": {
+          "name": "punctuation.definition.comment.begin.jwc"
+        }
+      },
+      "endCaptures": {
+        "0": {
+          "name": "punctuation.definition.comment.end.jwc"
+        }
+      },
+      "patterns": [
+        {
+          "include": "#block-comment"
+        }
+      ]
+    }
+  }
+}

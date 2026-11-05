@@ -181,6 +181,9 @@ public abstract partial class KarvonModule : ObservableObject, IDisposable, IAsy
     /// <summary>The TextMate grammars of the languages it brings that the editor has none for (Kotlin's).</summary>
     public virtual IReadOnlyList<Editor.SyntaxGrammar> Grammars => [];
 
+    /// <summary>The file icons of the languages it brings that the icon theme has none for (JWC's); the name is also what <see cref="Icon"/> may say.</summary>
+    public virtual IReadOnlyList<Views.FileIcon> FileIcons => [];
+
     /// <summary>
     /// How a folder's packages of its language get installed, or null: none of its there, or its tools install them
     /// themselves (Roslyn asks for a restore, cargo and Gradle download what the build needs).

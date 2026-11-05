@@ -5,8 +5,12 @@ using System.Text.RegularExpressions;
 using System.Xml.Linq;
 using Avalonia;
 using Avalonia.Media;
+using Avalonia.Media.Imaging;
 
 namespace Karvon.Views;
+
+/// <summary>A module's file icon: its name, the extensions it marks (".jwc") and its PNG.</summary>
+public sealed record FileIcon(string Name, IReadOnlyList<string> Extensions, Func<Stream> Open);
 
 /// <summary>
 /// File and folder icons of the Material Icon Theme (MIT, Material Extensions; Assets/MaterialIcons), chosen the
@@ -15,6 +19,18 @@ namespace Karvon.Views;
 public static partial class MaterialIcons
 {
     const string ResourcePrefix = "MaterialIcons/";
+
+    static readonly ConcurrentDictionary<string, FileIcon> ModuleIcons = new(StringComparer.Ordinal);
+    static readonly ConcurrentDictionary<string, string> ModuleExtensions = new(StringComparer.Ordinal);
+
+    /// <summary>A module's icon, for the files of its extensions (the theme has none for them).</summary>
+    public static void Add(FileIcon icon)
+    {
+        ModuleIcons[icon.Name] = icon;
+        foreach (var extension in icon.Extensions)
+            ModuleExtensions[extension.ToLowerInvariant()] = icon.Name;
+        Images.TryRemove(icon.Name, out _);
+    }
 
     sealed record Manifest(
         Dictionary<string, string> IconFiles,
@@ -34,6 +50,8 @@ public static partial class MaterialIcons
     {
         var theme = Theme.Value;
         var name = Path.GetFileName(fileName).ToLowerInvariant();
+        if (ModuleExtensions.TryGetValue(Path.GetExtension(name), out var ofModule))
+            return ofModule;
         if (theme.FileNames.TryGetValue(name, out var byName))
             return byName;
         // Longest extension first: "app.component.ts" tries "component.ts", then "ts".
@@ -53,13 +71,18 @@ public static partial class MaterialIcons
             : theme.FolderNames.GetValueOrDefault(name, theme.Folder);
     }
 
-    public static bool Exists(string iconName) => Theme.Value.IconFiles.ContainsKey(iconName);
+    public static bool Exists(string iconName) => ModuleIcons.ContainsKey(iconName) || Theme.Value.IconFiles.ContainsKey(iconName);
 
     public static IEnumerable<string> All => Theme.Value.IconFiles.Keys;
 
     /// <summary>The icon as a vector image (null when the theme does not ship it).</summary>
     public static IImage? Image(string iconName) => Images.GetOrAdd(iconName, name =>
     {
+        if (ModuleIcons.TryGetValue(name, out var ofModule))
+        {
+            using var png = ofModule.Open();
+            return new Bitmap(png);
+        }
         if (!Theme.Value.IconFiles.TryGetValue(name, out var file))
             return null;
         using var stream = typeof(MaterialIcons).Assembly.GetManifestResourceStream(ResourcePrefix + "icons/" + file);

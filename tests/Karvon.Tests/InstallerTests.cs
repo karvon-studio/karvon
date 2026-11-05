@@ -51,7 +51,7 @@ public class InstallerTests
             Assert.True(Named<DockPanel>(window, "ModifyPage").IsVisible);
             Assert.Equal("Modifying — Karvon Studio — " + AppInstall.CurrentVersion, installer.ModifyTitle);
             Assert.Equal(["Languages", "Tools"], installer.Workloads.Select(g => g.Title));
-            Assert.Equal([".NET", "TypeScript and JavaScript", "Python", "Go", "Rust", "C and C++", "Java", "Kotlin"], installer.Workloads[0].Items.Select(i => i.Name));
+            Assert.Equal([".NET", "TypeScript and JavaScript", "Python", "Go", "Rust", "C and C++", "Java", "Kotlin", "JWC"], installer.Workloads[0].Items.Select(i => i.Name));
             Assert.All(installer.Workloads.SelectMany(g => g.Items), w => Assert.NotNull(w.Icon));
             var kotlin = installer.Workloads[0].Items.Single(i => i.Name == "Kotlin");
             Assert.False(kotlin.IsSelected);

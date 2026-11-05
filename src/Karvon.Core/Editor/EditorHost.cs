@@ -538,9 +538,11 @@ public sealed partial class EditorHost : IDisposable, IDebugLineSource
         var changes = _pendingChanges.ToList();
         _pendingChanges.Clear();
         _version++;
-        _ = _lsp?.DidChangeAsync(FilePath, _version, changes);
+        IReadOnlyList<LspContentChange> For(LspClient server) => server.WantsWholeDocument ? [new LspContentChange(null, Document.Text)] : changes;
+        if (_lsp is { } lsp)
+            _ = lsp.DidChangeAsync(FilePath, _version, For(lsp));
         foreach (var linter in _linters)
-            _ = linter.DidChangeAsync(FilePath, _version, changes);
+            _ = linter.DidChangeAsync(FilePath, _version, For(linter));
         ScheduleDiagnostics();
     }
 
@@ -1295,7 +1297,7 @@ public sealed partial class EditorHost : IDisposable, IDebugLineSource
         FlushChanges();
         try
         {
-            var edits = await lsp.FormatAsync(FilePath, Editor.Options.IndentationSize, Editor.Options.ConvertTabsToSpaces, CancellationToken.None);
+            var edits = await lsp.FormatAsync(FilePath, Document.Text, Editor.Options.IndentationSize, Editor.Options.ConvertTabsToSpaces, CancellationToken.None);
             ApplyEdits(edits);
         }
         catch (Exception ex) when (ex is LspException or IOException)

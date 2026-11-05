@@ -12,6 +12,7 @@ Material Icon Theme icons (MIT, Copyright (c) 2025 Material Extensions; `src/Kar
 `scripts/update-material-icons.sh`, and `src/Karvon.Database/Assets/Icons`). The Database Explorer uses Bengine (same
 author) and its drivers: Npgsql (PostgreSQL License), Microsoft.Data.SqlClient, MySqlConnector, SSH.NET and
 Avalonia.Controls.DataGrid (MIT), MongoDB.Driver and SQLitePCLRaw (Apache 2.0), Oracle.ManagedDataAccess.Core (Oracle
-Free Use Terms and Conditions). The Kotlin template writes Gradle 9.1.0's wrapper (`gradlew`, `gradlew.bat` and
+Free Use Terms and Conditions). JWC's TextMate grammar and logo are its VS Code extension's (MIT, Copyright (c) 2026 jwc;
+`src/Karvon.Jwc/Grammars`, `src/Karvon.Jwc/Assets`); the jwc compiler is the user's own and does not ship with Karvon. The Kotlin template writes Gradle 9.1.0's wrapper (`gradlew`, `gradlew.bat` and
 `gradle-wrapper.jar`, Apache-2.0, Copyright the original authors; `src/Karvon.Kotlin/GradleWrapper`) into the projects
 it makes.

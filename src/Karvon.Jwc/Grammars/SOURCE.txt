@@ -1,0 +1,3 @@
+JWC's TextMate grammar and logo (MIT, the jwc-lang VS Code extension), at commit 37b0bfa24e01cc9074ab8def9e4a168cc96a4d50:
+https://github.com/just-web-code/jwc-lang/blob/37b0bfa24e01cc9074ab8def9e4a168cc96a4d50/vscode-extension/syntaxes/jwc.tmLanguage.json
+https://github.com/just-web-code/jwc-lang/blob/37b0bfa24e01cc9074ab8def9e4a168cc96a4d50/vscode-extension/icon.png (Assets/jwc.png, made 64 by 64)

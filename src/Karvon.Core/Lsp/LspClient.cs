@@ -318,6 +318,19 @@ public class LspClient : IAsyncDisposable
         textDocument = new { uri = ToUri(path), languageId = LanguageIdFor(path), version = 1, text },
     });
 
+    /// <summary>Whether the server takes a change as the document's whole text (textDocumentSync 1: JWC's), not as the edits made.</summary>
+    public bool WantsWholeDocument
+    {
+        get
+        {
+            if (Capabilities.ValueKind != JsonValueKind.Object || !Capabilities.TryGetProperty("textDocumentSync", out var sync))
+                return false;
+            if (sync.ValueKind == JsonValueKind.Object && !sync.TryGetProperty("change", out sync))
+                return false;
+            return sync.ValueKind == JsonValueKind.Number && sync.GetInt32() == 1;
+        }
+    }
+
     public Task DidChangeAsync(string path, int version, IReadOnlyList<LspContentChange> changes) => Rpc.NotifyAsync("textDocument/didChange", new
     {
         textDocument = new { uri = ToUri(path), version },
@@ -450,7 +463,8 @@ public class LspClient : IAsyncDisposable
             .ToList();
     }
 
-    public async Task<IReadOnlyList<LspTextEdit>> FormatAsync(string path, int tabSize, bool insertSpaces, CancellationToken ct) =>
+    /// <summary>A file's formatting. <paramref name="text"/> is the editor's text, for a language whose server does not format (JWC's).</summary>
+    public virtual async Task<IReadOnlyList<LspTextEdit>> FormatAsync(string path, string text, int tabSize, bool insertSpaces, CancellationToken ct) =>
         LspParse.TextEdits(await QueryAsync("textDocument/formatting", new
         {
             textDocument = new { uri = ToUri(path) },

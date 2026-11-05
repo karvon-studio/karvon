@@ -15,14 +15,17 @@ What Karvon Studio does, in detail; the [README](../README.md) has the short ver
 | C, C++ | clangd | CodeLLDB | CMake, Make | CTest |
 | Java | jdtls | java-debug | Maven, Gradle | JUnit 5 and 4 |
 | Kotlin | kotlin-lsp (JetBrains') | kotlin-lsp's | Gradle (its import, and `gradle run`) | Gradle's `test` |
+| JWC | `jwc lsp` (the compiler's) | none yet | `jwc check`, `build`, `lint`, `serve`, `run` | `jwc test` |
 
 Working on solutions needs the .NET 10 SDK; each language needs its own toolchain (Node.js, Python, Go, Rust, a C and
-C++ compiler, a JDK). The language servers and debuggers download the first time they are needed (or when their module
+C++ compiler, a JDK, jwc). The language servers and debuggers download the first time they are needed (or when their module
 is turned on in Tools > Get Tools and Features, which lists them): `roslyn-language-server` and `netcoredbg` (both MIT); TypeScript 7 (Apache-2.0, its own language server; no
 Node.js needed); js-debug, VS Code's HTML, CSS and JSON servers and its ESLint server (MIT; they run on Node.js, and
 ESLint runs a folder's own ESLint only where you let it); Pyright and debugpy (MIT); rust-analyzer, clangd and CodeLLDB;
 jdtls, java-debug and JUnit's console launcher; JetBrains' kotlin-lsp (about 350 MB, with its own Java runtime; partly
-closed source, and it sends nothing). gopls and Delve are built with your Go (`go install`).
+closed source, and it sends nothing). gopls and Delve are built with your Go (`go install`). JWC's server is your jwc itself
+(on the PATH, or in `~/.jwc/bin`, where its installer puts it); Format Document is `jwc fmt`, and `jwc test` needs the project's
+database.
 
 ## Editor
 
@@ -98,8 +101,8 @@ bar, and applied once fixed. A change outside the file's functions (code that ra
 reloads by itself (Vite, Next.js, Nuxt, Angular's, webpack's, nodemon, `tsx watch`, `--watch`) has its own hot module
 replacement for the browser's code, and Karvon restarts nothing for it.
 
-**Restart on Save**, for a run without the debugger that has no Hot Reload (a Go, Python, Rust, Java, Kotlin or C++
-program, a Node.js script, a .NET console app): once a file of the workspace is saved (not a Markdown one), the run
+**Restart on Save**, for a run without the debugger that has no Hot Reload (a Go, Python, Rust, Java, Kotlin, C++
+or JWC program, a Node.js script, a .NET console app): once a file of the workspace is saved (not a Markdown one), the run
 stops and starts again as Ctrl+F5 started it, built first; Alt+F10 restarts it at once. When the restart's build
 fails, the run starts again once the fix is saved. Stop ends it; Debug > Enable Hot Reload turns both off.
 

@@ -3,7 +3,8 @@ and on each change), and answers completion, hover and Go To Implementation (eac
 Given a word (lsp_server.py FIXME), it is a linter's: it warns of that word instead. With --hints it also gives inlay hints
 (value: after each "call("), a code lens on each "def " line (resolved: "2 references"), and a Fix All of the TODOs, as
 Roslyn offers one (its client command, then codeAction/resolveFixAll). With --symbols it outlines a file (a function for
-each "def name" line), only an open one, as TypeScript's server does."""
+each "def name" line), only an open one, as TypeScript's server does. With --whole it asks for a document's whole text with
+each change (textDocumentSync 1) and takes the last change as that, as JWC's server does."""
 import json
 import re
 import sys
@@ -11,6 +12,7 @@ import sys
 documents = {}
 hints = "--hints" in sys.argv
 symbols = "--symbols" in sys.argv
+whole = "--whole" in sys.argv
 word = next((a for a in sys.argv[1:] if not a.startswith("--")), "TODO")
 
 
@@ -54,7 +56,7 @@ while True:
     message = read()
     method, params, id = message.get("method"), message.get("params") or {}, message.get("id")
     if method == "initialize":
-        capabilities = {"textDocumentSync": 2, "hoverProvider": True, "implementationProvider": True, "completionProvider": {"triggerCharacters": ["."]}}
+        capabilities = {"textDocumentSync": 1 if whole else 2, "hoverProvider": True, "implementationProvider": True, "completionProvider": {"triggerCharacters": ["."]}}
         if hints:
             capabilities.update({"inlayHintProvider": True, "codeLensProvider": {"resolveProvider": True}, "codeActionProvider": {"resolveProvider": True}})
         send({"jsonrpc": "2.0", "id": id, "result": {"capabilities": capabilities, "serverInfo": {"name": "fake"}}})
@@ -79,7 +81,9 @@ while True:
     elif method == "textDocument/didChange":
         uri = params["textDocument"]["uri"]
         for change in params["contentChanges"]:
-            if "range" in change:
+            if whole:
+                documents[uri] = change["text"]
+            elif "range" in change:
                 text = documents[uri]
                 start, end = offset(text, change["range"]["start"]), offset(text, change["range"]["end"])
                 documents[uri] = text[:start] + change["text"] + text[end:]

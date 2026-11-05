@@ -150,6 +150,8 @@ public partial class MainViewModel
                     await LaunchConfigurationAsync(launch, noDebug: false);
                     break;
                 case { Task: { } task }:
+                    // No debugger: a run like Ctrl+F5's, which a save restarts.
+                    StartedRun(StartWithoutDebugging);
                     await RunProgramTaskAsync(task, $"{task.Name} has no debugger, so it runs without one: a launch configuration (.vscode/launch.json) debugs it.");
                     break;
             }

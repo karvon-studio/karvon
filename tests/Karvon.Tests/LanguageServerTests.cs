@@ -22,6 +22,19 @@ sealed class FakeLanguageModule : KarvonModule
         [new("fake", "Fake language server", path => path.EndsWith(".fake", StringComparison.Ordinal), FakeLanguageClient.StartAsync)];
 }
 
+/// <summary>The fake server asking for a document's whole text with each change, as JWC's does.</summary>
+sealed class FakeWholeDocumentModule : KarvonModule
+{
+    public override string Id => "fake-whole-document";
+
+    public override string Name => "Fake whole-document language";
+
+    public override string Description => "A language server for the tests.";
+
+    public override IReadOnlyList<LanguageServerInfo> LanguageServers =>
+        [new("fake-whole-document", "Fake whole-document server", path => path.EndsWith(".fake", StringComparison.Ordinal), start => FakeLanguageClient.StartAsync(start, null, "--whole"))];
+}
+
 /// <summary>A linter of the .fake files beside their server: the same fake server, warning of each FIXME.</summary>
 sealed class FakeLinterModule(bool allowed) : KarvonModule
 {
@@ -119,6 +132,31 @@ public class LanguageServerTests
         Assert.True(await vm.CloseSolutionCoreAsync());
         Assert.Empty(vm.ModuleLanguageServers);
         window.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task A_server_that_asks_for_the_whole_document_gets_it_with_each_change()
+    {
+        var dir = Directory.CreateTempSubdirectory("karvon-lsp-").FullName;
+        var file = Path.Combine(dir, "plan.fake");
+        File.WriteAllText(file, "first line\nTODO: second\n");
+        var vm = NewViewModel(modules: [.. Karvon.BuiltInModules.Create(), new FakeWholeDocumentModule()]);
+        var window = new MainWindow { DataContext = vm, Width = 1280, Height = 800 };
+        window.Show();
+        await vm.OpenSolutionAsync(dir);
+        var doc = vm.OpenDocument(file)!;
+        await WaitUntil(() => doc.Host.Diagnostics.Count > 0, TimeSpan.FromSeconds(10));
+        Assert.Equal(1, Assert.Single(doc.Host.Diagnostics).Range.Start.Line);
+        Assert.True(Assert.Single(vm.ModuleLanguageServers).WantsWholeDocument);
+
+        // A line added above it: told only the edit, this server would have that line and no TODO at all.
+        doc.Host.Document.Insert(0, "a new line\n");
+        await WaitUntil(() => doc.Host.Diagnostics.Any(d => d.Range.Start.Line == 2), TimeSpan.FromSeconds(10));
+        Assert.Equal(2, Assert.Single(doc.Host.Diagnostics).Range.Start.Line);
+        doc.Host.Save();
+        Assert.True(await vm.CloseSolutionCoreAsync());
+        window.Close();
+        Directory.Delete(dir, recursive: true);
     }
 
     [AvaloniaFact]

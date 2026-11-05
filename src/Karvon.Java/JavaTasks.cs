@@ -32,7 +32,7 @@ public static partial class JavaTasks
             if (new[] { "build.gradle", "build.gradle.kts" }.Select(f => Path.Combine(workspace, f)).Where(File.Exists).Any(f => File.ReadAllText(f).Contains("application", StringComparison.Ordinal)))
                 tasks.Add(new("gradle: run", WorkspaceTaskKind.Run, gradle, ["run"], workspace) { Source = Source, Problems = Problem });
         }
-        if (tasks.Count > 0 || Directory.EnumerateFiles(workspace, "*.java", SearchOption.TopDirectoryOnly).Any() || Directory.Exists(Path.Combine(workspace, "src")))
+        if (tasks.Count > 0 || Directory.EnumerateFiles(workspace, "*.java", SearchOption.TopDirectoryOnly).Any() || HasJavaSources(Path.Combine(workspace, "src")))
         {
             // The main class, found by jdtls when it starts (that of the file in the editor first), under java-debug.
             tasks.Add(new("java: run main", WorkspaceTaskKind.Run, "java", ["${file}"], workspace)
@@ -52,6 +52,10 @@ public static partial class JavaTasks
         }
         return tasks;
     }
+
+    /// <summary>Whether a src folder has Java in it: many languages keep theirs in one.</summary>
+    static bool HasJavaSources(string src) =>
+        Directory.Exists(src) && Directory.EnumerateFiles(src, "*.java", new EnumerationOptions { RecurseSubdirectories = true, IgnoreInaccessible = true }).Any();
 
     /// <summary>A build's wrapper in the folder: gradlew, mvnw (on Windows gradlew.bat, mvnw.cmd); null without one.</summary>
     static string? Wrapper(string workspace, string name) =>

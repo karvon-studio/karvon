@@ -29,6 +29,9 @@ public partial class MainViewModel : IWorkbench
     {
         AllModules = _givenModules ?? ModuleCatalog.Create();
         Modules = [.. AllModules.Where(m => !Settings.DisabledModules.Contains(m.Id))];
+        // All modules': the installer shows a module that is off with its icon too.
+        foreach (var icon in AllModules.SelectMany(m => m.FileIcons))
+            Views.MaterialIcons.Add(icon);
         foreach (var module in Modules)
         {
             module.Start(this);

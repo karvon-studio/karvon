@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- The JWC module: jwc lsp in the editor, a project's jwc commands as its tasks, jwc test in Test Explorer. -->
+  <PropertyGroup>
+    <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
+    <RootNamespace>Karvon.Jwc</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="Karvon.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Karvon.Core\Karvon.Core.csproj" />
+  </ItemGroup>
+
+  <!-- JWC's TextMate grammar and logo (MIT, its VS Code extension's; see Grammars/SOURCE.txt). -->
+  <ItemGroup>
+    <EmbeddedResource Include="Grammars\jwc.tmLanguage.json" LogicalName="Grammars/jwc.tmLanguage.json" />
+    <EmbeddedResource Include="Assets\jwc.png" LogicalName="Assets/jwc.png" />
+  </ItemGroup>
+</Project>
