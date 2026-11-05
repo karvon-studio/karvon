@@ -18,7 +18,7 @@ namespace Karvon.ViewModels;
 /// </summary>
 public sealed partial class ClaudeViewModel : ObservableObject, IAsyncDisposable
 {
-    static readonly string[] FileChangingTools = ["Write", "Edit", "MultiEdit", "NotebookEdit", "Bash"];
+    static readonly string[] FileChangingTools = ["Write", "Edit", "MultiEdit", "NotebookEdit", "Bash", "PowerShell"];
 
     static readonly ClaudeModelChoice[] DefaultModels =
     [
@@ -42,6 +42,7 @@ public sealed partial class ClaudeViewModel : ObservableObject, IAsyncDisposable
     DateTime _turnStarted;
     int _tokens;
     bool _thinking;
+    string _streamingMessage = "";
     bool _compacting;
     bool _interrupting;
     string? _pendingModelCommand;
@@ -596,17 +597,21 @@ public sealed partial class ClaudeViewModel : ObservableObject, IAsyncDisposable
                     }
                 break;
 
+            case ClaudeMessageStart started:
+                _streamingMessage = started.MessageId;
+                break;
+
             case ClaudeBlockStart start:
                 _thinking = start.BlockType == "thinking";
                 // Claude answers again: a compaction that did not say how it ended is over.
                 _compacting = false;
                 if (start.BlockType == "text")
-                    Items.Add(new TextChatItem("") { StreamKey = $"{start.MessageId}:{start.Index}" });
+                    Items.Add(new TextChatItem("") { StreamKey = StreamKey(start.MessageId, start.Index) });
                 UpdateStatus();
                 break;
 
             case ClaudeBlockDelta delta:
-                var key = $"{delta.MessageId}:{delta.Index}";
+                var key = StreamKey(delta.MessageId, delta.Index);
                 if (delta.Kind == "text" && Items.OfType<TextChatItem>().LastOrDefault(t => t.StreamKey == key) is { } streaming)
                 {
                     streaming.Text += delta.Text;
@@ -762,13 +767,18 @@ public sealed partial class ClaudeViewModel : ObservableObject, IAsyncDisposable
         }
     }
 
+    /// <summary>Which streamed block an event is about: its response's id, as the event says or as the response's start said.</summary>
+    string StreamKey(string messageId, int index) => $"{(messageId.Length > 0 ? messageId : _streamingMessage)}:{index}";
+
     void AddBlock(string messageId, ClaudeBlock block, bool live)
     {
         switch (block)
         {
             case ClaudeTextBlock text when text.Text.Trim().Length > 0:
-                // The streamed copy of this block gets its final text; otherwise (replay, no streaming) add it.
-                if (Items.OfType<TextChatItem>().FirstOrDefault(t => t.StreamKey?.StartsWith(messageId + ":", StringComparison.Ordinal) == true) is { } streamed)
+                // The streamed copy of this block gets its final text; otherwise (replay, no streaming) add it. Its id may have
+                // told nothing (a response whose stream had none): then a copy still streaming with this very text is the one.
+                if ((Items.OfType<TextChatItem>().FirstOrDefault(t => t.StreamKey?.StartsWith(messageId + ":", StringComparison.Ordinal) == true)
+                    ?? Items.OfType<TextChatItem>().FirstOrDefault(t => t.StreamKey is not null && t.Text == text.Text)) is { } streamed)
                 {
                     streamed.Text = text.Text;
                     streamed.StreamKey = null;
@@ -876,10 +886,10 @@ public sealed partial class ClaudeViewModel : ObservableObject, IAsyncDisposable
             }
             case "NotebookEdit":
                 return new ToolChatItem(tool.Id, tool.Name, "Edit Notebook", Relative(Str("notebook_path")), Str("notebook_path"));
-            case "Bash":
+            case "Bash" or "PowerShell":
             {
                 var command = Str("command") ?? "";
-                return new ToolChatItem(tool.Id, tool.Name, "Bash", FirstLine(command, 80), null)
+                return new ToolChatItem(tool.Id, tool.Name, tool.Name, FirstLine(command, 80), null)
                 {
                     Code = command.Contains('\n') || command.Length > 80 ? command : null,
                 };
@@ -932,7 +942,7 @@ public sealed partial class ClaudeViewModel : ObservableObject, IAsyncDisposable
             "Glob" => lines == 0 || content.StartsWith("No files", StringComparison.Ordinal) ? "No files found" : $"Found {lines} file{(lines == 1 ? "" : "s")}",
             "Grep" => lines == 0 || content.StartsWith("No ", StringComparison.Ordinal) ? "No matches" : $"Found {lines} line{(lines == 1 ? "" : "s")}",
             "TodoWrite" => "",
-            "Bash" => lines == 0 ? "(No output)" : FirstLine(content, 140),
+            "Bash" or "PowerShell" => lines == 0 ? "(No output)" : FirstLine(content, 140),
             "Task" or "Agent" => $"Done ({tool.Children.Count} tool use{(tool.Children.Count == 1 ? "" : "s")})",
             _ => FirstLine(content, 140),
         };
@@ -1032,7 +1042,7 @@ public sealed partial class ClaudeViewModel : ObservableObject, IAsyncDisposable
         var name = file is null ? null : Path.GetFileName(file);
         switch (request.ToolName)
         {
-            case "Bash":
+            case "Bash" or "PowerShell":
                 return new PermissionChatItem(request, "Allow Claude to run this command?", sessionLabel)
                 {
                     Code = Str("command"),

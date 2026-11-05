@@ -209,7 +209,11 @@ def next_id():
 
 
 def event(mid, ev):
-    out({"type": "stream_event", "event": ev, "api_message_id": mid, "parent_tool_use_id": None, "session_id": SESSION})
+    line = {"type": "stream_event", "event": ev, "api_message_id": mid, "parent_tool_use_id": None, "session_id": SESSION}
+    # An older Claude Code's stream: the id is only on message_start.
+    if STATE.get("older"):
+        del line["api_message_id"]
+    out(line)
 
 
 def stream_text(text):
@@ -588,6 +592,18 @@ def turn(prompt, content, sent=None):
             decision = permission("Bash", tool_input, [], tool_id)
             tool_result(tool_id, "total 0" if allowed(decision) else decision.get("message", "denied"), not allowed(decision))
         stream_text("Done.")
+        result("ok")
+    elif "olderstream" in p:
+        STATE["older"] = True
+        stream_text("Streamed by an older version.")
+        STATE["older"] = False
+        result("ok")
+    elif "powershell" in p:
+        tool_input = {"command": "winget install --id LLVM.LLVM --exact\nGet-Command clang", "description": "Install LLVM"}
+        tool_use("toolu_ps", "PowerShell", tool_input)
+        decision = permission("PowerShell", tool_input, [], "toolu_ps")
+        tool_result("toolu_ps", "Found LLVM\nInstalled" if allowed(decision) else decision.get("message", "denied"), not allowed(decision))
+        stream_text("Ran it." if allowed(decision) else "Understood.")
         result("ok")
     elif "bash" in p:
         tool_input = {"command": "echo hi", "description": "Print hi"}

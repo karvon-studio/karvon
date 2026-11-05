@@ -10,6 +10,9 @@ public abstract record ClaudeEvent;
 /// <summary>system/init: the session started (or resumed).</summary>
 public sealed record ClaudeInit(string SessionId, string? Model, string? PermissionMode, string? Cwd) : ClaudeEvent;
 
+/// <summary>A response started streaming: the id its blocks' events belong to when they do not say it themselves.</summary>
+public sealed record ClaudeMessageStart(string MessageId) : ClaudeEvent;
+
 /// <summary>A content block started streaming (text, thinking or tool_use).</summary>
 public sealed record ClaudeBlockStart(string MessageId, int Index, string BlockType) : ClaudeEvent;
 
@@ -145,10 +148,14 @@ public static partial class ClaudeProtocol
             case "stream_event":
                 if (!root.TryGetProperty("event", out var ev) || root.TryGetProperty("parent_tool_use_id", out var parent) && parent.ValueKind == JsonValueKind.String)
                     break;
+                // Claude Code's own, internal key: older versions do not send it, and it can be absent (its schema says so).
                 var messageId = Str(root, "api_message_id") ?? "";
                 var index = ev.TryGetProperty("index", out var i) && i.TryGetInt32(out var n) ? n : 0;
                 switch (Str(ev, "type"))
                 {
+                    case "message_start" when ev.TryGetProperty("message", out var started):
+                        yield return new ClaudeMessageStart(Str(started, "id") ?? "");
+                        break;
                     case "content_block_start" when ev.TryGetProperty("content_block", out var block):
                         yield return new ClaudeBlockStart(messageId, index, Str(block, "type") ?? "");
                         break;

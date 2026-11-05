@@ -10,6 +10,51 @@ namespace Karvon.Tests;
 public class ClaudeBackgroundTests
 {
     [AvaloniaFact]
+    public async Task A_message_streamed_without_the_internal_id_shows_once()
+    {
+        var (dir, _) = FakeClaude.Workspace();
+        var vm = new ClaudeViewModel(new Karvon.Services.Settings(), () => dir, () => null, () => Directory.EnumerateFiles(dir), () => FakeClaude.Executable);
+        var window = new Window { Width = 560, Height = 900, Content = new ClaudeView { DataContext = vm } };
+        window.Show();
+        await WaitUntil(() => vm.Commands.Count > 0, TimeSpan.FromSeconds(10));
+
+        // As an older Claude Code streams it: no api_message_id, only message_start's id.
+        vm.Prompt = "olderstream";
+        await vm.SendCommand.ExecuteAsync(null);
+        await WaitUntil(() => !vm.IsRunning, TimeSpan.FromSeconds(10));
+        Assert.Equal(["Streamed by an older version."], vm.Items.OfType<TextChatItem>().Select(t => t.Text));
+        window.Close();
+        await vm.DisposeAsync();
+    }
+
+    [AvaloniaFact]
+    public async Task PowerShell_shows_as_the_command_it_runs()
+    {
+        var (dir, _) = FakeClaude.Workspace();
+        var vm = new ClaudeViewModel(new Karvon.Services.Settings(), () => dir, () => null, () => Directory.EnumerateFiles(dir), () => FakeClaude.Executable);
+        var window = new Window { Width = 560, Height = 900, Content = new ClaudeView { DataContext = vm } };
+        window.Show();
+        await WaitUntil(() => vm.Commands.Count > 0, TimeSpan.FromSeconds(10));
+
+        // Windows' shell tool: its card and its row read as Bash's do, not as JSON.
+        vm.Prompt = "powershell";
+        await vm.SendCommand.ExecuteAsync(null);
+        await WaitUntil(() => vm.Items.OfType<PermissionChatItem>().Any(c => c.IsPending), TimeSpan.FromSeconds(10));
+        var card = vm.Items.OfType<PermissionChatItem>().Single(c => c.IsPending);
+        Assert.Equal("Allow Claude to run this command?", card.Question);
+        Assert.StartsWith("winget install", card.Code);
+        var row = Assert.Single(vm.Items.OfType<ToolChatItem>());
+        Assert.Equal(("PowerShell", "winget install --id LLVM.LLVM --exact"), (row.Title, row.Target));
+        Assert.StartsWith("winget install", row.Code);
+
+        await vm.AllowCommand.ExecuteAsync(card);
+        await WaitUntil(() => !vm.IsRunning, TimeSpan.FromSeconds(10));
+        Assert.Equal("Found LLVM", row.Summary);
+        window.Close();
+        await vm.DisposeAsync();
+    }
+
+    [AvaloniaFact]
     public async Task A_conversation_left_while_Claude_works_keeps_working()
     {
         var (dir, _) = FakeClaude.Workspace();
