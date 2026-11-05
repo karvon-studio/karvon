@@ -1,6 +1,6 @@
 ; Karvon Studio's installer (Inno Setup 6), made by deploy/windows/package.ps1, which passes the version and the folders.
 ; A per-user install by default (no administrator needed), Karvon.exe in the Start menu, its folder on the user's PATH
-; for `karvon`, and an uninstaller.
+; for `karvon`, Open with Karvon Studio on folders in File Explorer, and an uninstaller.
 #define AppName "Karvon Studio"
 
 [Setup]
@@ -35,9 +35,19 @@ Name: "{autodesktop}\{#AppName}"; Filename: "{app}\Karvon.exe"; Tasks: desktopic
 [Tasks]
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked
 Name: "addtopath"; Description: "Add Karvon Studio to the PATH (karvon in a terminal)"; Flags: checkedonce
+; Not checkedonce: that would leave it off when an update installs over a version that did not have it.
+Name: "explorermenu"; Description: "Add ""Open with Karvon Studio"" to folders' menu in File Explorer"
 
 [Registry]
 Root: HKCU; Subkey: "Environment"; ValueType: expandsz; ValueName: "Path"; ValueData: "{olddata};{app}"; Tasks: addtopath; Check: NotOnPath(ExpandConstant('{app}'))
+; A folder's menu, and the menu of the empty space inside one (%V: the folder shown). HKA: the current user's, or everyone's
+; when installed for all users. Windows 11 lists them under "Show more options".
+Root: HKA; Subkey: "Software\Classes\Directory\shell\KarvonStudio"; ValueType: string; ValueName: ""; ValueData: "Open with Karvon Studio"; Flags: uninsdeletekey; Tasks: explorermenu
+Root: HKA; Subkey: "Software\Classes\Directory\shell\KarvonStudio"; ValueType: string; ValueName: "Icon"; ValueData: "{app}\Karvon.exe"; Tasks: explorermenu
+Root: HKA; Subkey: "Software\Classes\Directory\shell\KarvonStudio\command"; ValueType: string; ValueName: ""; ValueData: """{app}\Karvon.exe"" ""%1"""; Tasks: explorermenu
+Root: HKA; Subkey: "Software\Classes\Directory\Background\shell\KarvonStudio"; ValueType: string; ValueName: ""; ValueData: "Open with Karvon Studio"; Flags: uninsdeletekey; Tasks: explorermenu
+Root: HKA; Subkey: "Software\Classes\Directory\Background\shell\KarvonStudio"; ValueType: string; ValueName: "Icon"; ValueData: "{app}\Karvon.exe"; Tasks: explorermenu
+Root: HKA; Subkey: "Software\Classes\Directory\Background\shell\KarvonStudio\command"; ValueType: string; ValueName: ""; ValueData: """{app}\Karvon.exe"" ""%V"""; Tasks: explorermenu
 
 [Run]
 Filename: "{app}\Karvon.exe"; Description: "{cm:LaunchProgram,{#AppName}}"; Flags: nowait postinstall skipifsilent
