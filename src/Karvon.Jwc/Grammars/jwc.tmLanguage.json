@@ -417,7 +417,7 @@
     "type-names": {
       "patterns": [
         {
-          "name": "support.type.jwc",
+          "name": "entity.name.type.builtin.jwc",
           "match": "\\b(smallint|int|bigint|numeric|boolean|varchar|text|timestamptz|date|time|interval|uuid|jsonb|inet|bytea)\\b"
         }
       ]

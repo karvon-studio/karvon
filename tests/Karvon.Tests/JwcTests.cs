@@ -146,6 +146,9 @@ public class JwcTests
         Assert.StartsWith("comment.line", ScopeOf("// the notes of a user", "notes"));
         Assert.StartsWith("keyword", ScopeOf("        return json(page);", "return"));
         Assert.StartsWith("string", ScopeOf("    route GET \"/notes\" {", "notes"));
+        // A column's type is colored as a type of the program's is.
+        Assert.StartsWith("entity.name.type", ScopeOf("    id bigint primary key identity;", "bigint"));
+        Assert.StartsWith("entity.name.type", ScopeOf("    state NoteState;", "NoteState"));
 
         foreach (var icon in module.FileIcons)
             MaterialIcons.Add(icon);
