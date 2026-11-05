@@ -172,8 +172,14 @@ public sealed partial class McpModule : KarvonModule, IMcpHost
 
     void IMcpHost.OpenUrl(string url) => Workbench.OpenUrl(url);
 
-    Task<string> IMcpHost.SignInWithClaudeAsync(string name, Action signedIn) =>
-        _claude?.AuthenticateMcpAsync(name, signedIn) ?? Task.FromResult("Claude Code is not available.");
+    Task<string> IMcpHost.SignInWithClaudeAsync(string name, Action<string?> finished)
+    {
+        if (_claude is { } claude)
+            return claude.AuthenticateMcpAsync(name, finished);
+        const string unavailable = "Claude Code is not available.";
+        finished(unavailable);
+        return Task.FromResult(unavailable);
+    }
 
     Bengine.Introspection.Servers.ICredentialStore? IMcpHost.Keyring => Karvon.Services.Keyring.System;
 

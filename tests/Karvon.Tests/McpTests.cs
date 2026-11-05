@@ -83,12 +83,12 @@ sealed class TestMcpHost(string? workspace) : IMcpHost
 
     public List<string> ClaudeSignIns { get; } = [];
 
-    public Action? ClaudeSignedIn { get; private set; }
+    public Action<string?>? ClaudeSignInFinished { get; private set; }
 
-    public Task<string> SignInWithClaudeAsync(string name, Action signedIn)
+    public Task<string> SignInWithClaudeAsync(string name, Action<string?> finished)
     {
         ClaudeSignIns.Add(name);
-        ClaudeSignedIn = signedIn;
+        ClaudeSignInFinished = finished;
         return Task.FromResult($"Finish signing in to {name} in your browser.");
     }
 
@@ -435,15 +435,38 @@ public class McpTests
             var known = vm.Find("known")!;
             await known.SignInCommand.ExecuteAsync(null);
             Assert.Equal("failed: it does not let Karvon register to sign in: it lets in only the apps it knows (Claude Code may be one: Sign in with Claude Code), "
-                + "or the client it gave you (oauth.clientId in Claude Code's settings).", known.StatusText);
+                + "or the client it gave you (oauth.clientId in Claude Code's settings).", known.Connection.StatusText);
             Assert.Empty(host.Urls);
             // One click: Karvon's own sign-in was refused, so Claude Code's has started.
             Assert.Equal(["known"], host.ClaudeSignIns);
             Assert.Equal("Finish signing in to known in your browser.", host.Statuses[^1]);
             Assert.True(known.CanSignInWithClaude);
 
+            // Its page says so, not only the status bar: no red error while the browser is on it, and a second click is still offered.
+            Assert.Equal("Finish signing in to known in your browser.", known.ClaudeSignInMessage);
+            Assert.Equal("signing in with Claude Code", known.StatusText);
+            Assert.False(known.HasFailed);
+
+            // In the view too: the words under its name, the button still there, no red pill.
+            var window = new Window { Content = new McpServerPageView { DataContext = vm.Open(known).Page }, Width = 1000, Height = 500 };
+            window.Show();
+            var words = window.GetVisualDescendants().OfType<TextBlock>().Single(t => t.Name == "McpClaudeSignIn");
+            Assert.True(words.IsVisible);
+            Assert.Equal("Finish signing in to known in your browser.", words.Text);
+            Assert.Contains(window.GetVisualDescendants().OfType<Button>(), b => b.Command == known.SignInWithClaudeCommand && b.IsVisible && b.IsEffectivelyEnabled);
+            window.Close();
+
+            // The browser's time up: it says that, and it can start over.
+            host.ClaudeSignInFinished!("The sign-in to known was not finished.");
+            await WaitUntil(() => !known.IsSigningInWithClaude, TimeSpan.FromSeconds(5));
+            Assert.Equal("The sign-in to known was not finished.", known.ClaudeSignInMessage);
+            Assert.True(known.HasFailed);
+            Assert.True(known.CanSignInWithClaude);
+            await known.SignInWithClaudeCommand.ExecuteAsync(null);
+            Assert.Equal(["known", "known"], host.ClaudeSignIns);
+
             // Finished in the browser: the row says so and offers no second sign-in, which would clear Claude Code's tokens.
-            host.ClaudeSignedIn!();
+            host.ClaudeSignInFinished!(null);
             await WaitUntil(() => known.IsSignedInWithClaude, TimeSpan.FromSeconds(5));
             Assert.Equal("Claude Code is signed in: its sessions use it", known.StatusText);
             Assert.Equal("running", known.DotKind);
@@ -451,6 +474,7 @@ public class McpTests
             Assert.False(known.NeedsSignIn);
             Assert.False(known.CanSignInWithClaude);
             Assert.Equal("Claude Code is signed in to known: its sessions use it.", host.Statuses[^1]);
+            Assert.Null(known.ClaudeSignInMessage);
         }
         finally
         {

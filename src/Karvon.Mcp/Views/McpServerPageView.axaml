@@ -80,6 +80,8 @@
           </StackPanel>
           <TextBlock Margin="32,0,0,0" Classes="dkMuted dkMono" Text="{Binding TransportLine}" TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding TransportLine}" />
           <TextBlock Margin="32,0,0,0" Classes="dkMuted" FontSize="12" Text="{Binding Node.DefinedIn}" TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding Node.DefinedIn}" />
+          <TextBlock Name="McpClaudeSignIn" Margin="32,2,0,0" Foreground="#E2C08D" TextWrapping="Wrap" Text="{Binding Node.ClaudeSignInMessage}"
+                     IsVisible="{Binding Node.ClaudeSignInMessage, Converter={x:Static ObjectConverters.IsNotNull}}" />
           <CheckBox Margin="32,2,0,0" Content="The Claude Code sessions Karvon starts get it" IsChecked="{Binding ForClaude}"
                     IsEnabled="{Binding CanSwitchForClaude}" ToolTip.Tip="{Binding ForClaudeTip}" />
         </StackPanel>

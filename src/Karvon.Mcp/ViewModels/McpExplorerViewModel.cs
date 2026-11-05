@@ -59,8 +59,8 @@ public interface IMcpHost
     void OpenUrl(string url);
 
     /// <summary>Claude Code signs in to one of its servers (the apps a server lets in may be Claude Code and not Karvon).</summary>
-    /// <summary>What to tell the user now; <paramref name="signedIn"/> runs when the sign-in has finished (it may be at once).</summary>
-    Task<string> SignInWithClaudeAsync(string name, Action signedIn);
+    /// <summary>What to tell the user now; <paramref name="finished"/> runs when the end is known (it may be at once): null when it is signed in, else why it is not.</summary>
+    Task<string> SignInWithClaudeAsync(string name, Action<string?> finished);
 
     /// <summary>Where the servers' sign-in tokens are kept; null for this session only.</summary>
     Bengine.Introspection.Servers.ICredentialStore? Keyring { get; }
@@ -155,12 +155,22 @@ public sealed partial class McpServerNode : McpTreeNode
 
     bool ClaudeHasIt => IsSignedInWithClaude && !Connection.IsConnected;
 
-    public string StatusText => ClaudeHasIt ? "Claude Code is signed in: its sessions use it" : Connection.StatusText;
+    /// <summary>Claude Code's sign-in goes on, in the browser: what Karvon's own connection said is not the news now.</summary>
+    [ObservableProperty]
+    public partial bool IsSigningInWithClaude { get; set; }
+
+    /// <summary>Where Claude Code's sign-in to it is, in words, on its page; null when there is nothing to say.</summary>
+    [ObservableProperty]
+    public partial string? ClaudeSignInMessage { get; set; }
+
+    public string StatusText => ClaudeHasIt ? "Claude Code is signed in: its sessions use it"
+        : IsSigningInWithClaude ? "signing in with Claude Code"
+        : Connection.StatusText;
 
     public bool IsConnected => Connection.IsConnected;
 
     /// <summary>The dot: green connected, amber connecting or signing in, red failed, gray not connected.</summary>
-    public string DotKind => ClaudeHasIt ? "running" : Connection.Status switch
+    public string DotKind => ClaudeHasIt ? "running" : IsSigningInWithClaude ? "paused" : Connection.Status switch
     {
         McpStatus.Connected => "running",
         McpStatus.Connecting or McpStatus.NeedsSignIn => "paused",
@@ -168,9 +178,9 @@ public sealed partial class McpServerNode : McpTreeNode
         _ => "stopped",
     };
 
-    public bool HasFailed => !ClaudeHasIt && Connection.Status is McpStatus.Failed or McpStatus.NeedsSignIn;
+    public bool HasFailed => !ClaudeHasIt && !IsSigningInWithClaude && Connection.Status is McpStatus.Failed or McpStatus.NeedsSignIn;
 
-    public bool NeedsSignIn => !ClaudeHasIt && Connection.Status == McpStatus.NeedsSignIn;
+    public bool NeedsSignIn => !ClaudeHasIt && !IsSigningInWithClaude && Connection.Status == McpStatus.NeedsSignIn;
 
     /// <summary>A URL: it can be signed in to (again) from the tree.</summary>
     public bool CanSignIn => Connection.CanSignIn && !Connection.IsSigningIn;
@@ -178,7 +188,7 @@ public sealed partial class McpServerNode : McpTreeNode
     public bool IsSignedIn => Connection.IsSignedIn;
 
     /// <summary>One of Claude Code's own servers, at a URL: Claude Code can sign in to it (when Karvon may not).</summary>
-    public bool CanSignInWithClaude => McpConfigs.ClaudeReadsItself(Definition.Origin) && Definition.IsHttp && HasFailed;
+    public bool CanSignInWithClaude => McpConfigs.ClaudeReadsItself(Definition.Origin) && Definition.IsHttp && (HasFailed || IsSigningInWithClaude);
 
     /// <summary>Its tools, resources and prompts once connected; before, a row that says how it is (and lets it expand).</summary>
     public ObservableCollection<McpTreeNode> Children { get; } = [];
@@ -238,13 +248,25 @@ public sealed partial class McpServerNode : McpTreeNode
     [RelayCommand]
     Task SignOut() => Connection.SignOutAsync();
 
+    /// <summary>The page says what happens, as it happens: the browser opens on another window, and a status bar's words pass.</summary>
     [RelayCommand]
-    async Task SignInWithClaude() => _explorer.Host.Status(await _explorer.Host.SignInWithClaudeAsync(Name, () => Dispatcher.UIThread.Post(() =>
+    async Task SignInWithClaude()
     {
-        IsSignedInWithClaude = true;
+        IsSigningInWithClaude = true;
+        ClaudeSignInMessage = $"Claude Code is starting the sign-in to {Name}...";
         Update();
-        _explorer.Host.Status($"Claude Code is signed in to {Name}: its sessions use it.");
-    })));
+        var said = await _explorer.Host.SignInWithClaudeAsync(Name, problem => Dispatcher.UIThread.Post(() =>
+        {
+            IsSigningInWithClaude = false;
+            IsSignedInWithClaude = problem is null;
+            ClaudeSignInMessage = problem;
+            Update();
+            _explorer.Host.Status(problem ?? $"Claude Code is signed in to {Name}: its sessions use it.");
+        }));
+        if (IsSigningInWithClaude)
+            ClaudeSignInMessage = said;
+        _explorer.Host.Status(said);
+    }
 
     [RelayCommand]
     Task Edit() => _explorer.EditAsync(this);

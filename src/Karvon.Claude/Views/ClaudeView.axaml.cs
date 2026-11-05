@@ -186,7 +186,6 @@ public partial class ClaudeView : UserControl
         {
             _vm.Items.CollectionChanged -= OnItemsChanged;
             _vm.FocusInputRequested -= FocusPrompt;
-            _vm.OpenUrlRequested -= OpenUrl;
         }
         _vm = vm;
         _wanted = ShownStep;
@@ -195,7 +194,6 @@ public partial class ClaudeView : UserControl
             return;
         vm.Items.CollectionChanged += OnItemsChanged;
         vm.FocusInputRequested += FocusPrompt;
-        vm.OpenUrlRequested += OpenUrl;
     }
 
     /// <summary>A click outside a menu or dialog closes it.</summary>
@@ -203,12 +201,6 @@ public partial class ClaudeView : UserControl
     {
         _vm?.CloseDialogsCommand.Execute(null);
         e.Handled = true;
-    }
-
-    void OpenUrl(string url)
-    {
-        if (Uri.TryCreate(url, UriKind.Absolute, out var uri))
-            _ = TopLevel.GetTopLevel(this)?.Launcher.LaunchUriAsync(uri);
     }
 
     /// <summary>Puts the caret in the prompt (Ctrl+Esc, Ask Claude, new conversation).</summary>

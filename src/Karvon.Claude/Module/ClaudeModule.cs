@@ -68,6 +68,12 @@ public sealed class ClaudeModule : KarvonModule, IClaudeService
             Tools = tools,
             McpServers = cwd => ExtraMcpServers?.Invoke(cwd),
         };
+        // The window's, not the panel's: a sign-in started from MCP Servers opens its page with the panel closed too.
+        claude.OpenUrlRequested += url =>
+        {
+            if (Uri.TryCreate(url, UriKind.Absolute, out _))
+                Workbench.OpenUrl(url);
+        };
         // Another account has other servers (its own .claude.json) and its own skills.
         claude.PropertyChanged += (_, e) =>
         {
@@ -240,7 +246,7 @@ public sealed class ClaudeModule : KarvonModule, IClaudeService
         Claude.AddFiles(paths);
     }
 
-    public Task<string> AuthenticateMcpAsync(string name, Action? signedIn = null) => Claude.AuthenticateMcpAsync(name, signedIn);
+    public Task<string> AuthenticateMcpAsync(string name, Action<string?>? finished = null) => Claude.AuthenticateMcpAsync(name, finished);
 
     public async Task<string?> AddMcpServerAsync(string name, string transport, string target, string scope)
     {

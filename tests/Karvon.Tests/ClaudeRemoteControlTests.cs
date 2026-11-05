@@ -203,13 +203,13 @@ public class ClaudeRemoteControlTests
         vm.OpenUrlRequested += opened.Add;
         var signedIn = 0;
 
-        var said = await vm.AuthenticateMcpAsync("figma", () => signedIn++);
+        var said = await vm.AuthenticateMcpAsync("figma", problem => signedIn += problem is null ? 1 : 100);
         Assert.StartsWith("Finish signing in to figma in your browser", said);
         Assert.Equal(["https://www.figma.example.invalid/oauth/mcp"], opened);
         Assert.Equal(0, signedIn);
 
         // Clicked again while the browser is on it: the same page, no new sign-in.
-        said = await vm.AuthenticateMcpAsync("figma", () => signedIn++);
+        said = await vm.AuthenticateMcpAsync("figma", problem => signedIn += problem is null ? 1 : 100);
         Assert.StartsWith("Finish signing in to figma in your browser", said);
         Assert.Equal(2, opened.Count);
         Assert.Single(ControlRequests(log, "mcp_authenticate"));
@@ -220,12 +220,42 @@ public class ClaudeRemoteControlTests
         Assert.Equal("Signed in to figma.", vm.McpMessage);
 
         // Clicked after that: it stays signed in (the CLI would clear the tokens).
-        said = await vm.AuthenticateMcpAsync("figma", () => signedIn++);
+        said = await vm.AuthenticateMcpAsync("figma", problem => signedIn += problem is null ? 1 : 100);
         Assert.Equal("Claude Code is signed in to figma: its sessions use it.", said);
         Assert.Equal(3, signedIn);
         Assert.Single(ControlRequests(log, "mcp_authenticate"));
         Assert.True(File.Exists(tokens));
         await vm.DisposeAsync();
+    }
+
+    /// <summary>A sign-in started from MCP Servers, where the Claude panel never showed: the real chain, up to the desktop's opener.</summary>
+    [AvaloniaFact]
+    public async Task A_sign_in_opens_the_browser_with_the_claude_panel_never_shown()
+    {
+        Assert.SkipWhen(OperatingSystem.IsWindows(), "It stands in for xdg-open.");
+        var (dir, _) = FakeClaude.Workspace();
+        File.WriteAllText(Path.Combine(dir, ".fake-claude-figma"), "");
+        var bin = Directory.CreateTempSubdirectory("karvon-opener-").FullName;
+        var opened = Path.Combine(bin, "opened");
+        var opener = Path.Combine(bin, OperatingSystem.IsMacOS() ? "open" : "xdg-open");
+        File.WriteAllText(opener, $"#!/bin/sh\necho \"$1\" >> \"{opened}\"\n");
+        File.SetUnixFileMode(opener, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
+        var path = Environment.GetEnvironmentVariable("PATH");
+        Environment.SetEnvironmentVariable("PATH", bin + Path.PathSeparator + path);
+        var vm = NewViewModel();
+        try
+        {
+            await vm.OpenSolutionAsync(dir);
+            var said = await ClaudeOf(vm).AuthenticateMcpAsync("figma");
+            Assert.StartsWith("Finish signing in to figma in your browser", said);
+            await WaitUntil(() => File.Exists(opened), TimeSpan.FromSeconds(10));
+            Assert.Equal("https://www.figma.example.invalid/oauth/mcp", File.ReadAllText(opened).Trim());
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable("PATH", path);
+            await vm.CloseSolutionCoreAsync();
+        }
     }
 
     [AvaloniaFact]

@@ -385,12 +385,15 @@ public sealed partial class ClaudeViewModel
     }
 
     /// <summary>A sign-in the browser is on: its page, and who waits for it.</summary>
-    sealed record McpSignInWaiting(ClaudeSession Session, string Url, List<Action> SignedIn);
+    sealed record McpSignInWaiting(ClaudeSession Session, string Url, List<Action<string?>> Finished);
 
     readonly Dictionary<string, McpSignInWaiting> _mcpSignIns = [];
 
     /// <summary>A little longer than Claude Code waits for the browser (five minutes).</summary>
     internal static TimeSpan McpSignInWait { get; set; } = TimeSpan.FromMinutes(5.5);
+
+    /// <summary>How long Claude Code may take to say where the sign-in page is.</summary>
+    internal static TimeSpan McpSignInStartWait { get; set; } = TimeSpan.FromMinutes(1);
 
     static async Task<string?> McpStatusOfAsync(ClaudeSession session, string name)
     {
@@ -404,26 +407,28 @@ public sealed partial class ClaudeViewModel
     /// Claude Code signs in to a server, once: asking it again clears the tokens it has and starts over, so a second click
     /// goes back to the page of the sign-in that waits, and a server signed in already is left as it is.
     /// </summary>
-    async Task<string> SignInToMcpAsync(ClaudeSession session, string name, Action? signedIn = null)
+    /// <param name="finished">When that is known (at once, or once the browser's time is up): null when it is signed in, else why it is not.</param>
+    async Task<string> SignInToMcpAsync(ClaudeSession session, string name, Action<string?>? finished = null)
     {
         var finish = $"Finish signing in to {name} in your browser: Claude Code keeps the sign-in, and its sessions use {name}.";
         var done = $"Claude Code is signed in to {name}: its sessions use it.";
         if (_mcpSignIns.TryGetValue(name, out var waiting) && waiting.Session == session)
         {
-            if (signedIn is not null)
-                waiting.SignedIn.Add(signedIn);
+            if (finished is not null)
+                waiting.Finished.Add(finished);
             OpenUrlRequested?.Invoke(waiting.Url);
             return finish;
         }
         if (await McpStatusOfAsync(session, name) == "connected")
         {
-            signedIn?.Invoke();
+            finished?.Invoke(null);
             return done;
         }
-        var result = await session.McpAuthenticateAsync(name);
+        // It finds the server's sign-in over the network; the page itself waits for the browser, after this.
+        var result = await session.McpAuthenticateAsync(name).WaitAsync(McpSignInStartWait);
         if (ClaudeJson.Str(result, "authUrl") is not { Length: > 0 } url)
         {
-            signedIn?.Invoke();
+            finished?.Invoke(null);
             return done;
         }
         OpenUrlRequested?.Invoke(url);
@@ -432,10 +437,10 @@ public sealed partial class ClaudeViewModel
             return $"Finish signing in to {name} in your browser.";
         if (await McpStatusOfAsync(session, name) == "connected")
         {
-            signedIn?.Invoke();
+            finished?.Invoke(null);
             return done;
         }
-        var sign = new McpSignInWaiting(session, url, signedIn is null ? [] : [signedIn]);
+        var sign = new McpSignInWaiting(session, url, finished is null ? [] : [finished]);
         _mcpSignIns[name] = sign;
         _ = WatchMcpSignInAsync(name, sign);
         return finish;
@@ -461,23 +466,31 @@ public sealed partial class ClaudeViewModel
         if (_mcpSignIns.GetValueOrDefault(name) == sign)
             _mcpSignIns.Remove(name);
         McpMessage = connected ? $"Signed in to {name}." : $"The sign-in to {name} was not finished.";
-        if (connected)
-            foreach (var signedIn in sign.SignedIn)
-                signedIn();
+        foreach (var finished in sign.Finished)
+            finished(connected ? null : $"The sign-in to {name} was not finished. Sign in again to start over.");
         if (IsMcpOpen && _session == sign.Session)
             await RefreshMcpAsync();
     }
 
     /// <summary>Claude Code signs in to one of its MCP servers (its own OAuth, in the browser); what to tell the user.</summary>
-    public async Task<string> AuthenticateMcpAsync(string name, Action? signedIn = null)
+    public async Task<string> AuthenticateMcpAsync(string name, Action<string?>? finished = null)
     {
+        CheckCli();
+        if (CliPath is null)
+        {
+            var missing = $"Claude Code could not sign in to {name}: the claude command was not found.";
+            finished?.Invoke(missing);
+            return missing;
+        }
         try
         {
-            return await SignInToMcpAsync(await EnsureSessionAsync(), name, signedIn);
+            return await SignInToMcpAsync(await EnsureSessionAsync(), name, finished);
         }
-        catch (Exception ex) when (ex is InvalidOperationException or IOException or OperationCanceledException or System.ComponentModel.Win32Exception)
+        catch (Exception ex) when (ex is InvalidOperationException or IOException or OperationCanceledException or TimeoutException or System.ComponentModel.Win32Exception)
         {
-            return $"Claude Code could not sign in to {name}: {ex.Message}";
+            var problem = $"Claude Code could not sign in to {name}: {ex.Message}";
+            finished?.Invoke(problem);
+            return problem;
         }
     }
 
