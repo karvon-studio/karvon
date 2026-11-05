@@ -393,7 +393,60 @@ public sealed partial class MarkdownPreview : Decorator
                 grid.Children.Add(border);
             }
         }
-        return MarkdownView.Sideways(new Border { BorderBrush = RuleBrush, BorderThickness = new Thickness(1, 1, 0, 0), Child = grid, HorizontalAlignment = HorizontalAlignment.Left });
+        return new FittingTable(grid) { Child = MarkdownView.Sideways(new Border { BorderBrush = RuleBrush, BorderThickness = new Thickness(1, 1, 0, 0), Child = grid, HorizontalAlignment = HorizontalAlignment.Left }) };
+    }
+
+    /// <summary>
+    /// Around a table's sideways scroller, so it knows the pane's width: the columns are as wide as their text while that
+    /// fits, and when it does not the widest give way and wrap, as a browser's do. Only too many columns for that scroll.
+    /// </summary>
+    internal sealed class FittingTable(Grid grid) : Decorator
+    {
+        const double Least = 96;
+        double[]? _natural;
+        double _width = -1;
+
+        protected override Size MeasureOverride(Size availableSize)
+        {
+            if (double.IsFinite(availableSize.Width) && availableSize.Width != _width)
+            {
+                _width = availableSize.Width;
+                _natural ??= NaturalWidths();
+                var widths = Fit(_natural, _width - 2, Least);
+                for (var c = 0; c < widths.Length; c++)
+                    grid.ColumnDefinitions[c].Width = new GridLength(Math.Ceiling(widths[c]), GridUnitType.Pixel);
+            }
+            return base.MeasureOverride(availableSize);
+        }
+
+        double[] NaturalWidths()
+        {
+            var natural = new double[grid.ColumnDefinitions.Count];
+            foreach (var cell in grid.Children)
+            {
+                cell.Measure(Size.Infinity);
+                var column = Grid.GetColumn(cell);
+                natural[column] = Math.Max(natural[column], cell.DesiredSize.Width);
+            }
+            return natural;
+        }
+
+        /// <summary>The narrowest columns keep their width; the rest share what is left equally, none under <paramref name="least"/>.</summary>
+        internal static double[] Fit(IReadOnlyList<double> natural, double width, double least)
+        {
+            var widths = natural.ToArray();
+            if (widths.Sum() <= width)
+                return widths;
+            var left = width;
+            var remaining = widths.Length;
+            foreach (var column in Enumerable.Range(0, widths.Length).OrderBy(c => natural[c]))
+            {
+                widths[column] = Math.Min(natural[column], Math.Max(left / remaining, least));
+                left -= widths[column];
+                remaining--;
+            }
+            return widths;
+        }
     }
 
     Control FootnotesOf(FootnoteGroup footnotes)

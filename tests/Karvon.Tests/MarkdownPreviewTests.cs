@@ -68,6 +68,37 @@ public class MarkdownPreviewTests
         preview.GetVisualDescendants().OfType<SelectableTextBlock>().First(b => (b.Inlines?.Text ?? b.Text) == text);
 
     [AvaloniaFact]
+    public async Task A_table_wider_than_the_pane_wraps_its_long_cells()
+    {
+        var dir = Path.Combine(Path.GetTempPath(), "karvon-md-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(dir);
+        var path = Path.Combine(dir, "table.md");
+        var longCell = string.Join(' ', Enumerable.Repeat("a cell long enough to go past the pane", 6));
+        File.WriteAllText(path, $"| Stage | Sprints | Result |\n|---|---|---|\n| One | S1 | {longCell} |\n| Two | S2 | short |\n");
+        var vm = NewViewModel();
+        var window = new MainWindow { DataContext = vm, Width = 1100, Height = 700 };
+        window.Show();
+        var doc = vm.OpenDocument(path)!;
+        await WaitUntil(() => window.GetVisualDescendants().OfType<EditorArea>().Any(a => a.Host == doc.Host && a.Preview.Blocks.Count > 0), TimeSpan.FromSeconds(5));
+        var preview = AreaOf(window, doc).Preview;
+        await WaitUntil(() => TextBlock(preview, longCell).Bounds.Width > 0, TimeSpan.FromSeconds(5));
+        await WaitUntil(() => false, TimeSpan.FromMilliseconds(300));
+
+        // All of it is in the pane: nothing to scroll to, the long cell on several lines, the short columns as they were.
+        var scroller = preview.GetVisualDescendants().OfType<ScrollViewer>().First(s => s.Content is Border { Child: Grid });
+        Assert.True(scroller.Extent.Width <= scroller.Viewport.Width + 1, $"{scroller.Extent.Width} in {scroller.Viewport.Width}");
+        var cell = TextBlock(preview, longCell);
+        Assert.True(cell.Bounds.Height > 2 * cell.FontSize * 1.2, $"{cell.Bounds.Height} high");
+        Assert.True(TextBlock(preview, "Sprints").Bounds.Width < 80);
+
+        // What fits keeps its width; a column never gets narrower than it can be read, and then the table scrolls.
+        Assert.Equal([100d, 200d], MarkdownPreview.FittingTable.Fit([100, 200], 400, 96));
+        Assert.Equal([60d, 240d], MarkdownPreview.FittingTable.Fit([60, 900], 300, 96));
+        Assert.Equal([96d, 96d, 96d], MarkdownPreview.FittingTable.Fit([500, 500, 500], 200, 96));
+        window.Close();
+    }
+
+    [AvaloniaFact]
     public async Task A_markdown_file_shows_its_preview_beside_the_editor()
     {
         var readme = NewReadme();
