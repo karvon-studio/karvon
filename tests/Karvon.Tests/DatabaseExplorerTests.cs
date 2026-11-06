@@ -8,6 +8,7 @@ using Microsoft.Data.Sqlite;
 using Karvon.Database;
 using Karvon.Database.ViewModels;
 using Karvon.Database.Views;
+using Karvon.Modules;
 using Karvon.ViewModels;
 using Karvon.Views;
 using static Karvon.Tests.UiTests;
@@ -75,6 +76,59 @@ public class DatabaseExplorerTests
     }
 
     static DatabaseExplorerView? ViewOf(Window window) => window.GetVisualDescendants().OfType<DatabaseExplorerView>().SingleOrDefault();
+
+    [AvaloniaFact]
+    public async Task A_tool_window_moved_with_its_tree_open_leaves_every_icon_in_its_place()
+    {
+        Environment.SetEnvironmentVariable("BENGINE_SERVERS_FILE", NewServers());
+        Environment.SetEnvironmentVariable("BENGINE_KEYRING", "off");
+        var vm = NewViewModel();
+        var window = new MainWindow { DataContext = vm, Width = 1400, Height = 900 };
+        window.Show();
+        List<Exception> errors = [];
+        // What a layout pass throws. An AggregateException is another test's task, come from the finalizer whenever it runs.
+        void Caught(Exception ex)
+        {
+            if (ex is not AggregateException)
+                errors.Add(ex);
+        }
+        Karvon.Services.ErrorReports.Reported += Caught;
+        Karvon.Services.ErrorReports.Install();
+        try
+        {
+            vm.ShowToolWindow(Karvon.Database.DatabaseModule.ToolWindowId);
+            var explorer = Db(vm).Explorer;
+            await Until(() => explorer.Roots.Count > 0);
+            await UsersOf(explorer);
+            await WaitUntil(() => false, TimeSpan.FromMilliseconds(300));
+
+            // Moved with its tree open: its rows are made again, and a row's icon may not still be in the old one.
+            async Task Moved(string id, DockSide side)
+            {
+                window.MoveToolWindow(id, side);
+                await WaitUntil(() => false, TimeSpan.FromMilliseconds(300));
+                Assert.Empty(errors);
+                foreach (var group in new[] { window.FindControl<TabControl>("LeftTabs")!, window.FindControl<TabControl>("RightTabs")! })
+                {
+                    var tops = group.Items.OfType<TabItem>().Select(t => t.Bounds.Y).ToList();
+                    Assert.Equal(Enumerable.Range(0, tops.Count).Select(i => i * 44d), tops);
+                }
+            }
+            await Moved(Karvon.Database.DatabaseModule.ToolWindowId, DockSide.Left);
+            await Moved(Karvon.Docker.DockerModule.ToolWindowId, DockSide.Left);
+            await Moved(ToolWindows.Git, DockSide.Left);
+            await Moved(Karvon.Database.DatabaseModule.ToolWindowId, DockSide.Right);
+            Assert.True(explorer.ServerItems.Single().IsExpanded);
+        }
+        finally
+        {
+            Karvon.Services.ErrorReports.Uninstall();
+            Karvon.Services.ErrorReports.Reported -= Caught;
+            // What it moved is saved: the next test's window starts as the first did.
+            window.ResetWindowLayout();
+            window.Close();
+        }
+    }
 
     [AvaloniaFact]
     public async Task Explores_a_database_and_opens_its_documents_as_tabs()

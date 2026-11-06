@@ -19,7 +19,6 @@ public sealed partial class TreeItemViewModel : ObservableObject
     private Func<Task<IReadOnlyList<TreeNode>?>>? _loader;
     private string? _virtualKind;
     private bool _loaded;
-    private Control? _icon;
 
     [ObservableProperty]
     private bool _isExpanded;
@@ -79,10 +78,14 @@ public sealed partial class TreeItemViewModel : ObservableObject
     /// <summary>Gets a value indicating whether the row belongs to a read-only server.</summary>
     public bool IsReadOnlyServer => Kind == "Server" && Server?.ReadOnly == true;
 
-    /// <summary>Gets the row's icon (rebuilt when the connection state changes).</summary>
+    /// <summary>
+    /// Gets a new icon each time it is asked for: a control has one parent, and the tree makes its rows again when its tool
+    /// window moves, the old row still holding the one it had (the layout pass fails on that, and nothing else in the window
+    /// is laid out). Asked for again when the connection state changes.
+    /// </summary>
     public Control? Icon => IsPlaceholder
         ? null
-        : _icon ??= IsFolder
+        : IsFolder
             ? new Avalonia.Controls.Image { Source = MaterialIcons.ForTreeFolder(_virtualKind is not null ? Label : Node!.Ref.Kind.ToString(), IsExpanded), Width = 16, Height = 16 }
             : TreeIcons.Create(IconKind, Server?.Provider ?? Bengine.Enums.DatabaseProvider.PostgreSql, IconConnected, Node?.Badge);
 
@@ -167,7 +170,6 @@ public sealed partial class TreeItemViewModel : ObservableObject
         if (IsFolder)
         {
             // An open folder shows the open icon.
-            _icon = null;
             OnPropertyChanged(nameof(Icon));
         }
 
@@ -179,7 +181,6 @@ public sealed partial class TreeItemViewModel : ObservableObject
 
     partial void OnIsConnectedChanged(bool value)
     {
-        _icon = null;
         OnPropertyChanged(nameof(Icon));
     }
 
