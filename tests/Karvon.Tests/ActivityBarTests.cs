@@ -88,6 +88,23 @@ public class ActivityBarTests
         window.Close();
     }
 
+    [AvaloniaFact]
+    public async Task Reset_Window_Layout_is_only_in_the_Tools_menu()
+    {
+        var vm = NewViewModel();
+        var window = new MainWindow { DataContext = vm, Width = 1400, Height = 900 };
+        window.Show();
+        await WaitUntil(() => false, TimeSpan.FromMilliseconds(200));
+        var menus = window.GetLogicalDescendants().OfType<MenuItem>().Where(m => m.Parent is Menu).ToList();
+        string[] holding = [.. menus.Where(m => m.GetLogicalDescendants().OfType<MenuItem>().Any(i => i.Header as string == "Reset _Window Layout")).Select(m => (string)m.Header!)];
+        Assert.Equal(["_Tools"], holding);
+
+        // A tool window's own menu docks and floats it: nothing there undoes the whole layout.
+        var menu = window.ToolTabMenu(Tab(window, ToolWindows.SolutionExplorer), ToolWindows.SolutionExplorer);
+        Assert.Equal(["Float", "Dock Left", "Dock Right", "Dock Bottom"], menu.ItemsSource!.OfType<MenuItem>().Select(i => (string)i.Header!));
+        window.Close();
+    }
+
     /// <summary>Drags a control (in steps, as a hand does) to a point of the window, and lets it go there.</summary>
     static void Drag(Window window, Control control, Point to)
     {

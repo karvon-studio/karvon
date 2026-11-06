@@ -556,6 +556,12 @@ public partial class MainWindow
         if (sender is not TabItem { Tag: string id } item)
             return;
         e.Handled = true;
+        ToolTabMenu(item, id).Open(item);
+    }
+
+    /// <summary>A tool window's own menu: where it docks. What undoes the whole layout is not a click away from it (Tools has that).</summary>
+    internal ContextMenu ToolTabMenu(TabItem item, string id)
+    {
         var current = SideOf(id);
         MenuItem Item(string header, DockSide side)
         {
@@ -565,7 +571,7 @@ public partial class MainWindow
         }
         var floatItem = new MenuItem { Header = "Float", IsEnabled = !IsFloating(id) };
         floatItem.Click += (_, _) => FloatToolWindow(item, null, null, remember: true);
-        new ContextMenu
+        return new ContextMenu
         {
             ItemsSource = new object[]
             {
@@ -573,17 +579,11 @@ public partial class MainWindow
                 Item("Dock Left", DockSide.Left),
                 Item("Dock Right", DockSide.Right),
                 Item("Dock Bottom", DockSide.Bottom),
-                new Separator(),
-                new MenuItem
-                {
-                    Header = "Reset Window Layout",
-                    Command = new CommunityToolkit.Mvvm.Input.RelayCommand(ResetWindowLayout),
-                },
             },
-        }.Open(item);
+        };
     }
 
-    /// <summary>Window > Reset Window Layout: every tool window back to its default group and size.</summary>
+    /// <summary>Tools > Reset Window Layout: every tool window back to its default group and size.</summary>
     public void ResetWindowLayout()
     {
         _leftCollapsed = _rightCollapsed = _bottomCollapsed = _bottomAutoHide = false;

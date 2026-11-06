@@ -346,6 +346,7 @@
           <MenuItem Header="_Remove Passphrase..." Command="{Binding RemoveVaultPassphraseCommand}" IsVisible="{Binding HasVaultPassphrase}" />
           <MenuItem Header="_Unlock..." Command="{Binding UnlockVaultCommand}" IsVisible="{Binding IsVaultLocked}" />
         </MenuItem>
+        <MenuItem Header="Reset _Window Layout" Click="OnResetWindowLayout" />
         <Separator />
         <MenuItem Header="_Get Tools and Features..." Click="OnGetToolsAndFeatures" />
       </MenuItem>
@@ -363,7 +364,6 @@
         <MenuItem Name="PreviousGroupMenuItem" Header="Move to P_revious Tab Group" Command="{Binding MoveToPreviousTabGroupCommand}" />
         <Separator />
         <MenuItem Header="C_lose All Tabs" Command="{Binding CloseAllDocumentsCommand}" />
-        <MenuItem Header="Reset _Window Layout" Click="OnResetWindowLayout" />
       </MenuItem>
       <MenuItem Header="_Help">
         <MenuItem Header="_Keyboard Shortcuts" Click="OnShortcuts" />
