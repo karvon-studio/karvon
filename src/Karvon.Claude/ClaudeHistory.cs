@@ -35,6 +35,15 @@ public static partial class ClaudeHistory
         return list;
     }
 
+    /// <summary>Deletes a conversation for good: its transcript, and the folder Claude Code keeps beside it (subagents' transcripts, large tool results).</summary>
+    public static void Delete(ClaudeConversation conversation)
+    {
+        File.Delete(conversation.FilePath);
+        var beside = Path.ChangeExtension(conversation.FilePath, null);
+        if (Directory.Exists(beside))
+            Directory.Delete(beside, recursive: true);
+    }
+
     /// <summary>The conversation's events in order, for showing a resumed conversation.</summary>
     public static IReadOnlyList<ClaudeEvent> Load(string transcriptPath)
     {

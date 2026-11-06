@@ -1381,6 +1381,46 @@ public sealed partial class ClaudeViewModel : ObservableObject, IAsyncDisposable
             History.Add(WithStatus(conversation));
     }
 
+    /// <summary>Asks the user yes or no, in the window's dialog: what cannot be undone is asked first (a title, then the question).</summary>
+    public Func<string, string, Task<bool?>>? Confirm { get; set; }
+
+    /// <summary>Why the last conversation could not be deleted.</summary>
+    [ObservableProperty]
+    public partial string? HistoryProblem { get; set; }
+
+    /// <summary>
+    /// Deletes a past conversation when the user says so. The one showing goes with it, its CLI stopped so that it writes no
+    /// more. One working in the background is not deleted: opened again, it can be stopped.
+    /// </summary>
+    [RelayCommand]
+    public async Task DeleteConversationAsync(ClaudeConversation? conversation)
+    {
+        if (conversation is null || WithStatus(conversation).HasStatus || Confirm is not { } confirm)
+            return;
+        var language = ClaudeLanguage.Instance;
+        var showing = SessionId == conversation.SessionId;
+        var question = conversation.Title + "\n\n" + language.Translate("It will be deleted for good.")
+            + (showing && IsRunning ? " " + language.Translate("Claude is working on it, and stops.") : "");
+        if (await confirm(language.Translate("Delete conversation"), question) != true)
+            return;
+        if (showing)
+        {
+            await StopSessionAsync();
+            await ResetAsync();
+            IsHistoryOpen = true;
+        }
+        try
+        {
+            ClaudeHistory.Delete(conversation);
+            HistoryProblem = null;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            HistoryProblem = language.Translate("Could not delete it:") + " " + ex.Message;
+        }
+        RefreshHistory();
+    }
+
     [RelayCommand]
     public async Task ResumeConversationAsync(ClaudeConversation? conversation)
     {

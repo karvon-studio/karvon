@@ -69,6 +69,7 @@ public sealed class ClaudeModule : KarvonModule, IClaudeService
             McpServers = cwd => ExtraMcpServers?.Invoke(cwd),
         };
         // The window's, not the panel's: a sign-in started from MCP Servers opens its page with the panel closed too.
+        claude.Confirm = Workbench.ConfirmAsync;
         claude.OpenUrlRequested += url =>
         {
             if (Uri.TryCreate(url, UriKind.Absolute, out _))

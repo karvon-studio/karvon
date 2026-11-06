@@ -39,8 +39,11 @@ public partial class ClaudeView : UserControl
         PromptBox.AddHandler(KeyDownEvent, OnPromptKeyDown, RoutingStrategies.Tunnel);
         PromptBox.GotFocus += (_, _) => _vm?.RefreshContext();
         SuggestionList.Tapped += (_, _) => ApplySelectedSuggestion();
-        HistoryList.Tapped += (_, _) =>
+        HistoryList.Tapped += (_, e) =>
         {
+            // A tap on a row's delete button is not a tap on the row.
+            if (e.Source is Avalonia.Visual source && Avalonia.VisualTree.VisualExtensions.FindAncestorOfType<Button>(source, includeSelf: true) is not null)
+                return;
             if (HistoryList.SelectedItem is ClaudeConversation conversation)
                 _vm?.ResumeConversationCommand.Execute(conversation);
         };
