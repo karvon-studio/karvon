@@ -1,0 +1,3 @@
+arche.tmLanguage.json is editors/arche.tmLanguage.json of arche-lang
+(github.com/arche-family/arche-lang), same author; its keywords are compared
+with the compiler's lexer there.

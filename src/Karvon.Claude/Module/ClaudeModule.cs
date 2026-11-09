@@ -16,21 +16,14 @@ namespace Karvon.Claude;
 /// the user's own; what they do shows where the user would have done it. The other modules reach it as
 /// <see cref="IClaudeService"/>.
 /// </summary>
-public sealed class ClaudeModule : KarvonModule, IClaudeService
+public sealed class ClaudeModule : AgentPanelModule, IClaudeService
 {
     public const string ToolWindowId = "Claude";
 
     /// <summary>The conversation the solution had open, kept with it.</summary>
     const string ConversationKey = "claude.conversation";
 
-    static readonly HashSet<string> SkippedFolders = new(StringComparer.Ordinal) { "bin", "obj", ".git", ".vs", ".idea", "node_modules" };
-
     ClaudeViewModel? _claude;
-    List<string>? _files;
-    OutputChannel? _output;
-
-    /// <summary>The module each of the modules' tools is of: it shows what the tool did.</summary>
-    readonly Dictionary<string, KarvonModule> _toolModules = new(StringComparer.Ordinal);
 
     public override string Id => "claude";
 
@@ -50,7 +43,7 @@ public sealed class ClaudeModule : KarvonModule, IClaudeService
     public ClaudeViewModel Claude => _claude ??= Create();
 
     /// <summary>Output (Claude): every call of Karvon's tools, what it was about and what it gave.</summary>
-    public OutputChannel Output => _output ??= Workbench.Output("Claude");
+    protected override string OutputName => "Claude";
 
     protected override void Started()
     {
@@ -60,139 +53,25 @@ public sealed class ClaudeModule : KarvonModule, IClaudeService
 
     ClaudeViewModel Create()
     {
-        var tools = Workbench.Settings.ClaudeKarvonTools ? ToolServer() : null;
-        if (tools is not null)
-            tools.Called += OnToolCalled;
         var claude = new ClaudeViewModel(Workbench.Settings, WorkingDirectory, EditorContext, Files)
         {
-            Tools = tools,
+            Tools = NewToolServer(),
             McpServers = cwd => ExtraMcpServers?.Invoke(cwd),
-            // The agents besides Claude Code the panel can talk to.
-            Backends =
-            [
-                new CodexBackend(),
-                new ModelBackend(ModelProvider.OpenRouter, Karvon.Services.Keyring.System),
-                new ModelBackend(ModelProvider.Ollama),
-                new ModelBackend(ModelProvider.LmStudio),
-                new AcpBackend(AcpAgent.GeminiCli),
-                .. Workbench.Settings.AcpAgents.Where(a => a.Name.Length > 0 && a.Command.Length > 0).Select(a => new AcpBackend(
-                    new AcpAgent(a.Name.ToLowerInvariant().Replace(' ', '-'), a.Name, "An agent of yours, through the Agent Client Protocol", [a.Command], a.Arguments, [], null))),
-            ],
         };
-        // The window's, not the panel's: a sign-in started from MCP Servers opens its page with the panel closed too.
-        claude.Confirm = Workbench.ConfirmAsync;
-        claude.OpenUrlRequested += url =>
-        {
-            if (Uri.TryCreate(url, UriKind.Absolute, out _))
-                Workbench.OpenUrl(url);
-        };
+        Wire(claude, ToolWindowId, "Claude Code", () => "Claude", "claude");
         // Another account has other servers (its own .claude.json) and its own skills.
         claude.PropertyChanged += (_, e) =>
         {
             if (e.PropertyName == nameof(ClaudeViewModel.SelectedAccount))
                 Changed?.Invoke();
         };
-        claude.OpenFileRequested += (path, line) => Workbench.OpenFile(path, line ?? 0);
-        claude.DiffRequested += (path, before, after) => Workbench.ShowDiff(path, before, after, "Current", "Proposed by Claude", "claude");
-        claude.FilesChanged += () =>
-        {
-            _files = null;
-            Workbench.CheckExternalChanges();
-        };
-        claude.AttentionRequested += () => Workbench.ShowToolWindow(ToolWindowId);
-        claude.VariablesHidden += names =>
-            Output.Append($"{DateTime.Now:HH:mm:ss}  Kept from Claude Code (they hold a secret): {string.Join(", ", names)}");
         return claude;
-    }
-
-    string WorkingDirectory() => Workbench.Workspace ?? Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-
-    ClaudeEditorContext? EditorContext() =>
-        Workbench.ActiveEditorSelection() is { } selection ? new ClaudeEditorContext(selection.FilePath, selection.StartLine, selection.EndLine, selection.Text) : null;
-
-    /// <summary>Files offered for @-mentions: the solution folder without build output and VCS folders.</summary>
-    IEnumerable<string> Files()
-    {
-        if (_files is not null || Workbench.Workspace is not { } workspace)
-            return _files ?? [];
-        var files = new List<string>();
-        var pending = new Stack<string>([workspace]);
-        while (pending.Count > 0 && files.Count < 5000)
-        {
-            var dir = pending.Pop();
-            try
-            {
-                files.AddRange(Directory.EnumerateFiles(dir));
-                foreach (var sub in Directory.EnumerateDirectories(dir))
-                    if (!SkippedFolders.Contains(Path.GetFileName(sub)))
-                        pending.Push(sub);
-            }
-            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-            {
-            }
-        }
-        return _files = files;
-    }
-
-    /// <summary>
-    /// Karvon's tools for a session: the core's and those of the modules that are on (each module shows what its tools did).
-    /// </summary>
-    public ClaudeToolServer ToolServer()
-    {
-        var tools = Workbench.Modules.SelectMany(m => m.ClaudeTools().Select(t => (Module: m, Tool: t))).ToList();
-        foreach (var (module, tool) in tools)
-            _toolModules[tool.Name] = module;
-        // The shell commands the tools do go to them (the IDE's and the modules' that are on), unless the user turned it off
-        // (for the sessions started after).
-        var settings = Workbench.Settings;
-        var server = KarvonTools.Create([.. Workbench.ClaudeTools(), .. tools.Select(t => t.Tool)],
-            [.. Karvon.Claude.Tools.IdeClaudeTools.ShellRules, .. Workbench.Modules.SelectMany(m => m.ClaudeShellRules())],
-            () => settings.ClaudeKarvonToolsFirst);
-        // The user's rules for them, as they are at each call.
-        server.Rules = () => settings.ClaudeToolRules;
-        return server;
-    }
-
-    /// <summary>A call ran (on its own thread): shown on the UI thread.</summary>
-    void OnToolCalled(IClaudeTool tool, JsonElement input, ClaudeToolOutput output)
-    {
-        var copy = input.Clone();
-        Dispatcher.UIThread.Post(() => _ = ShowToolCallAsync(tool.Name, copy, output));
-    }
-
-    /// <summary>A line in Output (Claude), then what the call did, where the user would have done it.</summary>
-    internal async Task ShowToolCallAsync(string tool, JsonElement input, ClaudeToolOutput output)
-    {
-        var first = output.Text.Split('\n', 2)[0];
-        Output.Append($"{DateTime.Now:HH:mm:ss}  {tool}{SubjectOf(input)}  {(output.IsError ? "failed: " : "")}{Redaction.Text(first.Length > 300 ? first[..300] + "…" : first)}");
-        if (!Workbench.Settings.ClaudeShowToolActivity || output.IsError)
-            return;
-        try
-        {
-            if (_toolModules.GetValueOrDefault(tool) is { } module)
-                await module.ShowClaudeToolAsync(tool, input, output);
-            else
-                await Workbench.ShowClaudeToolAsync(tool, input, output);
-        }
-        catch (Exception ex) when (ex is IOException or InvalidOperationException or ArgumentException)
-        {
-            Output.Append($"          (not shown: {ex.Message})");
-        }
-    }
-
-    /// <summary>What a call was about, for its line: the data source, the container, the server, the file.</summary>
-    static string SubjectOf(JsonElement input)
-    {
-        foreach (var name in new[] { "connection", "name", "server", "service", "path", "project", "query", "filter", "action", "expression" })
-            if (Str(input, name) is { Length: > 0 } value)
-                return $" ({(value.Length > 80 ? value[..80] + "…" : value)})";
-        return "";
     }
 
     /// <summary>Another folder: the conversation runs there; a solution opened gets back the conversation it had.</summary>
     public override async Task WorkspaceChangedAsync()
     {
-        _files = null;
+        ForgetFiles();
         if (_claude is { } claude)
             await claude.OnWorkingDirectoryChangedAsync();
         if (Workbench.WorkspaceState.GetValueOrDefault(ConversationKey) is { Length: > 0 } conversation)

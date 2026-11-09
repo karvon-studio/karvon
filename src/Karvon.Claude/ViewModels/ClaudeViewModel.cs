@@ -743,7 +743,7 @@ public sealed partial class ClaudeViewModel : ObservableObject, IAsyncDisposable
                         Items.Remove(echoed);
                     Items.Add(new NoticeChatItem(message, isError: message != "Interrupted."));
                 }
-                else if (_pendingModelCommand is { } model && Models.FirstOrDefault(m => m.Value == model) is { } choice)
+                else if (_backend is null && _pendingModelCommand is { } model && Models.FirstOrDefault(m => m.Value == model) is { } choice)
                 {
                     // "/model sonnet" switched the CLI's model; keep the picker in step without sending it again.
                     _changingModeFromCli = true;
@@ -1352,7 +1352,7 @@ public sealed partial class ClaudeViewModel : ObservableObject, IAsyncDisposable
     {
         foreach (var mode in Modes)
             mode.IsSelected = mode.Value == newValue;
-        _settings.ClaudePermissionMode = newValue;
+        SavedPermissionMode = newValue;
         _settings.Save();
         if (!_changingModeFromCli && _session is { HasExited: false } session)
             _ = SetPermissionModeAsync(session, newValue, oldValue ?? "default");

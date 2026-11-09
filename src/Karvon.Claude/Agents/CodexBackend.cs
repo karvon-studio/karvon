@@ -29,6 +29,9 @@ public sealed class CodexBackend : IAgentBackend
         return AgentExecutables.Find("codex");
     }
 
+    public Task<IReadOnlyList<AgentModel>> ModelsAsync(string executable, string workingDirectory, CancellationToken cancellationToken = default) =>
+        CodexSession.ModelsAsync(executable, workingDirectory, cancellationToken);
+
     public async Task<IAgentSession> StartAsync(AgentStartOptions options, CancellationToken cancellationToken = default) =>
         await CodexSession.StartAsync(options, cancellationToken);
 }

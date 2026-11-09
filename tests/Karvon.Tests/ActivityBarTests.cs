@@ -132,6 +132,7 @@ public class ActivityBarTests
         var solution = Tab(window, ToolWindows.SolutionExplorer);
         var docker = Tab(window, Karvon.Docker.DockerModule.ToolWindowId);
         var claude = Tab(window, Karvon.Claude.ClaudeModule.ToolWindowId);
+        var agents = Tab(window, Karvon.Claude.AgentsModule.ToolWindowId);
         Assert.Equal(ToolWindows.SolutionExplorer, Order(rightTabs)[0]);
         Assert.True(solution.IsSelected);
 
@@ -156,10 +157,10 @@ public class ActivityBarTests
         window.MouseMove(At(window, claude, 22, 22), RawInputModifiers.LeftMouseButton);
         window.MouseUp(At(window, claude, 22, 22), MouseButton.Left);
         Assert.False(marker.IsVisible);
-        Assert.Equal(Karvon.Claude.ClaudeModule.ToolWindowId, Order(rightTabs)[^1]);
+        Assert.Equal([Karvon.Claude.ClaudeModule.ToolWindowId, Karvon.Claude.AgentsModule.ToolWindowId], Order(rightTabs)[^2..]);
 
         // Below the last icon is the end of the bar.
-        Drag(window, solution, At(window, claude, 22, claude.Bounds.Height + 60));
+        Drag(window, solution, At(window, agents, 22, agents.Bounds.Height + 60));
         Assert.Equal(ToolWindows.SolutionExplorer, Order(rightTabs)[^1]);
 
         // Dropped between two of the bottom tabs, a tool window goes there, a named tab in front.
@@ -174,7 +175,7 @@ public class ActivityBarTests
 
         // Reset Window Layout: every tab back in its place, in the first order.
         window.ResetWindowLayout();
-        Assert.Equal([ToolWindows.SolutionExplorer, ToolWindows.Testing, ToolWindows.Git, ToolWindows.DiagnosticTools, Karvon.Database.DatabaseModule.ToolWindowId, Karvon.Docker.DockerModule.ToolWindowId, Karvon.Servers.ServersModule.ToolWindowId, Karvon.Jira.JiraModule.ToolWindowId, Karvon.Kubernetes.KubernetesModule.ToolWindowId, Karvon.Http.HttpModule.ToolWindowId, Karvon.Mcp.McpModule.ToolWindowId, Karvon.Skills.SkillsModule.ToolWindowId, Karvon.Claude.ClaudeModule.ToolWindowId],
+        Assert.Equal([ToolWindows.SolutionExplorer, ToolWindows.Testing, ToolWindows.Git, ToolWindows.DiagnosticTools, Karvon.Database.DatabaseModule.ToolWindowId, Karvon.Docker.DockerModule.ToolWindowId, Karvon.Servers.ServersModule.ToolWindowId, Karvon.Jira.JiraModule.ToolWindowId, Karvon.Kubernetes.KubernetesModule.ToolWindowId, Karvon.Http.HttpModule.ToolWindowId, Karvon.Mcp.McpModule.ToolWindowId, Karvon.Skills.SkillsModule.ToolWindowId, Karvon.Claude.ClaudeModule.ToolWindowId, Karvon.Claude.AgentsModule.ToolWindowId],
             Order(rightTabs));
         Assert.Empty(vm.Settings.Layout.ToolOrder);
         window.Close();
@@ -191,7 +192,7 @@ public class ActivityBarTests
         const string pullRequests = Karvon.PullRequests.PullRequestsModule.ToolWindowId, pipelines = Karvon.Pipelines.PipelinesModule.ToolWindowId;
 
         // One icon each, where the first of their tool windows was; in each, its tool windows as named tabs at the bottom.
-        Assert.Equal([ToolWindows.SolutionExplorer, ToolWindows.Testing, ToolWindows.Git, ToolWindows.DiagnosticTools, Karvon.Database.DatabaseModule.ToolWindowId, Karvon.Docker.DockerModule.ToolWindowId, Karvon.Servers.ServersModule.ToolWindowId, Karvon.Jira.JiraModule.ToolWindowId, Karvon.Kubernetes.KubernetesModule.ToolWindowId, Karvon.Http.HttpModule.ToolWindowId, Karvon.Mcp.McpModule.ToolWindowId, Karvon.Skills.SkillsModule.ToolWindowId, Karvon.Claude.ClaudeModule.ToolWindowId],
+        Assert.Equal([ToolWindows.SolutionExplorer, ToolWindows.Testing, ToolWindows.Git, ToolWindows.DiagnosticTools, Karvon.Database.DatabaseModule.ToolWindowId, Karvon.Docker.DockerModule.ToolWindowId, Karvon.Servers.ServersModule.ToolWindowId, Karvon.Jira.JiraModule.ToolWindowId, Karvon.Kubernetes.KubernetesModule.ToolWindowId, Karvon.Http.HttpModule.ToolWindowId, Karvon.Mcp.McpModule.ToolWindowId, Karvon.Skills.SkillsModule.ToolWindowId, Karvon.Claude.ClaudeModule.ToolWindowId, Karvon.Claude.AgentsModule.ToolWindowId],
             Order(rightTabs));
         var git = Tab(window, ToolWindows.Git);
         var gitTabs = (TabControl)git.Content!;

@@ -39,7 +39,7 @@ public class ModuleTemplateTests
     [Fact]
     public void Every_language_module_brings_its_templates()
     {
-        Assert.Equal(["karvon.typescript.node", "karvon.python.project", "karvon.python.uv", "karvon.go.module", "karvon.rust.bin", "karvon.rust.lib", "karvon.cpp.cmake", "karvon.c.cmake", "karvon.java.maven", "karvon.kotlin.gradle", "karvon.jwc.empty", "karvon.jwc.api", "karvon.jwc.auth", "karvon.jwc.jobs"],
+        Assert.Equal(["karvon.typescript.node", "karvon.python.project", "karvon.python.uv", "karvon.go.module", "karvon.rust.bin", "karvon.rust.lib", "karvon.cpp.cmake", "karvon.c.cmake", "karvon.java.maven", "karvon.kotlin.gradle", "karvon.jwc.empty", "karvon.jwc.api", "karvon.jwc.auth", "karvon.jwc.jobs", "karvon.arche.program", "karvon.arche.library"],
             Karvon.BuiltInModules.Create().SelectMany(m => m.ProjectTemplates).Select(t => t.Identity));
         Assert.Equal("shop_app", TemplateSteps.PackageName("Shop App", '_'));
         Assert.Equal("app-1st", TemplateSteps.PackageName("1st", '-'));

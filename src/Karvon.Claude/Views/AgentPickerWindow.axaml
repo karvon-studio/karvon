@@ -1,0 +1,131 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:Karvon.ViewModels"
+        xmlns:c="using:Karvon.Claude"
+        xmlns:v="using:Karvon.Views"
+        x:Class="Karvon.Views.AgentPickerWindow"
+        x:DataType="vm:AgentPickerViewModel"
+        Title="{v:L 'Choose Agent and Model'}"
+        Width="820" Height="540" MinWidth="600" MinHeight="380"
+        WindowStartupLocation="CenterOwner"
+        ShowInTaskbar="False"
+        Icon="avares://Karvon.Core/Assets/karvon.png"
+        Background="{StaticResource VsEnvironmentBrush}"
+        Foreground="{StaticResource VsTextBrush}">
+  <Window.Styles>
+    <Style Selector="TextBlock.gray">
+      <Setter Property="Foreground" Value="#A0A0A0" />
+    </Style>
+    <Style Selector="TextBlock.mono, SelectableTextBlock.mono">
+      <Setter Property="FontFamily" Value="{StaticResource VsCodeFont}" />
+      <Setter Property="FontSize" Value="11" />
+    </Style>
+    <Style Selector="TextBox">
+      <Setter Property="MinHeight" Value="26" />
+      <Setter Property="Background" Value="#333337" />
+      <Setter Property="BorderBrush" Value="#434346" />
+    </Style>
+    <Style Selector="TextBox:focus /template/ Border#PART_BorderElement">
+      <Setter Property="Background" Value="#333337" />
+      <Setter Property="BorderBrush" Value="#007ACC" />
+    </Style>
+    <Style Selector="ListBox.picker">
+      <Setter Property="Background" Value="{StaticResource VsToolWindowBrush}" />
+      <Setter Property="BorderBrush" Value="{StaticResource VsBorderBrush}" />
+      <Setter Property="BorderThickness" Value="1" />
+    </Style>
+    <Style Selector="ListBox.picker > ListBoxItem">
+      <Setter Property="Padding" Value="10,6" />
+    </Style>
+    <Style Selector="Button.primary, Button.secondary">
+      <Setter Property="MinWidth" Value="88" />
+      <Setter Property="HorizontalContentAlignment" Value="Center" />
+      <Setter Property="Padding" Value="14,5" />
+    </Style>
+    <Style Selector="Button.primary">
+      <Setter Property="Background" Value="#0E639C" />
+      <Setter Property="Foreground" Value="White" />
+    </Style>
+    <Style Selector="Button.primary:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="#1177BB" />
+      <Setter Property="Foreground" Value="White" />
+    </Style>
+    <Style Selector="Button.secondary">
+      <Setter Property="Background" Value="#3F3F46" />
+    </Style>
+  </Window.Styles>
+
+  <Grid RowDefinitions="*,Auto" Margin="16,14,16,14">
+    <Grid ColumnDefinitions="250,*">
+      <!-- The agents, each with whether it is there. -->
+      <DockPanel>
+        <TextBlock DockPanel.Dock="Top" Text="{v:L 'Agent'}" FontWeight="SemiBold" Margin="0,0,0,6" />
+        <ListBox Name="ProviderList" Classes="picker" ItemsSource="{Binding Providers}" SelectedItem="{Binding SelectedProvider}"
+                 ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+          <ListBox.ItemTemplate>
+            <DataTemplate x:DataType="vm:AgentProviderItem">
+              <StackPanel Spacing="2">
+                <Grid ColumnDefinitions="*,Auto">
+                  <TextBlock Text="{Binding Name}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                  <TextBlock Grid.Column="1" Text="{v:Tr Status}" Classes="gray" FontSize="11" Margin="8,0,0,0" VerticalAlignment="Center"
+                             Foreground="{Binding IsReady, Converter={x:Static v:AgentPickerWindow.StatusBrush}}" />
+                </Grid>
+                <TextBlock Text="{v:Tr Description}" Classes="gray" FontSize="11" TextWrapping="Wrap" />
+              </StackPanel>
+            </DataTemplate>
+          </ListBox.ItemTemplate>
+        </ListBox>
+      </DockPanel>
+
+      <!-- Its models, searched; or what it needs first. -->
+      <DockPanel Grid.Column="1" Margin="16,0,0,0">
+        <Grid DockPanel.Dock="Top" ColumnDefinitions="*,Auto" Margin="0,0,0,6">
+          <TextBlock Text="{v:L 'Model'}" FontWeight="SemiBold" />
+          <TextBlock Grid.Column="1" Text="{v:Tr Count}" Classes="gray" FontSize="11" VerticalAlignment="Center" />
+        </Grid>
+        <TextBox Name="SearchBox" DockPanel.Dock="Top" Text="{Binding Search}" PlaceholderText="{v:L 'Search models by name, id or what they are'}" Margin="0,0,0,8"
+                 IsVisible="{Binding SelectedProvider.IsReady, FallbackValue=False}" />
+        <StackPanel DockPanel.Dock="Top" Spacing="8" Margin="0,0,0,8" IsVisible="{Binding SelectedProvider.NeedsKey, FallbackValue=False}">
+          <TextBlock Text="{v:Tr SelectedProvider.Backend.MissingHint}" TextWrapping="Wrap" Classes="gray" />
+          <Grid ColumnDefinitions="*,Auto">
+            <TextBox Name="KeyBox" Text="{Binding Key}" PasswordChar="•" PlaceholderText="{v:L 'API key'}" />
+            <Button Grid.Column="1" Classes="secondary" Content="{v:L 'Save key'}" Margin="8,0,0,0" Command="{Binding SaveKeyCommand}" />
+          </Grid>
+        </StackPanel>
+        <StackPanel DockPanel.Dock="Top" Spacing="8" Margin="0,0,0,8" IsVisible="{Binding SelectedProvider.IsMissing, FallbackValue=False}">
+          <TextBlock Text="{v:Tr SelectedProvider.Backend.MissingHint}" TextWrapping="Wrap" Classes="gray" />
+          <SelectableTextBlock Text="{Binding SelectedProvider.Backend.InstallCommand}" Classes="mono" TextWrapping="Wrap"
+                               IsVisible="{Binding SelectedProvider.Backend.InstallCommand, Converter={x:Static ObjectConverters.IsNotNull}}" />
+          <Button Content="{v:L 'Look again'}" Classes="secondary" HorizontalAlignment="Left" Click="OnLookAgain" />
+        </StackPanel>
+        <TextBlock DockPanel.Dock="Top" Text="{v:L 'Listing its models…'}" Classes="gray" IsVisible="{Binding IsLoading}" Margin="0,0,0,8" />
+        <TextBlock DockPanel.Dock="Top" Text="{Binding Problem}" Foreground="#F48771" TextWrapping="Wrap" Margin="0,0,0,8"
+                   IsVisible="{Binding Problem, Converter={x:Static ObjectConverters.IsNotNull}}" />
+        <ListBox Name="ModelList" Classes="picker" ItemsSource="{Binding Models}" SelectedItem="{Binding SelectedModel}" DoubleTapped="OnModelDoubleTapped"
+                 ScrollViewer.HorizontalScrollBarVisibility="Disabled" IsVisible="{Binding SelectedProvider.IsReady, FallbackValue=False}">
+          <ListBox.ItemTemplate>
+            <DataTemplate x:DataType="c:AgentModel">
+              <StackPanel Spacing="1">
+                <Grid ColumnDefinitions="*,Auto">
+                  <TextBlock Text="{Binding Name}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                  <TextBlock Grid.Column="1" Text="{Binding Id}" Classes="gray mono" Margin="8,0,0,0" VerticalAlignment="Center" />
+                </Grid>
+                <TextBlock Text="{Binding Description}" Classes="gray" FontSize="11" TextWrapping="Wrap"
+                           IsVisible="{Binding Description, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+              </StackPanel>
+            </DataTemplate>
+          </ListBox.ItemTemplate>
+        </ListBox>
+      </DockPanel>
+    </Grid>
+
+    <Grid Grid.Row="1" ColumnDefinitions="*,Auto" Margin="0,12,0,0">
+      <TextBlock Text="{v:L 'No model chosen: the agent answers with its own default.'}" Classes="gray" FontSize="11" VerticalAlignment="Center"
+                 IsVisible="{Binding SelectedModel, Converter={x:Static ObjectConverters.IsNull}}" />
+      <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
+        <Button Name="UseButton" Classes="primary" Content="{v:L 'Use'}" Command="{Binding UseCommand}" IsDefault="True" />
+        <Button Classes="secondary" Content="{v:L 'Cancel'}" Command="{Binding CancelCommand}" IsCancel="True" />
+      </StackPanel>
+    </Grid>
+  </Grid>
+</Window>

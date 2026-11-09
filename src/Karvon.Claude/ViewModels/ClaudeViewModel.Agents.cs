@@ -1,33 +1,19 @@
-using System.Collections.ObjectModel;
-using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Karvon.Claude;
 using Karvon.Services;
 
 namespace Karvon.ViewModels;
 
-/// <summary>An agent the panel can talk to: Claude Code, or one of its <see cref="IAgentBackend"/>s.</summary>
-public sealed record AgentChoice(string Id, string Name, string Description)
-{
-    public const string ClaudeId = "claude";
-}
-
-// The agent the panel talks to: Claude Code, or another (Codex...) that tells it what happens in Claude Code's words.
+// The Agents panel: the same conversation, with another agent (Codex...) that tells it what happens in Claude Code's words.
+// Claude Code's own panel has no backends and is Claude Code's alone.
 public sealed partial class ClaudeViewModel
 {
     IReadOnlyList<IAgentBackend> _backends = [];
     IAgentBackend? _backend;
-    bool _switchingAgent;
-
-    public ObservableCollection<AgentChoice> Agents { get; } = [new(AgentChoice.ClaudeId, "Claude Code", "Anthropic's Claude Code CLI")];
-
-    [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(IsClaude), nameof(AgentName), nameof(MissingTitle), nameof(MissingHint), nameof(InstallCommand), nameof(HasManyAgents))]
-    public partial AgentChoice? SelectedAgent { get; set; }
 
     /// <summary>
-    /// The agents besides Claude Code (Codex, a model Karvon drives itself, an Agent Client Protocol agent): the one the
-    /// settings name is chosen.
+    /// The agents the Agents panel talks to (Codex, a model Karvon drives itself, an Agent Client Protocol agent): the one
+    /// the settings name answers, else the first. None: the panel is Claude Code's.
     /// </summary>
     public IReadOnlyList<IAgentBackend> Backends
     {
@@ -35,20 +21,13 @@ public sealed partial class ClaudeViewModel
         set
         {
             _backends = value;
-            while (Agents.Count > 1)
-                Agents.RemoveAt(1);
-            foreach (var backend in value)
-                Agents.Add(new AgentChoice(backend.Id, backend.Name, backend.Description));
-            OnPropertyChanged(nameof(HasManyAgents));
-            _switchingAgent = true;
-            SelectedAgent = Agents.FirstOrDefault(a => a.Id == _settings.AgentBackend) ?? Agents[0];
-            _switchingAgent = false;
-            if (SelectedAgent.Id != AgentChoice.ClaudeId)
-                UseAgent(SelectedAgent);
+            if ((value.FirstOrDefault(b => b.Id == _settings.AgentBackend) ?? value.FirstOrDefault()) is { } backend)
+                UseAgent(backend);
         }
     }
 
-    public bool HasManyAgents => Agents.Count > 1;
+    /// <summary>The agent the panel talks to; null for Claude Code.</summary>
+    public IAgentBackend? Backend => _backend;
 
     /// <summary>The panel talks to Claude Code (what only it has shows: its accounts, Remote Control, its MCP servers, past conversations).</summary>
     public bool IsClaude => _backend is null;
@@ -62,76 +41,101 @@ public sealed partial class ClaudeViewModel
 
     public string? InstallCommand => _backend is null ? "curl -fsSL https://claude.ai/install.sh | bash" : _backend.InstallCommand;
 
-    /// <summary>The agent needs a key the user gives (OpenRouter's): the panel asks for it.</summary>
-    public bool NeedsKey => _backend?.NeedsKey == true;
-
-    /// <summary>The key typed for the agent; never kept here once given.</summary>
-    [ObservableProperty]
-    [NotifyCanExecuteChangedFor(nameof(SaveAgentKeyCommand))]
-    public partial string AgentKey { get; set; } = "";
-
-    bool CanSaveAgentKey => AgentKey.Trim().Length > 0;
-
-    /// <summary>The key goes to the agent (and Karvon's vault); the panel is ready once it has one.</summary>
-    [RelayCommand(CanExecute = nameof(CanSaveAgentKey))]
-    void SaveAgentKey()
+    /// <summary>The panel's mode, kept apart for each panel (Claude Code's, the agents').</summary>
+    string? SavedPermissionMode
     {
-        if (_backend?.SetKey(AgentKey) == true)
+        get => _backend is null ? _settings.ClaudePermissionMode : _settings.AgentPermissionMode;
+        set
         {
-            AgentKey = "";
-            CheckCli();
-            WarmUp();
+            if (_backend is null)
+                _settings.ClaudePermissionMode = value;
+            else
+                _settings.AgentPermissionMode = value;
         }
     }
 
-    partial void OnSelectedAgentChanged(AgentChoice? value)
+    string? SavedEffort
     {
-        if (value is null || _switchingAgent)
-            return;
-        _settings.AgentBackend = value.Id == AgentChoice.ClaudeId ? null : value.Id;
-        _settings.Save();
-        _ = SwitchAgentAsync(value);
+        get => _backend is null ? _settings.ClaudeEffort : _settings.AgentEffort;
+        set
+        {
+            if (_backend is null)
+                _settings.ClaudeEffort = value;
+            else
+                _settings.AgentEffort = value;
+        }
     }
 
-    /// <summary>Another agent: the conversation starts afresh with it (one Claude was working on goes on in the background).</summary>
-    async Task SwitchAgentAsync(AgentChoice agent)
+    /// <summary>The view shows Choose Agent and Model with this picker, then hands its choice to <see cref="UseAgentAsync"/>.</summary>
+    public event Action<AgentPickerViewModel>? PickAgentRequested;
+
+    /// <summary>Choose Agent and Model, for the agent and the model the panel has now.</summary>
+    public AgentPickerViewModel CreatePicker() =>
+        new(_backends, _backend, SelectedModel?.Value, _workingDirectory,
+            backend => backend == _backend && _session is { HasExited: false } session && AgentModels.Of(session.Initialization) is { Count: > 0 } models ? models : null);
+
+    [RelayCommand]
+    void PickAgent()
     {
+        if (_backends.Count > 0)
+            PickAgentRequested?.Invoke(CreatePicker());
+    }
+
+    /// <summary>
+    /// What Choose Agent and Model chose: another agent starts a fresh conversation (one it was working on goes on in the
+    /// background); the same one goes on with the model chosen.
+    /// </summary>
+    public async Task UseAgentAsync(IAgentBackend backend, AgentModel? model)
+    {
+        if (model is not null)
+            _settings.AgentModels[backend.Id] = model.Id;
+        else
+            _settings.AgentModels.Remove(backend.Id);
+        _settings.AgentBackend = backend.Id;
+        _settings.Save();
+        if (backend == _backend)
+        {
+            if (model is not null)
+            {
+                var choice = Models.FirstOrDefault(m => m.Value == model.Id);
+                if (choice is null)
+                    Models.Add(choice = new ClaudeModelChoice(model.Id, model.Name, model.Description));
+                SelectedModel = choice;
+            }
+            CheckCli();
+            if (_session is null)
+                WarmUp();
+            return;
+        }
         await ResetAsync();
-        UseAgent(agent);
+        UseAgent(backend, model);
         WarmUp();
     }
 
-    void UseAgent(AgentChoice agent)
+    void UseAgent(IAgentBackend backend, AgentModel? model = null)
     {
-        _backend = _backends.FirstOrDefault(b => b.Id == agent.Id);
+        _backend = backend;
         Commands.Clear();
         Account = null;
         _changingModeFromCli = true;
         Models.Clear();
-        if (_backend is null)
-        {
-            foreach (var model in DefaultModels)
-                Models.Add(model);
-            SelectedModel = Models.FirstOrDefault(m => m.Value == _settings.ClaudeModel) ?? Models[0];
-        }
-        else
-        {
-            if (_settings.AgentModels.TryGetValue(_backend.Id, out var saved))
-                Models.Add(new ClaudeModelChoice(saved, saved, null));
-            SelectedModel = Models.FirstOrDefault();
-        }
-        if (_backend is { } backend && !backend.Modes.Contains(PermissionMode))
-            PermissionMode = "default";
+        if (model is not null)
+            Models.Add(new ClaudeModelChoice(model.Id, model.Name, model.Description));
+        else if (_settings.AgentModels.TryGetValue(backend.Id, out var saved))
+            Models.Add(new ClaudeModelChoice(saved, saved, null));
+        SelectedModel = Models.FirstOrDefault();
+        PermissionMode = backend.Modes.Contains(KnownMode(SavedPermissionMode)) ? KnownMode(SavedPermissionMode) : "default";
+        Effort = SavedEffort;
         _changingModeFromCli = false;
         RefreshModes();
         RefreshEffortSteps();
         CheckCli();
+        OnPropertyChanged(nameof(Backend));
         OnPropertyChanged(nameof(IsClaude));
         OnPropertyChanged(nameof(AgentName));
         OnPropertyChanged(nameof(MissingTitle));
         OnPropertyChanged(nameof(MissingHint));
         OnPropertyChanged(nameof(InstallCommand));
-        OnPropertyChanged(nameof(NeedsKey));
     }
 
     /// <summary>A conversation with the agent chosen (not Claude Code), in <paramref name="cwd"/>.</summary>

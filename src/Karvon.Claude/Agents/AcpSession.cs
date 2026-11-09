@@ -601,6 +601,13 @@ public sealed class AcpBackend(AcpAgent agent) : IAgentBackend
     public string? Find() =>
         agent.Names.FirstOrDefault(Path.IsPathRooted) is { } path ? File.Exists(path) ? path : null : AgentExecutables.Find([.. agent.Names]);
 
+    /// <summary>An ACP agent says its models as a session starts: one is started (no prompt, no model called) and let go.</summary>
+    public async Task<IReadOnlyList<AgentModel>> ModelsAsync(string executable, string workingDirectory, CancellationToken cancellationToken = default)
+    {
+        await using var session = await AcpSession.StartAsync(agent, new AgentStartOptions(executable, workingDirectory), cancellationToken);
+        return AgentModels.Of(session.Initialization);
+    }
+
     public async Task<IAgentSession> StartAsync(AgentStartOptions options, CancellationToken cancellationToken = default) =>
         await AcpSession.StartAsync(agent, options, cancellationToken);
 }

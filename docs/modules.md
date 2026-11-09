@@ -34,6 +34,8 @@ Each module is a project of its own, referencing `Karvon.Core`. The core referen
 - C and C++ (`src/Karvon.Cpp`): clangd, CodeLLDB, CMake's and Make's builds; it and Rust share CodeLLDB (`src/Karvon.Lldb`);
 - JWC (`src/Karvon.Jwc`): the compiler's language server (`jwc lsp`), Format Document by `jwc fmt`, a project's jwc tasks and
   `jwc test` in Test Explorer, with the user's jwc; its grammar and its file icon;
+- Arche (`src/Karvon.Arche`): `arche-lsp`, a package's `arche-driver` tasks, its test blocks in Test Explorer by `arche-test
+  --json`, new packages, with the user's build of Arche; its grammar and its file icon;
 - Java (`src/Karvon.Java`): jdtls, with java-debug in it (one jdtls for the editor and F5), Maven's and Gradle's builds,
   JUnit in Test Explorer (on jdtls's class path, by JUnit's console launcher);
 - .NET (`src/Karvon.DotNet`): Roslyn (C# and Razor), the SDK's project templates, C#'s and Razor's Add New Item

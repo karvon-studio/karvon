@@ -273,22 +273,18 @@ public class CodexSessionTests
 public class CodexPanelTests
 {
     [AvaloniaFact]
-    public async Task Codex_is_chosen_in_the_panel_and_its_patch_is_asked_and_shown_as_an_edit()
+    public async Task Codex_answers_in_the_Agents_panel_and_its_patch_is_asked_and_shown_as_an_edit()
     {
         var (dir, log) = FakeCodex.Workspace();
         var settings = new Karvon.Services.Settings();
-        var vm = new ClaudeViewModel(settings, () => dir, () => null, () => [], () => FakeClaude.Executable) { Backends = [new CodexBackend()] };
-        Assert.True(vm.IsClaude);
-        Assert.Equal(["claude", "codex"], vm.Agents.Select(a => a.Id));
-
-        vm.SelectedAgent = vm.Agents.Single(a => a.Id == "codex");
-        await WaitUntil(() => vm.Models.Any(m => m.Value == "gpt-fake"), TimeSpan.FromSeconds(15));
-        Assert.Equal("codex", settings.AgentBackend);
+        var vm = new ClaudeViewModel(settings, () => dir, () => null, () => [], () => null) { Backends = [new CodexBackend()] };
         Assert.False(vm.IsClaude);
         Assert.Equal(FakeCodex.Executable, vm.CliPath);
         Assert.Equal("Codex", vm.AgentName);
         // Codex has no auto mode.
         Assert.DoesNotContain(vm.Modes, m => m.Value == "auto");
+        vm.WarmUp();
+        await WaitUntil(() => vm.Models.Any(m => m.Value == "gpt-fake"), TimeSpan.FromSeconds(15));
 
         vm.Prompt = "patch Program.cs";
         vm.SendCommand.Execute(null);
@@ -305,13 +301,6 @@ public class CodexPanelTests
         Assert.Equal(ToolState.Done, tool.State);
         Assert.Equal("1 addition, 1 removal", tool.Summary);
         Assert.Equal(["accept"], FakeCodex.Log(log).Where(e => e.Kind == "decision").Select(e => e.Data.GetString()));
-
-        // Back to Claude Code: its own models again, and a fresh conversation.
-        vm.SelectedAgent = vm.Agents[0];
-        await WaitUntil(() => vm.IsClaude && vm.Items.Count == 0, TimeSpan.FromSeconds(10));
-        Assert.Null(settings.AgentBackend);
-        Assert.Equal(FakeClaude.Executable, vm.CliPath);
-        Assert.Contains(vm.Models, m => m.Value == "default");
         await vm.DisposeAsync();
     }
 }

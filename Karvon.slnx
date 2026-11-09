@@ -29,6 +29,7 @@
     <Project Path="src/Karvon.Java/Karvon.Java.csproj" />
     <Project Path="src/Karvon.Kotlin/Karvon.Kotlin.csproj" />
     <Project Path="src/Karvon.Jwc/Karvon.Jwc.csproj" />
+    <Project Path="src/Karvon.Arche/Karvon.Arche.csproj" />
     <Project Path="src/Karvon.Claude/Karvon.Claude.csproj" />
   </Folder>
   <Folder Name="/external/">

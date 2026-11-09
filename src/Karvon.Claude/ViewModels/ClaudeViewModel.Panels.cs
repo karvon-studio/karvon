@@ -95,7 +95,7 @@ public sealed partial class ClaudeViewModel
         if (step is null)
             return;
         Effort = step.Value;
-        _settings.ClaudeEffort = step.Value;
+        SavedEffort = step.Value;
         _settings.Save();
         if (_session is ClaudeSession { HasExited: false } session)
             await SendControlAsync(() => session.ApplyFlagSettingsAsync(new { effortLevel = step.Value }));

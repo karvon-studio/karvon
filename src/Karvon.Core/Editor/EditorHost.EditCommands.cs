@@ -236,7 +236,7 @@ public sealed partial class EditorHost
             ".razor" or ".cshtml" => ("@*", "*@"),
             ".cs" or ".csx" or ".fs" or ".fsx" or ".fsi" or ".js" or ".jsx" or ".mjs" or ".cjs" or ".ts" or ".tsx" or ".mts" or ".cts"
                 or ".java" or ".kt" or ".kts" or ".scala" or ".groovy" or ".gradle" or ".go" or ".rs" or ".c" or ".h" or ".cpp"
-                or ".cc" or ".cxx" or ".hpp" or ".swift" or ".dart" or ".php" or ".proto" or ".jsonc" or ".scss" or ".less" or ".zig" or ".jwc" => ("//", ""),
+                or ".cc" or ".cxx" or ".hpp" or ".swift" or ".dart" or ".php" or ".proto" or ".jsonc" or ".scss" or ".less" or ".zig" or ".jwc" or ".arche" => ("//", ""),
             ".py" or ".pyi" or ".sh" or ".bash" or ".zsh" or ".rb" or ".yaml" or ".yml" or ".toml" or ".ps1" or ".psm1" or ".r"
                 or ".pl" or ".cmake" or ".tf" or ".nix" or ".jl" or ".ex" or ".exs" or ".mk" or ".properties" or ".editorconfig"
                 or ".gitignore" or ".gitattributes" or ".dockerignore" or ".env" or ".conf" => ("#", ""),

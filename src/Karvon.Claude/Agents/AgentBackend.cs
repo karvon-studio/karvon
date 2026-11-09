@@ -1,3 +1,6 @@
+using System.Text.Json;
+using Karvon.ViewModels;
+
 namespace Karvon.Claude;
 
 /// <summary>How the panel starts a conversation with an agent other than Claude Code.</summary>
@@ -21,6 +24,9 @@ public sealed record AgentStartOptions(
     bool Trusted = true,
     string? AuditDirectory = null,
     string? Effort = null);
+
+/// <summary>A model an agent can answer with: its id (what the agent is told), its name and a line about it.</summary>
+public sealed record AgentModel(string Id, string Name, string? Description = null);
 
 /// <summary>
 /// An agent the panel can talk to besides Claude Code: how to find it, what to tell the user when it is not there, and how to
@@ -55,5 +61,21 @@ public interface IAgentBackend
     /// <summary>The key the user gave: whether it was taken.</summary>
     bool SetKey(string key) => false;
 
+    /// <summary>
+    /// The models it can answer with, asked of it without a conversation (<paramref name="executable"/> is what
+    /// <see cref="Find"/> gave; <paramref name="workingDirectory"/> the folder an agent starts in to say them).
+    /// </summary>
+    Task<IReadOnlyList<AgentModel>> ModelsAsync(string executable, string workingDirectory, CancellationToken cancellationToken = default);
+
     Task<IAgentSession> StartAsync(AgentStartOptions options, CancellationToken cancellationToken = default);
+}
+
+/// <summary>Models as an agent's initialization lists them (Claude Code's shape).</summary>
+public static class AgentModels
+{
+    public static IReadOnlyList<AgentModel> Of(JsonElement initialization) =>
+        initialization.ValueKind == JsonValueKind.Object && initialization.TryGetProperty("models", out var models) && models.ValueKind == JsonValueKind.Array
+            ? [.. models.EnumerateArray().Select(m => new AgentModel(ClaudeJson.Str(m, "value") ?? "", ClaudeJson.Str(m, "displayName") ?? ClaudeJson.Str(m, "value") ?? "",
+                ClaudeJson.Str(m, "description"))).Where(m => m.Id.Length > 0)]
+            : [];
 }

@@ -1,0 +1,98 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "Arche",
+  "scopeName": "source.arche",
+  "fileTypes": ["arche"],
+  "patterns": [
+    { "include": "#comments" },
+    { "include": "#strings" },
+    { "include": "#characters" },
+    { "include": "#numbers" },
+    { "include": "#declarations" },
+    { "include": "#keywords" },
+    { "include": "#primitive-types" },
+    { "include": "#type-names" },
+    { "include": "#calls" },
+    { "include": "#operators" }
+  ],
+  "repository": {
+    "comments": {
+      "patterns": [
+        { "name": "comment.line.documentation.arche", "match": "///.*$" },
+        { "name": "comment.line.double-slash.arche", "match": "//.*$" }
+      ]
+    },
+    "escapes": {
+      "patterns": [
+        { "name": "constant.character.escape.arche", "match": "\\\\(?:[nrt0\\\\\"']|x[0-9A-Fa-f]{2}|u\\{[0-9A-Fa-f]+\\})" },
+        { "name": "invalid.illegal.escape.arche", "match": "\\\\." }
+      ]
+    },
+    "strings": {
+      "name": "string.quoted.double.arche",
+      "begin": "\"",
+      "end": "\"|$",
+      "patterns": [{ "include": "#escapes" }]
+    },
+    "characters": {
+      "name": "constant.character.arche",
+      "begin": "'",
+      "end": "'|$",
+      "patterns": [{ "include": "#escapes" }]
+    },
+    "numbers": {
+      "patterns": [
+        { "name": "constant.numeric.hex.arche", "match": "\\b0x[0-9A-Fa-f_]+\\b" },
+        { "name": "constant.numeric.octal.arche", "match": "\\b0o[0-7_]+\\b" },
+        { "name": "constant.numeric.binary.arche", "match": "\\b0b[01_]+\\b" },
+        { "name": "constant.numeric.decimal.arche", "match": "\\b[0-9][0-9_]*(?:\\.[0-9][0-9_]*)?(?:[eE][+-]?[0-9][0-9_]*)?\\b" }
+      ]
+    },
+    "declarations": {
+      "patterns": [
+        {
+          "match": "\\b(fn)\\s+([A-Za-z_][A-Za-z0-9_]*)",
+          "captures": {
+            "1": { "name": "storage.type.function.arche" },
+            "2": { "name": "entity.name.function.arche" }
+          }
+        },
+        {
+          "match": "\\b(type)\\s+([A-Za-z_][A-Za-z0-9_]*)",
+          "captures": {
+            "1": { "name": "storage.type.arche" },
+            "2": { "name": "entity.name.type.arche" }
+          }
+        }
+      ]
+    },
+    "keywords": {
+      "patterns": [
+        { "name": "keyword.control.arche", "match": "\\b(if|else|while|for|in|match|return|break|continue|defer|try|catch|orelse|unsafe|region)\\b" },
+        { "name": "keyword.declaration.arche", "match": "\\b(fn|type|struct|enum|interface|error|const|let|var|pub|import|test|as)\\b" },
+        { "name": "keyword.operator.word.arche", "match": "\\b(and|or|not)\\b" },
+        { "name": "constant.language.arche", "match": "\\b(true|false|none|some|ok|err)\\b" },
+        { "name": "storage.modifier.arche", "match": "\\b(mut|comptime|dyn|where|requires|ensures|nopanic|asm|naked)\\b" }
+      ]
+    },
+    "primitive-types": {
+      "name": "support.type.primitive.arche",
+      "match": "\\b(i8|i16|i32|i64|isize|u8|u16|u32|u64|usize|f32|f64|bool|str|void|noreturn)\\b"
+    },
+    "type-names": {
+      "name": "entity.name.type.arche",
+      "match": "\\b[A-Z][A-Za-z0-9_]*\\b"
+    },
+    "calls": {
+      "match": "\\b([a-z_][A-Za-z0-9_]*)\\s*(?=\\()",
+      "captures": { "1": { "name": "entity.name.function.call.arche" } }
+    },
+    "operators": {
+      "patterns": [
+        { "name": "keyword.operator.arrow.arche", "match": "->|=>" },
+        { "name": "keyword.operator.range.arche", "match": "\\.\\.=?" },
+        { "name": "keyword.operator.arche", "match": "\\+%=?|-%=?|\\*%=?|<<=?|>>=?|[=!<>]=|[-+*/%&|^]=|[-+*/%&|^~<>=?!]" }
+      ]
+    }
+  }
+}

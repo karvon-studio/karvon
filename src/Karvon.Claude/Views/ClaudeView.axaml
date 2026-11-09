@@ -574,32 +574,17 @@
           </Button>
           <!-- The model: a chip that opens the model menu above the prompt. -->
           <Button Name="ModelButton" Grid.Column="4" Classes="chip" Margin="0,0,6,0" MaxWidth="180"
-                  ToolTip.Tip="{v:L 'The agent and the model that answer'}">
+                  ToolTip.Tip="{v:L 'Model Claude answers with'}">
             <Button.IsVisible>
-              <MultiBinding Converter="{x:Static BoolConverters.Or}">
+              <MultiBinding Converter="{x:Static BoolConverters.And}">
                 <Binding Path="Models.Count" Converter="{x:Static ObjectConverters.NotEqual}" ConverterParameter="0" />
-                <Binding Path="HasManyAgents" />
+                <Binding Path="IsClaude" />
               </MultiBinding>
             </Button.IsVisible>
             <Button.Flyout>
               <Flyout Placement="TopEdgeAlignedRight" FlyoutPresenterClasses="modelmenu">
                 <StackPanel Width="300">
-                  <!-- Claude Code, Codex, a model Karvon drives itself...: the conversation starts afresh with the one chosen. -->
-                  <StackPanel IsVisible="{Binding HasManyAgents}">
-                    <TextBlock Text="{v:L 'Agent'}" FontWeight="SemiBold" Margin="10,6,10,4" />
-                    <ListBox Name="AgentList" ItemsSource="{Binding Agents}" SelectedItem="{Binding SelectedAgent}" Classes="menu" SelectionChanged="OnModelChosen"
-                             Background="Transparent" ScrollViewer.HorizontalScrollBarVisibility="Disabled">
-                      <ListBox.ItemTemplate>
-                        <DataTemplate x:DataType="vm:AgentChoice">
-                          <StackPanel Margin="0,1">
-                            <TextBlock Text="{Binding Name}" FontWeight="SemiBold" />
-                            <TextBlock Text="{v:Tr Description}" Classes="muted" FontSize="11" TextWrapping="Wrap" />
-                          </StackPanel>
-                        </DataTemplate>
-                      </ListBox.ItemTemplate>
-                    </ListBox>
-                  </StackPanel>
-                  <TextBlock Text="{v:L 'Model'}" FontWeight="SemiBold" Margin="10,6,10,4" IsVisible="{Binding Models.Count}" />
+                  <TextBlock Text="{v:L 'Model'}" FontWeight="SemiBold" Margin="10,6,10,4" />
                   <ListBox Name="ModelList" ItemsSource="{Binding Models}" SelectedItem="{Binding SelectedModel}" Classes="menu" SelectionChanged="OnModelChosen"
                            Background="Transparent" ScrollViewer.HorizontalScrollBarVisibility="Disabled" MaxHeight="320">
                     <ListBox.ItemTemplate>
@@ -616,7 +601,16 @@
             </Button.Flyout>
             <StackPanel Orientation="Horizontal" Spacing="5">
               <v:VsIcon Kind="Sparkle" Width="14" Height="14" Foreground="#D97757" />
-              <TextBlock Text="{Binding AgentName}" VerticalAlignment="Center" IsVisible="{Binding !IsClaude}" FontWeight="SemiBold" />
+              <TextBlock Text="{Binding SelectedModel.ShortLabel, FallbackValue=''}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+              <v:VsIcon Kind="ChevronUp" Width="11" Height="11" Opacity="0.7" />
+            </StackPanel>
+          </Button>
+          <!-- Another agent's panel: the agent and its model, chosen in Choose Agent and Model. -->
+          <Button Name="AgentButton" Grid.Column="4" Classes="chip" Margin="0,0,6,0" MaxWidth="220" IsVisible="{Binding !IsClaude}"
+                  Command="{Binding PickAgentCommand}" ToolTip.Tip="{v:L 'The agent and the model that answer: click to choose others'}">
+            <StackPanel Orientation="Horizontal" Spacing="5">
+              <v:VsIcon Kind="Sparkle" Width="14" Height="14" Foreground="#4FC1FF" />
+              <TextBlock Text="{Binding AgentName}" VerticalAlignment="Center" FontWeight="SemiBold" />
               <TextBlock Text="{Binding SelectedModel.ShortLabel, FallbackValue=''}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
               <v:VsIcon Kind="ChevronUp" Width="11" Height="11" Opacity="0.7" />
             </StackPanel>
@@ -991,20 +985,10 @@
             <Border Classes="box" Padding="10,6" IsVisible="{Binding InstallCommand, Converter={x:Static ObjectConverters.IsNotNull}}">
               <SelectableTextBlock Classes="mono" Text="{Binding InstallCommand}" TextWrapping="Wrap" />
             </Border>
-            <!-- Its key (OpenRouter's): typed once, kept in Karvon's vault. -->
-            <StackPanel Spacing="8" IsVisible="{Binding NeedsKey}">
-              <TextBox Name="AgentKeyBox" Text="{Binding AgentKey}" PasswordChar="•" PlaceholderText="{v:L 'API key'}" />
-              <Button Classes="choice first" Content="{v:L 'Save key'}" HorizontalAlignment="Center" Command="{Binding SaveAgentKeyCommand}" />
-            </StackPanel>
           </StackPanel>
-          <!-- The agent can be changed here too (the prompt's chip is hidden while none is found). -->
-          <ComboBox ItemsSource="{Binding Agents}" SelectedItem="{Binding SelectedAgent}" HorizontalAlignment="Center" MinWidth="180" IsVisible="{Binding HasManyAgents}">
-            <ComboBox.ItemTemplate>
-              <DataTemplate x:DataType="vm:AgentChoice">
-                <TextBlock Text="{Binding Name}" />
-              </DataTemplate>
-            </ComboBox.ItemTemplate>
-          </ComboBox>
+          <!-- Another agent, or this one's key: in Choose Agent and Model (the prompt's chip is hidden while none is found). -->
+          <Button Classes="choice" Content="{v:L 'Choose Agent and Model…'}" HorizontalAlignment="Center" Command="{Binding PickAgentCommand}"
+                  IsVisible="{Binding !IsClaude}" />
           <Button Classes="choice first" Content="Retry" HorizontalAlignment="Center" Command="{Binding CheckCliCommand}" />
         </StackPanel>
       </Border>

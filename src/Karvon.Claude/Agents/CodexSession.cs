@@ -117,6 +117,38 @@ public sealed class CodexSession : IAgentSession
         return JsonDocument.Parse(node.ToJsonString()).RootElement.Clone();
     }
 
+    /// <summary>Codex's models, asked of an app-server started for that alone (no thread, no model called).</summary>
+    public static async Task<IReadOnlyList<AgentModel>> ModelsAsync(string executable, string workingDirectory, CancellationToken cancellationToken = default)
+    {
+        await using var rpc = JsonRpcProcess.Start(executable, ["app-server"], workingDirectory, environment =>
+        {
+            ClaudeEnvironment.Clean(environment, OwnPrefixes);
+            AgentExecutables.WithFolderOnPath(environment, executable);
+        }, version: false);
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        timeout.CancelAfter(TimeSpan.FromSeconds(60));
+        try
+        {
+            await rpc.RequestAsync("initialize", new JsonObject
+            {
+                ["clientInfo"] = new JsonObject { ["name"] = "karvon", ["title"] = "Karvon Studio", ["version"] = Version() },
+                ["capabilities"] = new JsonObject { ["experimentalApi"] = true },
+            }, timeout.Token);
+            await rpc.NotifyAsync("initialized");
+            var list = await rpc.RequestAsync("model/list", new JsonObject(), timeout.Token);
+            return list.TryGetProperty("data", out var data) && data.ValueKind == JsonValueKind.Array
+                ? [.. data.EnumerateArray().Where(m => !ClaudeJson.Bool(m, "hidden"))
+                    .Select(m => new AgentModel(ClaudeJson.Str(m, "model") ?? ClaudeJson.Str(m, "id") ?? "", ClaudeJson.Str(m, "displayName") ?? ClaudeJson.Str(m, "model") ?? "",
+                        ClaudeJson.Str(m, "description")))
+                    .Where(m => m.Id.Length > 0)]
+                : [];
+        }
+        catch (IOException) when (rpc.StderrTail(4) is { Length: > 0 } reason)
+        {
+            throw new InvalidOperationException(reason);
+        }
+    }
+
     static string Version() => typeof(CodexSession).Assembly.GetName().Version?.ToString(3) ?? "0.0.0";
 
     /// <summary>Codex's models and account in the shape the panel reads Claude Code's in.</summary>

@@ -244,15 +244,13 @@ public class AcpSessionTests
 public class AcpPanelTests
 {
     [AvaloniaFact]
-    public async Task An_ACP_agent_is_chosen_in_the_panel_and_its_edit_is_asked_as_an_edit()
+    public async Task An_ACP_agent_answers_in_the_Agents_panel_and_its_edit_is_asked_as_an_edit()
     {
         var (dir, _) = FakeAcp.Workspace();
-        var settings = new Karvon.Services.Settings();
-        var vm = new ClaudeViewModel(settings, () => dir, () => null, () => [], () => FakeClaude.Executable) { Backends = [new AcpBackend(FakeAcp.Agent)] };
-
-        vm.SelectedAgent = vm.Agents.Single(a => a.Id == "acp:fake");
-        await WaitUntil(() => vm.Models.Any(m => m.Value == "fake-2"), TimeSpan.FromSeconds(15));
+        var vm = new ClaudeViewModel(new Karvon.Services.Settings(), () => dir, () => null, () => [], () => null) { Backends = [new AcpBackend(FakeAcp.Agent)] };
         Assert.Equal(FakeAcp.Executable, vm.CliPath);
+        vm.WarmUp();
+        await WaitUntil(() => vm.Models.Any(m => m.Value == "fake-2"), TimeSpan.FromSeconds(15));
 
         vm.Prompt = "edit it";
         vm.SendCommand.Execute(null);

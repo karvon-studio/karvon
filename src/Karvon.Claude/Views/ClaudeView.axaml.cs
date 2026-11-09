@@ -189,6 +189,7 @@ public partial class ClaudeView : UserControl
         {
             _vm.Items.CollectionChanged -= OnItemsChanged;
             _vm.FocusInputRequested -= FocusPrompt;
+            _vm.PickAgentRequested -= PickAgent;
         }
         _vm = vm;
         _wanted = ShownStep;
@@ -197,6 +198,17 @@ public partial class ClaudeView : UserControl
             return;
         vm.Items.CollectionChanged += OnItemsChanged;
         vm.FocusInputRequested += FocusPrompt;
+        vm.PickAgentRequested += PickAgent;
+    }
+
+    /// <summary>Choose Agent and Model, over the window; what it chose goes to the panel.</summary>
+    async void PickAgent(AgentPickerViewModel picker)
+    {
+        if (TopLevel.GetTopLevel(this) is not Window owner || _vm is not { } vm)
+            return;
+        await new AgentPickerWindow { DataContext = picker }.ShowDialog(owner);
+        if (picker.Chosen is var (backend, model))
+            await vm.UseAgentAsync(backend, model);
     }
 
     /// <summary>A click outside a menu or dialog closes it.</summary>

@@ -51,7 +51,7 @@ public class InstallerTests
             Assert.True(Named<DockPanel>(window, "ModifyPage").IsVisible);
             Assert.Equal("Modifying — Karvon Studio — " + AppInstall.CurrentVersion, installer.ModifyTitle);
             Assert.Equal(["Languages", "Tools"], installer.Workloads.Select(g => g.Title));
-            Assert.Equal([".NET", "TypeScript and JavaScript", "Python", "Go", "Rust", "C and C++", "Java", "Kotlin", "JWC"], installer.Workloads[0].Items.Select(i => i.Name));
+            Assert.Equal([".NET", "TypeScript and JavaScript", "Python", "Go", "Rust", "C and C++", "Java", "Kotlin", "JWC", "Arche"], installer.Workloads[0].Items.Select(i => i.Name));
             Assert.All(installer.Workloads.SelectMany(g => g.Items), w => Assert.NotNull(w.Icon));
             var kotlin = installer.Workloads[0].Items.Single(i => i.Name == "Kotlin");
             Assert.False(kotlin.IsSelected);
@@ -71,7 +71,7 @@ public class InstallerTests
             // Unchecked again: nothing changes. Another unchecked: off when Karvon Studio starts again.
             kotlin.ToggleCommand.Execute(null);
             Assert.False(installer.HasChanges);
-            Assert.Equal(["Database Explorer", "Docker Explorer", "Servers", "Jira", "Ports", "Pipelines", "Pull Requests", "Kubernetes", "HTTP Client", "MCP Servers", "Skills", "Documents", "Browser", "Inline Completions", "Claude Code"], installer.Workloads[1].Items.Select(i => i.Name));
+            Assert.Equal(["Database Explorer", "Docker Explorer", "Servers", "Jira", "Ports", "Pipelines", "Pull Requests", "Kubernetes", "HTTP Client", "MCP Servers", "Skills", "Documents", "Browser", "Inline Completions", "Claude Code", "Agents"], installer.Workloads[1].Items.Select(i => i.Name));
             installer.Workloads[1].Items.Single(i => i.Name == "Docker Explorer").IsSelected = false;
             Assert.Equal(["Docker Explorer: turned off when Karvon Studio starts again"], installer.Changes.Select(c => c.Text));
             Snapshot(window, "installer-modify");

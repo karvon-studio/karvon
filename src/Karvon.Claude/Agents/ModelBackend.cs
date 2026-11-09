@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Bengine.Introspection.Servers;
 
 namespace Karvon.Claude;
@@ -15,7 +16,7 @@ public sealed record ModelProvider(string Id, string Name, string Description, s
 
     public static readonly ModelProvider OpenRouter = new("openrouter", "OpenRouter", "Any model (GPT, Gemini, Qwen, DeepSeek, Kimi, GLM...) on your OpenRouter key",
         "https://openrouter.ai/api/v1", null, "OPENROUTER_API_KEY",
-        "Paste your OpenRouter API key (openrouter.ai/keys): Karvon keeps it in its vault and sends it only to OpenRouter.", null);
+        "Add your OpenRouter API key (openrouter.ai/keys) in Choose Agent and Model: Karvon keeps it in its vault and sends it only to OpenRouter.", null);
 
     public static readonly ModelProvider Ollama = new("ollama", "Ollama", "A local model in Ollama, on this computer",
         "http://localhost:11434/v1", "OLLAMA_HOST", null,
@@ -102,6 +103,19 @@ public sealed class ModelBackend(ModelProvider provider, ICredentialStore? keyri
             // Kept for this run of Karvon only.
         }
         return true;
+    }
+
+    public async Task<IReadOnlyList<AgentModel>> ModelsAsync(string executable, string workingDirectory, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var models = await new ChatCompletions(http ?? ModelSession.Client, executable, Key()).ModelsAsync(cancellationToken);
+            return [.. models.Select(m => new AgentModel(m.Id, m.Name, m.Description))];
+        }
+        catch (Exception ex) when (ex is HttpRequestException or JsonException || ex is OperationCanceledException && !cancellationToken.IsCancellationRequested)
+        {
+            throw new InvalidOperationException($"{provider.Name} did not answer at {executable}: {ex.Message}", ex);
+        }
     }
 
     public async Task<IAgentSession> StartAsync(AgentStartOptions options, CancellationToken cancellationToken = default) =>

@@ -186,13 +186,19 @@ public sealed class Settings
     /// <summary>The Claude Code account (its configuration folder) the panel runs with; null for the CLI's own choice.</summary>
     public string? ClaudeAccount { get; set; }
 
-    /// <summary>The agent the Claude panel talks to ("codex", "openrouter", "ollama", "lmstudio", "acp:gemini"...); null for Claude Code.</summary>
+    /// <summary>The agent the Agents panel talks to ("codex", "openrouter", "ollama", "lmstudio", "acp:gemini"...); null for the first.</summary>
     public string? AgentBackend { get; set; }
+
+    /// <summary>The Agents panel's permission mode (Claude Code's panel keeps its own).</summary>
+    public string? AgentPermissionMode { get; set; }
+
+    /// <summary>The Agents panel's reasoning effort.</summary>
+    public string? AgentEffort { get; set; }
 
     /// <summary>The model chosen for each agent besides Claude Code (by its id).</summary>
     public Dictionary<string, string> AgentModels { get; set; } = [];
 
-    /// <summary>The user's own Agent Client Protocol agents for the Claude panel (Gemini CLI is there without one).</summary>
+    /// <summary>The user's own Agent Client Protocol agents for the Agents panel (Gemini CLI is there without one).</summary>
     public List<AcpAgentSetting> AcpAgents { get; set; } = [];
     /// <summary>
     /// Per-solution state of older Karvon versions; it now lives in each solution's .vs folder (see

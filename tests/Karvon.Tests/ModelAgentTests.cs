@@ -480,28 +480,48 @@ public class ModelAgentTests
 public class ModelAgentPanelTests
 {
     [AvaloniaFact]
-    public async Task OpenRouter_asks_for_its_key_in_the_panel_then_answers_there()
+    public async Task OpenRouter_s_key_and_model_are_chosen_in_the_dialog_then_it_answers_in_the_panel()
     {
         await using var server = new FakeModelServer();
         var dir = Path.Combine(Path.GetTempPath(), "karvon-model-panel-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(dir);
         var provider = ModelProvider.OpenRouter with { Url = server.Url, EnvironmentKey = "KARVON_TEST_NO_SUCH_KEY" };
         var settings = new Karvon.Services.Settings();
-        var vm = new ClaudeViewModel(settings, () => dir, () => null, () => [], () => FakeClaude.Executable) { Backends = [new ModelBackend(provider)] };
-
-        vm.SelectedAgent = vm.Agents.Single(a => a.Id == "openrouter");
-        await WaitUntil(() => !vm.IsClaude, TimeSpan.FromSeconds(10));
+        var vm = new ClaudeViewModel(settings, () => dir, () => null, () => [], () => null) { Backends = [new ModelBackend(provider)] };
         Assert.True(vm.IsCliMissing);
-        Assert.True(vm.NeedsKey);
         Assert.Equal("OpenRouter needs an API key", vm.MissingTitle);
-        Assert.False(vm.SaveAgentKeyCommand.CanExecute(null));
 
-        vm.AgentKey = "sk-or-test";
-        vm.SaveAgentKeyCommand.Execute(null);
+        AgentPickerViewModel? picker = null;
+        vm.PickAgentRequested += p => picker = p;
+        vm.PickAgentCommand.Execute(null);
+        var openRouter = Assert.Single(picker!.Providers);
+        Assert.Equal(openRouter, picker.SelectedProvider);
+        Assert.Equal(("Needs an API key", true), (openRouter.Status, openRouter.NeedsKey));
+        Assert.False(picker.UseCommand.CanExecute(null));
+        Assert.False(picker.SaveKeyCommand.CanExecute(null));
+
+        picker.Key = "sk-or-test";
+        picker.SaveKeyCommand.Execute(null);
+        await picker.Loaded;
+        Assert.Equal("", picker.Key);
+        Assert.Equal("Ready", openRouter.Status);
+        Assert.Equal(["fake-coder"], picker.Models.Select(m => m.Id));
+        Assert.Equal("1 models", picker.Count);
+        // The search keeps the models with every word in their name, id or description.
+        picker.Search = "coder tests";
+        Assert.Single(picker.Models);
+        picker.Search = "nothing like it";
+        Assert.Empty(picker.Models);
+        Assert.Equal("0 of 1 models", picker.Count);
+        picker.Search = "";
+        picker.SelectedModel = picker.Models.Single();
+        picker.UseCommand.Execute(null);
+        var (backend, model) = picker.Chosen!.Value;
+        await vm.UseAgentAsync(backend, model);
+
         Assert.Equal(server.Url, vm.CliPath);
-        Assert.Equal("", vm.AgentKey);
-        await WaitUntil(() => vm.Models.Any(m => m.Value == "fake-coder"), TimeSpan.FromSeconds(10));
-
+        Assert.Equal("fake-coder", vm.SelectedModel!.Value);
+        Assert.Equal(("openrouter", "fake-coder"), (settings.AgentBackend, settings.AgentModels["openrouter"]));
         server.Reply(FakeModelServer.Text("Hello from OpenRouter."));
         vm.Prompt = "hi";
         vm.SendCommand.Execute(null);

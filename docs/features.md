@@ -16,9 +16,10 @@ What Karvon Studio does, in detail; the [README](../README.md) has the short ver
 | Java | jdtls | java-debug | Maven, Gradle | JUnit 5 and 4 |
 | Kotlin | kotlin-lsp (JetBrains') | kotlin-lsp's | Gradle (its import, and `gradle run`) | Gradle's `test` |
 | JWC | `jwc lsp` (the compiler's) | none yet | `jwc check`, `build`, `lint`, `serve`, `run` | `jwc test` |
+| Arche | `arche-lsp` | none yet | `arche-driver build`, `run`, `clean` | `arche-test` |
 
 Working on solutions needs the .NET 10 SDK; each language needs its own toolchain (Node.js, Python, Go, Rust, a C and
-C++ compiler, a JDK, jwc). The language servers and debuggers download the first time they are needed (or when their module
+C++ compiler, a JDK, jwc, a build of Arche). The language servers and debuggers download the first time they are needed (or when their module
 is turned on in Tools > Get Tools and Features, which lists them): `roslyn-language-server` and `netcoredbg` (both MIT); TypeScript 7 (Apache-2.0, its own language server; no
 Node.js needed); js-debug, VS Code's HTML, CSS and JSON servers and its ESLint server (MIT; they run on Node.js, and
 ESLint runs a folder's own ESLint only where you let it); Pyright and debugpy (MIT); rust-analyzer, clangd and CodeLLDB;
@@ -26,6 +27,8 @@ jdtls, java-debug and JUnit's console launcher; JetBrains' kotlin-lsp (about 350
 closed source, and it sends nothing). gopls and Delve are built with your Go (`go install`). JWC's server is your jwc itself
 (on the PATH, or in `~/.jwc/bin`, where its installer puts it); Format Document is `jwc fmt`, and `jwc test` needs the project's
 database.
+Arche's tools are yours too: on the PATH, or a build of arche-lang (`make -C compiler`, `make -C driver`) at `ARCHE_HOME` or
+`~/.arche`, never the open folder's; `arche-lsp` runs the compiler for each request, and tests need clang.
 
 ## Editor
 

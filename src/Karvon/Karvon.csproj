@@ -39,6 +39,7 @@
     <ProjectReference Include="..\Karvon.Java\Karvon.Java.csproj" />
     <ProjectReference Include="..\Karvon.Kotlin\Karvon.Kotlin.csproj" />
     <ProjectReference Include="..\Karvon.Jwc\Karvon.Jwc.csproj" />
+    <ProjectReference Include="..\Karvon.Arche\Karvon.Arche.csproj" />
     <ProjectReference Include="..\Karvon.Claude\Karvon.Claude.csproj" />
   </ItemGroup>
 </Project>
