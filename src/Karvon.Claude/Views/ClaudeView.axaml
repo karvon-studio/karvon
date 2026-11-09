@@ -543,7 +543,7 @@
         <TextBox Name="PromptBox" Classes="prompt" Text="{Binding Prompt}" AcceptsReturn="True" TextWrapping="Wrap"
                  MinHeight="56" MaxHeight="240" Padding="12,10,12,4" FontSize="13"
                  PlaceholderText="{v:Tr PromptPlaceholder}" />
-        <Grid ColumnDefinitions="Auto,Auto,Auto,*,Auto,Auto" Margin="8,0,8,8">
+        <Grid ColumnDefinitions="Auto,Auto,Auto,*,Auto" Margin="8,0,8,8">
           <Button Name="AttachButton" Classes="chip icon" Click="OnAttachClick" ToolTip.Tip="{v:L 'Attach images or files (Ctrl+V pastes them, or drop them here)'}">
             <v:VsIcon Kind="Attach" Width="15" Height="15" />
           </Button>
@@ -570,16 +570,6 @@
               <TextBlock Text="{v:Tr ModeLabel}" VerticalAlignment="Center" />
             </StackPanel>
           </Button>
-          <!-- How full the context is, as lolo shows it: a ring, then what is used of the model's window. -->
-          <StackPanel Name="ContextMeter" Grid.Column="3" Orientation="Horizontal" Spacing="5" HorizontalAlignment="Right" VerticalAlignment="Center" Margin="6,0,8,0"
-                      IsVisible="{Binding HasContextMeter}" Background="Transparent" ToolTip.Tip="{v:Tr ContextMeterTip}">
-            <Panel Width="14" Height="14" VerticalAlignment="Center">
-              <Ellipse Width="12" Height="12" Stroke="#4A4A4F" StrokeThickness="2" />
-              <Arc Width="12" Height="12" StartAngle="-90" SweepAngle="{Binding ContextSweep}" StrokeThickness="2" StrokeLineCap="Round"
-                   Stroke="#9D9D9D" Classes.warn="{Binding IsContextWarning}" Classes.full="{Binding IsContextFull}" Classes="contextFill" />
-            </Panel>
-            <TextBlock Name="ContextMeterText" Text="{Binding ContextMeterText}" FontSize="11" Classes="muted" VerticalAlignment="Center" />
-          </StackPanel>
           <!-- Remote Control is on: the conversation at claude.ai/code, one click away. -->
           <Button Name="RemoteControlPill" Grid.Column="3" Classes="chip remote" Command="{Binding OpenRemoteControlCommand}" IsVisible="{Binding IsRemoteControlActive}"
                   ToolTip.Tip="{v:L 'Remote Control is on · Click to open the conversation at claude.ai/code · /remote-control turns it off'}">
@@ -589,53 +579,70 @@
               <TextBlock Text="{v:L 'Connecting…'}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" IsVisible="{Binding IsRemoteControlConnecting}" />
             </StackPanel>
           </Button>
-          <!-- The model: a chip that opens the model menu above the prompt. -->
-          <Button Name="ModelButton" Grid.Column="4" Classes="chip" Margin="0,0,6,0" MaxWidth="180"
-                  ToolTip.Tip="{v:L 'Model Claude answers with'}">
-            <Button.IsVisible>
-              <MultiBinding Converter="{x:Static BoolConverters.And}">
-                <Binding Path="Models.Count" Converter="{x:Static ObjectConverters.NotEqual}" ConverterParameter="0" />
-                <Binding Path="IsClaude" />
-              </MultiBinding>
-            </Button.IsVisible>
-            <Button.Flyout>
-              <Flyout Placement="TopEdgeAlignedRight" FlyoutPresenterClasses="modelmenu">
-                <StackPanel Width="300">
-                  <TextBlock Text="{v:L 'Model'}" FontWeight="SemiBold" Margin="10,6,10,4" />
-                  <ListBox Name="ModelList" ItemsSource="{Binding Models}" SelectedItem="{Binding SelectedModel}" Classes="menu" SelectionChanged="OnModelChosen"
-                           Background="Transparent" ScrollViewer.HorizontalScrollBarVisibility="Disabled" MaxHeight="320">
-                    <ListBox.ItemTemplate>
-                      <DataTemplate x:DataType="vm:ClaudeModelChoice">
-                        <StackPanel Margin="0,1">
-                          <TextBlock Text="{v:Tr Label}" FontWeight="SemiBold" />
-                          <TextBlock Text="{v:Tr Description}" IsVisible="{Binding HasDescription}" Classes="muted" FontSize="11" TextWrapping="Wrap" />
-                        </StackPanel>
-                      </DataTemplate>
-                    </ListBox.ItemTemplate>
-                  </ListBox>
+          <!-- The context meter, then the model's chip, right-aligned: the chip takes the width the meter leaves, so a long
+               model name uses the free space before it and is cut short only when there is none. -->
+          <DockPanel Grid.Column="3" HorizontalAlignment="Right">
+            <!-- How full the context is, as lolo shows it: a ring, then what is used of the model's window. -->
+            <StackPanel Name="ContextMeter" DockPanel.Dock="Left" Orientation="Horizontal" Spacing="5" VerticalAlignment="Center" Margin="6,0,8,0"
+                        IsVisible="{Binding HasContextMeter}" Background="Transparent" ToolTip.Tip="{v:Tr ContextMeterTip}">
+              <Panel Width="14" Height="14" VerticalAlignment="Center">
+                <Ellipse Width="12" Height="12" Stroke="#4A4A4F" StrokeThickness="2" />
+                <Arc Width="12" Height="12" StartAngle="-90" SweepAngle="{Binding ContextSweep}" StrokeThickness="2" StrokeLineCap="Round"
+                     Stroke="#9D9D9D" Classes.warn="{Binding IsContextWarning}" Classes.full="{Binding IsContextFull}" Classes="contextFill" />
+              </Panel>
+              <TextBlock Name="ContextMeterText" Text="{Binding ContextMeterText}" FontSize="11" Classes="muted" VerticalAlignment="Center" />
+            </StackPanel>
+            <Panel>
+              <!-- The model: a chip that opens the model menu above the prompt. -->
+              <Button Name="ModelButton" Classes="chip" Margin="0,0,6,0" MaxWidth="180"
+                      ToolTip.Tip="{v:L 'Model Claude answers with'}">
+                <Button.IsVisible>
+                  <MultiBinding Converter="{x:Static BoolConverters.And}">
+                    <Binding Path="Models.Count" Converter="{x:Static ObjectConverters.NotEqual}" ConverterParameter="0" />
+                    <Binding Path="IsClaude" />
+                  </MultiBinding>
+                </Button.IsVisible>
+                <Button.Flyout>
+                  <Flyout Placement="TopEdgeAlignedRight" FlyoutPresenterClasses="modelmenu">
+                    <StackPanel Width="300">
+                      <TextBlock Text="{v:L 'Model'}" FontWeight="SemiBold" Margin="10,6,10,4" />
+                      <ListBox Name="ModelList" ItemsSource="{Binding Models}" SelectedItem="{Binding SelectedModel}" Classes="menu" SelectionChanged="OnModelChosen"
+                               Background="Transparent" ScrollViewer.HorizontalScrollBarVisibility="Disabled" MaxHeight="320">
+                        <ListBox.ItemTemplate>
+                          <DataTemplate x:DataType="vm:ClaudeModelChoice">
+                            <StackPanel Margin="0,1">
+                              <TextBlock Text="{v:Tr Label}" FontWeight="SemiBold" />
+                              <TextBlock Text="{v:Tr Description}" IsVisible="{Binding HasDescription}" Classes="muted" FontSize="11" TextWrapping="Wrap" />
+                            </StackPanel>
+                          </DataTemplate>
+                        </ListBox.ItemTemplate>
+                      </ListBox>
+                    </StackPanel>
+                  </Flyout>
+                </Button.Flyout>
+                <StackPanel Orientation="Horizontal" Spacing="5">
+                  <v:VsIcon Kind="Sparkle" Width="14" Height="14" Foreground="#D97757" />
+                  <TextBlock Text="{Binding SelectedModel.ShortLabel, FallbackValue=''}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                  <v:VsIcon Kind="ChevronUp" Width="11" Height="11" Opacity="0.7" />
                 </StackPanel>
-              </Flyout>
-            </Button.Flyout>
-            <StackPanel Orientation="Horizontal" Spacing="5">
-              <v:VsIcon Kind="Sparkle" Width="14" Height="14" Foreground="#D97757" />
-              <TextBlock Text="{Binding SelectedModel.ShortLabel, FallbackValue=''}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
-              <v:VsIcon Kind="ChevronUp" Width="11" Height="11" Opacity="0.7" />
-            </StackPanel>
-          </Button>
-          <!-- Another agent's panel: the agent and its model, chosen in Choose Agent and Model. -->
-          <Button Name="AgentButton" Grid.Column="4" Classes="chip" Margin="0,0,6,0" MaxWidth="220" IsVisible="{Binding !IsClaude}"
-                  Command="{Binding PickAgentCommand}" ToolTip.Tip="{v:L 'The agent and the model that answer: click to choose others'}">
-            <StackPanel Orientation="Horizontal" Spacing="5">
-              <v:VsIcon Kind="Sparkle" Width="14" Height="14" Foreground="#4FC1FF" />
-              <TextBlock Text="{Binding AgentName}" VerticalAlignment="Center" FontWeight="SemiBold" />
-              <TextBlock Text="{Binding SelectedModel.ShortLabel, FallbackValue=''}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
-              <v:VsIcon Kind="ChevronUp" Width="11" Height="11" Opacity="0.7" />
-            </StackPanel>
-          </Button>
-          <Button Name="SendButton" Grid.Column="5" Classes="send" Command="{Binding SendCommand}" IsVisible="{Binding !IsRunning}" ToolTip.Tip="{v:L 'Send (Enter)'}">
+              </Button>
+              <!-- Another agent's panel: the agent and its model, chosen in Choose Agent and Model. -->
+              <Button Name="AgentButton" Classes="chip" Margin="0,0,6,0" IsVisible="{Binding !IsClaude}"
+                      Command="{Binding PickAgentCommand}" ToolTip.Tip="{v:L 'The agent and the model that answer: click to choose others'}">
+                <!-- The model's name gets what is left of the width (a StackPanel never cuts it short). -->
+                <DockPanel>
+                  <v:VsIcon DockPanel.Dock="Left" Kind="Sparkle" Width="14" Height="14" Foreground="#4FC1FF" Margin="0,0,5,0" />
+                  <TextBlock DockPanel.Dock="Left" Text="{Binding AgentName}" VerticalAlignment="Center" FontWeight="SemiBold" Margin="0,0,5,0" />
+                  <v:VsIcon DockPanel.Dock="Right" Kind="ChevronUp" Width="11" Height="11" Opacity="0.7" Margin="5,0,0,0" />
+                  <TextBlock Text="{Binding SelectedModel.ShortLabel, FallbackValue=''}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                </DockPanel>
+              </Button>
+            </Panel>
+          </DockPanel>
+          <Button Name="SendButton" Grid.Column="4" Classes="send" Command="{Binding SendCommand}" IsVisible="{Binding !IsRunning}" ToolTip.Tip="{v:L 'Send (Enter)'}">
             <v:VsIcon Kind="Send" Width="16" Height="16" Foreground="White" />
           </Button>
-          <Button Name="StopButton" Grid.Column="5" Classes="send" Command="{Binding StopCommand}" IsVisible="{Binding IsRunning}" ToolTip.Tip="{v:Tr StopTip}">
+          <Button Name="StopButton" Grid.Column="4" Classes="send" Command="{Binding StopCommand}" IsVisible="{Binding IsRunning}" ToolTip.Tip="{v:Tr StopTip}">
             <Panel>
               <!-- A ring that keeps turning while Claude works. -->
               <Ellipse Classes="spin" Width="22" Height="22" StrokeThickness="2" Stroke="#AAFFFFFF" StrokeDashArray="4,6">

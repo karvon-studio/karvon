@@ -229,4 +229,38 @@ public class AgentsModuleTests
         Assert.Equal("950k / 1M", window.GetVisualDescendants().OfType<TextBlock>().Single(t => t.Name == "ContextMeterText").Text);
         window.Close();
     }
+
+    [AvaloniaFact]
+    public async Task A_long_model_name_takes_the_free_width_before_the_context_meter_and_is_cut_short_only_when_there_is_none()
+    {
+        var (dir, _) = FakeCodex.Workspace();
+        var vm = new ClaudeViewModel(new Karvon.Services.Settings(), () => dir, () => null, () => [], () => null) { Backends = [new CodexBackend()] };
+        var window = new Window { Width = 560, Height = 900, Content = new ClaudeView { DataContext = vm } };
+        window.Show();
+        // Once the agent has said its own model.
+        await WaitUntil(() => vm.SelectedModel?.Label == "GPT Fake", TimeSpan.FromSeconds(10));
+        var model = new ClaudeModelChoice("deepseek/deepseek-v3.2-exp", "DeepSeek: DeepSeek V3.2 Exp", null) { ContextWindow = 1_000_000 };
+        vm.Models.Add(model);
+        vm.SelectedModel = model;
+        vm.ContextTokens = 12_000;
+        await WaitUntil(() => false, TimeSpan.FromMilliseconds(100));
+
+        var chip = window.GetVisualDescendants().OfType<Button>().Single(b => b.Name == "AgentButton");
+        var name = chip.GetVisualDescendants().OfType<TextBlock>().Single(t => t.Text == "DeepSeek: DeepSeek V3.2 Exp");
+        var meter = window.GetVisualDescendants().OfType<StackPanel>().Single(p => p.Name == "ContextMeter");
+        var send = window.GetVisualDescendants().OfType<Button>().Single(b => b.Name == "SendButton");
+        double Left(Control c) => Avalonia.VisualExtensions.TranslatePoint(c, new Avalonia.Point(0, 0), window)!.Value.X;
+        double Right(Control c) => Left(c) + c.Bounds.Width;
+        Assert.True(meter.IsVisible);
+        Assert.DoesNotContain(name.TextLayout.TextLines, l => l.HasCollapsed);
+        Assert.True(Right(meter) <= Left(chip) && Right(chip) <= Left(send), "the meter, then the chip, then Send");
+
+        // A narrow panel: the name is cut short, and the meter and Send stay whole.
+        window.Width = 400;
+        await WaitUntil(() => false, TimeSpan.FromMilliseconds(100));
+        Assert.Contains(name.TextLayout.TextLines, l => l.HasCollapsed);
+        Assert.True(Right(meter) <= Left(chip) && Right(chip) <= Left(send) && Right(send) <= window.Width, "nothing overlaps or leaves the panel");
+        window.Close();
+        await vm.DisposeAsync();
+    }
 }
