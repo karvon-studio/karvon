@@ -283,7 +283,10 @@ public sealed partial class ClaudeViewModel : ObservableObject, IAsyncDisposable
                     m.TryGetProperty("supportedEffortLevels", out var levels) && levels.ValueKind == JsonValueKind.Array
                         ? levels.EnumerateArray().Select(l => l.GetString() ?? "").Where(l => l.Length > 0).ToList()
                         : null,
-                    ClaudeJson.Bool(m, "supportsAutoMode")))
+                    ClaudeJson.Bool(m, "supportsAutoMode"))
+                {
+                    ContextWindow = m.TryGetProperty("contextWindow", out var window) && window.TryGetInt32(out var size) && size > 0 ? size : null,
+                })
                 .Where(m => m.Value.Length > 0)
                 .ToList();
             Models.Clear();
@@ -661,6 +664,12 @@ public sealed partial class ClaudeViewModel : ObservableObject, IAsyncDisposable
                 }
                 break;
 
+            case ClaudeContextUsage usage when live:
+                ContextTokens = usage.Tokens;
+                if (usage.Window is { } window)
+                    ContextWindow = window;
+                break;
+
             case ClaudeTokens tokens:
                 _tokens = Math.Max(_tokens, tokens.OutputTokens);
                 UpdateStatus();
@@ -751,6 +760,8 @@ public sealed partial class ClaudeViewModel : ObservableObject, IAsyncDisposable
                 _resumeId = result.SessionId ?? _resumeId;
                 if (result.ContextTokens is { } contextTokens)
                     ContextTokens = contextTokens;
+                if (result.ContextWindow is { } contextWindow)
+                    ContextWindow = contextWindow;
                 CancelPendingCards("Cancelled");
                 // Drop text blocks that never received content (a stream cut short).
                 foreach (var empty in Items.OfType<TextChatItem>().Where(t => t.Text.Length == 0).ToList())

@@ -462,6 +462,9 @@ public sealed record ClaudeModelChoice(
     IReadOnlyList<string>? SupportedEffortLevels = null,
     bool SupportsAutoMode = false)
 {
+    /// <summary>How much context the model has, when its agent says (a model of OpenRouter's, of Ollama's).</summary>
+    public int? ContextWindow { get; init; }
+
     public IReadOnlyList<string> EffortLevels => SupportedEffortLevels ?? [];
 
     /// <summary>The label without its note ("Default (recommended)" → "Default"), for the compact picker.</summary>

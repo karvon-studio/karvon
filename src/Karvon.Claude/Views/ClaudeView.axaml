@@ -175,6 +175,13 @@
     <Style Selector="Button.mode.auto v|VsIcon#ModeIcon">
       <Setter Property="Foreground" Value="#D97757" />
     </Style>
+    <!-- The context meter fills amber past 70%, red past 90%. -->
+    <Style Selector="Arc.contextFill.warn">
+      <Setter Property="Stroke" Value="#CCA700" />
+    </Style>
+    <Style Selector="Arc.contextFill.full">
+      <Setter Property="Stroke" Value="#F14C4C" />
+    </Style>
     <!-- Bypass permissions in red: nothing stops Claude. -->
     <Style Selector="Button.mode.bypass">
       <Setter Property="Background" Value="#26F14C4C" />
@@ -563,6 +570,16 @@
               <TextBlock Text="{v:Tr ModeLabel}" VerticalAlignment="Center" />
             </StackPanel>
           </Button>
+          <!-- How full the context is, as lolo shows it: a ring, then what is used of the model's window. -->
+          <StackPanel Name="ContextMeter" Grid.Column="3" Orientation="Horizontal" Spacing="5" HorizontalAlignment="Right" VerticalAlignment="Center" Margin="6,0,8,0"
+                      IsVisible="{Binding HasContextMeter}" Background="Transparent" ToolTip.Tip="{v:Tr ContextMeterTip}">
+            <Panel Width="14" Height="14" VerticalAlignment="Center">
+              <Ellipse Width="12" Height="12" Stroke="#4A4A4F" StrokeThickness="2" />
+              <Arc Width="12" Height="12" StartAngle="-90" SweepAngle="{Binding ContextSweep}" StrokeThickness="2" StrokeLineCap="Round"
+                   Stroke="#9D9D9D" Classes.warn="{Binding IsContextWarning}" Classes.full="{Binding IsContextFull}" Classes="contextFill" />
+            </Panel>
+            <TextBlock Name="ContextMeterText" Text="{Binding ContextMeterText}" FontSize="11" Classes="muted" VerticalAlignment="Center" />
+          </StackPanel>
           <!-- Remote Control is on: the conversation at claude.ai/code, one click away. -->
           <Button Name="RemoteControlPill" Grid.Column="3" Classes="chip remote" Command="{Binding OpenRemoteControlCommand}" IsVisible="{Binding IsRemoteControlActive}"
                   ToolTip.Tip="{v:L 'Remote Control is on · Click to open the conversation at claude.ai/code · /remote-control turns it off'}">

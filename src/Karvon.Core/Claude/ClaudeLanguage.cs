@@ -470,6 +470,10 @@ public sealed class ClaudeLanguage : INotifyPropertyChanged
         (new(@"^(\d+) tool uses?$"), m => $"{m.Groups[1].Value} ta amal"),
         (new(@"^\+(\d+) more tool uses$"), m => $"yana {m.Groups[1].Value} ta amal"),
         (new(@"^(.+) is not installed$"), m => $"{m.Groups[1].Value} o‘rnatilmagan"),
+        (new(@"^Context: (.+) of (.+) tokens \((\d+)%\) at the last answer\. When it fills up, the conversation is compacted\.$"), m =>
+            $"Kontekst: oxirgi javobda {m.Groups[2].Value} tokendan {m.Groups[1].Value} tasi ({m.Groups[3].Value}%). To‘lganda suhbat ixchamlanadi."),
+        (new(@"^Context window: (.+) tokens\. What the conversation uses shows after the first answer\.$"), m =>
+            $"Kontekst oynasi: {m.Groups[1].Value} token. Suhbat qancha ishlatgani birinchi javobdan keyin ko‘rinadi."),
         (new(@"^(\d+) models$"), m => $"{m.Groups[1].Value} ta model"),
         (new(@"^(\d+) of (\d+) models$"), m => $"{m.Groups[2].Value} tadan {m.Groups[1].Value} ta model"),
         (new(@"^Install (.+), sign in once by running it in a terminal, then retry\.$"), m =>

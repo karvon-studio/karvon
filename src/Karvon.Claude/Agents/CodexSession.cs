@@ -30,6 +30,7 @@ public sealed class CodexSession : IAgentSession
     string? _effort;
     string? _turnId;
     int? _contextTokens;
+    int? _contextWindow;
     int _plans;
 
     CodexSession(JsonRpcProcess rpc, AgentStartOptions options)
@@ -498,6 +499,10 @@ public sealed class CodexSession : IAgentSession
             case "thread/tokenUsage/updated" when parameters.TryGetProperty("tokenUsage", out var usage):
                 if (usage.TryGetProperty("last", out var last) && last.TryGetProperty("totalTokens", out var total) && total.TryGetInt32(out var tokens))
                     _contextTokens = tokens;
+                if (usage.TryGetProperty("modelContextWindow", out var window) && window.TryGetInt32(out var size))
+                    _contextWindow = size;
+                if (_contextTokens is { } used)
+                    Event?.Invoke(new ClaudeContextUsage(used, _contextWindow));
                 if (usage.TryGetProperty("last", out last) && last.TryGetProperty("outputTokens", out var output) && output.TryGetInt32(out var outputTokens))
                     Event?.Invoke(new ClaudeTokens(outputTokens));
                 break;
@@ -677,9 +682,9 @@ public sealed class CodexSession : IAgentSession
                 Event?.Invoke(new ClaudePermissionCancelled(asked));
         Event?.Invoke(status switch
         {
-            "completed" => new ClaudeResult("success", false, duration, null, null, SessionId, _contextTokens),
-            "interrupted" => new ClaudeResult("error_during_execution", true, duration, null, null, SessionId, _contextTokens),
-            _ => new ClaudeResult("error", true, duration, null, error ?? "Codex could not finish the turn.", SessionId, _contextTokens),
+            "completed" => new ClaudeResult("success", false, duration, null, null, SessionId, _contextTokens, _contextWindow),
+            "interrupted" => new ClaudeResult("error_during_execution", true, duration, null, null, SessionId, _contextTokens, _contextWindow),
+            _ => new ClaudeResult("error", true, duration, null, error ?? "Codex could not finish the turn.", SessionId, _contextTokens, _contextWindow),
         });
     }
 

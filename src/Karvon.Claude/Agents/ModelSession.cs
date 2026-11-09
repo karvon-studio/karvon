@@ -28,7 +28,7 @@ public sealed class ModelSession : IAgentSession
     /// <summary>The conversations of this run of Karvon, by id: a session started again (another folder, back from the background) goes on with its own.</summary>
     static readonly ConcurrentDictionary<string, List<JsonObject>> Conversations = new();
 
-    readonly ChatCompletions _api;
+    readonly IChatEndpoint _api;
     readonly AgentStartOptions _options;
     readonly string _agentName;
     readonly ConcurrentDictionary<string, TaskCompletionSource<ClaudePermissionDecision>> _asked = new();
@@ -42,7 +42,7 @@ public sealed class ModelSession : IAgentSession
     int? _contextTokens;
     bool _disposed;
 
-    ModelSession(ChatCompletions api, AgentStartOptions options, string agentName)
+    ModelSession(IChatEndpoint api, AgentStartOptions options, string agentName)
     {
         _api = api;
         _options = options;
@@ -72,7 +72,7 @@ public sealed class ModelSession : IAgentSession
     /// Asks <paramref name="api"/> for its models, then is ready for a prompt. <paramref name="agentName"/> is the provider's
     /// name (OpenRouter, Ollama...), as the model is told who it is.
     /// </summary>
-    public static async Task<ModelSession> StartAsync(ChatCompletions api, string agentName, AgentStartOptions options, CancellationToken cancellationToken = default)
+    public static async Task<ModelSession> StartAsync(IChatEndpoint api, string agentName, AgentStartOptions options, CancellationToken cancellationToken = default)
     {
         var session = new ModelSession(api, options, agentName)
         {
@@ -100,6 +100,7 @@ public sealed class ModelSession : IAgentSession
                 ["value"] = m.Id,
                 ["displayName"] = m.Name,
                 ["description"] = m.Description,
+                ["contextWindow"] = m.Context,
             })]),
         }.ToJsonString()).RootElement.Clone();
         session.Initialization = CodexSession.WithCurrentModel(session.Initialization, session._model);
@@ -131,8 +132,14 @@ public sealed class ModelSession : IAgentSession
             + "When a call is refused or denied, do not try it another way: say what you wanted to do. "
             + "Answer briefly in Markdown, in the user's language: what you did, what you checked, what is left.");
         if (_options.Tools is { } tools)
-            prompt.Append("\n\n").Append(tools.SystemPrompt).Append("\n\n").Append(tools.Instructions)
-                .Append($"\n\nOnly some of Karvon's tools are given to you at first: find the others with {ToolSearch}.");
+        {
+            prompt.Append("\n\n").Append(tools.SystemPrompt).Append("\n\n").Append(tools.Instructions);
+            // A small model does not search for what it does not know is there: every tool is named, its parameters come with its first call.
+            var others = tools.Tools.Where(t => !tools.IsAlwaysLoaded(t.Name)).ToList();
+            if (others.Count > 0)
+                prompt.Append($"\n\nKarvon's other tools: call one by its name ({ClaudeToolServer.Prefix}<name>); its parameters come with your first call of it, "
+                    + $"or ask {ToolSearch} for them first.\n").Append(string.Join("\n", others.Select(t => $"- {t.Name}: {ChatCompletions.FirstSentence(t.Description)}")));
+        }
         foreach (var name in new[] { "AGENTS.md", "CLAUDE.md" })
         {
             var file = Path.Combine(_options.WorkingDirectory, name);
@@ -260,6 +267,7 @@ public sealed class ModelSession : IAgentSession
     async Task RunTurnAsync(CancellationToken cancellationToken)
     {
         var clock = Stopwatch.StartNew();
+        var nudged = false;
         try
         {
             for (var step = 0; step < MaxSteps; step++)
@@ -267,11 +275,19 @@ public sealed class ModelSession : IAgentSession
                 if (TooLong())
                     await CompactAsync(cancellationToken);
                 var reply = await AskModelAsync(cancellationToken);
+                // A thinking model sometimes ends with its answer in its thoughts and none for the user: asked for it once.
+                if (reply.ToolCalls.Count == 0 && reply.Text.Trim().Length == 0 && reply.Thinking.Trim().Length > 0 && !nudged)
+                {
+                    nudged = true;
+                    lock (_messages)
+                        _messages.Add(new JsonObject { ["role"] = "user", ["content"] = "(Karvon) Your reply had thoughts but no answer: write the answer to the user now." });
+                    continue;
+                }
                 if (reply.ToolCalls.Count == 0)
                 {
                     End(new ClaudeResult(reply.FinishReason == "length" ? "error_max_tokens" : "success", reply.FinishReason == "length",
                         clock.ElapsedMilliseconds, null, reply.FinishReason == "length" ? "The model's answer was cut off: it reached its length limit." : null,
-                        SessionId, _contextTokens));
+                        SessionId, _contextTokens, Window()));
                     return;
                 }
                 foreach (var call in reply.ToolCalls)
@@ -282,18 +298,18 @@ public sealed class ModelSession : IAgentSession
                         _messages.Add(new JsonObject { ["role"] = "tool", ["tool_call_id"] = call.Id, ["content"] = Redaction.Secrets(output) });
                 }
             }
-            End(new ClaudeResult("error_max_turns", true, clock.ElapsedMilliseconds, null, null, SessionId, _contextTokens));
+            End(new ClaudeResult("error_max_turns", true, clock.ElapsedMilliseconds, null, null, SessionId, _contextTokens, Window()));
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
             CancelQuestions();
-            End(new ClaudeResult("error_during_execution", true, clock.ElapsedMilliseconds, null, null, SessionId, _contextTokens));
+            End(new ClaudeResult("error_during_execution", true, clock.ElapsedMilliseconds, null, null, SessionId, _contextTokens, Window()));
         }
         // Whatever went wrong ends the turn with it shown.
         catch (Exception ex)
         {
             CancelQuestions();
-            End(new ClaudeResult("error", true, clock.ElapsedMilliseconds, null, $"{_agentName}: {ex.Message}", SessionId, _contextTokens));
+            End(new ClaudeResult("error", true, clock.ElapsedMilliseconds, null, $"{_agentName}: {ex.Message}", SessionId, _contextTokens, Window()));
         }
     }
 
@@ -318,7 +334,10 @@ public sealed class ModelSession : IAgentSession
             Event?.Invoke(new ClaudeBlockDelta(id, 0, "thinking", piece));
         }, cancellationToken);
         if (reply.PromptTokens is { } prompt)
+        {
             _contextTokens = prompt + (reply.OutputTokens ?? 0);
+            Event?.Invoke(new ClaudeContextUsage(_contextTokens.Value, Window()));
+        }
         if (reply.OutputTokens is { } output)
             Event?.Invoke(new ClaudeTokens(output));
         var blocks = new List<ClaudeBlock>();
@@ -394,6 +413,10 @@ public sealed class ModelSession : IAgentSession
     /// <summary>Runs a call the model asked for, as Karvon allows it: what it gave and whether it failed.</summary>
     async Task<(string Output, bool IsError)> CallAsync(ModelToolCall call, CancellationToken cancellationToken)
     {
+        // One of Karvon's tools called by its bare name (as the prompt lists them): it is that tool.
+        if (_options.Tools is { } named && named.Find(call.Name) is null && ModelTools.Definitions().All(d => d["function"]?["name"]?.GetValue<string>() != call.Name)
+            && call.Name != ToolSearch && named.Find(ClaudeToolServer.Prefix + call.Name) is not null)
+            call = call with { Name = ClaudeToolServer.Prefix + call.Name };
         JsonElement input;
         try
         {
@@ -521,6 +544,8 @@ public sealed class ModelSession : IAgentSession
     {
         if (tools.Find(name) is not { } tool)
             return ($"Karvon has no tool named {name}.", true);
+        // Called by its name from the system prompt's list: its parameters go with the next requests.
+        _loaded.Add(tool.Name);
         if (_mode == "plan" && tools.Plan(name, input) is { Access: ToolAccess.Write or ToolAccess.Destructive })
             return ("In plan mode nothing is changed: say what you would change instead.", true);
         var call = new JsonObject
@@ -558,6 +583,9 @@ public sealed class ModelSession : IAgentSession
 
     // ---- Compaction -----------------------------------------------------------------------------------------
 
+    /// <summary>The model's context window, when its provider says it.</summary>
+    int? Window() => _model is { } model && _contexts.TryGetValue(model, out var window) ? window : null;
+
     /// <summary>The context nears the model's window (when its provider says how big it is).</summary>
     bool TooLong() =>
         _contextTokens is { } used && _model is { } model && _contexts.TryGetValue(model, out var window) && window is { } size && used > size * 0.85;
@@ -568,13 +596,13 @@ public sealed class ModelSession : IAgentSession
         try
         {
             await CompactAsync(cancellationToken);
-            End(new ClaudeResult("success", false, clock.ElapsedMilliseconds, null, null, SessionId, _contextTokens));
+            End(new ClaudeResult("success", false, clock.ElapsedMilliseconds, null, null, SessionId, _contextTokens, Window()));
         }
         catch (Exception ex) when (ex is HttpRequestException or InvalidOperationException or IOException or OperationCanceledException)
         {
             Event?.Invoke(new ClaudeCompaction("failed", ex.Message));
             End(new ClaudeResult(cancellationToken.IsCancellationRequested ? "error_during_execution" : "error", true, clock.ElapsedMilliseconds, null,
-                cancellationToken.IsCancellationRequested ? null : ex.Message, SessionId, _contextTokens));
+                cancellationToken.IsCancellationRequested ? null : ex.Message, SessionId, _contextTokens, Window()));
         }
     }
 

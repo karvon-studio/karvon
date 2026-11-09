@@ -24,8 +24,56 @@ public sealed partial class ClaudeViewModel
 
     /// <summary>Context the conversation used at its last answer; null before the first answer or after /compact.</summary>
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(ContextTokensText), nameof(HasContextTokens))]
+    [NotifyPropertyChangedFor(nameof(ContextTokensText), nameof(HasContextTokens), nameof(ContextLimit), nameof(HasContextMeter), nameof(ContextSweep),
+        nameof(ContextMeterText), nameof(ContextMeterTip), nameof(IsContextWarning), nameof(IsContextFull))]
     public partial int? ContextTokens { get; set; }
+
+    /// <summary>The model's context window as its last answer said it (Claude Code's 200k or 1M, Codex's); null until one says.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ContextLimit), nameof(HasContextMeter), nameof(ContextSweep), nameof(ContextMeterText), nameof(ContextMeterTip),
+        nameof(IsContextWarning), nameof(IsContextFull))]
+    public partial int? ContextWindow { get; set; }
+
+    /// <summary>How much context there is: as the last answer said, else as the model's agent listed it.</summary>
+    public int? ContextLimit => ContextWindow ?? SelectedModel?.ContextWindow;
+
+    /// <summary>The meter beside the prompt (as lolo's): shown once the window is known.</summary>
+    public bool HasContextMeter => ContextLimit is > 0;
+
+    double ContextFraction => ContextLimit is > 0 and var limit ? Math.Min(1, (ContextTokens ?? 0) / (double)limit) : 0;
+
+    /// <summary>The ring's arc, in degrees.</summary>
+    public double ContextSweep => ContextFraction * 360;
+
+    public bool IsContextWarning => ContextFraction is > 0.7 and <= 0.9;
+
+    public bool IsContextFull => ContextFraction > 0.9;
+
+    /// <summary>"6.2k / 32k", "234k / 1M".</summary>
+    public string ContextMeterText => ContextLimit is { } limit ? $"{ShortTokens(ContextTokens ?? 0)} / {WindowTokens(limit)}" : "";
+
+    public string ContextMeterTip => ContextLimit is not { } limit ? ""
+        : ContextTokens is { } used
+            ? $"Context: {used:N0} of {limit:N0} tokens ({Math.Round(ContextFraction * 100)}%) at the last answer. When it fills up, the conversation is compacted."
+            : $"Context window: {limit:N0} tokens. What the conversation uses shows after the first answer.";
+
+    /// <summary>Another model: its own window applies until an answer says it; the meter follows.</summary>
+    partial void OnSelectedModelChanged(ClaudeModelChoice? oldValue, ClaudeModelChoice? newValue)
+    {
+        if (oldValue?.Value != newValue?.Value)
+            ContextWindow = null;
+        foreach (var name in new[] { nameof(ContextLimit), nameof(HasContextMeter), nameof(ContextSweep), nameof(ContextMeterText), nameof(ContextMeterTip),
+            nameof(IsContextWarning), nameof(IsContextFull) })
+            OnPropertyChanged(name);
+    }
+
+    /// <summary>5230 → "5.2k", 23456 → "23k".</summary>
+    internal static string ShortTokens(int n) =>
+        n >= 1_000_000 ? (n / 1_000_000.0).ToString("0.#", System.Globalization.CultureInfo.InvariantCulture) + "M" : n >= 1000 ? (n / 1000.0).ToString(n >= 10_000 ? "0" : "0.0", System.Globalization.CultureInfo.InvariantCulture) + "k" : n.ToString();
+
+    /// <summary>A window: powers of two as such (32768 → "32k"), a million as "1M".</summary>
+    internal static string WindowTokens(int n) =>
+        n >= 1_000_000 ? ShortTokens(n) : n % 1024 == 0 ? $"{n / 1024}k" : ShortTokens(n);
 
     public bool HasContextTokens => ContextTokens is not null;
 

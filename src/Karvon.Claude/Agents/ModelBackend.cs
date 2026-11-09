@@ -6,8 +6,9 @@ namespace Karvon.Claude;
 /// <summary>Where a model Karvon drives itself answers from: an OpenAI-compatible endpoint, with or without a key.</summary>
 /// <param name="EnvironmentUrl">The variable that may name another address (OLLAMA_HOST...); null for none.</param>
 /// <param name="EnvironmentKey">The variable that may hold the key (OPENROUTER_API_KEY); null when it needs none.</param>
+/// <param name="Native">It is talked to in its own API (Ollama's, <see cref="OllamaChat"/>), not Chat Completions.</param>
 public sealed record ModelProvider(string Id, string Name, string Description, string Url, string? EnvironmentUrl, string? EnvironmentKey,
-    string MissingHint, string? InstallCommand)
+    string MissingHint, string? InstallCommand, bool Native = false)
 {
     public bool NeedsKey => EnvironmentKey is not null;
 
@@ -19,20 +20,20 @@ public sealed record ModelProvider(string Id, string Name, string Description, s
         "Add your OpenRouter API key (openrouter.ai/keys) in Choose Agent and Model: Karvon keeps it in its vault and sends it only to OpenRouter.", null);
 
     public static readonly ModelProvider Ollama = new("ollama", "Ollama", "A local model in Ollama, on this computer",
-        "http://localhost:11434/v1", "OLLAMA_HOST", null,
-        "Install Ollama and pull a model that calls tools, then retry.", "ollama pull qwen3-coder");
+        "http://localhost:11434", "OLLAMA_HOST", null,
+        "Install Ollama and pull a model that calls tools, then retry.", "ollama pull qwen3-coder", Native: true);
 
     public static readonly ModelProvider LmStudio = new("lmstudio", "LM Studio", "A local model in LM Studio's server, on this computer",
         "http://localhost:1234/v1", null, null,
         "Start LM Studio's local server with a model loaded, then retry.", null);
 
-    /// <summary>The endpoint's address: the variable's when set (Ollama's OLLAMA_HOST has no /v1), else the usual one.</summary>
+    /// <summary>The endpoint's address: the variable's when set (OLLAMA_HOST: a host, maybe without its scheme), else the usual one.</summary>
     public string Address()
     {
         if (EnvironmentUrl is not null && Environment.GetEnvironmentVariable(EnvironmentUrl) is { Length: > 0 } host)
         {
-            var url = host.Contains("://", StringComparison.Ordinal) ? host : "http://" + host;
-            return url.TrimEnd('/') + (url.TrimEnd('/').EndsWith("/v1", StringComparison.Ordinal) ? "" : "/v1");
+            var url = (host.Contains("://", StringComparison.Ordinal) ? host : "http://" + host).TrimEnd('/');
+            return Native || url.EndsWith("/v1", StringComparison.Ordinal) ? url : url + "/v1";
         }
         return Url;
     }
@@ -109,7 +110,7 @@ public sealed class ModelBackend(ModelProvider provider, ICredentialStore? keyri
     {
         try
         {
-            var models = await new ChatCompletions(http ?? ModelSession.Client, executable, Key()).ModelsAsync(cancellationToken);
+            var models = await Endpoint(executable).ModelsAsync(cancellationToken);
             return [.. models.Select(m => new AgentModel(m.Id, m.Name, m.Description))];
         }
         catch (Exception ex) when (ex is HttpRequestException or JsonException || ex is OperationCanceledException && !cancellationToken.IsCancellationRequested)
@@ -119,5 +120,9 @@ public sealed class ModelBackend(ModelProvider provider, ICredentialStore? keyri
     }
 
     public async Task<IAgentSession> StartAsync(AgentStartOptions options, CancellationToken cancellationToken = default) =>
-        await ModelSession.StartAsync(new ChatCompletions(http ?? ModelSession.Client, options.Executable, Key()), provider.Name, options, cancellationToken);
+        await ModelSession.StartAsync(Endpoint(options.Executable), provider.Name, options, cancellationToken);
+
+    /// <summary>Its endpoint at <paramref name="url"/>: Ollama's own API, or Chat Completions with the key.</summary>
+    IChatEndpoint Endpoint(string url) =>
+        provider.Native ? new OllamaChat(http ?? ModelSession.Client, url) : new ChatCompletions(http ?? ModelSession.Client, url, Key());
 }

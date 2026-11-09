@@ -37,6 +37,9 @@ public sealed class FakeModelServer : IAsyncDisposable
 
     public string Url { get; }
 
+    /// <summary>Ollama's own API's address (no /v1).</summary>
+    public string Root => Url[..^3];
+
     /// <summary>The chat requests' bodies, in order.</summary>
     public List<JsonElement> Requests { get; } = [];
 
@@ -100,7 +103,27 @@ public sealed class FakeModelServer : IAsyncDisposable
         var response = context.Response;
         try
         {
-            if (context.Request.Url!.AbsolutePath.EndsWith("/models", StringComparison.Ordinal))
+            var path = context.Request.Url!.AbsolutePath;
+            if (path == "/api/tags")
+            {
+                await WriteAsync(response, "application/json", """{"models":[{"name":"fake-coder:7b"},{"name":"embedder:latest"}]}""");
+                return;
+            }
+            if (path == "/api/show")
+            {
+                using var show = new StreamReader(context.Request.InputStream, Encoding.UTF8);
+                var model = JsonDocument.Parse(await show.ReadToEndAsync()).RootElement.GetProperty("model").GetString();
+                await WriteAsync(response, "application/json", model == "fake-coder:7b"
+                    ? """{"capabilities":["completion","tools","thinking"],"model_info":{"fake.context_length":65536},"details":{"parameter_size":"7.6B"}}"""
+                    : """{"capabilities":["embedding"],"model_info":{"bert.context_length":512}}""");
+                return;
+            }
+            if (path == "/api/chat")
+            {
+                await AnswerOllamaAsync(context);
+                return;
+            }
+            if (path.EndsWith("/models", StringComparison.Ordinal))
             {
                 await WriteAsync(response, "application/json", new JsonObject
                 {
@@ -139,6 +162,68 @@ public sealed class FakeModelServer : IAsyncDisposable
         catch (Exception ex) when (ex is HttpListenerException or IOException or OperationCanceledException or ObjectDisposedException)
         {
         }
+    }
+
+    /// <summary>/api/chat: the queued reply in Ollama's words (a JSON object per line; a tool call whole, at the end).</summary>
+    async Task AnswerOllamaAsync(HttpListenerContext context)
+    {
+        using var reader = new StreamReader(context.Request.InputStream, Encoding.UTF8);
+        var body = JsonDocument.Parse(await reader.ReadToEndAsync()).RootElement.Clone();
+        lock (Requests)
+        {
+            Requests.Add(body);
+            Authorizations.Add(context.Request.Headers["Authorization"]);
+        }
+        var chunks = _replies.TryDequeue(out var queued) ? queued : [Text("(no reply queued)")];
+        var response = context.Response;
+        response.ContentType = "application/x-ndjson";
+        response.SendChunked = true;
+        var calls = new SortedDictionary<int, (string Name, StringBuilder Arguments)>();
+        int prompt = 0, output = 0;
+        async Task Line(JsonObject line)
+        {
+            await response.OutputStream.WriteAsync(Encoding.UTF8.GetBytes(line.ToJsonString() + "\n"));
+            await response.OutputStream.FlushAsync();
+        }
+        foreach (var chunk in chunks)
+        {
+            if (chunk["error"] is JsonObject error)
+            {
+                await Line(new JsonObject { ["error"] = error["message"]?.GetValue<string>() });
+                continue;
+            }
+            if (chunk["usage"] is JsonObject usage)
+                (prompt, output) = (usage["prompt_tokens"]!.GetValue<int>(), usage["completion_tokens"]!.GetValue<int>());
+            if (chunk["choices"] is not JsonArray { Count: > 0 } choices || choices[0]?["delta"] is not JsonObject delta)
+                continue;
+            if (delta["content"]?.GetValue<string>() is { } content)
+                await Line(new JsonObject { ["message"] = new JsonObject { ["role"] = "assistant", ["content"] = content }, ["done"] = false });
+            if (delta["reasoning"]?.GetValue<string>() is { } thinking)
+                await Line(new JsonObject { ["message"] = new JsonObject { ["role"] = "assistant", ["content"] = "", ["thinking"] = thinking }, ["done"] = false });
+            foreach (var call in delta["tool_calls"]?.AsArray() ?? [])
+            {
+                var index = call!["index"]!.GetValue<int>();
+                if (!calls.TryGetValue(index, out var known))
+                    calls[index] = known = (call["function"]?["name"]?.GetValue<string>() ?? "", new StringBuilder());
+                known.Arguments.Append(call["function"]?["arguments"]?.GetValue<string>());
+            }
+        }
+        if (calls.Count > 0)
+            await Line(new JsonObject
+            {
+                ["message"] = new JsonObject
+                {
+                    ["role"] = "assistant",
+                    ["content"] = "",
+                    ["tool_calls"] = new JsonArray([.. calls.Values.Select(c => (JsonNode)new JsonObject
+                    {
+                        ["function"] = new JsonObject { ["name"] = c.Name, ["arguments"] = JsonNode.Parse(c.Arguments.ToString()) },
+                    })]),
+                },
+                ["done"] = false,
+            });
+        await Line(new JsonObject { ["done"] = true, ["done_reason"] = "stop", ["prompt_eval_count"] = prompt, ["eval_count"] = output });
+        response.Close();
     }
 
     static async Task WriteAsync(HttpListenerResponse response, string type, string text)
@@ -482,6 +567,84 @@ public class ModelAgentTests
         var messages = server.Requests[1].GetProperty("messages");
         Assert.Equal(["system", "user", "assistant", "user"], messages.EnumerateArray().Select(m => m.GetProperty("role").GetString()));
         Assert.Equal("My name is Nodir.", messages[1].GetProperty("content").GetString());
+    }
+
+    [Fact]
+    public async Task Ollama_is_asked_in_its_own_API_for_a_window_Karvon_s_prompt_fits_in()
+    {
+        await using var server = new FakeModelServer();
+        var (dir, file) = Workspace();
+        server.Reply(FakeModelServer.Thinking("Let me read it."), FakeModelServer.Call(0, "x", "Read", "{\"file_path\":"), FakeModelServer.MoreArguments(0, JsonSerializer.Serialize(file) + "}"),
+            FakeModelServer.Usage(9000, 40));
+        server.Reply(FakeModelServer.Text("It says Hello."), FakeModelServer.Usage(9100, 6));
+        var backend = new ModelBackend(ModelProvider.Ollama with { Url = server.Root });
+        Assert.Equal(server.Root, backend.Find());
+
+        // Only the models that call tools; their window is Karvon's ask, or theirs when smaller.
+        var models = await backend.ModelsAsync(server.Root, dir, TestContext.Current.CancellationToken);
+        Assert.Equal(["fake-coder:7b"], models.Select(m => m.Id));
+        await using var session = (ModelSession)await backend.StartAsync(new AgentStartOptions(server.Root, dir), TestContext.Current.CancellationToken);
+        Assert.Equal(32768, session.Initialization.GetProperty("models")[0].GetProperty("contextWindow").GetInt32());
+
+        var events = await TurnAsync(session, "What does it say?");
+
+        Assert.Contains(events, e => e is ClaudeAssistant a && a.Blocks.OfType<ClaudeThinkingBlock>().Any(t => t.Text == "Let me read it."));
+        Assert.Equal("     1\tConsole.WriteLine(\"Hello\");", Assert.Single(events.OfType<ClaudeToolResults>().SelectMany(r => r.Results)).Content);
+        Assert.Equal("It says Hello.", string.Concat(events.OfType<ClaudeBlockDelta>().Where(d => d.Kind == "text").Select(d => d.Text)));
+        // The meter's numbers: each step's context, and the window.
+        Assert.Equal([new ClaudeContextUsage(9040, 32768), new ClaudeContextUsage(9106, 32768)], events.OfType<ClaudeContextUsage>());
+        var end = Assert.Single(events.OfType<ClaudeResult>());
+        Assert.Equal((9106, 32768), (end.ContextTokens, end.ContextWindow));
+
+        var first = server.Requests[0];
+        Assert.Equal(32768, first.GetProperty("options").GetProperty("num_ctx").GetInt32());
+        Assert.True(first.GetProperty("think").GetBoolean());
+        Assert.Contains("Read", FakeModelServer.Functions(first));
+        // The call and its result in Ollama's words: arguments as an object, the result named by its tool.
+        var second = server.Requests[1].GetProperty("messages");
+        Assert.Equal(file, second[2].GetProperty("tool_calls")[0].GetProperty("function").GetProperty("arguments").GetProperty("file_path").GetString());
+        Assert.Equal(("tool", "Read"), (second[3].GetProperty("role").GetString(), second[3].GetProperty("tool_name").GetString()));
+    }
+
+    [Fact]
+    public async Task Every_tool_of_Karvon_s_is_named_in_the_prompt_and_one_called_by_its_name_is_given_from_then_on()
+    {
+        await using var server = new FakeModelServer();
+        var (dir, _) = Workspace();
+        var tools = KarvonTools.Create([new Probe("db_query", ToolAccess.Read, "3 rows"), new Probe("run_build", ToolAccess.Read, "Build succeeded")]);
+        server.Reply(FakeModelServer.Call(0, "call_1", "mcp__karvon__db_query", "{}"));
+        server.Reply(FakeModelServer.Text("3 rows."));
+        await using var session = await StartAsync(server, dir, tools: tools);
+
+        var events = await TurnAsync(session, "How many rows?");
+
+        var system = server.Requests[0].GetProperty("messages")[0].GetProperty("content").GetString()!;
+        Assert.Contains("- db_query: The db_query probe.", system);
+        // Called by its bare name, as the list says it, it is the same tool.
+        server.Reply(FakeModelServer.Call(0, "call_2", "db_query", "{}"));
+        server.Reply(FakeModelServer.Text("Still 3."));
+        Assert.Equal(("mcp__karvon__db_query", "3 rows"), (
+            (await TurnAsync(session, "Again?")).OfType<ClaudeAssistant>().SelectMany(a => a.Blocks).OfType<ClaudeToolUseBlock>().Single().Name,
+            server.Requests[3].GetProperty("messages").EnumerateArray().Last().GetProperty("content").GetString()));
+        Assert.DoesNotContain("mcp__karvon__db_query", FakeModelServer.Functions(server.Requests[0]));
+        Assert.Equal("3 rows", events.OfType<ClaudeToolResults>().Single().Results[0].Content);
+        Assert.Contains("mcp__karvon__db_query", FakeModelServer.Functions(server.Requests[1]));
+    }
+
+    [Fact]
+    public async Task An_answer_left_in_the_model_s_thoughts_is_asked_for_once()
+    {
+        await using var server = new FakeModelServer();
+        var (dir, _) = Workspace();
+        server.Reply(FakeModelServer.Thinking("The answer is 42."));
+        server.Reply(FakeModelServer.Text("42."));
+        await using var session = await StartAsync(server, dir);
+
+        var events = await TurnAsync(session, "What is the answer?");
+
+        Assert.Equal("42.", string.Concat(events.OfType<ClaudeBlockDelta>().Where(d => d.Kind == "text").Select(d => d.Text)));
+        Assert.StartsWith("(Karvon) Your reply had thoughts but no answer", server.Requests[1].GetProperty("messages").EnumerateArray().Last().GetProperty("content").GetString());
+        Assert.Equal(2, server.Requests.Count);
     }
 
     [Fact]

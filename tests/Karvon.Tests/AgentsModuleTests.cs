@@ -183,4 +183,50 @@ public class AgentsModuleTests
         Assert.Empty(vm.History);
         await vm.DisposeAsync();
     }
+
+    [Fact]
+    public void Claude_Code_s_result_says_the_model_s_context_window()
+    {
+        var result = System.Text.Json.JsonDocument.Parse("""
+            {"type":"result","subtype":"success","is_error":false,"duration_ms":10,"session_id":"s",
+             "usage":{"input_tokens":5,"cache_read_input_tokens":230000,"output_tokens":4000},
+             "modelUsage":{"claude-haiku-5-5":{"inputTokens":900,"contextWindow":200000},
+                           "claude-opus-5-5[1m]":{"inputTokens":5,"cacheReadInputTokens":230000,"contextWindow":1000000}}}
+            """).RootElement;
+        var end = Assert.IsType<ClaudeResult>(Assert.Single(ClaudeProtocol.Parse(result)));
+        Assert.Equal((234005, 1000000), (end.ContextTokens, end.ContextWindow));
+    }
+
+    [AvaloniaFact]
+    public void The_context_meter_shows_what_is_used_of_the_window_as_lolo_does()
+    {
+        var (dir, _) = FakeCodex.Workspace();
+        var vm = new ClaudeViewModel(new Karvon.Services.Settings(), () => dir, () => null, () => [], () => FakeClaude.Executable);
+        Assert.False(vm.HasContextMeter);
+
+        vm.ContextWindow = 32768;
+        Assert.True(vm.HasContextMeter);
+        Assert.Equal("0 / 32k", vm.ContextMeterText);
+        Assert.StartsWith("Context window: 32", vm.ContextMeterTip);
+        vm.ContextTokens = 6200;
+        Assert.Equal("6.2k / 32k", vm.ContextMeterText);
+        Assert.False(vm.IsContextWarning);
+        Assert.Equal(6200 / 32768.0 * 360, vm.ContextSweep, 3);
+
+        vm.ContextWindow = 1_000_000;
+        vm.ContextTokens = 234_000;
+        Assert.Equal("234k / 1M", vm.ContextMeterText);
+        vm.ContextTokens = 800_000;
+        Assert.True(vm.IsContextWarning);
+        vm.ContextTokens = 950_000;
+        Assert.True(vm.IsContextFull);
+
+        // Shown beside the prompt, in Claude Code's panel too.
+        var window = new Window { Width = 560, Height = 900, Content = new ClaudeView { DataContext = vm } };
+        window.Show();
+        var meter = window.GetVisualDescendants().OfType<StackPanel>().Single(p => p.Name == "ContextMeter");
+        Assert.True(meter.IsVisible);
+        Assert.Equal("950k / 1M", window.GetVisualDescendants().OfType<TextBlock>().Single(t => t.Name == "ContextMeterText").Text);
+        window.Close();
+    }
 }

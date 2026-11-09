@@ -13,11 +13,30 @@ public sealed record ModelToolCall(string Id, string Name, string Arguments);
 /// <param name="PromptTokens">How much context the request took (the provider's count); null when it did not say.</param>
 public sealed record ModelReply(string Text, string Thinking, IReadOnlyList<ModelToolCall> ToolCalls, string? FinishReason, int? PromptTokens, int? OutputTokens);
 
+/// <summary>Where a model Karvon drives itself answers: its models, and an answer streamed (in Chat Completions' terms).</summary>
+public interface IChatEndpoint
+{
+    string BaseUrl { get; }
+
+    /// <summary>The models that call tools: their ids, names, descriptions and context windows.</summary>
+    Task<IReadOnlyList<(string Id, string Name, string? Description, int? Context)>> ModelsAsync(CancellationToken cancellationToken);
+
+    /// <summary>
+    /// An answer to <paramref name="body"/> (Chat Completions' request: model, messages, tools), streamed to
+    /// <paramref name="onText"/> and <paramref name="onThinking"/> as it comes.
+    /// </summary>
+    Task<ModelReply> StreamAsync(JsonObject body, Action<string> onText, Action<string> onThinking, CancellationToken cancellationToken);
+
+    /// <summary>A whole answer at once (no tools): a compaction's summary.</summary>
+    async Task<string> CompleteAsync(JsonObject body, CancellationToken cancellationToken) =>
+        (await StreamAsync(body, _ => { }, _ => { }, cancellationToken)).Text;
+}
+
 /// <summary>
-/// An OpenAI-compatible Chat Completions endpoint (OpenRouter, Ollama, LM Studio, vLLM...): its models, and an answer
-/// streamed as server-sent events, its text, its reasoning and its tool calls as they come.
+/// An OpenAI-compatible Chat Completions endpoint (OpenRouter, LM Studio, vLLM...): its models, and an answer streamed as
+/// server-sent events, its text, its reasoning and its tool calls as they come.
 /// </summary>
-public sealed class ChatCompletions(HttpClient http, string baseUrl, string? apiKey)
+public sealed class ChatCompletions(HttpClient http, string baseUrl, string? apiKey) : IChatEndpoint
 {
     public string BaseUrl { get; } = baseUrl.TrimEnd('/');
 
@@ -52,7 +71,7 @@ public sealed class ChatCompletions(HttpClient http, string baseUrl, string? api
             .OrderBy(m => m.Name, StringComparer.OrdinalIgnoreCase)];
     }
 
-    static string FirstSentence(string text)
+    internal static string FirstSentence(string text)
     {
         var line = text.Split('\n')[0].Trim();
         var end = line.IndexOf(". ", StringComparison.Ordinal);
@@ -142,14 +161,7 @@ public sealed class ChatCompletions(HttpClient http, string baseUrl, string? api
             finish, prompt, output);
     }
 
-    /// <summary>A whole answer at once (no tools): a compaction's summary.</summary>
-    public async Task<string> CompleteAsync(JsonObject body, CancellationToken cancellationToken)
-    {
-        var reply = await StreamAsync(body, _ => { }, _ => { }, cancellationToken);
-        return reply.Text;
-    }
-
-    static async Task EnsureAsync(HttpResponseMessage response, CancellationToken cancellationToken)
+    internal static async Task EnsureAsync(HttpResponseMessage response, CancellationToken cancellationToken)
     {
         if (response.IsSuccessStatusCode)
             return;
@@ -169,7 +181,7 @@ public sealed class ChatCompletions(HttpClient http, string baseUrl, string? api
     }
 
     /// <summary>Text with a model's thoughts between &lt;think&gt; and &lt;/think&gt; (Qwen, DeepSeek in Ollama): the thoughts apart.</summary>
-    sealed class ThinkTags(Action<string> onText, Action<string> onThinking, StringBuilder text, StringBuilder thinking)
+    internal sealed class ThinkTags(Action<string> onText, Action<string> onThinking, StringBuilder text, StringBuilder thinking)
     {
         const string Open = "<think>";
         const string Close = "</think>";

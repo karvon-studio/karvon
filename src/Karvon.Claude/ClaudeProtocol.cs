@@ -81,9 +81,15 @@ public sealed record ClaudeBridgeState(string State, string? Detail) : ClaudeEve
 /// </summary>
 public sealed record ClaudeBackgroundTasks(IReadOnlyList<string> Descriptions) : ClaudeEvent;
 
-/// <summary>The end of a turn; <paramref name="ContextTokens"/> is how much context the last model call used.</summary>
-public sealed record ClaudeResult(string Subtype, bool IsError, long DurationMs, double? CostUsd, string? Text, string? SessionId, int? ContextTokens = null)
-    : ClaudeEvent;
+/// <summary>
+/// The end of a turn; <paramref name="ContextTokens"/> is how much context the last model call used, <paramref name="ContextWindow"/>
+/// how much the model has (its window), when the agent says.
+/// </summary>
+public sealed record ClaudeResult(string Subtype, bool IsError, long DurationMs, double? CostUsd, string? Text, string? SessionId, int? ContextTokens = null,
+    int? ContextWindow = null) : ClaudeEvent;
+
+/// <summary>How much context a model call of the turn used, and the model's window when known (each step, for the meter).</summary>
+public sealed record ClaudeContextUsage(int Tokens, int? Window) : ClaudeEvent;
 
 /// <summary>rate_limit_event: the plan's limits after a model call (session and weekly windows).</summary>
 public sealed record ClaudeRateLimits(IReadOnlyList<ClaudeRateWindow> Windows) : ClaudeEvent;
@@ -261,7 +267,7 @@ public static partial class ClaudeProtocol
                 yield return new ClaudeResult(Str(root, "subtype") ?? "", Bool(root, "is_error"),
                     root.TryGetProperty("duration_ms", out var d) && d.TryGetInt64(out var ms) ? ms : 0,
                     root.TryGetProperty("total_cost_usd", out var c) && c.TryGetDouble(out var cost) ? cost : null,
-                    resultText, Str(root, "session_id"), ContextTokens(root));
+                    resultText, Str(root, "session_id"), ContextTokens(root), ContextWindow(root));
                 break;
         }
     }
@@ -280,6 +286,21 @@ public static partial class ClaudeProtocol
         int Count(string name) => usage.TryGetProperty(name, out var v) && v.TryGetInt32(out var n) ? n : 0;
         var total = Count("input_tokens") + Count("cache_read_input_tokens") + Count("cache_creation_input_tokens") + Count("output_tokens");
         return total > 0 ? total : null;
+    }
+
+    /// <summary>
+    /// The context window of the model the conversation runs on (200k, or 1M where it is on), from the result's modelUsage:
+    /// the model that read the most of it (a subagent's smaller model reads less); null when the CLI does not say.
+    /// </summary>
+    static int? ContextWindow(JsonElement result)
+    {
+        if (!result.TryGetProperty("modelUsage", out var models) || models.ValueKind != JsonValueKind.Object)
+            return null;
+        int Count(JsonElement usage, string name) => usage.TryGetProperty(name, out var v) && v.TryGetInt32(out var n) ? n : 0;
+        var main = models.EnumerateObject().Select(m => m.Value).Where(m => m.ValueKind == JsonValueKind.Object && Count(m, "contextWindow") > 0)
+            .OrderByDescending(m => (long)Count(m, "inputTokens") + Count(m, "cacheReadInputTokens") + Count(m, "cacheCreationInputTokens"))
+            .FirstOrDefault();
+        return main.ValueKind == JsonValueKind.Object ? Count(main, "contextWindow") : null;
     }
 
     /// <summary>A tool result's text: a plain string, or the text parts of a content array.</summary>
