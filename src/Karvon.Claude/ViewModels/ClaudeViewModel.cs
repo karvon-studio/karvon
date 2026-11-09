@@ -18,7 +18,7 @@ namespace Karvon.ViewModels;
 /// </summary>
 public sealed partial class ClaudeViewModel : ObservableObject, IAsyncDisposable
 {
-    static readonly string[] FileChangingTools = ["Write", "Edit", "MultiEdit", "NotebookEdit", "Bash", "PowerShell"];
+    static readonly string[] FileChangingTools = ["Write", "Edit", "MultiEdit", "NotebookEdit", "Bash", "PowerShell", "Patch"];
 
     static readonly ClaudeModelChoice[] DefaultModels =
     [
@@ -35,8 +35,8 @@ public sealed partial class ClaudeViewModel : ObservableObject, IAsyncDisposable
     readonly Func<string?> _findCli;
     readonly Dictionary<string, ToolChatItem> _tools = [];
     readonly DispatcherTimer _timer;
-    ClaudeSession? _session;
-    Task<ClaudeSession>? _starting;
+    IAgentSession? _session;
+    Task<IAgentSession>? _starting;
     string? _sessionCwd;
     string? _resumeId;
     DateTime _turnStarted;
@@ -128,7 +128,7 @@ public sealed partial class ClaudeViewModel : ObservableObject, IAsyncDisposable
             if (value is not null)
             {
                 value.Ask = AskAboutToolAsync;
-                value.Trusted = caller => WorkspaceTrust.IsTrusted(_settings.TrustedFolders, (caller as ClaudeSession)?.WorkingDirectory ?? _workingDirectory());
+                value.Trusted = caller => WorkspaceTrust.IsTrusted(_settings.TrustedFolders, (caller as IAgentSession)?.WorkingDirectory ?? _workingDirectory());
             }
         }
     }
@@ -193,10 +193,10 @@ public sealed partial class ClaudeViewModel : ObservableObject, IAsyncDisposable
     // ---- Lifecycle -----------------------------------------------------------------------------------------
 
     [RelayCommand]
-    public void CheckCli() => CliPath = _findCli();
+    public void CheckCli() => CliPath = _backend is { } backend ? backend.Find() : _findCli();
 
     /// <summary>The running CLI for the current folder, starting it once even when asked twice (warm-up, then Send).</summary>
-    Task<ClaudeSession> EnsureSessionAsync()
+    Task<IAgentSession> EnsureSessionAsync()
     {
         var cwd = _workingDirectory();
         if (_session is { HasExited: false } running && _sessionCwd == cwd)
@@ -204,10 +204,16 @@ public sealed partial class ClaudeViewModel : ObservableObject, IAsyncDisposable
         return _starting ??= StartSessionAsync(cwd);
     }
 
-    async Task<ClaudeSession> StartSessionAsync(string cwd)
+    /// <summary>The running Claude Code CLI: what only it has (its usage, its MCP servers, Remote Control) needs it.</summary>
+    async Task<ClaudeSession> EnsureClaudeSessionAsync() =>
+        await EnsureSessionAsync() as ClaudeSession ?? throw new InvalidOperationException("Only Claude Code has this.");
+
+    async Task<IAgentSession> StartSessionAsync(string cwd)
     {
         try
         {
+            if (_backend is { } backend)
+                return await StartAgentAsync(backend, cwd);
             await StopSessionAsync();
             var session = await ClaudeSession.StartAsync(new ClaudeStartOptions(CliPath!, cwd, SelectedModel?.Value, PermissionMode, _resumeId, SelectedAccount, Tools, McpServersFor(cwd),
                 _settings.ClaudeKeepSecretsAway, _settings.ClaudeSandbox, WorkspaceTrust.IsTrusted(_settings.TrustedFolders, cwd),
@@ -278,7 +284,9 @@ public sealed partial class ClaudeViewModel : ObservableObject, IAsyncDisposable
             foreach (var model in list)
                 Models.Add(model);
             _changingModeFromCli = true;
-            SelectedModel = Models.FirstOrDefault(m => m.Value == selected) ?? Models.FirstOrDefault();
+            // The one chosen, else the one the agent answers with now (another agent's), else the first.
+            SelectedModel = Models.FirstOrDefault(m => m.Value == selected) ?? Models.FirstOrDefault(m => m.Value == ClaudeJson.Str(init, "currentModel"))
+                ?? Models.FirstOrDefault();
             _changingModeFromCli = false;
         }
         if (init.TryGetProperty("account", out var accountInfo))
@@ -529,7 +537,7 @@ public sealed partial class ClaudeViewModel : ObservableObject, IAsyncDisposable
 
     // ---- Events from the CLI -------------------------------------------------------------------------------
 
-    void Handle(ClaudeSession session, ClaudeEvent ev)
+    void Handle(IAgentSession session, ClaudeEvent ev)
     {
         if (session != _session)
         {
@@ -884,6 +892,13 @@ public sealed partial class ClaudeViewModel : ObservableObject, IAsyncDisposable
                     }
                 return new ToolChatItem(tool.Id, tool.Name, "Update", Relative(path), path) { Diff = diff };
             }
+            case "Patch":
+            {
+                var (paths, diff) = PatchOf(input, 60);
+                var kind = paths.Count == 1 && input.GetProperty("changes")[0].TryGetProperty("kind", out var k) ? ClaudeJson.Str(k, "type") : null;
+                return new ToolChatItem(tool.Id, tool.Name, kind switch { "add" => "Write", "delete" => "Delete", _ => "Update" },
+                    paths.Count == 1 ? Relative(paths[0]) : $"{paths.Count} files", paths.Count == 1 ? paths[0] : null) { Diff = diff };
+            }
             case "NotebookEdit":
                 return new ToolChatItem(tool.Id, tool.Name, "Edit Notebook", Relative(Str("notebook_path")), Str("notebook_path"));
             case "Bash" or "PowerShell":
@@ -938,7 +953,7 @@ public sealed partial class ClaudeViewModel : ObservableObject, IAsyncDisposable
         return tool.Name switch
         {
             "Read" => $"Read {lines} line{(lines == 1 ? "" : "s")}",
-            "Write" or "Edit" or "MultiEdit" => ChangeSummary(tool),
+            "Write" or "Edit" or "MultiEdit" or "Patch" => ChangeSummary(tool),
             "Glob" => lines == 0 || content.StartsWith("No files", StringComparison.Ordinal) ? "No files found" : $"Found {lines} file{(lines == 1 ? "" : "s")}",
             "Grep" => lines == 0 || content.StartsWith("No ", StringComparison.Ordinal) ? "No matches" : $"Found {lines} line{(lines == 1 ? "" : "s")}",
             "TodoWrite" => "",
@@ -1042,8 +1057,17 @@ public sealed partial class ClaudeViewModel : ObservableObject, IAsyncDisposable
         var name = file is null ? null : Path.GetFileName(file);
         switch (request.ToolName)
         {
+            case "Patch":
+            {
+                var (paths, diff) = PatchOf(input, 40);
+                return new PermissionChatItem(request, paths.Count == 1 ? $"Allow {AgentName} to make this edit to {Path.GetFileName(paths[0])}?" : $"Allow {AgentName} to change {paths.Count} files?", sessionLabel)
+                {
+                    Description = string.Join(", ", paths.Select(Relative)),
+                    Diff = diff,
+                };
+            }
             case "Bash" or "PowerShell":
-                return new PermissionChatItem(request, "Allow Claude to run this command?", sessionLabel)
+                return new PermissionChatItem(request, $"Allow {AgentName} to run this command?", sessionLabel)
                 {
                     Code = Str("command"),
                     Description = Str("description"),
@@ -1052,7 +1076,7 @@ public sealed partial class ClaudeViewModel : ObservableObject, IAsyncDisposable
             {
                 var before = File.Exists(file) ? SafeRead(file) : null;
                 var after = Str("content") ?? "";
-                return new PermissionChatItem(request, before is null ? $"Allow Claude to create {name}?" : $"Allow Claude to overwrite {name}?", sessionLabel)
+                return new PermissionChatItem(request, before is null ? $"Allow {AgentName} to create {name}?" : $"Allow {AgentName} to overwrite {name}?", sessionLabel)
                 {
                     Description = Relative(file),
                     Diff = before is null ? UnifiedDiff.Added(after, 40) : UnifiedDiff.Compute(before, after, maxLines: 40),
@@ -1063,7 +1087,7 @@ public sealed partial class ClaudeViewModel : ObservableObject, IAsyncDisposable
             {
                 var before = SafeRead(file) ?? "";
                 var after = ApplyEdits(before, input, request.ToolName);
-                return new PermissionChatItem(request, $"Allow Claude to make this edit to {name}?", sessionLabel)
+                return new PermissionChatItem(request, $"Allow {AgentName} to make this edit to {name}?", sessionLabel)
                 {
                     Description = Relative(file),
                     Diff = UnifiedDiff.Compute(before, after, maxLines: 40),
@@ -1071,14 +1095,33 @@ public sealed partial class ClaudeViewModel : ObservableObject, IAsyncDisposable
                 };
             }
             case "WebFetch":
-                return new PermissionChatItem(request, "Allow Claude to fetch this page?", sessionLabel) { Code = Str("url"), Description = Str("prompt") };
+                return new PermissionChatItem(request, $"Allow {AgentName} to fetch this page?", sessionLabel) { Code = Str("url"), Description = Str("prompt") };
             default:
-                return new PermissionChatItem(request, $"Allow Claude to use {request.DisplayName ?? request.ToolName}?", sessionLabel)
+                return new PermissionChatItem(request, $"Allow {AgentName} to use {request.DisplayName ?? request.ToolName}?", sessionLabel)
                 {
                     Description = request.Description,
                     Code = Pretty(input),
                 };
         }
+    }
+
+    /// <summary>The files a patch (Codex's) changes, and its lines as the card shows them.</summary>
+    static (List<string> Paths, List<DiffLine> Diff) PatchOf(JsonElement input, int maxLines)
+    {
+        var changes = input.TryGetProperty("changes", out var list) && list.ValueKind == JsonValueKind.Array ? list.EnumerateArray().ToList() : [];
+        var paths = changes.Select(c => ClaudeJson.Str(c, "path")).OfType<string>().ToList();
+        var diff = new List<DiffLine>();
+        foreach (var change in changes)
+        {
+            if (changes.Count > 1)
+                diff.Add(new DiffLine(DiffLineKind.Gap, ClaudeJson.Str(change, "path") ?? ""));
+            var kind = change.TryGetProperty("kind", out var k) ? ClaudeJson.Str(k, "type") : null;
+            var text = ClaudeJson.Str(change, "diff") ?? "";
+            diff.AddRange(kind == "delete" && !text.Contains("@@", StringComparison.Ordinal)
+                ? text.Replace("\r\n", "\n").TrimEnd('\n').Split('\n').Select(l => new DiffLine(DiffLineKind.Removed, l)).Take(maxLines)
+                : UnifiedDiff.Parse(text, maxLines));
+        }
+        return (paths, diff);
     }
 
     /// <summary>The file as it will be after an Edit / MultiEdit, for the diff preview.</summary>
@@ -1316,7 +1359,7 @@ public sealed partial class ClaudeViewModel : ObservableObject, IAsyncDisposable
     }
 
     /// <summary>A mode the CLI refuses (bypass permissions turned off by policy...) is reported, and the previous one comes back.</summary>
-    async Task SetPermissionModeAsync(ClaudeSession session, string mode, string previous)
+    async Task SetPermissionModeAsync(IAgentSession session, string mode, string previous)
     {
         try
         {
@@ -1336,7 +1379,10 @@ public sealed partial class ClaudeViewModel : ObservableObject, IAsyncDisposable
         RefreshEffortSteps();
         if (value is null || _changingModeFromCli)
             return;
-        _settings.ClaudeModel = value.Value;
+        if (_backend is { } backend)
+            _settings.AgentModels[backend.Id] = value.Value;
+        else
+            _settings.ClaudeModel = value.Value;
         _settings.Save();
         if (_session is { HasExited: false } session)
             _ = SendControlAsync(() => session.SetModelAsync(value.Value));

@@ -52,7 +52,7 @@ public sealed partial class ClaudeViewModel
     {
         var withAuto = SelectedModel?.SupportsAutoMode == true || PermissionMode == "auto";
         Modes.Clear();
-        foreach (var (value, label, description, icon) in AllModes.Where(m => m.Value != "auto" || withAuto))
+        foreach (var (value, label, description, icon) in AllModes.Where(m => (m.Value != "auto" || withAuto) && _backend?.Modes.Contains(m.Value) != false))
             Modes.Add(new ModeOption(value, label, description, icon) { IsSelected = value == PermissionMode });
     }
 
@@ -97,8 +97,10 @@ public sealed partial class ClaudeViewModel
         Effort = step.Value;
         _settings.ClaudeEffort = step.Value;
         _settings.Save();
-        if (_session is { HasExited: false } session)
+        if (_session is ClaudeSession { HasExited: false } session)
             await SendControlAsync(() => session.ApplyFlagSettingsAsync(new { effortLevel = step.Value }));
+        else if (_session is { HasExited: false } agent)
+            await SendControlAsync(() => agent.SetEffortAsync(step.Value));
     }
 
     /// <summary>A new CLI starts with the remembered effort, or reports the one its settings give.</summary>
@@ -157,7 +159,7 @@ public sealed partial class ClaudeViewModel
         UsageError = null;
         try
         {
-            var session = await EnsureSessionAsync();
+            var session = await EnsureClaudeSessionAsync();
             Usage = ParseUsage(await session.GetUsageAsync(), _account, DateTimeOffset.Now);
         }
         catch (Exception ex) when (ex is InvalidOperationException or IOException or OperationCanceledException or System.ComponentModel.Win32Exception)
@@ -324,7 +326,7 @@ public sealed partial class ClaudeViewModel
     {
         try
         {
-            var session = await EnsureSessionAsync();
+            var session = await EnsureClaudeSessionAsync();
             var status = await session.McpStatusAsync();
             _mcpServers = status.TryGetProperty("mcpServers", out var servers) && servers.ValueKind == JsonValueKind.Array
                 ? servers.EnumerateArray().Select(s => new McpServerItem(ClaudeJson.Str(s, "name") ?? "", ClaudeJson.Str(s, "status") ?? "",
@@ -371,7 +373,7 @@ public sealed partial class ClaudeViewModel
     [RelayCommand]
     async Task AuthenticateMcp(McpServerItem? server)
     {
-        if (server is null || _session is not { } session)
+        if (server is null || _session is not ClaudeSession session)
             return;
         try
         {
@@ -484,7 +486,7 @@ public sealed partial class ClaudeViewModel
         }
         try
         {
-            return await SignInToMcpAsync(await EnsureSessionAsync(), name, finished);
+            return await SignInToMcpAsync(await EnsureClaudeSessionAsync(), name, finished);
         }
         catch (Exception ex) when (ex is InvalidOperationException or IOException or OperationCanceledException or TimeoutException or System.ComponentModel.Win32Exception)
         {
@@ -497,7 +499,7 @@ public sealed partial class ClaudeViewModel
     [RelayCommand]
     async Task ReconnectMcp(McpServerItem? server)
     {
-        if (server is null || _session is not { } session)
+        if (server is null || _session is not ClaudeSession session)
             return;
         McpMessage = $"Reconnecting {server.Name}...";
         try
@@ -515,7 +517,7 @@ public sealed partial class ClaudeViewModel
     [RelayCommand]
     async Task ToggleMcp(McpServerItem? server)
     {
-        if (server is null || _session is not { } session)
+        if (server is null || _session is not ClaudeSession session)
             return;
         try
         {

@@ -52,7 +52,7 @@ public partial class ClaudeViewModel
         try
         {
             // A CLI that starts now turns it on itself (the setting is on).
-            var session = await EnsureSessionAsync();
+            var session = await EnsureClaudeSessionAsync();
             await TurnRemoteControlOnAsync(session);
         }
         catch (Exception ex)

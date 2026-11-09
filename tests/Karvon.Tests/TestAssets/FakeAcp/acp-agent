@@ -1,0 +1,185 @@
+#!/usr/bin/env python3
+"""A stand-in for an Agent Client Protocol agent, for Karvon's tests.
+
+JSON-RPC 2.0 lines on stdin and stdout: initialize, session/new, session/load, session/set_model, session/prompt,
+session/cancel; while a prompt runs it sends session/update notifications and asks Karvon (session/request_permission,
+fs/read_text_file, fs/write_text_file), and calls Karvon's MCP server over HTTP when it was given one. Everything it
+receives, and Karvon's answers to its questions, go to <workspace>.fake-acp.log. What a prompt does depends on a keyword:
+run, secret, edit, readkey, karvon, slow, plan; anything else is answered "Hello from ACP.".
+"""
+import json
+import os
+import sys
+import threading
+import urllib.request
+
+LOG = os.getcwd().rstrip(os.sep) + ".fake-acp.log"
+OUT = threading.Lock()
+ANSWERS = {}
+NEXT = [500]
+STATE = {"session": None, "servers": [], "cancelled": threading.Event()}
+
+
+def log(kind, data):
+    with open(LOG, "a") as f:
+        f.write(json.dumps({"kind": kind, "data": data}) + "\n")
+
+
+def send(message):
+    message["jsonrpc"] = "2.0"
+    with OUT:
+        sys.stdout.write(json.dumps(message) + "\n")
+        sys.stdout.flush()
+
+
+def update(u):
+    send({"method": "session/update", "params": {"sessionId": STATE["session"], "update": u}})
+
+
+def ask(method, params):
+    NEXT[0] += 1
+    rid = NEXT[0]
+    done = threading.Event()
+    ANSWERS[rid] = [done, None]
+    send({"id": rid, "method": method, "params": params})
+    done.wait(30)
+    return ANSWERS.pop(rid)[1]
+
+
+def chunk(kind, text):
+    update({"sessionUpdate": kind, "content": {"type": "text", "text": text}})
+
+
+OPTIONS = [{"optionId": "yes", "name": "Allow", "kind": "allow_once"},
+           {"optionId": "always", "name": "Always allow", "kind": "allow_always"},
+           {"optionId": "no", "name": "Reject", "kind": "reject_once"}]
+
+
+def permission(call_id):
+    answer = ask("session/request_permission", {"sessionId": STATE["session"], "toolCall": {"toolCallId": call_id}, "options": OPTIONS})
+    outcome = (answer or {}).get("result", {}).get("outcome", {})
+    log("permission", outcome)
+    return outcome.get("outcome") == "selected" and outcome.get("optionId") in ("yes", "always")
+
+
+def run(command):
+    update({"sessionUpdate": "tool_call", "toolCallId": "t1", "title": command, "kind": "execute", "status": "pending",
+            "rawInput": {"command": command}})
+    allowed = permission("t1")
+    update({"sessionUpdate": "tool_call_update", "toolCallId": "t1", "status": "completed" if allowed else "failed",
+            "content": [{"type": "content", "content": {"type": "text", "text": "Program.cs" if allowed else "Rejected"}}]})
+
+
+def edit():
+    path = os.path.join(os.getcwd(), "Program.cs")
+    read = ask("fs/read_text_file", {"sessionId": STATE["session"], "path": path})
+    old = (read or {}).get("result", {}).get("content")
+    log("read", old)
+    new = old.replace("Hello", "Hi")
+    update({"sessionUpdate": "tool_call", "toolCallId": "t2", "title": "Edit Program.cs", "kind": "edit", "status": "pending",
+            "content": [{"type": "diff", "path": path, "oldText": old, "newText": new}], "locations": [{"path": path}]})
+    if permission("t2"):
+        written = ask("fs/write_text_file", {"sessionId": STATE["session"], "path": path, "content": new})
+        log("write", written)
+        update({"sessionUpdate": "tool_call_update", "toolCallId": "t2", "status": "completed",
+                "content": [{"type": "diff", "path": path, "oldText": old, "newText": new}]})
+    else:
+        update({"sessionUpdate": "tool_call_update", "toolCallId": "t2", "status": "failed"})
+
+
+def karvon():
+    server = next((s for s in STATE["servers"] if s.get("name") == "karvon"), None)
+    if server is None:
+        log("karvon", "no server")
+        return
+    headers = {h["name"]: h["value"] for h in server.get("headers", [])}
+    headers["Content-Type"] = "application/json"
+
+    def post(body, auth=True):
+        h = dict(headers) if auth else {"Content-Type": "application/json"}
+        request = urllib.request.Request(server["url"], data=json.dumps(body).encode(), headers=h, method="POST")
+        try:
+            with urllib.request.urlopen(request, timeout=20) as response:
+                text = response.read().decode()
+                return response.status, json.loads(text) if text else None
+        except urllib.error.HTTPError as e:
+            return e.code, None
+
+    log("unauthorized", post({"jsonrpc": "2.0", "id": 1, "method": "tools/list"}, auth=False)[0])
+    post({"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {"protocolVersion": "2025-06-18"}})
+    log("notified", post({"jsonrpc": "2.0", "method": "notifications/initialized"})[0])
+    status, listed = post({"jsonrpc": "2.0", "id": 2, "method": "tools/list"})
+    log("tools", [t["name"] for t in listed["result"]["tools"]])
+    status, called = post({"jsonrpc": "2.0", "id": 3, "method": "tools/call", "params": {"name": "db_probe", "arguments": {}}})
+    log("called", called["result"])
+
+
+def prompt(mid, params):
+    text = " ".join(b.get("text", "") for b in params.get("prompt", []) if b.get("type") == "text")
+    log("images", [b.get("mimeType") for b in params.get("prompt", []) if b.get("type") == "image"])
+    STATE["cancelled"].clear()
+    reason = "end_turn"
+    if "secret" in text:
+        run("cat ~/.ssh/id_rsa")
+    elif "run" in text:
+        run("ls")
+    elif "edit" in text:
+        edit()
+    elif "readkey" in text:
+        answer = ask("fs/read_text_file", {"sessionId": STATE["session"], "path": os.path.expanduser("~/.ssh/id_rsa")})
+        log("readkey", answer)
+    elif "karvon" in text:
+        karvon()
+    elif "slow" in text:
+        chunk("agent_message_chunk", "Working")
+        STATE["cancelled"].wait(30)
+        reason = "cancelled"
+    elif "plan" in text:
+        update({"sessionUpdate": "plan", "entries": [{"content": "Look", "priority": "high", "status": "completed"},
+                                                     {"content": "Fix", "priority": "high", "status": "in_progress"}]})
+    else:
+        chunk("agent_thought_chunk", "Hmm.")
+        chunk("agent_message_chunk", "Hello ")
+        chunk("agent_message_chunk", "from ACP.")
+    send({"id": mid, "result": {"stopReason": reason}})
+
+
+def handle(message):
+    method, mid, params = message.get("method"), message.get("id"), message.get("params") or {}
+    if method is None:
+        if mid in ANSWERS:
+            ANSWERS[mid][1] = message
+            ANSWERS[mid][0].set()
+        return
+    if method == "initialize":
+        send({"id": mid, "result": {"protocolVersion": 1, "authMethods": [], "agentInfo": {"name": "fake-acp", "version": "1.0"},
+                                    "agentCapabilities": {"loadSession": True, "promptCapabilities": {"image": True},
+                                                          "mcpCapabilities": {"http": True, "sse": False}}}})
+    elif method in ("session/new", "session/load"):
+        STATE["session"] = params.get("sessionId") or "acp-session-1"
+        STATE["servers"] = params.get("mcpServers", [])
+        if method == "session/load":
+            chunk("agent_message_chunk", "An old answer.")
+        send({"id": mid, "result": {"sessionId": STATE["session"], "models": {"currentModelId": "fake-1", "availableModels": [
+            {"modelId": "fake-1", "name": "Fake One", "description": "The first"}, {"modelId": "fake-2", "name": "Fake Two"}]}}})
+    elif method == "session/set_model":
+        send({"id": mid, "result": {}})
+    elif method == "session/prompt":
+        threading.Thread(target=prompt, args=(mid, params), daemon=True).start()
+    elif method == "session/cancel":
+        STATE["cancelled"].set()
+    elif mid is not None:
+        send({"id": mid, "error": {"code": -32601, "message": "unknown method " + method}})
+
+
+def main():
+    for line in sys.stdin:
+        line = line.strip()
+        if not line:
+            continue
+        message = json.loads(line)
+        log("in", message)
+        handle(message)
+
+
+main()

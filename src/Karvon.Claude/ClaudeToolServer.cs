@@ -24,6 +24,12 @@ public sealed class ClaudeToolServer(IReadOnlyList<IClaudeTool> tools, string in
 
     public IReadOnlyList<IClaudeTool> Tools { get; } = tools;
 
+    /// <summary>What the server tells the agent of its tools (MCP's instructions).</summary>
+    public string Instructions => instructions;
+
+    /// <summary>The tools in the prompt from the start; the rest may wait behind the agent's tool search.</summary>
+    public bool IsAlwaysLoaded(string name) => alwaysLoaded?.Contains(name) == true;
+
     readonly IReadOnlyList<ClaudeShellRule> _shellRules = shellRules ?? [];
 
     public string? SystemPrompt => toolsFirst?.Invoke() is false ? null : systemPrompt;
@@ -113,7 +119,7 @@ public sealed class ClaudeToolServer(IReadOnlyList<IClaudeTool> tools, string in
     async Task<ClaudeToolOutput?> RefuseAsync(IClaudeTool tool, JsonElement input, object? caller, CancellationToken cancellationToken)
     {
         var decision = Decide(tool, input, caller);
-        var audit = (caller as ClaudeSession)?.Audit;
+        var audit = (caller as IAgentSession)?.Audit;
         var name = Prefix + tool.Name;
         if (decision.Rule == ToolRule.Allow)
             return null;
@@ -245,7 +251,7 @@ public sealed class ClaudeToolServer(IReadOnlyList<IClaudeTool> tools, string in
         // wrote reaches it as data.
         var text = Redaction.Secrets(result.Text);
         var sent = result.Outside is { } outside ? OutsideText.Mark(text, outside) : text;
-        if (ran && (caller as ClaudeSession)?.Audit is { } audit)
+        if (ran && (caller as IAgentSession)?.Audit is { } audit)
             audit.Ran(Prefix + name, input, started, DateTime.UtcNow - started, result.IsError, result.Text, text, result.Outside,
                 result.Outside is null ? 0 : OutsideText.Find(text).Count);
         var content = new JsonArray(new JsonObject { ["type"] = "text", ["text"] = sent });

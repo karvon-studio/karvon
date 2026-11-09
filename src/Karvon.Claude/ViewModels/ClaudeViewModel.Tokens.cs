@@ -104,7 +104,7 @@ public sealed partial class ClaudeViewModel
             var now = DateTimeOffset.Now;
             var updated = LiveLimits.Select(l => l.ResetsAt is { } at ? l with { ResetText = ResetText(at, now) } : l).ToList();
             ShowLimits(updated);
-            if (!IsRunning && DateTime.Now - _limitsFetched > LimitsRefresh && _session is { HasExited: false } session)
+            if (!IsRunning && DateTime.Now - _limitsFetched > LimitsRefresh && _session is ClaudeSession { HasExited: false } session)
             {
                 _limitsFetched = DateTime.Now;
                 _ = RefreshLimitsAsync(session);

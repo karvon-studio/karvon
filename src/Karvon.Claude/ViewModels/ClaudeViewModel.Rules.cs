@@ -32,7 +32,7 @@ public partial class ClaudeViewModel
         });
         Dispatcher.UIThread.Post(() =>
         {
-            if (ask.Caller is ClaudeSession session && session != _session)
+            if (ask.Caller is IAgentSession session && session != _session)
             {
                 if (_background.Any(b => b.Session == session))
                     HandleInBackground(session, request);

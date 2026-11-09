@@ -185,6 +185,15 @@ public sealed class Settings
 
     /// <summary>The Claude Code account (its configuration folder) the panel runs with; null for the CLI's own choice.</summary>
     public string? ClaudeAccount { get; set; }
+
+    /// <summary>The agent the Claude panel talks to ("codex", "openrouter", "ollama", "lmstudio", "acp:gemini"...); null for Claude Code.</summary>
+    public string? AgentBackend { get; set; }
+
+    /// <summary>The model chosen for each agent besides Claude Code (by its id).</summary>
+    public Dictionary<string, string> AgentModels { get; set; } = [];
+
+    /// <summary>The user's own Agent Client Protocol agents for the Claude panel (Gemini CLI is there without one).</summary>
+    public List<AcpAgentSetting> AcpAgents { get; set; } = [];
     /// <summary>
     /// Per-solution state of older Karvon versions; it now lives in each solution's .vs folder (see
     /// <see cref="Services.SolutionState"/>), which moves an entry out of here the first time the solution opens.
@@ -371,4 +380,15 @@ public sealed class Settings
         }
         return merged;
     }
+}
+
+/// <summary>An agent that speaks the Agent Client Protocol, as the user added it: its name, its program and what makes it speak ACP.</summary>
+public sealed class AcpAgentSetting
+{
+    public string Name { get; set; } = "";
+
+    /// <summary>The program: a name looked for as a terminal would, or a full path.</summary>
+    public string Command { get; set; } = "";
+
+    public List<string> Arguments { get; set; } = [];
 }

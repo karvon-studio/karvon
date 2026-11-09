@@ -456,7 +456,7 @@
           <Button Name="McpButton" Classes="tbi" Command="{Binding OpenMcpCommand}" ToolTip.Tip="{v:L 'MCP servers (/mcp)'}">
             <v:VsIcon Kind="Plug" />
           </Button>
-          <Button Name="HistoryButton" Classes="tbi" Command="{Binding ToggleHistoryCommand}" ToolTip.Tip="{v:L 'Past conversations'}">
+          <Button Name="HistoryButton" Classes="tbi" Command="{Binding ToggleHistoryCommand}" IsVisible="{Binding IsClaude}" ToolTip.Tip="{v:L 'Past conversations'}">
             <Panel>
               <v:VsIcon Kind="History" />
               <!-- Conversations Claude works on in the background -->
@@ -573,12 +573,33 @@
             </StackPanel>
           </Button>
           <!-- The model: a chip that opens the model menu above the prompt. -->
-          <Button Name="ModelButton" Grid.Column="4" Classes="chip" Margin="0,0,6,0" MaxWidth="180" IsVisible="{Binding Models.Count}"
-                  ToolTip.Tip="{v:L 'Model Claude answers with'}">
+          <Button Name="ModelButton" Grid.Column="4" Classes="chip" Margin="0,0,6,0" MaxWidth="180"
+                  ToolTip.Tip="{v:L 'The agent and the model that answer'}">
+            <Button.IsVisible>
+              <MultiBinding Converter="{x:Static BoolConverters.Or}">
+                <Binding Path="Models.Count" Converter="{x:Static ObjectConverters.NotEqual}" ConverterParameter="0" />
+                <Binding Path="HasManyAgents" />
+              </MultiBinding>
+            </Button.IsVisible>
             <Button.Flyout>
               <Flyout Placement="TopEdgeAlignedRight" FlyoutPresenterClasses="modelmenu">
                 <StackPanel Width="300">
-                  <TextBlock Text="{v:L 'Model'}" FontWeight="SemiBold" Margin="10,6,10,4" />
+                  <!-- Claude Code, Codex, a model Karvon drives itself...: the conversation starts afresh with the one chosen. -->
+                  <StackPanel IsVisible="{Binding HasManyAgents}">
+                    <TextBlock Text="{v:L 'Agent'}" FontWeight="SemiBold" Margin="10,6,10,4" />
+                    <ListBox Name="AgentList" ItemsSource="{Binding Agents}" SelectedItem="{Binding SelectedAgent}" Classes="menu" SelectionChanged="OnModelChosen"
+                             Background="Transparent" ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                      <ListBox.ItemTemplate>
+                        <DataTemplate x:DataType="vm:AgentChoice">
+                          <StackPanel Margin="0,1">
+                            <TextBlock Text="{Binding Name}" FontWeight="SemiBold" />
+                            <TextBlock Text="{v:Tr Description}" Classes="muted" FontSize="11" TextWrapping="Wrap" />
+                          </StackPanel>
+                        </DataTemplate>
+                      </ListBox.ItemTemplate>
+                    </ListBox>
+                  </StackPanel>
+                  <TextBlock Text="{v:L 'Model'}" FontWeight="SemiBold" Margin="10,6,10,4" IsVisible="{Binding Models.Count}" />
                   <ListBox Name="ModelList" ItemsSource="{Binding Models}" SelectedItem="{Binding SelectedModel}" Classes="menu" SelectionChanged="OnModelChosen"
                            Background="Transparent" ScrollViewer.HorizontalScrollBarVisibility="Disabled" MaxHeight="320">
                     <ListBox.ItemTemplate>
@@ -595,6 +616,7 @@
             </Button.Flyout>
             <StackPanel Orientation="Horizontal" Spacing="5">
               <v:VsIcon Kind="Sparkle" Width="14" Height="14" Foreground="#D97757" />
+              <TextBlock Text="{Binding AgentName}" VerticalAlignment="Center" IsVisible="{Binding !IsClaude}" FontWeight="SemiBold" />
               <TextBlock Text="{Binding SelectedModel.ShortLabel, FallbackValue=''}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
               <v:VsIcon Kind="ChevronUp" Width="11" Height="11" Opacity="0.7" />
             </StackPanel>
@@ -953,13 +975,36 @@
       <!-- ===== Claude Code not installed ===== -->
       <Border IsVisible="{Binding IsCliMissing}" Background="#1F1F1F" Padding="20">
         <StackPanel Spacing="10" VerticalAlignment="Center" MaxWidth="360">
-          <v:VsIcon Kind="Claude" Width="36" Height="36" HorizontalAlignment="Center" />
-          <TextBlock Text="{v:L 'Claude Code is not installed'}" FontSize="15" HorizontalAlignment="Center" />
-          <TextBlock Classes="muted" TextWrapping="Wrap" TextAlignment="Center"
-                     Text="{v:L 'Install the Claude Code CLI, sign in once by running claude in a terminal, then retry.'}" />
-          <Border Classes="box" Padding="10,6">
-            <SelectableTextBlock Classes="mono" Text="{v:L 'curl -fsSL https://claude.ai/install.sh | bash'}" TextWrapping="Wrap" />
-          </Border>
+          <v:VsIcon Kind="Claude" Width="36" Height="36" HorizontalAlignment="Center" IsVisible="{Binding IsClaude}" />
+          <StackPanel Spacing="10" IsVisible="{Binding IsClaude}">
+            <TextBlock Text="{v:L 'Claude Code is not installed'}" FontSize="15" HorizontalAlignment="Center" />
+            <TextBlock Classes="muted" TextWrapping="Wrap" TextAlignment="Center"
+                       Text="{v:L 'Install the Claude Code CLI, sign in once by running claude in a terminal, then retry.'}" />
+            <Border Classes="box" Padding="10,6">
+              <SelectableTextBlock Classes="mono" Text="{v:L 'curl -fsSL https://claude.ai/install.sh | bash'}" TextWrapping="Wrap" />
+            </Border>
+          </StackPanel>
+          <!-- Another agent (Codex...): what it needs, in its own words. -->
+          <StackPanel Spacing="10" IsVisible="{Binding !IsClaude}">
+            <TextBlock Text="{v:Tr MissingTitle}" FontSize="15" HorizontalAlignment="Center" TextWrapping="Wrap" />
+            <TextBlock Classes="muted" TextWrapping="Wrap" TextAlignment="Center" Text="{v:Tr MissingHint}" />
+            <Border Classes="box" Padding="10,6" IsVisible="{Binding InstallCommand, Converter={x:Static ObjectConverters.IsNotNull}}">
+              <SelectableTextBlock Classes="mono" Text="{Binding InstallCommand}" TextWrapping="Wrap" />
+            </Border>
+            <!-- Its key (OpenRouter's): typed once, kept in Karvon's vault. -->
+            <StackPanel Spacing="8" IsVisible="{Binding NeedsKey}">
+              <TextBox Name="AgentKeyBox" Text="{Binding AgentKey}" PasswordChar="•" PlaceholderText="{v:L 'API key'}" />
+              <Button Classes="choice first" Content="{v:L 'Save key'}" HorizontalAlignment="Center" Command="{Binding SaveAgentKeyCommand}" />
+            </StackPanel>
+          </StackPanel>
+          <!-- The agent can be changed here too (the prompt's chip is hidden while none is found). -->
+          <ComboBox ItemsSource="{Binding Agents}" SelectedItem="{Binding SelectedAgent}" HorizontalAlignment="Center" MinWidth="180" IsVisible="{Binding HasManyAgents}">
+            <ComboBox.ItemTemplate>
+              <DataTemplate x:DataType="vm:AgentChoice">
+                <TextBlock Text="{Binding Name}" />
+              </DataTemplate>
+            </ComboBox.ItemTemplate>
+          </ComboBox>
           <Button Classes="choice first" Content="Retry" HorizontalAlignment="Center" Command="{Binding CheckCliCommand}" />
         </StackPanel>
       </Border>

@@ -17,9 +17,9 @@ public partial class ClaudeViewModel
     /// <summary>How many tasks Claude runs in the background of the conversation shown: they end with its CLI.</summary>
     int _backgroundTasks;
 
-    sealed class BackgroundConversation(ClaudeSession session)
+    sealed class BackgroundConversation(IAgentSession session)
     {
-        public ClaudeSession Session { get; } = session;
+        public IAgentSession Session { get; } = session;
 
         /// <summary>Claude was working on it when it was left (else only its background tasks ran).</summary>
         public bool IsRunning { get; init; }
@@ -114,7 +114,7 @@ public partial class ClaudeViewModel
         ContextTokens = conversation.ContextTokens;
         if (conversation.RemoteControl is var (state, url))
         {
-            _remoteSession = conversation.Session;
+            _remoteSession = conversation.Session as ClaudeSession;
             RemoteControlUrl = url;
             RemoteControlState = state;
         }
@@ -136,7 +136,7 @@ public partial class ClaudeViewModel
     }
 
     /// <summary>What the CLI of a conversation in the background sends: kept for when it is shown again.</summary>
-    void HandleInBackground(ClaudeSession session, ClaudeEvent ev)
+    void HandleInBackground(IAgentSession session, ClaudeEvent ev)
     {
         if (_background.FirstOrDefault(b => b.Session == session) is not { } conversation)
             return;

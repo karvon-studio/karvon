@@ -1,0 +1,200 @@
+#!/usr/bin/env python3
+"""A stand-in for `codex app-server`, for Karvon's tests.
+
+It speaks the JSON-RPC lines Codex's app-server does (no "jsonrpc" member): initialize, model/list, account/read,
+thread/start, thread/resume, turn/start, turn/interrupt, thread/compact/start; and while a turn runs it sends the
+notifications and the requests (a command's approval, a patch's, a call of a dynamic tool) Codex sends. Every message it
+receives is appended to <workspace>.fake-codex.log as {"kind": "in", "data": ...}. What a turn does depends on a keyword
+in the prompt: bash, secret (a command that reads a key), patch, karvon (calls Karvon's tool named after it), plan, slow
+(runs until interrupted), fail; anything else is answered "Hello from Codex.".
+"""
+import json
+import os
+import sys
+import threading
+import time
+
+LOG = os.getcwd().rstrip(os.sep) + ".fake-codex.log"
+OUT = threading.Lock()
+ANSWERS = {}
+NEXT = [1000]
+STATE = {"thread": None, "turn": 0, "interrupted": threading.Event()}
+
+
+def log(kind, data):
+    with open(LOG, "a") as f:
+        f.write(json.dumps({"kind": kind, "data": data}) + "\n")
+
+
+def send(message):
+    with OUT:
+        sys.stdout.write(json.dumps(message) + "\n")
+        sys.stdout.flush()
+
+
+def notify(method, params):
+    send({"method": method, "params": params})
+
+
+def ask(method, params):
+    """Sends a request of the server's and waits for Karvon's answer."""
+    NEXT[0] += 1
+    rid = NEXT[0]
+    done = threading.Event()
+    ANSWERS[rid] = [done, None]
+    send({"id": rid, "method": method, "params": params})
+    done.wait(30)
+    return ANSWERS.pop(rid)[1]
+
+
+def item(kind, iid, **fields):
+    return dict({"type": kind, "id": iid}, **fields)
+
+
+def started(turn, it):
+    notify("item/started", {"threadId": STATE["thread"], "turnId": turn, "item": it, "startedAtMs": 0})
+
+
+def completed(turn, it):
+    notify("item/completed", {"threadId": STATE["thread"], "turnId": turn, "item": it, "completedAtMs": 0})
+
+
+def say(turn, text, iid="msg-1"):
+    started(turn, item("agentMessage", iid, text=""))
+    half = len(text) // 2
+    for delta in (text[:half], text[half:]):
+        notify("item/agentMessage/delta", {"threadId": STATE["thread"], "turnId": turn, "itemId": iid, "delta": delta})
+    completed(turn, item("agentMessage", iid, text=text))
+
+
+def finish(turn, status="completed", error=None):
+    notify("thread/tokenUsage/updated", {"threadId": STATE["thread"], "turnId": turn, "tokenUsage": {
+        "last": {"inputTokens": 1200, "outputTokens": 34, "cachedInputTokens": 0, "reasoningOutputTokens": 0, "totalTokens": 1234},
+        "total": {"inputTokens": 1200, "outputTokens": 34, "cachedInputTokens": 0, "reasoningOutputTokens": 0, "totalTokens": 1234},
+        "modelContextWindow": 200000}})
+    notify("turn/completed", {"threadId": STATE["thread"], "turn": {"id": turn, "status": status, "durationMs": 1500,
+                                                                    "error": {"message": error} if error else None, "items": []}})
+
+
+def command(turn, text):
+    cmd = "cat ~/.ssh/id_rsa" if "secret" in text else "ls"
+    started(turn, item("commandExecution", "cmd-1", command=cmd, commandActions=[], cwd=os.getcwd(), status="inProgress"))
+    answer = ask("item/commandExecution/requestApproval", {"threadId": STATE["thread"], "turnId": turn, "itemId": "cmd-1",
+                                                            "command": cmd, "reason": "To see the files", "startedAtMs": 0})
+    decision = (answer or {}).get("decision")
+    log("decision", decision)
+    if decision in ("accept", "acceptForSession"):
+        completed(turn, item("commandExecution", "cmd-1", command=cmd, commandActions=[], cwd=os.getcwd(), status="completed",
+                             aggregatedOutput="Program.cs\n", exitCode=0))
+        say(turn, "There is one file.", "msg-2")
+    else:
+        completed(turn, item("commandExecution", "cmd-1", command=cmd, commandActions=[], cwd=os.getcwd(), status="declined"))
+    finish(turn)
+
+
+def patch(turn):
+    path = os.path.join(os.getcwd(), "Program.cs")
+    diff = "@@ -1 +1 @@\n-Console.WriteLine(\"Hello\");\n+Console.WriteLine(\"Hi\");\n"
+    change = {"path": path, "kind": {"type": "update", "move_path": None}, "diff": diff}
+    started(turn, item("fileChange", "patch-1", changes=[change], status="inProgress"))
+    answer = ask("item/fileChange/requestApproval", {"threadId": STATE["thread"], "turnId": turn, "itemId": "patch-1",
+                                                      "reason": None, "startedAtMs": 0})
+    decision = (answer or {}).get("decision")
+    log("decision", decision)
+    if decision in ("accept", "acceptForSession"):
+        with open(path, "w") as f:
+            f.write("Console.WriteLine(\"Hi\");\n")
+        completed(turn, item("fileChange", "patch-1", changes=[change], status="completed"))
+    else:
+        completed(turn, item("fileChange", "patch-1", changes=[change], status="declined"))
+    finish(turn)
+
+
+def karvon(turn, text):
+    tool = text.split("karvon", 1)[1].strip().split()[0] if text.split("karvon", 1)[1].strip() else "probe"
+    started(turn, item("dynamicToolCall", "tool-1", namespace="karvon", tool=tool, arguments={"sql": "select 1"}, status="inProgress"))
+    answer = ask("item/tool/call", {"threadId": STATE["thread"], "turnId": turn, "callId": "call-1", "namespace": "karvon",
+                                    "tool": tool, "arguments": {"sql": "select 1"}})
+    log("tool", answer)
+    completed(turn, item("dynamicToolCall", "tool-1", namespace="karvon", tool=tool, arguments={"sql": "select 1"},
+                         status="completed", success=(answer or {}).get("success"), contentItems=(answer or {}).get("contentItems")))
+    finish(turn)
+
+
+def run_turn(turn, text):
+    notify("turn/started", {"threadId": STATE["thread"], "turn": {"id": turn, "status": "inProgress", "items": []}})
+    if "bash" in text or "secret" in text:
+        command(turn, text)
+    elif "patch" in text:
+        patch(turn)
+    elif "karvon" in text:
+        karvon(turn, text)
+    elif "plan" in text:
+        notify("turn/plan/updated", {"threadId": STATE["thread"], "turnId": turn, "explanation": None, "plan": [
+            {"step": "Read the code", "status": "completed"}, {"step": "Fix the bug", "status": "inProgress"}]})
+        say(turn, "Planned.")
+        finish(turn)
+    elif "slow" in text:
+        started(turn, item("agentMessage", "msg-1", text=""))
+        STATE["interrupted"].wait(30)
+        finish(turn, "interrupted")
+    elif "fail" in text:
+        finish(turn, "failed", "The model is overloaded.")
+    else:
+        notify("item/reasoning/summaryTextDelta", {"threadId": STATE["thread"], "turnId": turn, "itemId": "think-1", "delta": "Thinking it over.", "summaryIndex": 0})
+        completed(turn, item("reasoning", "think-1", summary=["Thinking it over."], content=[]))
+        say(turn, "Hello from Codex.")
+        finish(turn)
+
+
+def handle(message):
+    method, mid, params = message.get("method"), message.get("id"), message.get("params") or {}
+    if method is None:
+        if mid in ANSWERS:
+            ANSWERS[mid][1] = message.get("result")
+            ANSWERS[mid][0].set()
+        return
+    if method == "initialize":
+        send({"id": mid, "result": {"userAgent": "fake", "codexHome": "/tmp", "platformFamily": "unix", "platformOs": "linux"}})
+    elif method == "model/list":
+        send({"id": mid, "result": {"data": [
+            {"id": "gpt-fake", "model": "gpt-fake", "displayName": "GPT Fake", "description": "A model for tests", "hidden": False,
+             "supportedReasoningEfforts": [{"reasoningEffort": "low"}, {"reasoningEffort": "high"}]},
+            {"id": "gpt-hidden", "model": "gpt-hidden", "displayName": "Hidden", "description": "", "hidden": True}], "nextCursor": None}})
+    elif method == "account/read":
+        send({"id": mid, "result": {"account": {"type": "chatgpt", "email": "dev@example.com", "planType": "plus"}}})
+    elif method in ("thread/start", "thread/resume"):
+        STATE["thread"] = params.get("threadId") or "thread-1"
+        send({"id": mid, "result": {"thread": {"id": STATE["thread"]}, "model": params.get("model") or "gpt-fake",
+                                    "modelProvider": "openai", "cwd": os.getcwd()}})
+    elif method == "turn/start":
+        STATE["turn"] += 1
+        turn = "turn-%d" % STATE["turn"]
+        STATE["interrupted"].clear()
+        send({"id": mid, "result": {"turn": {"id": turn, "status": "inProgress", "items": []}}})
+        text = " ".join(i.get("text", "") for i in params.get("input", []) if i.get("type") == "text")
+        threading.Thread(target=run_turn, args=(turn, text), daemon=True).start()
+    elif method == "turn/interrupt":
+        send({"id": mid, "result": {}})
+        STATE["interrupted"].set()
+    elif method == "thread/compact/start":
+        send({"id": mid, "result": {}})
+        notify("thread/compacted", {"threadId": STATE["thread"], "turnId": "turn-%d" % STATE["turn"]})
+    elif mid is not None:
+        send({"id": mid, "error": {"code": -32601, "message": "unknown method " + method}})
+
+
+def main():
+    if sys.argv[1:2] != ["app-server"]:
+        sys.stderr.write("usage: codex app-server\n")
+        sys.exit(2)
+    for line in sys.stdin:
+        line = line.strip()
+        if not line:
+            continue
+        message = json.loads(line)
+        log("in", message)
+        handle(message)
+
+
+main()

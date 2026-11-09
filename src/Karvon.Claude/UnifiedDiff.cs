@@ -116,6 +116,37 @@ public static class UnifiedDiff
         return result;
     }
 
+    /// <summary>
+    /// The lines of a patch another agent wrote (git's unified diff: "@@" hunks of " ", "+" and "-" lines); text without hunks is
+    /// a new file's, every line added.
+    /// </summary>
+    public static IReadOnlyList<DiffLine> Parse(string patch, int maxLines = 400)
+    {
+        var lines = Split(patch);
+        if (!lines.Any(l => l.StartsWith("@@", StringComparison.Ordinal)))
+            return Added(patch, maxLines);
+        var result = new List<DiffLine>();
+        var inHunk = false;
+        foreach (var line in lines)
+        {
+            if (line.StartsWith("@@", StringComparison.Ordinal))
+            {
+                if (result.Count > 0)
+                    result.Add(new DiffLine(DiffLineKind.Gap, "..."));
+                inHunk = true;
+            }
+            else if (!inHunk || line.StartsWith('\\'))
+                continue;
+            else if (line.StartsWith('+'))
+                result.Add(new DiffLine(DiffLineKind.Added, line[1..]));
+            else if (line.StartsWith('-'))
+                result.Add(new DiffLine(DiffLineKind.Removed, line[1..]));
+            else
+                result.Add(new DiffLine(DiffLineKind.Context, line.Length > 0 ? line[1..] : ""));
+        }
+        return Collapse(result, 2, maxLines);
+    }
+
     static string[] Split(string text) =>
         text.Length == 0 ? [] : text.Replace("\r\n", "\n").TrimEnd('\n').Split('\n');
 }

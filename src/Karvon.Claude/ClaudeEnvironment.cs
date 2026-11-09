@@ -15,11 +15,17 @@ public static class ClaudeEnvironment
     static readonly string[] Bedrock = ["AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY", "AWS_SESSION_TOKEN", "AWS_BEARER_TOKEN_BEDROCK"];
 
     /// <summary>The variables that hold a secret taken out of <paramref name="environment"/>; their names, sorted.</summary>
-    public static IReadOnlyList<string> Clean(IDictionary<string, string?> environment)
+    public static IReadOnlyList<string> Clean(IDictionary<string, string?> environment) => Clean(environment, OwnPrefixes);
+
+    /// <summary>
+    /// As <see cref="Clean(IDictionary{string, string?})"/> for another agent, whose own sign-in is in the variables that start
+    /// with <paramref name="ownPrefixes"/> (OPENAI_, CODEX_...).
+    /// </summary>
+    public static IReadOnlyList<string> Clean(IDictionary<string, string?> environment, IReadOnlyList<string> ownPrefixes)
     {
         var bedrock = environment.TryGetValue("CLAUDE_CODE_USE_BEDROCK", out var use) && use is { Length: > 0 } and not "0" and not "false";
         var removed = environment
-            .Where(v => v.Value is { Length: > 0 } value && !Kept(v.Key, bedrock) && (Redaction.IsSecretName(v.Key) || Redaction.HoldsSecret(value)))
+            .Where(v => v.Value is { Length: > 0 } value && !Kept(v.Key, bedrock, ownPrefixes) && (Redaction.IsSecretName(v.Key) || Redaction.HoldsSecret(value)))
             .Select(v => v.Key)
             .Order(StringComparer.Ordinal)
             .ToList();
@@ -28,6 +34,6 @@ public static class ClaudeEnvironment
         return removed;
     }
 
-    static bool Kept(string name, bool bedrock) =>
-        OwnPrefixes.Any(p => name.StartsWith(p, StringComparison.Ordinal)) || bedrock && Bedrock.Contains(name, StringComparer.Ordinal);
+    static bool Kept(string name, bool bedrock, IReadOnlyList<string> ownPrefixes) =>
+        ownPrefixes.Any(p => name.StartsWith(p, StringComparison.Ordinal)) || ownPrefixes == OwnPrefixes && bedrock && Bedrock.Contains(name, StringComparer.Ordinal);
 }

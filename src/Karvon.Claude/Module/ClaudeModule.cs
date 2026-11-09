@@ -67,6 +67,17 @@ public sealed class ClaudeModule : KarvonModule, IClaudeService
         {
             Tools = tools,
             McpServers = cwd => ExtraMcpServers?.Invoke(cwd),
+            // The agents besides Claude Code the panel can talk to.
+            Backends =
+            [
+                new CodexBackend(),
+                new ModelBackend(ModelProvider.OpenRouter, Karvon.Services.Keyring.System),
+                new ModelBackend(ModelProvider.Ollama),
+                new ModelBackend(ModelProvider.LmStudio),
+                new AcpBackend(AcpAgent.GeminiCli),
+                .. Workbench.Settings.AcpAgents.Where(a => a.Name.Length > 0 && a.Command.Length > 0).Select(a => new AcpBackend(
+                    new AcpAgent(a.Name.ToLowerInvariant().Replace(' ', '-'), a.Name, "An agent of yours, through the Agent Client Protocol", [a.Command], a.Arguments, [], null))),
+            ],
         };
         // The window's, not the panel's: a sign-in started from MCP Servers opens its page with the panel closed too.
         claude.Confirm = Workbench.ConfirmAsync;

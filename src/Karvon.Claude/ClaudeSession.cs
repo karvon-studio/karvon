@@ -29,7 +29,7 @@ public sealed record ClaudeStartOptions(
 /// With <see cref="ClaudeStartOptions.Tools"/> it also serves Karvon's own tools (an "sdk" MCP server): calls that only
 /// read are allowed here, the others ask as any tool does.
 /// </summary>
-public sealed class ClaudeSession : IAsyncDisposable
+public sealed class ClaudeSession : IAgentSession
 {
     static readonly JsonSerializerOptions Json = new() { DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull };
 
