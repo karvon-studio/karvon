@@ -73,12 +73,28 @@ public sealed class AgentsModule : AgentPanelModule
         Agents.RequestFocus();
     }
 
-    /// <summary>Another folder: the conversation starts afresh there.</summary>
+    /// <summary>The conversation the solution had open, kept with it.</summary>
+    const string ConversationKey = "agents.conversation";
+
+    /// <summary>Another folder: the conversation runs there; a solution opened gets back the conversation it had.</summary>
     public override async Task WorkspaceChangedAsync()
     {
         ForgetFiles();
         if (_agents is { } agents)
             await agents.OnWorkingDirectoryChangedAsync();
+        if (Workbench.WorkspaceState.GetValueOrDefault(ConversationKey) is { Length: > 0 } conversation)
+            await Agents.RestoreConversationAsync(conversation);
+    }
+
+    /// <summary>The conversation open now, kept with the solution (one never opened this time keeps the one it would restore).</summary>
+    public override void SaveWorkspaceState(IDictionary<string, string> state)
+    {
+        if (_agents is not { } agents)
+            return;
+        if (agents.SessionId is { } session)
+            state[ConversationKey] = session;
+        else
+            state.Remove(ConversationKey);
     }
 
     public override async ValueTask DisposeAsync()

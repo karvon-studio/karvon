@@ -98,4 +98,89 @@ public class AgentsModuleTests
         Assert.False(window.IsVisible);
         Assert.Null(picker.Chosen);
     }
+
+    [AvaloniaFact]
+    public async Task The_Agents_panel_says_its_agent_s_name_and_keeps_Claude_s_own_buttons_to_Claude()
+    {
+        var (dir, _) = FakeCodex.Workspace();
+        var agents = new ClaudeViewModel(new Karvon.Services.Settings(), () => dir, () => null, () => [], () => null) { Backends = [new CodexBackend()] };
+        var claude = new ClaudeViewModel(new Karvon.Services.Settings(), () => dir, () => null, () => [], () => FakeClaude.Executable);
+        var window = new Window { Width = 560, Height = 900, Content = new ClaudeView { DataContext = agents } };
+        window.Show();
+        await WaitUntil(() => false, TimeSpan.FromMilliseconds(100));
+
+        Button Named(string name) => window.GetVisualDescendants().OfType<Button>().Single(b => b.Name == name);
+        Assert.Contains(window.GetVisualDescendants().OfType<TextBlock>(), t => t.Text == "Codex" && t.FontWeight == Avalonia.Media.FontWeight.SemiBold);
+        Assert.DoesNotContain(window.GetVisualDescendants().OfType<TextBlock>(), t => t.Text == "Claude Code" && t.IsEffectivelyVisible);
+        Assert.False(Named("RemoteControlButton").IsVisible);
+        Assert.False(Named("UsageButton").IsVisible);
+        Assert.False(Named("McpButton").IsVisible);
+        Assert.True(Named("HistoryButton").IsVisible);
+        Assert.True(Named("NewButton").IsVisible);
+        Assert.Equal("Ask Codex to edit, fix or explain... (/ for commands, @ for files)", window.GetVisualDescendants().OfType<TextBox>().Single(t => t.Name == "PromptBox").PlaceholderText);
+        Assert.Equal("Codex works in your solution folder: it can read and edit files, run commands and explain code. You approve each edit unless you choose to edit automatically.", agents.EmptyText);
+        Assert.Equal("Stop Codex (Esc)", agents.StopTip);
+
+        // Claude Code's panel is as it was.
+        Assert.Equal(("Claude Code", "Claude"), (claude.HeaderTitle, claude.HeaderIcon));
+        Assert.Equal("Ask Claude to edit, fix or explain... (/ for commands, @ for files)", claude.PromptPlaceholder);
+
+        // In Uzbek the agent's words are Claude's, with its name.
+        ClaudeLanguage.Instance.Language = "uz";
+        try
+        {
+            Assert.Equal(ClaudeLanguage.Instance.Translate("Stop Claude (Esc)").Replace("Claude", "Codex"), ClaudeLanguage.Instance.Translate(agents.StopTip));
+            Assert.NotEqual(agents.StopTip, ClaudeLanguage.Instance.Translate(agents.StopTip));
+        }
+        finally
+        {
+            ClaudeLanguage.Instance.Language = "en";
+        }
+        window.Close();
+        await agents.DisposeAsync();
+    }
+
+    [AvaloniaFact]
+    public async Task A_past_conversation_with_an_agent_is_listed_reopened_and_goes_on_with_the_agent_s_own()
+    {
+        var (dir, log) = FakeCodex.Workspace();
+        var settings = new Karvon.Services.Settings();
+        bool? answer = true;
+        var vm = new ClaudeViewModel(settings, () => dir, () => null, () => [], () => null)
+        {
+            Backends = [new CodexBackend(), new AcpBackend(FakeAcp.Agent)],
+            Confirm = (_, _) => Task.FromResult(answer),
+        };
+        vm.Prompt = "hello there";
+        vm.SendCommand.Execute(null);
+        await WaitUntil(() => vm.Items.OfType<TextChatItem>().Any(t => t.Text == "Hello from Codex.") && !vm.IsRunning, TimeSpan.FromSeconds(15));
+
+        // A new conversation, with another agent: the first is in Past conversations, with its agent.
+        await vm.UseAgentAsync(vm.Backends[1], null);
+        Assert.Empty(vm.Items);
+        vm.ToggleHistoryCommand.Execute(null);
+        var past = Assert.Single(vm.History);
+        Assert.Equal(("hello there", "Codex", "codex", "thread-1"), (past.Title, past.Agent, past.AgentId, past.SessionId));
+
+        // Opened: shown as it was, with Codex again, which goes on with its own thread.
+        await vm.ResumeConversationAsync(past);
+        Assert.Equal("Codex", vm.AgentName);
+        Assert.Contains(vm.Items, i => i is UserChatItem u && u.Text == "hello there");
+        Assert.Contains(vm.Items, i => i is TextChatItem t && t.Text == "Hello from Codex.");
+        Assert.Contains(vm.Items, i => i is ThinkingChatItem t && t.Text == "Thinking it over.");
+        vm.Prompt = "and again";
+        vm.SendCommand.Execute(null);
+        await WaitUntil(() => vm.Items.OfType<TextChatItem>().Count(t => t.Text == "Hello from Codex.") == 2 && !vm.IsRunning, TimeSpan.FromSeconds(15));
+        Assert.Equal("thread-1", Assert.Single(FakeCodex.Sent(log, "thread/resume")).GetProperty("threadId").GetString());
+        Assert.Equal("thread-1", vm.SessionId);
+
+        // Deleted: Karvon's transcript goes.
+        await vm.NewConversationAsync();
+        vm.RefreshHistory();
+        var again = Assert.Single(vm.History);
+        await vm.DeleteConversationAsync(again);
+        Assert.False(File.Exists(again.FilePath));
+        Assert.Empty(vm.History);
+        await vm.DisposeAsync();
+    }
 }

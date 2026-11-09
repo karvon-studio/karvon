@@ -13,6 +13,7 @@ namespace Karvon.Claude;
 /// <param name="Trusted">Whether the folder is trusted (the user trusts it).</param>
 /// <param name="AuditDirectory">Where what the agent did with Karvon's tools is written; null for nowhere.</param>
 /// <param name="Effort">How hard the model thinks ("low" ... "max"), when it can be told; null for its own default.</param>
+/// <param name="StateDirectory">Where an agent keeps what it needs to go on with a conversation later (the messages of a model Karvon drives); null for nowhere.</param>
 public sealed record AgentStartOptions(
     string Executable,
     string WorkingDirectory,
@@ -23,7 +24,8 @@ public sealed record AgentStartOptions(
     bool GuardSecrets = true,
     bool Trusted = true,
     string? AuditDirectory = null,
-    string? Effort = null);
+    string? Effort = null,
+    string? StateDirectory = null);
 
 /// <summary>A model an agent can answer with: its id (what the agent is told), its name and a line about it.</summary>
 public sealed record AgentModel(string Id, string Name, string? Description = null);

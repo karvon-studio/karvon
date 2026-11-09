@@ -435,8 +435,8 @@
     <Border DockPanel.Dock="Top" Background="{StaticResource VsEnvironmentBrush}" BorderBrush="#333336" BorderThickness="0,0,0,1">
       <Grid ColumnDefinitions="Auto,*,Auto" Margin="8,3">
         <StackPanel Orientation="Horizontal" Spacing="7" VerticalAlignment="Center">
-          <v:VsIcon Kind="Claude" Width="15" Height="15" />
-          <TextBlock Text="{v:L 'Claude Code'}" FontWeight="SemiBold" VerticalAlignment="Center" />
+          <v:VsIcon Kind="{Binding HeaderIcon}" Width="15" Height="15" />
+          <TextBlock Text="{Binding HeaderTitle}" FontWeight="SemiBold" VerticalAlignment="Center" />
         </StackPanel>
         <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="2">
           <!-- English / O'zbekcha -->
@@ -446,17 +446,17 @@
               <TextBlock Text="{Binding Code, Source={x:Static c:ClaudeLanguage.Instance}}" FontSize="11" FontWeight="SemiBold" VerticalAlignment="Center" />
             </StackPanel>
           </Button>
-          <Button Name="RemoteControlButton" Classes="tbi" Classes.remoteOn="{Binding IsRemoteControlActive}" Command="{Binding ToggleRemoteControlCommand}"
+          <Button Name="RemoteControlButton" Classes="tbi" IsVisible="{Binding IsClaude}" Classes.remoteOn="{Binding IsRemoteControlActive}" Command="{Binding ToggleRemoteControlCommand}"
                   ToolTip.Tip="{v:Tr RemoteControlTip}">
             <v:VsIcon Kind="Remote" />
           </Button>
-          <Button Name="UsageButton" Classes="tbi" Command="{Binding OpenUsageCommand}" ToolTip.Tip="{v:L 'Account &amp; usage (/usage)'}">
+          <Button Name="UsageButton" Classes="tbi" IsVisible="{Binding IsClaude}" Command="{Binding OpenUsageCommand}" ToolTip.Tip="{v:L 'Account &amp; usage (/usage)'}">
             <v:VsIcon Kind="Gauge" />
           </Button>
-          <Button Name="McpButton" Classes="tbi" Command="{Binding OpenMcpCommand}" ToolTip.Tip="{v:L 'MCP servers (/mcp)'}">
+          <Button Name="McpButton" Classes="tbi" IsVisible="{Binding IsClaude}" Command="{Binding OpenMcpCommand}" ToolTip.Tip="{v:L 'MCP servers (/mcp)'}">
             <v:VsIcon Kind="Plug" />
           </Button>
-          <Button Name="HistoryButton" Classes="tbi" Command="{Binding ToggleHistoryCommand}" IsVisible="{Binding IsClaude}" ToolTip.Tip="{v:L 'Past conversations'}">
+          <Button Name="HistoryButton" Classes="tbi" Command="{Binding ToggleHistoryCommand}" ToolTip.Tip="{v:L 'Past conversations'}">
             <Panel>
               <v:VsIcon Kind="History" />
               <!-- Conversations Claude works on in the background -->
@@ -535,14 +535,14 @@
                    IsVisible="{Binding AttachmentError, Converter={x:Static ObjectConverters.IsNotNull}}" />
         <TextBox Name="PromptBox" Classes="prompt" Text="{Binding Prompt}" AcceptsReturn="True" TextWrapping="Wrap"
                  MinHeight="56" MaxHeight="240" Padding="12,10,12,4" FontSize="13"
-                 PlaceholderText="{v:L 'Ask Claude to edit, fix or explain... (/ for commands, @ for files)'}" />
+                 PlaceholderText="{v:Tr PromptPlaceholder}" />
         <Grid ColumnDefinitions="Auto,Auto,Auto,*,Auto,Auto" Margin="8,0,8,8">
           <Button Name="AttachButton" Classes="chip icon" Click="OnAttachClick" ToolTip.Tip="{v:L 'Attach images or files (Ctrl+V pastes them, or drop them here)'}">
             <v:VsIcon Kind="Attach" Width="15" Height="15" />
           </Button>
           <!-- The open file: shown with its icon, struck through when Claude does not see it. -->
           <Button Name="ContextButton" Grid.Column="1" Classes="chip" Command="{Binding ToggleContextCommand}" IsVisible="{Binding HasEditorContext}"
-                  ToolTip.Tip="{v:L 'Claude sees this file and your selection. Click to include or leave it out.'}">
+                  ToolTip.Tip="{v:Tr ContextTip}">
             <StackPanel Orientation="Horizontal" Spacing="5">
               <v:VsIcon Kind="FileCode" Width="14" Height="14" />
               <TextBlock Text="{v:Tr ContextLabel}" VerticalAlignment="Center" MaxWidth="170" TextTrimming="CharacterEllipsis"
@@ -557,7 +557,7 @@
                   Classes.plan="{Binding PermissionMode, Converter={x:Static ObjectConverters.Equal}, ConverterParameter=plan}"
                   Classes.auto="{Binding PermissionMode, Converter={x:Static ObjectConverters.Equal}, ConverterParameter=auto}"
                   Classes.bypass="{Binding PermissionMode, Converter={x:Static ObjectConverters.Equal}, ConverterParameter=bypassPermissions}"
-                  ToolTip.Tip="{v:L 'How much Claude may do on its own, and how hard it thinks (Shift+Tab switches mode)'}">
+                  ToolTip.Tip="{v:Tr ModeTip}">
             <StackPanel Orientation="Horizontal" Spacing="5">
               <v:VsIcon Name="ModeIcon" Kind="{Binding ModeIcon}" Width="14" Height="14" />
               <TextBlock Text="{v:Tr ModeLabel}" VerticalAlignment="Center" />
@@ -618,7 +618,7 @@
           <Button Name="SendButton" Grid.Column="5" Classes="send" Command="{Binding SendCommand}" IsVisible="{Binding !IsRunning}" ToolTip.Tip="{v:L 'Send (Enter)'}">
             <v:VsIcon Kind="Send" Width="16" Height="16" Foreground="White" />
           </Button>
-          <Button Name="StopButton" Grid.Column="5" Classes="send" Command="{Binding StopCommand}" IsVisible="{Binding IsRunning}" ToolTip.Tip="{v:L 'Stop Claude (Esc)'}">
+          <Button Name="StopButton" Grid.Column="5" Classes="send" Command="{Binding StopCommand}" IsVisible="{Binding IsRunning}" ToolTip.Tip="{v:Tr StopTip}">
             <Panel>
               <!-- A ring that keeps turning while Claude works. -->
               <Ellipse Classes="spin" Width="22" Height="22" StrokeThickness="2" Stroke="#AAFFFFFF" StrokeDashArray="4,6">
@@ -635,7 +635,7 @@
 
     <!-- ===== Status ===== -->
     <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" Spacing="7" Margin="14,4,10,2" IsVisible="{Binding IsRunning}">
-      <v:VsIcon Kind="Claude" Width="13" Height="13" />
+      <v:VsIcon Kind="{Binding HeaderIcon}" Width="13" Height="13" />
       <TextBlock Text="{v:Tr StatusText}" Foreground="#D97757" FontSize="12" VerticalAlignment="Center" />
       <TextBlock Text="{v:L 'esc to interrupt'}" Classes="muted" FontSize="11" VerticalAlignment="Center" />
     </StackPanel>
@@ -832,7 +832,7 @@
                       <TextBlock Text="{v:Tr SessionLabel}" TextWrapping="Wrap" />
                     </Button>
                     <Grid ColumnDefinitions="*,Auto">
-                      <TextBox Classes="feedback" Text="{Binding Feedback}" PlaceholderText="{v:L 'No, and tell Claude what to do differently'}" />
+                      <TextBox Classes="feedback" Text="{Binding Feedback}" PlaceholderText="{v:Tr DenyPlaceholder}" />
                       <Button Grid.Column="1" Classes="choice" Content="No" Margin="6,0,0,0" HorizontalAlignment="Right"
                               Command="{Binding $parent[UserControl].((vm:ClaudeViewModel)DataContext).DenyCommand}" CommandParameter="{Binding}" />
                     </Grid>
@@ -886,7 +886,7 @@
             <DataTemplate DataType="vm:PlanChatItem" x:DataType="vm:PlanChatItem">
               <Border Classes="card" Margin="0,10,0,4">
                 <StackPanel Spacing="8">
-                  <TextBlock Text="{v:L 'Here is Claude’s plan:'}" FontWeight="SemiBold" />
+                  <TextBlock Text="{v:Tr PlanTitle}" FontWeight="SemiBold" />
                   <Border Classes="box" Padding="12,8">
                     <v:MarkdownView Markdown="{Binding Plan}" />
                   </Border>
@@ -897,7 +897,7 @@
                     <Button Classes="choice" Content="Yes, and manually approve edits"
                             Command="{Binding $parent[UserControl].((vm:ClaudeViewModel)DataContext).ApprovePlanManuallyCommand}" CommandParameter="{Binding}" />
                     <Grid ColumnDefinitions="*,Auto">
-                      <TextBox Classes="feedback" Text="{Binding Feedback}" PlaceholderText="{v:L 'No, keep planning (tell Claude what to change)'}" />
+                      <TextBox Classes="feedback" Text="{Binding Feedback}" PlaceholderText="{v:Tr PlanPlaceholder}" />
                       <Button Grid.Column="1" Classes="choice" Content="Keep planning" Margin="6,0,0,0"
                               Command="{Binding $parent[UserControl].((vm:ClaudeViewModel)DataContext).KeepPlanningCommand}" CommandParameter="{Binding}" />
                     </Grid>
@@ -910,7 +910,7 @@
             <DataTemplate DataType="vm:SecretCheckChatItem" x:DataType="vm:SecretCheckChatItem">
               <Border Classes="card" Margin="0,10,0,4">
                 <StackPanel Spacing="8">
-                  <TextBlock Text="{v:L 'Kept from Claude, for now'}" FontWeight="SemiBold" />
+                  <TextBlock Text="{v:Tr KeptTitle}" FontWeight="SemiBold" />
                   <TextBlock Text="{v:Tr Question}" TextWrapping="Wrap" />
                   <StackPanel IsVisible="{Binding IsPending}" Spacing="5">
                     <Button Classes="choice first" Content="{v:L 'Send it with them hidden'}"
@@ -960,10 +960,10 @@
 
       <!-- ===== Empty conversation ===== -->
       <StackPanel IsVisible="{Binding IsEmpty}" VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="10" Margin="24" MaxWidth="320" IsHitTestVisible="False">
-        <v:VsIcon Kind="Claude" Width="44" Height="44" HorizontalAlignment="Center" />
+        <v:VsIcon Kind="{Binding HeaderIcon}" Width="44" Height="44" HorizontalAlignment="Center" />
         <TextBlock Text="{v:L 'What can I help you build?'}" FontSize="16" HorizontalAlignment="Center" />
         <TextBlock Classes="muted" TextWrapping="Wrap" TextAlignment="Center" FontSize="12"
-                   Text="{v:L 'Claude Code works in your solution folder: it can read and edit files, run commands and explain code. You approve each edit unless you choose to edit automatically.'}" />
+                   Text="{v:Tr EmptyText}" />
       </StackPanel>
 
       <!-- ===== Claude Code not installed ===== -->
@@ -1015,11 +1015,13 @@
           <ListBox Name="HistoryList" ItemsSource="{Binding History}" Background="Transparent" Margin="4,0,4,6" ScrollViewer.HorizontalScrollBarVisibility="Disabled">
             <ListBox.ItemTemplate>
               <DataTemplate x:DataType="c:ClaudeConversation">
-                <Grid ColumnDefinitions="*,Auto,Auto,Auto">
+                <Grid ColumnDefinitions="*,Auto,Auto,Auto,Auto">
                   <TextBlock Text="{Binding Title}" TextTrimming="CharacterEllipsis" />
-                  <TextBlock Grid.Column="1" Text="{v:Tr Status}" IsVisible="{Binding HasStatus}" Foreground="#D97757" FontSize="11" Margin="10,0,0,0" VerticalAlignment="Center" />
-                  <TextBlock Grid.Column="2" Text="{Binding Modified, StringFormat='{}{0:dd.MM HH:mm}'}" Classes="muted" FontSize="11" Margin="10,0,0,0" VerticalAlignment="Center" />
-                  <Button Grid.Column="3" Classes="tbi" Margin="6,0,0,0" Padding="2" VerticalAlignment="Center" IsVisible="{Binding !HasStatus}"
+                  <!-- Which agent it was with (the Agents panel lists them all). -->
+                  <TextBlock Grid.Column="1" Text="{Binding Agent}" IsVisible="{Binding HasAgent}" Foreground="#4FC1FF" FontSize="11" Margin="10,0,0,0" VerticalAlignment="Center" />
+                  <TextBlock Grid.Column="2" Text="{v:Tr Status}" IsVisible="{Binding HasStatus}" Foreground="#D97757" FontSize="11" Margin="10,0,0,0" VerticalAlignment="Center" />
+                  <TextBlock Grid.Column="3" Text="{Binding Modified, StringFormat='{}{0:dd.MM HH:mm}'}" Classes="muted" FontSize="11" Margin="10,0,0,0" VerticalAlignment="Center" />
+                  <Button Grid.Column="4" Classes="tbi" Margin="6,0,0,0" Padding="2" VerticalAlignment="Center" IsVisible="{Binding !HasStatus}"
                           ToolTip.Tip="{v:L 'Delete conversation'}" CommandParameter="{Binding}"
                           Command="{Binding $parent[UserControl].((vm:ClaudeViewModel)DataContext).DeleteConversationCommand}">
                     <v:VsIcon Kind="Trash" Width="14" Height="14" />

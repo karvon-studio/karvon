@@ -11,6 +11,12 @@ public sealed partial class ClaudeViewModel
     IReadOnlyList<IAgentBackend> _backends = [];
     IAgentBackend? _backend;
 
+    /// <summary>Karvon's transcript of each agent conversation (Claude Code keeps its own).</summary>
+    readonly System.Runtime.CompilerServices.ConditionalWeakTable<IAgentSession, AgentTranscript> _transcripts = [];
+
+    /// <summary>Where Karvon keeps the agents' conversations (transcripts, and what an agent needs to go on with one).</summary>
+    public static string AgentsDirectory => Path.Combine(Settings.ConfigDirectory, "agents");
+
     /// <summary>
     /// The agents the Agents panel talks to (Codex, a model Karvon drives itself, an Agent Client Protocol agent): the one
     /// the settings name answers, else the first. None: the panel is Claude Code's.
@@ -34,6 +40,30 @@ public sealed partial class ClaudeViewModel
 
     /// <summary>Who the cards ask for ("Allow Codex to run this command?").</summary>
     public string AgentName => _backend?.Name ?? "Claude";
+
+    /// <summary>The panel's title: Claude Code, or the agent's name.</summary>
+    public string HeaderTitle => _backend?.Name ?? "Claude Code";
+
+    /// <summary>The panel's icon: Claude's, or the agents'.</summary>
+    public string HeaderIcon => _backend is null ? "Claude" : "Sparkle";
+
+    /// <summary>Claude's words for this panel's agent ("Ask Codex to..."): translated as Claude's (<see cref="ClaudeLanguage.AddAgentName"/>).</summary>
+    internal string Say(string text) =>
+        _backend is null ? text : text.Replace("Claude Code", AgentName, StringComparison.Ordinal).Replace("Claude", AgentName, StringComparison.Ordinal);
+
+    public string PromptPlaceholder => Say("Ask Claude to edit, fix or explain... (/ for commands, @ for files)");
+
+    public string ContextTip => Say("Claude sees this file and your selection. Click to include or leave it out.");
+
+    public string ModeTip => Say("How much Claude may do on its own, and how hard it thinks (Shift+Tab switches mode)");
+
+    public string StopTip => Say("Stop Claude (Esc)");
+
+
+
+
+
+    public string EmptyText => Say("Claude Code works in your solution folder: it can read and edit files, run commands and explain code. You approve each edit unless you choose to edit automatically.");
 
     public string MissingTitle => _backend?.MissingTitle ?? "Claude Code is not installed";
 
@@ -130,9 +160,10 @@ public sealed partial class ClaudeViewModel
         RefreshModes();
         RefreshEffortSteps();
         CheckCli();
-        OnPropertyChanged(nameof(Backend));
-        OnPropertyChanged(nameof(IsClaude));
-        OnPropertyChanged(nameof(AgentName));
+        ClaudeLanguage.AddAgentName(backend.Name);
+        foreach (var name in new[] { nameof(Backend), nameof(IsClaude), nameof(AgentName), nameof(HeaderTitle), nameof(HeaderIcon), nameof(PromptPlaceholder),
+            nameof(ContextTip), nameof(ModeTip), nameof(StopTip), nameof(EmptyText) })
+            OnPropertyChanged(name);
         OnPropertyChanged(nameof(MissingTitle));
         OnPropertyChanged(nameof(MissingHint));
         OnPropertyChanged(nameof(InstallCommand));
@@ -143,7 +174,15 @@ public sealed partial class ClaudeViewModel
     {
         await StopSessionAsync();
         var session = await backend.StartAsync(new AgentStartOptions(CliPath!, cwd, SelectedModel?.Value, PermissionMode, _resumeId, Tools,
-            _settings.ClaudeKeepSecretsAway, WorkspaceTrust.IsTrusted(_settings.TrustedFolders, cwd), Path.Combine(Settings.ConfigDirectory, "audit"), Effort));
+            _settings.ClaudeKeepSecretsAway, WorkspaceTrust.IsTrusted(_settings.TrustedFolders, cwd), Path.Combine(Settings.ConfigDirectory, "audit"), Effort,
+            AgentTranscripts.Folder(AgentsDirectory, cwd)));
+        // What the panel shows of it is kept, to be shown again from Past conversations.
+        if (session.SessionId is { Length: > 0 } id)
+        {
+            var transcript = AgentTranscript.Open(AgentsDirectory, backend.Id, backend.Name, cwd, id);
+            _transcripts.AddOrUpdate(session, transcript);
+            session.Event += transcript.Record;
+        }
         session.Event += ev => Avalonia.Threading.Dispatcher.UIThread.Post(() => Handle(session, ev));
         _session = session;
         _sessionCwd = cwd;

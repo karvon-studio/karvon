@@ -7,7 +7,22 @@ using Karvon.Claude;
 namespace Karvon.ViewModels;
 
 /// <summary>A row in the Claude Code conversation.</summary>
-public abstract class ChatItem : ObservableObject;
+public abstract class ChatItem : ObservableObject
+{
+    /// <summary>Who the panel talks to ("Claude", "Codex"...): what a card says it of (the panel sets it as the item comes).</summary>
+    public string Agent { get; set; } = "Claude";
+
+    /// <summary>Claude's words with the panel's agent in them.</summary>
+    protected string Say(string text) => Agent == "Claude" ? text : text.Replace("Claude", Agent, StringComparison.Ordinal);
+
+    public string DenyPlaceholder => Say("No, and tell Claude what to do differently");
+
+    public string PlanTitle => Say("Here is Claude’s plan:");
+
+    public string PlanPlaceholder => Say("No, keep planning (tell Claude what to change)");
+
+    public string KeptTitle => Say("Kept from Claude, for now");
+}
 
 public sealed partial class UserChatItem(string text, string? context, IReadOnlyList<ClaudeAttachment>? images = null) : ChatItem
 {
@@ -343,7 +358,7 @@ public sealed partial class PlanChatItem(ClaudePermissionRequest request, string
 /// secret; the user sends it with them hidden, as it is, or not at all (it goes back into the prompt box).
 /// </summary>
 public sealed partial class SecretCheckChatItem(string text, ClaudeEditorContext? context, IReadOnlyList<ClaudeAttachment> images,
-    IReadOnlyList<string> found) : ChatItem
+    IReadOnlyList<string> found, string agent = "Claude") : ChatItem
 {
     public string Text { get; } = text;
 
@@ -355,8 +370,8 @@ public sealed partial class SecretCheckChatItem(string text, ClaudeEditorContext
     public IReadOnlyList<string> Found { get; } = found;
 
     public string Question => Found.Count == 1
-        ? $"Your message holds what looks like {Found[0]}. Send it to Claude?"
-        : $"Your message holds what looks like {string.Join(", ", Found.Take(Found.Count - 1))} and {Found[^1]}. Send it to Claude?";
+        ? $"Your message holds what looks like {Found[0]}. Send it to {agent}?"
+        : $"Your message holds what looks like {string.Join(", ", Found.Take(Found.Count - 1))} and {Found[^1]}. Send it to {agent}?";
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsPending))]

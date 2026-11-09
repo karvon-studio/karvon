@@ -455,6 +455,36 @@ public class ModelAgentTests
     }
 
     [Fact]
+    public async Task A_model_s_conversation_is_kept_and_goes_on_in_a_later_run_of_Karvon()
+    {
+        await using var server = new FakeModelServer();
+        var (dir, _) = Workspace();
+        var state = Path.Combine(dir, ".state");
+        server.Reply(FakeModelServer.Text("Remembered."));
+        string id;
+        await using (var first = await ModelSession.StartAsync(new ChatCompletions(ModelSession.Client, server.Url, null), "Test",
+            new AgentStartOptions(server.Url, dir, StateDirectory: state), TestContext.Current.CancellationToken))
+        {
+            await TurnAsync(first, "My name is Nodir.");
+            id = first.SessionId!;
+        }
+        var kept = AgentTranscripts.StateFile(Path.Combine(state, AgentTranscripts.FileName(id)));
+        Assert.True(File.Exists(kept));
+
+        // Another run of Karvon has none of it in memory: a copy under another id stands for that.
+        var other = "earlier-" + Guid.NewGuid().ToString("N");
+        File.Copy(kept, AgentTranscripts.StateFile(Path.Combine(state, AgentTranscripts.FileName(other))));
+        server.Reply(FakeModelServer.Text("Nodir."));
+        await using var later = await ModelSession.StartAsync(new ChatCompletions(ModelSession.Client, server.Url, null), "Test",
+            new AgentStartOptions(server.Url, dir, Resume: other, StateDirectory: state), TestContext.Current.CancellationToken);
+        Assert.Equal(other, later.SessionId);
+        await TurnAsync(later, "What is my name?");
+        var messages = server.Requests[1].GetProperty("messages");
+        Assert.Equal(["system", "user", "assistant", "user"], messages.EnumerateArray().Select(m => m.GetProperty("role").GetString()));
+        Assert.Equal("My name is Nodir.", messages[1].GetProperty("content").GetString());
+    }
+
+    [Fact]
     public async Task A_provider_that_does_not_answer_says_so()
     {
         var port = new TcpListener(IPAddress.Loopback, 0);

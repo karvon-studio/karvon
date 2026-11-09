@@ -66,7 +66,13 @@ public sealed partial class ClaudeViewModel : ObservableObject, IAsyncDisposable
         RefreshModes();
         RefreshEffortSteps();
         LoadAccounts();
-        Items.CollectionChanged += (_, _) => OnPropertyChanged(nameof(IsEmpty));
+        Items.CollectionChanged += (_, e) =>
+        {
+            OnPropertyChanged(nameof(IsEmpty));
+            // A card says it of the panel's agent.
+            foreach (var item in e.NewItems?.OfType<ChatItem>() ?? [])
+                item.Agent = AgentName;
+        };
         Attachments.CollectionChanged += (_, _) =>
         {
             OnPropertyChanged(nameof(HasAttachments));
@@ -380,7 +386,7 @@ public sealed partial class ClaudeViewModel : ObservableObject, IAsyncDisposable
         if (!isCommand && _settings.ClaudeKeepSecretsAway
             && Redaction.Find(text + "\n" + context?.SelectedText) is { Count: > 0 } found)
         {
-            Items.Add(new SecretCheckChatItem(text, context, images, found));
+            Items.Add(new SecretCheckChatItem(text, context, images, found, AgentName));
             return;
         }
         await SendPromptAsync(text, context, images, isCommand);
@@ -394,6 +400,9 @@ public sealed partial class ClaudeViewModel : ObservableObject, IAsyncDisposable
         try
         {
             var session = await EnsureSessionAsync();
+            // Another agent's conversation: Karvon's transcript keeps the prompt (the agent does not tell it back).
+            if (_transcripts.TryGetValue(session, out var transcript))
+                transcript.Prompt(text, images.Select(i => i.ToImage()));
             if (isCommand)
                 await session.SendCommandAsync(text);
             else
@@ -403,7 +412,7 @@ public sealed partial class ClaudeViewModel : ObservableObject, IAsyncDisposable
         {
             // Whatever goes wrong, the panel reports it; an exception out of a command would bring the IDE down.
             EndTurn();
-            Items.Add(new NoticeChatItem("Claude Code could not be started: " + ex.Message, isError: true));
+            Items.Add(new NoticeChatItem(Say("Claude Code could not be started: ") + ex.Message, isError: true));
         }
     }
 
@@ -487,8 +496,27 @@ public sealed partial class ClaudeViewModel : ObservableObject, IAsyncDisposable
         FocusInputRequested?.Invoke();
     }
 
+    /// <summary>
+    /// A session still starting (the panel's warm-up) has started, or failed, before the conversation changes: else it would
+    /// come up afterwards as the next conversation's (another agent's, too).
+    /// </summary>
+    async Task SettleStartingAsync()
+    {
+        if (_starting is not { } starting)
+            return;
+        try
+        {
+            await starting;
+        }
+        catch (Exception)
+        {
+            // One that failed to start leaves nothing to stop.
+        }
+    }
+
     async Task ResetAsync()
     {
+        await SettleStartingAsync();
         // A conversation Claude is working on keeps working in the background.
         if (!MoveToBackground())
             await StopSessionAsync();
@@ -734,9 +762,9 @@ public sealed partial class ClaudeViewModel : ObservableObject, IAsyncDisposable
                         .Where(l => l.Trim().Length > 0 && !l.TrimStart().StartsWith("[ede_diagnostic]", StringComparison.Ordinal)));
                     var message = result.Subtype switch
                     {
-                        "error_max_turns" => "Claude stopped: the maximum number of turns was reached.",
+                        "error_max_turns" => Say("Claude stopped: the maximum number of turns was reached."),
                         "error_during_execution" when _interrupting || detail.Length == 0 => "Interrupted.",
-                        _ => detail.Length > 0 ? detail : "Claude Code reported an error.",
+                        _ => detail.Length > 0 ? detail : Say("Claude Code reported an error."),
                     };
                     // The CLI often sends the error as an answer too ("Your organization has disabled..."): show it once, as an error.
                     if (Items.LastOrDefault() is TextChatItem echoed && echoed.Text.Trim() == message.Trim())
@@ -767,7 +795,7 @@ public sealed partial class ClaudeViewModel : ObservableObject, IAsyncDisposable
                 if (IsRunning || exited.ExitCode != 0)
                 {
                     var tail = string.Join("\n", exited.Stderr.Split('\n', StringSplitOptions.RemoveEmptyEntries).TakeLast(4));
-                    Items.Add(new NoticeChatItem($"Claude Code stopped (exit code {exited.ExitCode}).{(tail.Length > 0 ? "\n" + tail : "")}", isError: true));
+                    Items.Add(new NoticeChatItem(Say($"Claude Code stopped (exit code {exited.ExitCode}).") + $"{(tail.Length > 0 ? "\n" + tail : "")}", isError: true));
                 }
                 CancelPendingCards("Cancelled");
                 EndTurn();
@@ -1423,7 +1451,10 @@ public sealed partial class ClaudeViewModel : ObservableObject, IAsyncDisposable
     public void RefreshHistory()
     {
         History.Clear();
-        foreach (var conversation in ClaudeHistory.List(_workingDirectory(), configDirectory: SelectedAccount?.ConfigDirectory))
+        var conversations = _backend is null
+            ? ClaudeHistory.List(_workingDirectory(), configDirectory: SelectedAccount?.ConfigDirectory)
+            : AgentTranscripts.List(AgentsDirectory, _workingDirectory());
+        foreach (var conversation in conversations)
             History.Add(WithStatus(conversation));
     }
 
@@ -1446,7 +1477,7 @@ public sealed partial class ClaudeViewModel : ObservableObject, IAsyncDisposable
         var language = ClaudeLanguage.Instance;
         var showing = SessionId == conversation.SessionId;
         var question = conversation.Title + "\n\n" + language.Translate("It will be deleted for good.")
-            + (showing && IsRunning ? " " + language.Translate("Claude is working on it, and stops.") : "");
+            + (showing && IsRunning ? " " + language.Translate(Say("Claude is working on it, and stops.")) : "");
         if (await confirm(language.Translate("Delete conversation"), question) != true)
             return;
         if (showing)
@@ -1457,7 +1488,10 @@ public sealed partial class ClaudeViewModel : ObservableObject, IAsyncDisposable
         }
         try
         {
-            ClaudeHistory.Delete(conversation);
+            if (conversation.AgentId is not null)
+                AgentTranscripts.Delete(conversation);
+            else
+                ClaudeHistory.Delete(conversation);
             HistoryProblem = null;
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
@@ -1484,27 +1518,17 @@ public sealed partial class ClaudeViewModel : ObservableObject, IAsyncDisposable
     {
         if (Items.Count > 0 || sessionId.Length == 0 || sessionId is "." or ".." || sessionId.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0)
             return false;
-        var file = Path.Combine(ClaudeCli.ProjectDirectory(_workingDirectory(), SelectedAccount?.ConfigDirectory), sessionId + ".jsonl");
-        if (!File.Exists(file))
+        var agent = _backend is null ? null : AgentTranscripts.Find(AgentsDirectory, _workingDirectory(), sessionId);
+        var file = agent?.FilePath ?? Path.Combine(ClaudeCli.ProjectDirectory(_workingDirectory(), SelectedAccount?.ConfigDirectory), sessionId + ".jsonl");
+        if (!File.Exists(file) || _backend is not null && agent is null)
             return false;
-        // The panel's warm-up may still be starting the CLI: it would finish into a new conversation after this one.
-        if (_starting is { } starting)
-        {
-            try
-            {
-                await starting;
-            }
-            catch (Exception)
-            {
-                // A CLI that failed to start leaves nothing to stop.
-            }
-        }
-        await LoadConversationAsync(new ClaudeConversation(sessionId, "", File.GetLastWriteTime(file), file));
+        await LoadConversationAsync(agent ?? new ClaudeConversation(sessionId, "", File.GetLastWriteTime(file), file));
         return true;
     }
 
     async Task LoadConversationAsync(ClaudeConversation conversation)
     {
+        await SettleStartingAsync();
         // A conversation Claude is working on keeps working in the background.
         if (!MoveToBackground())
             await StopSessionAsync();
@@ -1517,7 +1541,11 @@ public sealed partial class ClaudeViewModel : ObservableObject, IAsyncDisposable
             return;
         }
         _sessionCwd = _workingDirectory();
-        foreach (var ev in ClaudeHistory.Load(conversation.FilePath))
+        // Another agent's: the panel talks to that agent again, and shows what Karvon's transcript kept.
+        if (conversation.AgentId is { } agentId && _backends.FirstOrDefault(b => b.Id == agentId) is { } backend && backend != _backend)
+            UseAgent(backend);
+        var events = conversation.AgentId is null ? ClaudeHistory.Load(conversation.FilePath) : AgentTranscripts.Load(conversation.FilePath);
+        foreach (var ev in events)
             Apply(ev, live: false);
         // Calls that never got a result in the transcript are shown as finished, not as still running.
         foreach (var tool in _tools.Values.Where(t => t.IsRunning))

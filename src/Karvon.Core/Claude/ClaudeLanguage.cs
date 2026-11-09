@@ -50,7 +50,34 @@ public sealed class ClaudeLanguage : INotifyPropertyChanged
             if (match.Success)
                 return replace(match);
         }
+        // Another agent's panel says Claude's words with its name: translated as Claude's, its name put back.
+        foreach (var name in AgentNamesNow())
+            if (text.Contains(name, StringComparison.Ordinal))
+                foreach (var claude in new[] { "Claude Code", "Claude" })
+                {
+                    var asClaude = text.Replace(name, claude, StringComparison.Ordinal);
+                    var translated = Translate(asClaude);
+                    if (translated != asClaude)
+                        return translated.Replace(claude, name, StringComparison.Ordinal);
+                }
         return text!;
+    }
+
+    static readonly HashSet<string> AgentNames = new(StringComparer.Ordinal);
+
+    /// <summary>An agent's name (Codex, Gemini CLI...) whose panel says Claude's words with it.</summary>
+    public static void AddAgentName(string name)
+    {
+        if (name is "Claude" or "Claude Code" || name.Contains("Claude", StringComparison.Ordinal))
+            return;
+        lock (AgentNames)
+            AgentNames.Add(name);
+    }
+
+    static string[] AgentNamesNow()
+    {
+        lock (AgentNames)
+            return [.. AgentNames.OrderByDescending(n => n.Length)];
     }
 
     static string T(string text) => Instance.Translate(text);

@@ -291,6 +291,7 @@ public class CodexPanelTests
         await WaitUntil(() => vm.Items.OfType<PermissionChatItem>().Any(), TimeSpan.FromSeconds(15));
         var card = vm.Items.OfType<PermissionChatItem>().Single();
         Assert.Equal("Allow Codex to make this edit to Program.cs?", card.Question);
+        Assert.Equal("No, and tell Codex what to do differently", card.DenyPlaceholder);
         Assert.Contains(card.Diff, l => l.Kind == DiffLineKind.Added && l.Text == "Console.WriteLine(\"Hi\");");
         Assert.Contains(card.Diff, l => l.Kind == DiffLineKind.Removed && l.Text == "Console.WriteLine(\"Hello\");");
 

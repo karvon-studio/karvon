@@ -9,6 +9,14 @@ public sealed record ClaudeConversation(string SessionId, string Title, DateTime
     public string? Status { get; init; }
 
     public bool HasStatus => Status is not null;
+
+    /// <summary>The agent's id when it is another agent's conversation (Karvon's transcript of it); null for Claude Code's.</summary>
+    public string? AgentId { get; init; }
+
+    /// <summary>The agent's name, shown beside the title (Codex, OpenRouter...).</summary>
+    public string? Agent { get; init; }
+
+    public bool HasAgent => Agent is not null;
 }
 
 /// <summary>Past conversations of a folder, read from the transcripts Claude Code saves for each session.</summary>

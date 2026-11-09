@@ -103,10 +103,11 @@ public sealed class ModelSession : IAgentSession
             })]),
         }.ToJsonString()).RootElement.Clone();
         session.Initialization = CodexSession.WithCurrentModel(session.Initialization, session._model);
-        if (options.Resume is { } resume && Conversations.TryGetValue(resume, out var earlier))
+        if (options.Resume is { } resume && (Conversations.TryGetValue(resume, out var earlier) || session.Saved(resume) is { } saved && (earlier = saved) is not null))
         {
             session.SessionId = resume;
             session._messages = earlier;
+            Conversations[resume] = earlier;
         }
         else
         {
@@ -149,6 +150,43 @@ public sealed class ModelSession : IAgentSession
             }
         }
         return prompt.ToString();
+    }
+
+    /// <summary>The state file of a conversation (<see cref="AgentStartOptions.StateDirectory"/>); null without one.</summary>
+    string? StateFile(string sessionId) =>
+        _options.StateDirectory is { } folder ? AgentTranscripts.StateFile(Path.Combine(folder, AgentTranscripts.FileName(sessionId))) : null;
+
+    /// <summary>The messages kept of an earlier run of Karvon's; null when there are none.</summary>
+    List<JsonObject>? Saved(string sessionId)
+    {
+        try
+        {
+            return StateFile(sessionId) is { } file && File.Exists(file) && JsonNode.Parse(File.ReadAllText(file)) is JsonArray messages
+                ? [.. messages.OfType<JsonObject>().Select(m => (JsonObject)m.DeepClone())]
+                : null;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException)
+        {
+            return null;
+        }
+    }
+
+    /// <summary>The conversation's messages kept for a later run of Karvon (after each turn).</summary>
+    void Save()
+    {
+        if (SessionId is not { } id || StateFile(id) is not { } file)
+            return;
+        try
+        {
+            string json;
+            lock (_messages)
+                json = new JsonArray([.. _messages.Select(m => m.DeepClone())]).ToJsonString();
+            Directory.CreateDirectory(Path.GetDirectoryName(file)!);
+            File.WriteAllText(file, json);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+        }
     }
 
     static string RuntimeInformationText() => System.Runtime.InteropServices.RuntimeInformation.OSDescription;
@@ -212,6 +250,13 @@ public sealed class ModelSession : IAgentSession
 
     // ---- A turn ---------------------------------------------------------------------------------------------
 
+    /// <summary>A turn ends: the conversation is kept, then the panel is told.</summary>
+    void End(ClaudeResult result)
+    {
+        Save();
+        Event?.Invoke(result);
+    }
+
     async Task RunTurnAsync(CancellationToken cancellationToken)
     {
         var clock = Stopwatch.StartNew();
@@ -224,7 +269,7 @@ public sealed class ModelSession : IAgentSession
                 var reply = await AskModelAsync(cancellationToken);
                 if (reply.ToolCalls.Count == 0)
                 {
-                    Event?.Invoke(new ClaudeResult(reply.FinishReason == "length" ? "error_max_tokens" : "success", reply.FinishReason == "length",
+                    End(new ClaudeResult(reply.FinishReason == "length" ? "error_max_tokens" : "success", reply.FinishReason == "length",
                         clock.ElapsedMilliseconds, null, reply.FinishReason == "length" ? "The model's answer was cut off: it reached its length limit." : null,
                         SessionId, _contextTokens));
                     return;
@@ -237,18 +282,18 @@ public sealed class ModelSession : IAgentSession
                         _messages.Add(new JsonObject { ["role"] = "tool", ["tool_call_id"] = call.Id, ["content"] = Redaction.Secrets(output) });
                 }
             }
-            Event?.Invoke(new ClaudeResult("error_max_turns", true, clock.ElapsedMilliseconds, null, null, SessionId, _contextTokens));
+            End(new ClaudeResult("error_max_turns", true, clock.ElapsedMilliseconds, null, null, SessionId, _contextTokens));
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
             CancelQuestions();
-            Event?.Invoke(new ClaudeResult("error_during_execution", true, clock.ElapsedMilliseconds, null, null, SessionId, _contextTokens));
+            End(new ClaudeResult("error_during_execution", true, clock.ElapsedMilliseconds, null, null, SessionId, _contextTokens));
         }
         // Whatever went wrong ends the turn with it shown.
         catch (Exception ex)
         {
             CancelQuestions();
-            Event?.Invoke(new ClaudeResult("error", true, clock.ElapsedMilliseconds, null, $"{_agentName}: {ex.Message}", SessionId, _contextTokens));
+            End(new ClaudeResult("error", true, clock.ElapsedMilliseconds, null, $"{_agentName}: {ex.Message}", SessionId, _contextTokens));
         }
     }
 
@@ -523,12 +568,12 @@ public sealed class ModelSession : IAgentSession
         try
         {
             await CompactAsync(cancellationToken);
-            Event?.Invoke(new ClaudeResult("success", false, clock.ElapsedMilliseconds, null, null, SessionId, _contextTokens));
+            End(new ClaudeResult("success", false, clock.ElapsedMilliseconds, null, null, SessionId, _contextTokens));
         }
         catch (Exception ex) when (ex is HttpRequestException or InvalidOperationException or IOException or OperationCanceledException)
         {
             Event?.Invoke(new ClaudeCompaction("failed", ex.Message));
-            Event?.Invoke(new ClaudeResult(cancellationToken.IsCancellationRequested ? "error_during_execution" : "error", true, clock.ElapsedMilliseconds, null,
+            End(new ClaudeResult(cancellationToken.IsCancellationRequested ? "error_during_execution" : "error", true, clock.ElapsedMilliseconds, null,
                 cancellationToken.IsCancellationRequested ? null : ex.Message, SessionId, _contextTokens));
         }
     }
