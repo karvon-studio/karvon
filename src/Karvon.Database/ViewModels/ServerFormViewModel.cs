@@ -131,7 +131,12 @@ public sealed partial class ServerFormViewModel : ObservableObject
     public IReadOnlyList<string> SslModes { get; } = ["(driver default)", "disable", "prefer", "require", "verify-ca", "verify-full"];
 
     /// <summary>Gets where saved passwords are kept.</summary>
-    public string PasswordStorage => _store.Credentials is { } keyring ? $"Saved passwords go to the {keyring.Name}." : "Saved passwords go to the server list file (owner-only).";
+    public string PasswordStorage => _store.Credentials switch
+    {
+        Karvon.Services.VaultOrSession { CanKeep: false } => "Karvon's vault is locked (or there is no keyring): a saved password is kept until Karvon closes.",
+        { } keyring => $"Saved passwords go to the {keyring.Name}.",
+        null => "Saved passwords go to the server list file (owner-only).",
+    };
 
     /// <summary>Gets the SSH password watermark.</summary>
     public string SshPasswordHint => _existing?.SshPassword is { Length: > 0 } ? "(saved — leave blank to keep)" : "password, or the key's passphrase";

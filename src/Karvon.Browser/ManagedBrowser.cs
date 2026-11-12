@@ -12,8 +12,10 @@ public sealed record BrowserLogEntry(DateTime Time, string Text);
 /// <summary>
 /// Karvon's own Chrome: the installed Chrome (or Chromium, or Edge) with a profile of Karvon's (its cookies, sign-ins and
 /// saved passwords stay in it; Chrome's password manager works there as always), in its own window, driven through the
-/// DevTools protocol. Chrome refuses remote debugging on the user's everyday profile, so this one is Karvon's. It stays
-/// open when Karvon closes, and Karvon finds it again the next time (by the port Chrome wrote into the profile).
+/// DevTools protocol. Chrome refuses remote debugging on the user's everyday profile, so this one is Karvon's. Karvon
+/// drives it through the pipe it starts it with (<see cref="CdpPipe"/>), not a debugging port that any program on the
+/// machine could reach: it closes when Karvon closes. On Windows it has a port (127.0.0.1, written into the profile),
+/// stays open when Karvon closes, and Karvon finds it again the next time.
 /// </summary>
 public sealed class ManagedBrowser(string profile, Func<string?> chrome, bool headless = false) : IAsyncDisposable
 {
@@ -53,6 +55,9 @@ public sealed class ManagedBrowser(string profile, Func<string?> chrome, bool he
     }
 
     static TaskCompletionSource NewLoaded() => new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+    /// <summary>The Chrome Karvon started (its process id); null when it started none.</summary>
+    internal int? ProcessId => _process?.Id;
 
     /// <summary>The profile's folder: its cookies, sign-ins, saved passwords, history.</summary>
     public string Profile => profile;
@@ -112,7 +117,8 @@ public sealed class ManagedBrowser(string profile, Func<string?> chrome, bool he
         {
             if (IsRunning)
                 return;
-            var cdp = await AttachAsync(ct) ?? (launch ? await LaunchAsync(ct) : null);
+            // Over a pipe there is nothing to find again: the Chrome Karvon started closed with it.
+            var cdp = (CdpPipe.IsSupported ? null : await AttachAsync(ct)) ?? (launch ? await LaunchAsync(ct) : null);
             if (cdp is null)
                 return;
             _cdp = cdp;
@@ -172,6 +178,8 @@ public sealed class ManagedBrowser(string profile, Func<string?> chrome, bool he
         var program = chrome() ?? throw new InvalidOperationException(
             "No Chrome is installed (nor Chromium, nor Edge): install Google Chrome, or set KARVON_CHROME_PATH to the browser to use.");
         Directory.CreateDirectory(profile);
+        if (CdpPipe.IsSupported)
+            await CloseWithPortAsync(ct);
         try
         {
             File.Delete(PortFile);
@@ -179,16 +187,18 @@ public sealed class ManagedBrowser(string profile, Func<string?> chrome, bool he
         catch (IOException)
         {
         }
-        var start = new ProcessStartInfo(program) { UseShellExecute = false, CreateNoWindow = true };
-        foreach (var argument in new[] { $"--user-data-dir={profile}", "--remote-debugging-port=0", "--no-first-run", "--no-default-browser-check" })
-            start.ArgumentList.Add(argument);
+        List<string> arguments = [$"--user-data-dir={profile}", CdpPipe.IsSupported ? "--remote-debugging-pipe" : "--remote-debugging-port=0",
+            "--no-first-run", "--no-default-browser-check"];
         if (headless)
-        {
-            start.ArgumentList.Add("--headless=new");
-            start.ArgumentList.Add("--window-size=1280,800");
-        }
-        start.ArgumentList.Add("about:blank");
+            arguments.AddRange(["--headless=new", "--window-size=1280,800"]);
+        arguments.Add("about:blank");
         _process?.Dispose();
+        _process = null;
+        if (CdpPipe.IsSupported)
+            return await LaunchWithPipeAsync(program, arguments, ct);
+        var start = new ProcessStartInfo(program) { UseShellExecute = false, CreateNoWindow = true };
+        foreach (var argument in arguments)
+            start.ArgumentList.Add(argument);
         _process = Process.Start(start);
         // Chrome writes its port into the profile once it listens.
         var end = DateTime.UtcNow + TimeSpan.FromSeconds(30);
@@ -199,6 +209,50 @@ public sealed class ManagedBrowser(string profile, Func<string?> chrome, bool he
                 return cdp;
         }
         throw new InvalidOperationException($"{Path.GetFileName(program)} did not start with Karvon's profile ({profile}) in 30 seconds.");
+    }
+
+    async Task<CdpConnection> LaunchWithPipeAsync(string program, List<string> arguments, CancellationToken ct)
+    {
+        var (process, pipe) = await CdpPipe.StartAsync(program, arguments, TimeSpan.FromSeconds(30), ct);
+        _process = process;
+        var cdp = CdpConnection.Over(pipe);
+        try
+        {
+            await cdp.SendAsync("Browser.getVersion", ct: ct, timeout: TimeSpan.FromSeconds(30));
+            return cdp;
+        }
+        catch (InvalidOperationException)
+        {
+            await cdp.DisposeAsync();
+            // Another Chrome holds the profile (one the user started with it): this one handed it its address and closed.
+            throw new InvalidOperationException(process.HasExited
+                ? $"Karvon's profile ({profile}) is open in another {Path.GetFileName(program)}: close it, then start Karvon's browser again."
+                : $"{Path.GetFileName(program)} did not answer over its pipe.");
+        }
+    }
+
+    /// <summary>
+    /// The Chrome an older Karvon started with a debugging port (it stayed open after it): closed, so that the profile is
+    /// free and the port shut.
+    /// </summary>
+    async Task CloseWithPortAsync(CancellationToken ct)
+    {
+        if (await AttachAsync(ct) is not { } old)
+            return;
+        try
+        {
+            await old.SendAsync("Browser.close", ct: ct, timeout: TimeSpan.FromSeconds(5));
+        }
+        catch (InvalidOperationException)
+        {
+        }
+        var end = DateTime.UtcNow + TimeSpan.FromSeconds(10);
+        while (old.IsOpen && DateTime.UtcNow < end)
+            await Task.Delay(100, ct);
+        await old.DisposeAsync();
+        // Chrome lets go of the profile as it exits.
+        while (Directory.EnumerateFileSystemEntries(profile, "SingletonLock").Any() && DateTime.UtcNow < end)
+            await Task.Delay(100, ct);
     }
 
     void OnClosed()
@@ -642,11 +696,13 @@ public sealed class ManagedBrowser(string profile, Func<string?> chrome, bool he
         }
     }
 
-    /// <summary>Karvon lets go of it; Chrome stays open (the user may be using it).</summary>
+    /// <summary>Karvon lets go of it: over its pipe Chrome closes; with a port (Windows) it stays open (the user may be using it).</summary>
     public async ValueTask DisposeAsync()
     {
         if (_cdp is { } cdp)
             await cdp.DisposeAsync();
         _cdp = null;
+        _process?.Dispose();
+        _process = null;
     }
 }

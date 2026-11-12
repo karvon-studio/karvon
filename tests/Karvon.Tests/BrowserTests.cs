@@ -302,6 +302,96 @@ public class BrowserTests
     }
 
     [Fact]
+    public async Task Karvons_Chrome_is_driven_through_its_pipe_with_no_port_another_program_could_reach_and_closes_with_Karvon()
+    {
+        var found = ChromeLocator.Find();
+        Assert.SkipUnless(found is not null, "Chrome (or Chromium, or Edge) is not installed.");
+        Assert.SkipUnless(OperatingSystem.IsLinux(), "It reads what Chrome listens on from Linux's /proc (on Windows Karvon's Chrome has a port).");
+        var ct = TestContext.Current.CancellationToken;
+        var profile = Directory.CreateTempSubdirectory("karvon-browser-").FullName;
+        var portFile = Path.Combine(profile, "DevToolsActivePort");
+        // The Chrome an older Karvon started with a debugging port, left open after it.
+        var start = new System.Diagnostics.ProcessStartInfo(found!) { UseShellExecute = false, RedirectStandardError = true };
+        foreach (var argument in new[] { $"--user-data-dir={profile}", "--remote-debugging-port=0", "--headless=new", "--no-first-run", "about:blank" })
+            start.ArgumentList.Add(argument);
+        using var old = System.Diagnostics.Process.Start(start)!;
+        old.ErrorDataReceived += (_, _) => { };
+        old.BeginErrorReadLine();
+        var browser = new ManagedBrowser(profile, ChromeLocator.Find, headless: true);
+        try
+        {
+            await WaitUntil(() => File.Exists(portFile), TimeSpan.FromSeconds(30));
+            // Any program on the machine could reach its port.
+            Assert.NotEmpty(ListeningSockets(old.Id));
+            var fifos = Directory.GetDirectories(Path.GetTempPath(), "karvon-cdp-*").ToHashSet();
+
+            await browser.StartAsync(ct);
+            Assert.True(browser.IsRunning);
+            // The old one is closed, its port with it; the new one wrote none.
+            Assert.True(await Exits(old, ct));
+            Assert.False(File.Exists(portFile));
+            var pid = browser.ProcessId!.Value;
+            Assert.DoesNotContain("--remote-debugging-port", File.ReadAllText($"/proc/{pid}/cmdline").Replace('\0', ' '));
+            Assert.Empty(ListeningSockets(pid));
+            // The FIFOs that handed Chrome its ends are gone.
+            Assert.Subset(fifos, Directory.GetDirectories(Path.GetTempPath(), "karvon-cdp-*").ToHashSet());
+            Assert.Equal("about:blank", browser.Current?.Url);
+
+            // Karvon lets go of it (it closes, or exits): Chrome closes.
+            using var chrome = System.Diagnostics.Process.GetProcessById(pid);
+            await browser.DisposeAsync();
+            Assert.True(await Exits(chrome, ct));
+            Assert.False(browser.IsRunning);
+        }
+        finally
+        {
+            if (!old.HasExited)
+                old.Kill(entireProcessTree: true);
+            await browser.StopAsync();
+            Delete(profile);
+        }
+
+        static async Task<bool> Exits(System.Diagnostics.Process process, CancellationToken ct)
+        {
+            try
+            {
+                await process.WaitForExitAsync(ct).WaitAsync(TimeSpan.FromSeconds(15), ct);
+                return true;
+            }
+            catch (TimeoutException)
+            {
+                return false;
+            }
+        }
+
+        // The TCP sockets the process listens on (Linux's /proc): its descriptors' sockets that /proc/net/tcp says listen.
+        static List<string> ListeningSockets(int pid)
+        {
+            var sockets = new HashSet<string>();
+            foreach (var fd in Directory.EnumerateFileSystemEntries($"/proc/{pid}/fd"))
+                if (new FileInfo(fd).LinkTarget is { } target && target.StartsWith("socket:[", StringComparison.Ordinal))
+                    sockets.Add(target[8..^1]);
+            return [.. new[] { "/proc/net/tcp", "/proc/net/tcp6" }.Where(File.Exists).SelectMany(File.ReadLines).Skip(1)
+                .Select(line => line.Split(' ', StringSplitOptions.RemoveEmptyEntries))
+                .Where(f => f.Length > 9 && f[3] == "0A" && sockets.Contains(f[9]))
+                .Select(f => f[1])];
+        }
+    }
+
+    [Fact]
+    public async Task A_program_that_never_takes_its_pipe_is_let_go_and_nothing_is_left_waiting()
+    {
+        Assert.SkipUnless(CdpPipe.IsSupported && File.Exists("/bin/true"), "On Windows Karvon's Chrome has a port.");
+        var before = Directory.GetDirectories(Path.GetTempPath(), "karvon-cdp-*").ToHashSet();
+        // A shell that ends at once, Chrome's ends never opened: Karvon's own opens, which wait for them, are let go.
+        var error = await Assert.ThrowsAsync<InvalidOperationException>(
+            () => CdpPipe.StartAsync("/opt/google/chrome/chrome", ["--remote-debugging-pipe"], TimeSpan.FromSeconds(30), "/bin/true", TestContext.Current.CancellationToken))
+            .WaitAsync(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken);
+        Assert.Equal("chrome closed as it started.", error.Message);
+        Assert.Subset(before, Directory.GetDirectories(Path.GetTempPath(), "karvon-cdp-*").ToHashSet());
+    }
+
+    [Fact]
     public void A_site_is_kept_by_its_origin_and_its_sign_ins_found_by_its_host()
     {
         var folder = Directory.CreateTempSubdirectory("karvon-logins-").FullName;

@@ -61,13 +61,13 @@ public sealed class BrowserModule : KarvonModule
 
     public override IEnumerable<IClaudeTool> ClaudeTools() => BrowserClaudeTools.Create(async ct =>
     {
-        // The Chrome Karvon started before (it stays open when Karvon closes) is found again without starting another.
+        // On Windows, the Chrome Karvon started before (it stays open there when Karvon closes) is found again without starting another.
         if (!Browser.IsRunning)
             await Browser.FindRunningAsync(ct);
         return Browser;
     }, Logins, () => Workbench.Workspace);
 
-    /// <summary>Karvon lets go of Chrome, which stays open.</summary>
+    /// <summary>Karvon lets go of Chrome, which closes (it stays open on Windows).</summary>
     public override void Dispose()
     {
         _view?.Dispose();

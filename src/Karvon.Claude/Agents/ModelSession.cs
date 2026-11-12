@@ -188,8 +188,9 @@ public sealed class ModelSession : IAgentSession
             string json;
             lock (_messages)
                 json = new JsonArray([.. _messages.Select(m => m.DeepClone())]).ToJsonString();
-            Directory.CreateDirectory(Path.GetDirectoryName(file)!);
-            File.WriteAllText(file, json);
+            AgentTranscripts.PrivateFolder(Path.GetDirectoryName(file)!);
+            using var stream = AgentTranscripts.OpenPrivate(file, FileMode.Create);
+            stream.Write(System.Text.Encoding.UTF8.GetBytes(json));
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {

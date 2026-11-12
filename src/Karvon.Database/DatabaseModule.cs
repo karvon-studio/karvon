@@ -22,7 +22,8 @@ namespace Karvon.Database;
 /// kept in .vs/&lt;Solution&gt;/Karvon/Database: its data sources, query history, settings, SQL files and workspace (the
 /// tree and the tabs). Nothing of it shows in another solution: when the solution closes, its explorer saves its workspace
 /// and closes with it. With no solution open it is Bengine Data Studio's list (~/.config/bengine/servers.json) and a
-/// workspace of Karvon's own. Its documents open as Karvon document tabs; Claude Code gets the database tools.
+/// workspace of Karvon's own. Saved passwords are in Karvon's vault, not in either list. Its documents open as Karvon
+/// document tabs; Claude Code gets the database tools.
 /// </summary>
 public sealed class DatabaseModule : KarvonModule, IDatabaseService, IDatabaseToolHost
 {
@@ -80,10 +81,30 @@ public sealed class DatabaseModule : KarvonModule, IDatabaseService, IDatabaseTo
     /// <summary>The open solution's explorer, made the first time it is needed.</summary>
     public ExplorerViewModel Explorer => _explorer ??= CreateExplorer();
 
-    /// <summary>The open solution's data sources (with no solution: Studio's list; BENGINE_SERVERS_FILE points it elsewhere).</summary>
-    public ServerStore Servers => _servers ??= Directory is { } directory
-        ? new ServerStore(Path.Combine(directory, "servers.json"), Karvon.Services.Keyring.System)
-        : new ServerStore();
+    /// <summary>
+    /// The open solution's data sources (with no solution: Studio's list; BENGINE_SERVERS_FILE points it elsewhere). A
+    /// saved password is kept in Karvon's vault (for this session only when the vault is locked or there is none), never
+    /// in the list's file; one an older Karvon or Bengine Studio left in the file is moved into the vault.
+    /// </summary>
+    public ServerStore Servers => _servers ??= MovePasswordsOut(new ServerStore(
+        Directory is { } directory ? Path.Combine(directory, "servers.json") : ServerStore.DefaultPath, Karvon.Services.VaultOrSession.OverKarvons()));
+
+    internal static ServerStore MovePasswordsOut(ServerStore servers)
+    {
+        if (servers.Credentials is not Karvon.Services.VaultOrSession { CanKeep: true })
+            return servers;
+        try
+        {
+            foreach (var server in servers.List())
+                if (server is { SavePassword: true, PasswordInKeyring: false } && (server.Password is { Length: > 0 } || server.SshPassword is { Length: > 0 }))
+                    servers.Upsert(server);
+        }
+        catch (Exception ex) when (ex is Bengine.Introspection.IntrospectionException or IOException or UnauthorizedAccessException)
+        {
+            // A list that cannot be read or written now: the explorer says so when it shows it.
+        }
+        return servers;
+    }
 
     /// <summary>The folder of the open solution's Database Explorer (beside its state.json); null with no solution open.</summary>
     public string? Directory => Workbench.WorkspaceStateDirectory is { } state ? Path.Combine(state, "Database") : null;

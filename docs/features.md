@@ -345,9 +345,11 @@ A script that reads or writes such files with python-docx, openpyxl, python-pptx
 
 Karvon's own Chrome: the installed Google Chrome (or Chromium, or Edge) with a profile of Karvon's, in its own window,
 which Claude Code drives. Chrome does not allow remote control of your everyday profile, so this one is Karvon's: the
-sites you sign in to there stay signed in, its cookies stay, and Chrome's password manager keeps what you save in it. It
-stays open when Karvon closes, and Karvon finds it again the next time. The Browser window starts and closes it, opens
-an address, shows its tabs (a click brings one to the front), and keeps the sign-ins Karvon fills in for Claude.
+sites you sign in to there stay signed in, its cookies stay, and Chrome's password manager keeps what you save in it.
+Karvon drives it through a pipe only Karvon holds, not a debugging port another program could reach, and it closes with
+Karvon (on Windows it has a port on 127.0.0.1, stays open when Karvon closes, and Karvon finds it again the next time).
+The Browser window starts and closes it, opens an address, shows its tabs (a click brings one to the front), and keeps
+the sign-ins Karvon fills in for Claude.
 
 - `browser_open` opens a page (in a new tab), back, forward, reload; `browser_snapshot` reads the page as an outline (its
   headings, text and controls, each control with a ref), cheaper than a picture; `browser_screenshot` is the picture.

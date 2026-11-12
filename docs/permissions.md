@@ -51,13 +51,15 @@ Claude is shown to you under the call.
 
 | Secret | Kept in | What reaches it |
 | --- | --- | --- |
-| Jira, data source, tunnel, pipeline and SSH passwords Karvon keeps | Karvon's vault (`vault.db` in its settings folder, each entry AES-256-GCM, bound to its name) | Karvon. Its key is in the system keyring (`karvon-vault/key`); Claude's tools are refused the file and the keyring by the guard, and by the sandbox when it is on |
+| Jira, data source, tunnel, pipeline and SSH passwords Karvon keeps | Karvon's vault (`vault.db` in its settings folder, each entry AES-256-GCM, bound to its name; the entries' names are not encrypted). A data source's password is never in a server list's file: while the vault is locked, or with none, it is kept until Karvon closes | Karvon. Its key is in the system keyring (`karvon-vault/key`); Claude's tools are refused the file and the keyring by the guard, and by the sandbox when it is on. A copy of `vault.db` taken elsewhere opens for no one: without your keyring's key nothing in it reads, and with a passphrase it opens for the passphrase only |
 | The vault's key | the system keyring; with a passphrase (Tools > Vault > Set Passphrase), in no keyring: wrapped in the vault by a key drawn from the passphrase, which Karvon asks for as it starts | from the keyring, any process of yours that asks it (Claude's shell is refused `secret-tool` by the guard, and on Linux the sandbox shuts out the keyring's socket); with a passphrase, Karvon alone, once it is given |
 | SSH keys, kubeconfig, cloud CLI credentials, `gh` and `glab` tokens, Claude Code's own sign-in | their usual files under your home | the guard refuses Claude's tools these files; the sandbox denies reading them |
 | A project's `.env`, keys, certificates, `secrets.json` | the project | the guard refuses Claude's tools these files by name |
 | The passwords in a project's settings (`appsettings*.json`, YAML, a connection string in code) | the project | Claude's tools read the files, which code needs; what they give the model has the passwords marked, and Claude uses them in an edit or a command without seeing them. `db_add_connection` makes a connection string a data source, its password in Karvon's vault |
 | Secret-looking environment variables | Karvon's environment | not passed to `claude`: their names are listed in Output (Claude) |
 | What you type in a prompt | the chat | a card holds a prompt with a secret in it: send it hidden, as it is, or not at all |
+| The sites you are signed in to in Karvon's browser (its cookies) | Karvon's Chrome profile | Chrome, which Karvon drives through a pipe only it holds: no debugging port, so no other program (nor another user of the machine) can drive it or read its cookies, and it closes with Karvon. On Windows it has a debugging port on 127.0.0.1 that any program of the machine can reach while it runs |
+| The Agents panel's conversations | `agents/` in Karvon's settings folder | you alone: its folders and files are readable by their owner only |
 
 ## Boundaries
 
@@ -66,6 +68,10 @@ Claude is shown to you under the call.
 | Secret variables kept from `claude` | enforced | `ClaudeSecretsTests.Claude_Code_is_started_without_them`, `ClaudeNegativeTests` |
 | The guard of the secrets (Claude Code's own tools) | enforced, as a guard | `ClaudeSecretsTests.Claude_Codes_tools_may_not_read_change_or_print_them`, `A_session_denies_Claude_Codes_own_tools_the_secrets`, `ClaudeNegativeTests` |
 | The vault: encrypted, and not openable by Claude's tools | enforced | `ClaudeSecretsTests.The_vault_keeps_secrets_encrypted_in_its_database_and_takes_over_the_keyrings`, `Claude_Codes_tools_may_not_open_the_vault` |
+| A copy of the vault opens for no one without your keyring's key or its passphrase | enforced | `SecretStorageTests.A_vault_copied_to_another_machine_opens_for_no_one_without_this_keyring_or_its_passphrase` |
+| A data source's password never in a server list's file (one an older Karvon left there moved into the vault) | enforced | `SecretStorageTests.A_data_sources_saved_password_is_kept_in_the_vault_never_in_the_list_file`, `With_the_vault_locked_or_none_a_saved_password_lasts_until_Karvon_closes_and_is_never_written_down`, `A_password_an_older_Karvon_left_in_the_list_file_is_moved_into_the_vault` |
+| Karvon's Chrome has no debugging port (Linux, macOS) | enforced | `BrowserTests.Karvons_Chrome_is_driven_through_its_pipe_with_no_port_another_program_could_reach_and_closes_with_Karvon` |
+| The Agents panel's conversations readable by you alone | enforced | `SecretStorageTests.An_agents_conversation_is_readable_by_its_owner_alone` |
 | Claude Code's sandbox for its shell (off at first: MCP Servers > karvon) | enforced by Claude Code when on; Karvon checks what it is given | `ClaudeSecretsTests.The_sandbox_keeps_the_secrets_unreadable_and_no_command_out_of_it` |
 | Secrets hidden in what Karvon's tools give | enforced | `ClaudeSecretsTests.No_tool_of_Karvons_tells_Claude_a_secret`, `ClaudeNegativeTests` |
 | A prompt with a secret held for your say | enforced | `ClaudeSecretsTests.A_prompt_with_a_secret_waits_for_the_users_say` |

@@ -6,17 +6,20 @@ using System.Text.Json.Nodes;
 namespace Karvon.Browser;
 
 /// <summary>
-/// A connection to Chrome's DevTools protocol (its browser endpoint's WebSocket): commands answered by id, a page's
-/// through its session (attached flat), and the events each sends.
+/// A connection to Chrome's DevTools protocol: commands answered by id, a page's through its session (attached flat), and
+/// the events each sends. Over the pipe Chrome was started with (<see cref="CdpPipe"/>), which nothing else can reach;
+/// on Windows over its browser endpoint's WebSocket.
 /// </summary>
 public sealed class CdpConnection : IAsyncDisposable
 {
-    readonly ClientWebSocket _socket = new();
+    readonly ICdpTransport _transport;
     readonly ConcurrentDictionary<int, TaskCompletionSource<JsonObject>> _pending = new();
     readonly SemaphoreSlim _send = new(1, 1);
     readonly CancellationTokenSource _closing = new();
     Task? _reading;
     int _next;
+
+    CdpConnection(ICdpTransport transport) => _transport = transport;
 
     /// <summary>An event: its method, its params, the session it came from (null for the browser's own).</summary>
     public event Action<string, JsonObject, string?>? Event;
@@ -24,13 +27,18 @@ public sealed class CdpConnection : IAsyncDisposable
     /// <summary>The connection closed (Chrome quit, or it was closed).</summary>
     public event Action? Closed;
 
-    public bool IsOpen => _socket.State == WebSocketState.Open;
+    public bool IsOpen => _transport.IsOpen;
 
-    public static async Task<CdpConnection> ConnectAsync(Uri endpoint, CancellationToken ct)
+    /// <summary>Over a WebSocket (a browser endpoint's address).</summary>
+    public static async Task<CdpConnection> ConnectAsync(Uri endpoint, CancellationToken ct) =>
+        Start(await WebSocketTransport.ConnectAsync(endpoint, ct));
+
+    /// <summary>Over the pipe of the Chrome Karvon started.</summary>
+    public static CdpConnection Over(CdpPipe pipe) => Start(pipe);
+
+    static CdpConnection Start(ICdpTransport transport)
     {
-        var connection = new CdpConnection();
-        connection._socket.Options.KeepAliveInterval = TimeSpan.FromSeconds(30);
-        await connection._socket.ConnectAsync(endpoint, ct);
+        var connection = new CdpConnection(transport);
         connection._reading = Task.Run(connection.ReadAsync);
         return connection;
     }
@@ -48,7 +56,12 @@ public sealed class CdpConnection : IAsyncDisposable
         await _send.WaitAsync(ct);
         try
         {
-            await _socket.SendAsync(bytes, WebSocketMessageType.Text, true, ct);
+            await _transport.SendAsync(bytes, ct);
+        }
+        catch (Exception ex) when (ex is IOException or ObjectDisposedException)
+        {
+            _pending.TryRemove(id, out _);
+            throw new InvalidOperationException("Chrome closed the connection.", ex);
         }
         catch
         {
@@ -75,20 +88,10 @@ public sealed class CdpConnection : IAsyncDisposable
 
     async Task ReadAsync()
     {
-        var buffer = new byte[1 << 16];
-        using var message = new MemoryStream();
         try
         {
-            while (_socket.State == WebSocketState.Open && !_closing.IsCancellationRequested)
+            while (!_closing.IsCancellationRequested && await _transport.ReceiveAsync(_closing.Token) is { } text)
             {
-                var received = await _socket.ReceiveAsync(buffer, _closing.Token);
-                if (received.MessageType == WebSocketMessageType.Close)
-                    break;
-                message.Write(buffer, 0, received.Count);
-                if (!received.EndOfMessage)
-                    continue;
-                var text = Encoding.UTF8.GetString(message.GetBuffer(), 0, (int)message.Length);
-                message.SetLength(0);
                 if (JsonNode.Parse(text) is not JsonObject json)
                     continue;
                 if (json["id"]?.GetValue<int>() is { } id)
@@ -112,9 +115,10 @@ public sealed class CdpConnection : IAsyncDisposable
                 }
             }
         }
-        catch (Exception ex) when (ex is WebSocketException or OperationCanceledException or System.Text.Json.JsonException or ObjectDisposedException)
+        catch (Exception ex) when (ex is WebSocketException or IOException or OperationCanceledException or System.Text.Json.JsonException or ObjectDisposedException)
         {
         }
+        _transport.Lost();
         foreach (var waiting in _pending.Values)
             waiting.TrySetException(new InvalidOperationException("Chrome closed the connection."));
         _pending.Clear();
@@ -124,6 +128,75 @@ public sealed class CdpConnection : IAsyncDisposable
     public async ValueTask DisposeAsync()
     {
         _closing.Cancel();
+        await _transport.DisposeAsync();
+        if (_reading is not null)
+            await _reading.WaitAsync(TimeSpan.FromSeconds(2)).ContinueWith(_ => { });
+    }
+}
+
+/// <summary>How the protocol's messages go to Chrome and come back.</summary>
+interface ICdpTransport : IAsyncDisposable
+{
+    bool IsOpen { get; }
+
+    Task SendAsync(byte[] message, CancellationToken ct);
+
+    /// <summary>The next message; null when Chrome closed its end.</summary>
+    Task<string?> ReceiveAsync(CancellationToken ct);
+
+    /// <summary>The reading ended (Chrome closed it, or it failed): it is not open any more.</summary>
+    void Lost();
+}
+
+sealed class WebSocketTransport : ICdpTransport
+{
+    readonly ClientWebSocket _socket = new();
+    readonly byte[] _buffer = new byte[1 << 16];
+    readonly MemoryStream _message = new();
+
+    public static async Task<WebSocketTransport> ConnectAsync(Uri endpoint, CancellationToken ct)
+    {
+        var transport = new WebSocketTransport();
+        transport._socket.Options.KeepAliveInterval = TimeSpan.FromSeconds(30);
+        try
+        {
+            await transport._socket.ConnectAsync(endpoint, ct);
+        }
+        catch
+        {
+            transport._socket.Dispose();
+            throw;
+        }
+        return transport;
+    }
+
+    public bool IsOpen => _socket.State == WebSocketState.Open;
+
+    public Task SendAsync(byte[] message, CancellationToken ct) => _socket.SendAsync(message, WebSocketMessageType.Text, true, ct);
+
+    public async Task<string?> ReceiveAsync(CancellationToken ct)
+    {
+        while (_socket.State == WebSocketState.Open)
+        {
+            var received = await _socket.ReceiveAsync(_buffer, ct);
+            if (received.MessageType == WebSocketMessageType.Close)
+                return null;
+            _message.Write(_buffer, 0, received.Count);
+            if (!received.EndOfMessage)
+                continue;
+            var text = Encoding.UTF8.GetString(_message.GetBuffer(), 0, (int)_message.Length);
+            _message.SetLength(0);
+            return text;
+        }
+        return null;
+    }
+
+    public void Lost()
+    {
+    }
+
+    public async ValueTask DisposeAsync()
+    {
         try
         {
             if (_socket.State == WebSocketState.Open)
@@ -132,8 +205,6 @@ public sealed class CdpConnection : IAsyncDisposable
         catch (Exception ex) when (ex is WebSocketException or TimeoutException or ObjectDisposedException or OperationCanceledException)
         {
         }
-        if (_reading is not null)
-            await _reading.WaitAsync(TimeSpan.FromSeconds(2)).ContinueWith(_ => { });
         _socket.Dispose();
     }
 }

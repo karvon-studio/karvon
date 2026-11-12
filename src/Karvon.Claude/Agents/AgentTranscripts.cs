@@ -21,7 +21,8 @@ public sealed class AgentTranscript
     public static AgentTranscript Open(string directory, string agentId, string agentName, string workingDirectory, string sessionId)
     {
         var folder = AgentTranscripts.Folder(directory, workingDirectory);
-        Directory.CreateDirectory(folder);
+        AgentTranscripts.PrivateFolder(directory);
+        AgentTranscripts.PrivateFolder(folder);
         var file = Path.Combine(folder, AgentTranscripts.FileName(sessionId));
         var transcript = new AgentTranscript(file);
         if (!File.Exists(file))
@@ -85,7 +86,10 @@ public sealed class AgentTranscript
         try
         {
             lock (_lock)
-                File.AppendAllText(_file, line.ToJsonString() + "\n");
+            {
+                using var stream = AgentTranscripts.OpenPrivate(_file, FileMode.Append);
+                stream.Write(System.Text.Encoding.UTF8.GetBytes(line.ToJsonString() + "\n"));
+            }
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
@@ -94,9 +98,40 @@ public sealed class AgentTranscript
     }
 }
 
-/// <summary>The agents' conversations of a folder, from Karvon's transcripts of them.</summary>
+/// <summary>
+/// The agents' conversations of a folder, from Karvon's transcripts of them. They hold what was said, and what the tools
+/// returned: their folders and files are their owner's alone.
+/// </summary>
 public static partial class AgentTranscripts
 {
+    const UnixFileMode OwnerOnly = UnixFileMode.UserRead | UnixFileMode.UserWrite;
+    const UnixFileMode OwnerOnlyFolder = OwnerOnly | UnixFileMode.UserExecute;
+
+    /// <summary>A folder only its owner opens: made so, or made so again (an older Karvon left others able to read it).</summary>
+    public static void PrivateFolder(string folder)
+    {
+        if (OperatingSystem.IsWindows())
+        {
+            Directory.CreateDirectory(folder);
+            return;
+        }
+        Directory.CreateDirectory(folder, OwnerOnlyFolder);
+        if ((File.GetUnixFileMode(folder) & ~OwnerOnlyFolder) != 0)
+            File.SetUnixFileMode(folder, OwnerOnlyFolder);
+    }
+
+    /// <summary>A file of theirs to write, only its owner able to read it (made so when it was not).</summary>
+    public static FileStream OpenPrivate(string file, FileMode mode)
+    {
+        var options = new FileStreamOptions { Mode = mode, Access = FileAccess.Write, Share = FileShare.Read };
+        if (!OperatingSystem.IsWindows())
+            options.UnixCreateMode = OwnerOnly;
+        var stream = new FileStream(file, options);
+        if (!OperatingSystem.IsWindows() && (File.GetUnixFileMode(stream.SafeFileHandle) & ~OwnerOnly) != 0)
+            File.SetUnixFileMode(stream.SafeFileHandle, OwnerOnly);
+        return stream;
+    }
+
     /// <summary>The folder of a working directory's transcripts.</summary>
     public static string Folder(string directory, string workingDirectory) =>
         Path.Combine(directory, NonAlphanumeric().Replace(Path.GetFullPath(workingDirectory).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar), "-"));
