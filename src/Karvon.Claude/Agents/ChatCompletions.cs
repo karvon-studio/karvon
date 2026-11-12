@@ -11,7 +11,9 @@ public sealed record ModelToolCall(string Id, string Name, string Arguments);
 
 /// <summary>What one streamed answer of a model came to.</summary>
 /// <param name="PromptTokens">How much context the request took (the provider's count); null when it did not say.</param>
-public sealed record ModelReply(string Text, string Thinking, IReadOnlyList<ModelToolCall> ToolCalls, string? FinishReason, int? PromptTokens, int? OutputTokens);
+/// <param name="Blocks">The answer in its provider's own words, sent back as it was (Claude's blocks); null for none.</param>
+public sealed record ModelReply(string Text, string Thinking, IReadOnlyList<ModelToolCall> ToolCalls, string? FinishReason, int? PromptTokens, int? OutputTokens,
+    JsonArray? Blocks = null);
 
 /// <summary>Where a model Karvon drives itself answers: its models, and an answer streamed (in Chat Completions' terms).</summary>
 public interface IChatEndpoint
@@ -36,7 +38,7 @@ public interface IChatEndpoint
 /// An OpenAI-compatible Chat Completions endpoint (OpenRouter, LM Studio, vLLM...): its models, and an answer streamed as
 /// server-sent events, its text, its reasoning and its tool calls as they come.
 /// </summary>
-public sealed class ChatCompletions(HttpClient http, string baseUrl, string? apiKey) : IChatEndpoint
+public sealed partial class ChatCompletions(HttpClient http, string baseUrl, string? apiKey, bool streamOptions = true) : IChatEndpoint
 {
     public string BaseUrl { get; } = baseUrl.TrimEnd('/');
 
@@ -53,7 +55,11 @@ public sealed class ChatCompletions(HttpClient http, string baseUrl, string? api
         return request;
     }
 
-    /// <summary>The models the endpoint has (/models): their ids, names, descriptions and context windows; for OpenRouter only those that take tools.</summary>
+    /// <summary>
+    /// The models the endpoint has (/models) that can answer a chat with tools: their ids, names, descriptions and context
+    /// windows. Left out is a model its provider says takes no tools or no chat (OpenRouter's <c>supported_parameters</c>,
+    /// Mistral's <c>capabilities</c>), is not active (Groq's), or is known by its name not to chat (speech, embeddings, images).
+    /// </summary>
     public async Task<IReadOnlyList<(string Id, string Name, string? Description, int? Context)>> ModelsAsync(CancellationToken cancellationToken)
     {
         using var response = await http.SendAsync(Request(HttpMethod.Get, "/models"), cancellationToken);
@@ -62,14 +68,32 @@ public sealed class ChatCompletions(HttpClient http, string baseUrl, string? api
         if (!document.RootElement.TryGetProperty("data", out var data) || data.ValueKind != JsonValueKind.Array)
             return [];
         return [.. data.EnumerateArray()
-            .Where(m => !m.TryGetProperty("supported_parameters", out var p) || p.ValueKind != JsonValueKind.Array
-                || p.EnumerateArray().Any(x => x.GetString() == "tools"))
+            .Where(Chats)
             .Select(m => (Id: ClaudeJson.Str(m, "id") ?? "", Name: ClaudeJson.Str(m, "name") ?? ClaudeJson.Str(m, "id") ?? "",
                 Description: ClaudeJson.Str(m, "description") is { } d ? FirstSentence(d) : null,
-                Context: m.TryGetProperty("context_length", out var c) && c.TryGetInt32(out var n) ? n : (int?)null))
-            .Where(m => m.Id.Length > 0)
+                Context: new[] { "context_length", "context_window", "max_context_length" }
+                    .Select(name => m.TryGetProperty(name, out var c) && c.TryGetInt32(out var n) && n > 0 ? n : (int?)null).FirstOrDefault(n => n is not null)))
+            .Where(m => m.Id.Length > 0 && !NotChat().IsMatch(m.Id))
             .OrderBy(m => m.Name, StringComparer.OrdinalIgnoreCase)];
     }
+
+    static bool Chats(JsonElement model)
+    {
+        if (model.TryGetProperty("supported_parameters", out var parameters) && parameters.ValueKind == JsonValueKind.Array
+            && !parameters.EnumerateArray().Any(x => x.GetString() == "tools"))
+            return false;
+        if (model.TryGetProperty("capabilities", out var capabilities) && capabilities.ValueKind == JsonValueKind.Object
+            && (Says(capabilities, "function_calling") == false || Says(capabilities, "completion_chat") == false))
+            return false;
+        return Says(model, "active") != false;
+    }
+
+    static bool? Says(JsonElement element, string name) =>
+        element.TryGetProperty(name, out var value) && value.ValueKind is JsonValueKind.True or JsonValueKind.False ? value.GetBoolean() : null;
+
+    /// <summary>Models that do not chat, by their names: speech (Whisper, TTS, Orpheus), embeddings, guards and moderation, images and video.</summary>
+    [System.Text.RegularExpressions.GeneratedRegex(@"whisper|(^|[-/_])tts([-_]|$)|orpheus|embed|guard|moderation|seedream|seedance|seededit", System.Text.RegularExpressions.RegexOptions.IgnoreCase)]
+    private static partial System.Text.RegularExpressions.Regex NotChat();
 
     internal static string FirstSentence(string text)
     {
@@ -85,7 +109,8 @@ public sealed class ChatCompletions(HttpClient http, string baseUrl, string? api
     public async Task<ModelReply> StreamAsync(JsonObject body, Action<string> onText, Action<string> onThinking, CancellationToken cancellationToken)
     {
         body["stream"] = true;
-        body["stream_options"] = new JsonObject { ["include_usage"] = true };
+        if (streamOptions)
+            body["stream_options"] = new JsonObject { ["include_usage"] = true };
         using var response = await http.SendAsync(Request(HttpMethod.Post, "/chat/completions", body), HttpCompletionOption.ResponseHeadersRead, cancellationToken);
         await EnsureAsync(response, cancellationToken);
         using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);

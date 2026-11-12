@@ -8,7 +8,7 @@ namespace Karvon.Claude;
 /// <summary>
 /// Agents: a conversation with a coding agent other than Claude Code, in a tool window of its own (Claude Code keeps its
 /// own). The agent and its model are chosen in a dialog (<see cref="AgentPickerViewModel"/>): Codex, a model Karvon drives
-/// itself through OpenRouter, Ollama or LM Studio, or an Agent Client Protocol agent (Gemini CLI, and the user's own). The
+/// itself through Anthropic's API (Claude on an API key), OpenRouter, BytePlus ModelArk, DeepSeek, Groq, Mistral, Ollama or LM Studio, or an Agent Client Protocol agent (Gemini CLI, and the user's own). The
 /// panel is Claude Code's (<see cref="ClaudeViewModel"/>), so the agents' answers, tool calls, diffs and questions show
 /// alike, and they use Karvon's tools under the same rules.
 /// </summary>
@@ -25,8 +25,8 @@ public sealed class AgentsModule : AgentPanelModule
     public override string Icon => "robot";
 
     public override string Description =>
-        "Other coding agents beside Claude Code: Codex, any model on OpenRouter, a local model in Ollama or LM Studio, and Agent "
-        + "Client Protocol agents (Gemini CLI, your own), with Karvon's tools.";
+        "Other coding agents beside Claude Code: Codex, Claude on your API key, any model on OpenRouter, BytePlus ModelArk, DeepSeek, Groq or Mistral, a local "
+        + "model in Ollama or LM Studio, and Agent Client Protocol agents (Gemini CLI, your own), with Karvon's tools.";
 
     public override IReadOnlyList<ToolWindowInfo> ToolWindows =>
         [new(ToolWindowId, "Agents", "_Agents", "Sparkle", DockSide.Right, () => new ClaudeView { DataContext = Agents }) { Show = Show }];
@@ -46,7 +46,12 @@ public sealed class AgentsModule : AgentPanelModule
     public static IReadOnlyList<IAgentBackend> Backends(Settings settings) =>
     [
         new CodexBackend(),
+        new ModelBackend(ModelProvider.Claude, Keyring.System),
         new ModelBackend(ModelProvider.OpenRouter, Keyring.System),
+        new ModelBackend(ModelProvider.BytePlus, Keyring.System),
+        new ModelBackend(ModelProvider.DeepSeek, Keyring.System),
+        new ModelBackend(ModelProvider.Groq, Keyring.System),
+        new ModelBackend(ModelProvider.Mistral, Keyring.System),
         new ModelBackend(ModelProvider.Ollama),
         new ModelBackend(ModelProvider.LmStudio),
         new AcpBackend(AcpAgent.GeminiCli),

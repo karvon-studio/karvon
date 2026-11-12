@@ -82,7 +82,7 @@ public sealed class ClaudeLanguage : INotifyPropertyChanged
 
     static string T(string text) => Instance.Translate(text);
 
-    static readonly Dictionary<string, string> Uzbek = new(StringComparer.Ordinal)
+    internal static readonly Dictionary<string, string> Uzbek = new(StringComparer.Ordinal)
     {
         // Header, accounts, language
         ["Switch or add a Claude account"] = "Claude akkauntini almashtirish yoki qo‘shish",
@@ -153,6 +153,26 @@ public sealed class ClaudeLanguage : INotifyPropertyChanged
         ["Add your OpenRouter API key (openrouter.ai/keys) in Choose Agent and Model: Karvon keeps it in its vault and sends it only to OpenRouter."] =
             "OpenRouter API kalitingizni (openrouter.ai/keys) “Agent va modelni tanlash” oynasida kiriting: Karvon uni o‘z seyfida saqlaydi va faqat OpenRouter’ga yuboradi.",
         ["Any model (GPT, Gemini, Qwen, DeepSeek, Kimi, GLM...) on your OpenRouter key"] = "OpenRouter kalitingiz bilan istalgan model (GPT, Gemini, Qwen, DeepSeek, Kimi, GLM...)",
+        ["Claude API needs an API key"] = "Claude API uchun API kaliti kerak",
+        ["Add your Anthropic API key (platform.claude.com/settings/keys) in Choose Agent and Model: Karvon keeps it in its vault and sends it only to Anthropic."] =
+            "Anthropic API kalitingizni (platform.claude.com/settings/keys) “Agent va modelni tanlash” oynasida kiriting: Karvon uni o‘z seyfida saqlaydi va faqat Anthropic’ga yuboradi.",
+        ["Claude's models through Anthropic's API, on your API key"] = "Claude modellari Anthropic API’si orqali, API kalitingiz bilan",
+        ["BytePlus ModelArk needs an API key"] = "BytePlus ModelArk uchun API kaliti kerak",
+        ["Add your BytePlus ModelArk API key (console.byteplus.com) in Choose Agent and Model: Karvon keeps it in its vault and sends it only to BytePlus ModelArk."] =
+            "BytePlus ModelArk API kalitingizni (console.byteplus.com) “Agent va modelni tanlash” oynasida kiriting: Karvon uni o‘z seyfida saqlaydi va faqat BytePlus ModelArk’ga yuboradi.",
+        ["DeepSeek needs an API key"] = "DeepSeek uchun API kaliti kerak",
+        ["Add your DeepSeek API key (platform.deepseek.com/api_keys) in Choose Agent and Model: Karvon keeps it in its vault and sends it only to DeepSeek."] =
+            "DeepSeek API kalitingizni (platform.deepseek.com/api_keys) “Agent va modelni tanlash” oynasida kiriting: Karvon uni o‘z seyfida saqlaydi va faqat DeepSeek’ga yuboradi.",
+        ["Groq needs an API key"] = "Groq uchun API kaliti kerak",
+        ["Add your Groq API key (console.groq.com/keys) in Choose Agent and Model: Karvon keeps it in its vault and sends it only to Groq."] =
+            "Groq API kalitingizni (console.groq.com/keys) “Agent va modelni tanlash” oynasida kiriting: Karvon uni o‘z seyfida saqlaydi va faqat Groq’ga yuboradi.",
+        ["Mistral needs an API key"] = "Mistral uchun API kaliti kerak",
+        ["Add your Mistral API key (console.mistral.ai/api-keys) in Choose Agent and Model: Karvon keeps it in its vault and sends it only to Mistral."] =
+            "Mistral API kalitingizni (console.mistral.ai/api-keys) “Agent va modelni tanlash” oynasida kiriting: Karvon uni o‘z seyfida saqlaydi va faqat Mistral’ga yuboradi.",
+        ["ByteDance's Seed and the other models of BytePlus ModelArk, on your key"] = "ByteDance’ning Seed’i va BytePlus ModelArk’ning boshqa modellari, kalitingiz bilan",
+        ["DeepSeek's own models, on your DeepSeek key"] = "DeepSeek’ning o‘z modellari, DeepSeek kalitingiz bilan",
+        ["Open models on Groq's fast inference, on your Groq key"] = "Groq’ning tezkor serverlaridagi ochiq modellar, Groq kalitingiz bilan",
+        ["Mistral AI's models, on your Mistral key"] = "Mistral AI modellari, Mistral kalitingiz bilan",
         ["A local model in Ollama, on this computer"] = "Shu kompyuterdagi Ollama’da lokal model",
         ["A local model in LM Studio's server, on this computer"] = "Shu kompyuterdagi LM Studio serverida lokal model",
         ["Ollama is not set up"] = "Ollama sozlanmagan",

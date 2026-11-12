@@ -7,8 +7,10 @@ namespace Karvon.Claude;
 /// <param name="EnvironmentUrl">The variable that may name another address (OLLAMA_HOST...); null for none.</param>
 /// <param name="EnvironmentKey">The variable that may hold the key (OPENROUTER_API_KEY); null when it needs none.</param>
 /// <param name="Native">It is talked to in its own API (Ollama's, <see cref="OllamaChat"/>), not Chat Completions.</param>
+/// <param name="StreamOptions">It takes <c>stream_options</c> (Mistral's refuses a field it does not know, and gives the usage anyway).</param>
+/// <param name="MessagesApi">It is Anthropic's Messages API (<see cref="AnthropicChat"/>), not Chat Completions.</param>
 public sealed record ModelProvider(string Id, string Name, string Description, string Url, string? EnvironmentUrl, string? EnvironmentKey,
-    string MissingHint, string? InstallCommand, bool Native = false)
+    string MissingHint, string? InstallCommand, bool Native = false, bool StreamOptions = true, bool MessagesApi = false)
 {
     public bool NeedsKey => EnvironmentKey is not null;
 
@@ -18,6 +20,32 @@ public sealed record ModelProvider(string Id, string Name, string Description, s
     public static readonly ModelProvider OpenRouter = new("openrouter", "OpenRouter", "Any model (GPT, Gemini, Qwen, DeepSeek, Kimi, GLM...) on your OpenRouter key",
         "https://openrouter.ai/api/v1", null, "OPENROUTER_API_KEY",
         "Add your OpenRouter API key (openrouter.ai/keys) in Choose Agent and Model: Karvon keeps it in its vault and sends it only to OpenRouter.", null);
+
+    /// <summary>A provider on the user's key: kept in Karvon's vault and sent to it alone, or its variable's.</summary>
+    static ModelProvider Keyed(string id, string name, string description, string url, string variable, string keys, bool streamOptions = true) =>
+        new(id, name, description, url, null, variable,
+            $"Add your {name} API key ({keys}) in Choose Agent and Model: Karvon keeps it in its vault and sends it only to {name}.", null,
+            StreamOptions: streamOptions);
+
+    /// <summary>Claude itself, through Anthropic's API on the user's key (not Claude Code: Karvon's own loop, as for the others).</summary>
+    public static readonly ModelProvider Claude = Keyed("anthropic", "Claude API", "Claude's models through Anthropic's API, on your API key",
+        "https://api.anthropic.com", "ANTHROPIC_API_KEY", "platform.claude.com/settings/keys") with
+    {
+        MessagesApi = true,
+        MissingHint = "Add your Anthropic API key (platform.claude.com/settings/keys) in Choose Agent and Model: Karvon keeps it in its vault and sends it only to Anthropic.",
+    };
+
+    public static readonly ModelProvider BytePlus = Keyed("byteplus", "BytePlus ModelArk", "ByteDance's Seed and the other models of BytePlus ModelArk, on your key",
+        "https://ark.ap-southeast.bytepluses.com/api/v3", "ARK_API_KEY", "console.byteplus.com");
+
+    public static readonly ModelProvider DeepSeek = Keyed("deepseek", "DeepSeek", "DeepSeek's own models, on your DeepSeek key",
+        "https://api.deepseek.com", "DEEPSEEK_API_KEY", "platform.deepseek.com/api_keys");
+
+    public static readonly ModelProvider Groq = Keyed("groq", "Groq", "Open models on Groq's fast inference, on your Groq key",
+        "https://api.groq.com/openai/v1", "GROQ_API_KEY", "console.groq.com/keys");
+
+    public static readonly ModelProvider Mistral = Keyed("mistral", "Mistral", "Mistral AI's models, on your Mistral key",
+        "https://api.mistral.ai/v1", "MISTRAL_API_KEY", "console.mistral.ai/api-keys", streamOptions: false);
 
     public static readonly ModelProvider Ollama = new("ollama", "Ollama", "A local model in Ollama, on this computer",
         "http://localhost:11434", "OLLAMA_HOST", null,
@@ -40,8 +68,8 @@ public sealed record ModelProvider(string Id, string Name, string Description, s
 }
 
 /// <summary>
-/// A model Karvon drives itself (<see cref="ModelSession"/>) in the panel, from one provider: OpenRouter on the user's key,
-/// or a local Ollama or LM Studio. The key is kept in Karvon's vault (<paramref name="keyring"/>), or comes from the
+/// A model Karvon drives itself (<see cref="ModelSession"/>) in the panel, from one provider: Claude (Anthropic's API), OpenRouter,
+/// BytePlus ModelArk, DeepSeek, Groq or Mistral on the user's key, or a local Ollama or LM Studio. The key is kept in Karvon's vault (<paramref name="keyring"/>), or comes from the
 /// provider's variable.
 /// </summary>
 public sealed class ModelBackend(ModelProvider provider, ICredentialStore? keyring = null, HttpClient? http = null) : IAgentBackend
@@ -120,9 +148,11 @@ public sealed class ModelBackend(ModelProvider provider, ICredentialStore? keyri
     }
 
     public async Task<IAgentSession> StartAsync(AgentStartOptions options, CancellationToken cancellationToken = default) =>
-        await ModelSession.StartAsync(Endpoint(options.Executable), provider.Name, options, cancellationToken);
+        await ModelSession.StartAsync(Endpoint(options.Executable, options.Effort), provider.Name, options, cancellationToken);
 
-    /// <summary>Its endpoint at <paramref name="url"/>: Ollama's own API, or Chat Completions with the key.</summary>
-    IChatEndpoint Endpoint(string url) =>
-        provider.Native ? new OllamaChat(http ?? ModelSession.Client, url) : new ChatCompletions(http ?? ModelSession.Client, url, Key());
+    /// <summary>Its endpoint at <paramref name="url"/>: Ollama's own API, Anthropic's Messages API, or Chat Completions, with the key.</summary>
+    IChatEndpoint Endpoint(string url, string? effort = null) =>
+        provider.Native ? new OllamaChat(http ?? ModelSession.Client, url)
+        : provider.MessagesApi ? new AnthropicChat(url, Key(), effort)
+        : new ChatCompletions(http ?? ModelSession.Client, url, Key(), provider.StreamOptions);
 }

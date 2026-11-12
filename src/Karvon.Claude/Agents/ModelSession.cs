@@ -349,6 +349,9 @@ public sealed class ModelSession : IAgentSession
         if (blocks.Count > 0)
             Event?.Invoke(new ClaudeAssistant(id, blocks, null));
         var message = new JsonObject { ["role"] = "assistant", ["content"] = reply.Text.Length > 0 ? reply.Text : null };
+        // Claude's own blocks (its thinking, signed), sent back as they were.
+        if (reply.Blocks is { } own)
+            message[AnthropicChat.BlocksKey] = own.DeepClone();
         if (reply.ToolCalls.Count > 0)
             message["tool_calls"] = new JsonArray([.. reply.ToolCalls.Select(c => (JsonNode)new JsonObject
             {

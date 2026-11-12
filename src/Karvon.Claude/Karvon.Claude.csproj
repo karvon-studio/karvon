@@ -13,4 +13,8 @@
   <ItemGroup>
     <ProjectReference Include="..\Karvon.Core\Karvon.Core.csproj" />
   </ItemGroup>
+  <ItemGroup>
+    <!-- Anthropic's SDK: Claude on the user's API key in the Agents panel (AnthropicChat). -->
+    <PackageReference Include="Anthropic" Version="13.3.0" />
+  </ItemGroup>
 </Project>

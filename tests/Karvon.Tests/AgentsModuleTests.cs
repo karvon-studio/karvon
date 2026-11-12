@@ -28,7 +28,7 @@ public class AgentsModuleTests
         Assert.Equal(("agents", "Agents"), (agents.Id, agents.Name));
         Assert.Equal(AgentsModule.ToolWindowId, Assert.Single(agents.ToolWindows).Id);
         Assert.False(agents.Agents.IsClaude);
-        Assert.Equal(["codex", "openrouter", "ollama", "lmstudio", "acp:gemini"], agents.Agents.Backends.Select(b => b.Id));
+        Assert.Equal(["codex", "anthropic", "openrouter", "byteplus", "deepseek", "groq", "mistral", "ollama", "lmstudio", "acp:gemini"], agents.Agents.Backends.Select(b => b.Id));
         // The user's own ACP agents follow.
         var settings = new Karvon.Services.Settings { AcpAgents = [new() { Name = "My Agent", Command = "my-agent", Arguments = ["acp"] }] };
         Assert.Equal("acp:my-agent", AgentsModule.Backends(settings).Last().Id);

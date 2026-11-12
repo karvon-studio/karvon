@@ -46,6 +46,9 @@ public sealed class FakeModelServer : IAsyncDisposable
     /// <summary>The Authorization header of each request.</summary>
     public List<string?> Authorizations { get; } = [];
 
+    /// <summary>What /models answers instead of its two models (another provider's words for them).</summary>
+    public JsonArray? Models { get; set; }
+
     /// <summary>The next answer: its chunks, as the endpoint streams them (null: it never comes, until the request is dropped).</summary>
     public void Reply(params JsonObject[] chunks) => _replies.Enqueue(chunks);
 
@@ -127,7 +130,7 @@ public sealed class FakeModelServer : IAsyncDisposable
             {
                 await WriteAsync(response, "application/json", new JsonObject
                 {
-                    ["data"] = new JsonArray(
+                    ["data"] = Models?.DeepClone() ?? new JsonArray(
                         new JsonObject { ["id"] = "fake-coder", ["name"] = "Fake: Coder", ["description"] = "A model for tests. It calls tools.", ["context_length"] = 4000,
                             ["supported_parameters"] = new JsonArray("tools", "temperature") },
                         new JsonObject { ["id"] = "no-tools", ["name"] = "Fake: Talker", ["supported_parameters"] = new JsonArray("temperature") }),
@@ -269,7 +272,7 @@ public class ModelAgentTests
         public Task<ClaudeToolOutput> CallAsync(JsonElement input, CancellationToken cancellationToken) => Task.FromResult(new ClaudeToolOutput(output));
     }
 
-    static (string Dir, string File) Workspace()
+    internal static (string Dir, string File) Workspace()
     {
         var dir = Path.Combine(Path.GetTempPath(), "karvon-model-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(dir);
@@ -285,8 +288,8 @@ public class ModelAgentTests
     static JsonElement Arguments(object value) => JsonSerializer.SerializeToElement(value);
 
     /// <summary>Sends a prompt (or a command) and gathers what the session tells until the turn ends; its questions are answered by <paramref name="answer"/>.</summary>
-    static async Task<List<ClaudeEvent>> TurnAsync(IAgentSession session, string prompt, Func<ClaudePermissionRequest, ClaudePermissionDecision>? answer = null,
-        Func<ClaudeEvent, Task>? also = null)
+    internal static async Task<List<ClaudeEvent>> TurnAsync(IAgentSession session, string prompt, Func<ClaudePermissionRequest, ClaudePermissionDecision>? answer = null,
+        Func<ClaudeEvent, Task>? also = null, TimeSpan? timeout = null)
     {
         var events = new List<ClaudeEvent>();
         var ended = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -308,7 +311,7 @@ public class ModelAgentTests
                 await session.SendCommandAsync(prompt);
             else
                 await session.SendUserMessageAsync(prompt);
-            await ended.Task.WaitAsync(TimeSpan.FromSeconds(20));
+            await ended.Task.WaitAsync(timeout ?? TimeSpan.FromSeconds(20));
         }
         finally
         {
@@ -658,6 +661,67 @@ public class ModelAgentTests
         var error = await Assert.ThrowsAsync<InvalidOperationException>(() => new ModelBackend(ModelProvider.Ollama)
             .StartAsync(new AgentStartOptions(url, dir), TestContext.Current.CancellationToken));
         Assert.StartsWith($"Ollama did not answer at {url}", error.Message);
+    }
+
+    [Fact]
+    public async Task A_providers_models_are_those_that_chat_with_tools_with_their_windows_in_its_own_words()
+    {
+        await using var server = new FakeModelServer();
+        server.Models = new JsonArray(
+            // Mistral's: what it can do, and its window.
+            new JsonObject { ["id"] = "mistral-large-latest", ["max_context_length"] = 262144,
+                ["capabilities"] = new JsonObject { ["completion_chat"] = true, ["function_calling"] = true } },
+            new JsonObject { ["id"] = "mistral-ocr-latest", ["capabilities"] = new JsonObject { ["completion_chat"] = false, ["function_calling"] = false } },
+            new JsonObject { ["id"] = "open-mistral-7b", ["capabilities"] = new JsonObject { ["completion_chat"] = true, ["function_calling"] = false } },
+            // Groq's: its window, whether it is active; speech and guards by their names.
+            new JsonObject { ["id"] = "openai/gpt-oss-120b", ["context_window"] = 131072, ["active"] = true },
+            new JsonObject { ["id"] = "retired-model", ["active"] = false },
+            new JsonObject { ["id"] = "whisper-large-v3", ["active"] = true },
+            new JsonObject { ["id"] = "playai-tts", ["active"] = true },
+            new JsonObject { ["id"] = "meta-llama/llama-guard-4-12b", ["active"] = true },
+            // DeepSeek's: an id alone.
+            new JsonObject { ["id"] = "deepseek-chat", ["object"] = "model" });
+
+        var models = await new ChatCompletions(ModelSession.Client, server.Url, "sk-test").ModelsAsync(TestContext.Current.CancellationToken);
+
+        Assert.Equal([("deepseek-chat", null), ("mistral-large-latest", 262144), ("openai/gpt-oss-120b", 131072)],
+            models.Select(m => (m.Id, m.Context)));
+    }
+
+    [Fact]
+    public async Task The_keyed_providers_are_the_agents_and_Mistral_is_asked_without_a_field_it_refuses()
+    {
+        var backends = AgentsModule.Backends(new Karvon.Services.Settings()).OfType<ModelBackend>().ToDictionary(b => b.Id);
+        foreach (var (id, name, url, variable) in new[]
+        {
+            ("byteplus", "BytePlus ModelArk", "https://ark.ap-southeast.bytepluses.com/api/v3", "ARK_API_KEY"),
+            ("deepseek", "DeepSeek", "https://api.deepseek.com", "DEEPSEEK_API_KEY"),
+            ("groq", "Groq", "https://api.groq.com/openai/v1", "GROQ_API_KEY"),
+            ("mistral", "Mistral", "https://api.mistral.ai/v1", "MISTRAL_API_KEY"),
+        })
+        {
+            var provider = backends[id].Provider;
+            Assert.Equal((name, url, variable, true, $"{name} needs an API key"), (provider.Name, provider.Url, provider.EnvironmentKey, backends[id].NeedsKey, backends[id].MissingTitle));
+            Assert.EndsWith($"Karvon keeps it in its vault and sends it only to {name}.", provider.MissingHint);
+            // Said in Uzbek too.
+            Assert.True(ClaudeLanguage.Uzbek.ContainsKey(provider.MissingHint) && ClaudeLanguage.Uzbek.ContainsKey(provider.Description)
+                && ClaudeLanguage.Uzbek.ContainsKey(backends[id].MissingTitle), name);
+        }
+
+        await using var server = new FakeModelServer();
+        var (dir, _) = Workspace();
+        foreach (var (provider, streamOptions) in new[] { (ModelProvider.Mistral, false), (ModelProvider.DeepSeek, true) })
+        {
+            var backend = new ModelBackend(provider with { Url = server.Url, EnvironmentKey = "KARVON_TEST_NO_SUCH_KEY" });
+            Assert.Null(backend.Find());
+            Assert.True(backend.SetKey("sk-" + provider.Id));
+            server.Reply(FakeModelServer.Text("Hi."), FakeModelServer.Usage(10, 2));
+            await using var session = await backend.StartAsync(new AgentStartOptions(server.Url, dir), TestContext.Current.CancellationToken);
+            await TurnAsync(session, "Hello?");
+            var request = server.Requests[^1];
+            Assert.Equal(streamOptions, request.TryGetProperty("stream_options", out _));
+            Assert.Equal("Bearer sk-" + provider.Id, server.Authorizations[^1]);
+        }
     }
 
     [Fact]
