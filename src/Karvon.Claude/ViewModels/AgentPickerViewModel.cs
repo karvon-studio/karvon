@@ -24,6 +24,9 @@ public sealed partial class AgentProviderItem(IAgentBackend backend) : Observabl
     /// <summary>It waits for the user's key (OpenRouter's).</summary>
     public bool NeedsKey => !IsReady && backend.NeedsKey;
 
+    /// <summary>Show key controls for keyed providers even after their key makes them ready.</summary>
+    public bool UsesKey => backend.NeedsKey;
+
     /// <summary>It is not installed (and no key would help).</summary>
     public bool IsMissing => !IsReady && !backend.NeedsKey;
 
@@ -174,6 +177,20 @@ public sealed partial class AgentPickerViewModel : ObservableObject
         provider.Refresh();
         UseCommand.NotifyCanExecuteChanged();
         Loaded = LoadAsync(provider);
+    }
+
+    [RelayCommand]
+    void ForgetKey()
+    {
+        if (SelectedProvider?.Backend is not ModelBackend backend)
+            return;
+        backend.ForgetKey();
+        Key = "";
+        SelectedProvider.Refresh();
+        UseCommand.NotifyCanExecuteChanged();
+        _models.Remove(backend.Id);
+        Models.Clear();
+        Problem = null;
     }
 
     bool CanUse => SelectedProvider?.IsReady == true;

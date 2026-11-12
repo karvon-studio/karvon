@@ -36,7 +36,7 @@ public sealed record ModelProvider(string Id, string Name, string Description, s
     };
 
     public static readonly ModelProvider BytePlus = Keyed("byteplus", "BytePlus ModelArk", "ByteDance's Seed and the other models of BytePlus ModelArk, on your key",
-        "https://ark.ap-southeast.bytepluses.com/api/v3", "ARK_API_KEY", "console.byteplus.com");
+        "https://ark.ap-southeast.bytepluses.com/api/coding/v3", "ARK_API_KEY", "console.byteplus.com");
 
     public static readonly ModelProvider DeepSeek = Keyed("deepseek", "DeepSeek", "DeepSeek's own models, on your DeepSeek key",
         "https://api.deepseek.com", "DEEPSEEK_API_KEY", "platform.deepseek.com/api_keys");
@@ -132,6 +132,15 @@ public sealed class ModelBackend(ModelProvider provider, ICredentialStore? keyri
             // Kept for this run of Karvon only.
         }
         return true;
+    }
+
+    /// <summary>Forget the key saved for this provider and use its environment key, if any.</summary>
+    public void ForgetKey()
+    {
+        _key = null;
+        _read = true;
+        try { keyring?.Delete(provider.KeyName); }
+        catch (Exception) { }
     }
 
     public async Task<IReadOnlyList<AgentModel>> ModelsAsync(string executable, string workingDirectory, CancellationToken cancellationToken = default)

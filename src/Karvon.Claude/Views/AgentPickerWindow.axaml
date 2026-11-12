@@ -85,11 +85,13 @@
         </Grid>
         <TextBox Name="SearchBox" DockPanel.Dock="Top" Text="{Binding Search}" PlaceholderText="{v:L 'Search models by name, id or what they are'}" Margin="0,0,0,8"
                  IsVisible="{Binding SelectedProvider.IsReady, FallbackValue=False}" />
-        <StackPanel DockPanel.Dock="Top" Spacing="8" Margin="0,0,0,8" IsVisible="{Binding SelectedProvider.NeedsKey, FallbackValue=False}">
-          <TextBlock Text="{v:Tr SelectedProvider.Backend.MissingHint}" TextWrapping="Wrap" Classes="gray" />
-          <Grid ColumnDefinitions="*,Auto">
+        <StackPanel DockPanel.Dock="Top" Spacing="8" Margin="0,0,0,8" IsVisible="{Binding SelectedProvider.UsesKey, FallbackValue=False}">
+          <TextBlock Text="{v:Tr SelectedProvider.Backend.MissingHint}" TextWrapping="Wrap" Classes="gray"
+                     IsVisible="{Binding SelectedProvider.NeedsKey, FallbackValue=False}" />
+          <Grid ColumnDefinitions="*,Auto,Auto">
             <TextBox Name="KeyBox" Text="{Binding Key}" PasswordChar="•" PlaceholderText="{v:L 'API key'}" />
             <Button Grid.Column="1" Classes="secondary" Content="{v:L 'Save key'}" Margin="8,0,0,0" Command="{Binding SaveKeyCommand}" />
+            <Button Grid.Column="2" Classes="secondary" Content="{v:L 'Forget key'}" Margin="8,0,0,0" Command="{Binding ForgetKeyCommand}" />
           </Grid>
         </StackPanel>
         <StackPanel DockPanel.Dock="Top" Spacing="8" Margin="0,0,0,8" IsVisible="{Binding SelectedProvider.IsMissing, FallbackValue=False}">

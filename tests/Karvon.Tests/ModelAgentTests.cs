@@ -694,7 +694,7 @@ public class ModelAgentTests
         var backends = AgentsModule.Backends(new Karvon.Services.Settings()).OfType<ModelBackend>().ToDictionary(b => b.Id);
         foreach (var (id, name, url, variable) in new[]
         {
-            ("byteplus", "BytePlus ModelArk", "https://ark.ap-southeast.bytepluses.com/api/v3", "ARK_API_KEY"),
+            ("byteplus", "BytePlus ModelArk", "https://ark.ap-southeast.bytepluses.com/api/coding/v3", "ARK_API_KEY"),
             ("deepseek", "DeepSeek", "https://api.deepseek.com", "DEEPSEEK_API_KEY"),
             ("groq", "Groq", "https://api.groq.com/openai/v1", "GROQ_API_KEY"),
             ("mistral", "Mistral", "https://api.mistral.ai/v1", "MISTRAL_API_KEY"),
