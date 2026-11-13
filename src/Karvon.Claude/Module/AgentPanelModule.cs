@@ -71,7 +71,8 @@ public abstract class AgentPanelModule : KarvonModule
         // The shell commands the tools do go to them (the IDE's and the modules' that are on), unless the user turned it off
         // (for the sessions started after).
         var settings = Workbench.Settings;
-        var server = KarvonTools.Create([.. Workbench.ClaudeTools(), .. tools.Select(t => t.Tool)],
+        var server = KarvonTools.Create([.. Workbench.ClaudeTools(), .. tools.Select(t => t.Tool),
+                new RunOutsideSandboxTool(() => Workbench.Workspace, () => settings.StrictSandbox)],
             [.. Karvon.Claude.Tools.IdeClaudeTools.ShellRules, .. Workbench.Modules.SelectMany(m => m.ClaudeShellRules())],
             () => settings.ClaudeKarvonToolsFirst);
         // The user's rules for them, as they are at each call.

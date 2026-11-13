@@ -175,7 +175,11 @@ public sealed partial class ClaudeViewModel
         await StopSessionAsync();
         var session = await backend.StartAsync(new AgentStartOptions(CliPath!, cwd, SelectedModel?.Value, PermissionMode, _resumeId, Tools,
             _settings.ClaudeKeepSecretsAway, WorkspaceTrust.IsTrusted(_settings.TrustedFolders, cwd), Path.Combine(Settings.ConfigDirectory, "audit"), Effort,
-            AgentTranscripts.Folder(AgentsDirectory, cwd)));
+            AgentTranscripts.Folder(AgentsDirectory, cwd), _settings.SandboxFor(cwd)));
+        if (_settings.StrictSandbox && backend is not ModelBackend)
+            Items.Add(new NoticeChatItem($"Karvon's strict sandbox does not hold {backend.Name}: it runs its commands itself (in its own sandbox, if it has one).", isError: true));
+        else if (_settings.StrictSandbox && ProjectSandbox.Problem() is { } problem)
+            Items.Add(new NoticeChatItem("Karvon's sandbox cannot run the agent's commands here, so they do not run: " + problem, isError: true));
         // What the panel shows of it is kept, to be shown again from Past conversations.
         if (session.SessionId is { Length: > 0 } id)
         {

@@ -141,6 +141,40 @@ public sealed partial class McpModule : KarvonModule, IMcpHost
 
     string? IMcpHost.SandboxProblem => Karvon.Claude.ClaudeSandbox.Problem();
 
+    bool IMcpHost.StrictSandbox
+    {
+        get => Workbench.Settings.StrictSandbox;
+        set
+        {
+            Workbench.Settings.StrictSandbox = value;
+            Workbench.SaveSettings();
+        }
+    }
+
+    IReadOnlyList<string> IMcpHost.SandboxReadFolders
+    {
+        get => Workbench.Settings.SandboxReadFolders;
+        set
+        {
+            Workbench.Settings.SandboxReadFolders = [.. value];
+            Workbench.SaveSettings();
+        }
+    }
+
+    IReadOnlyList<string> IMcpHost.SandboxWriteFolders
+    {
+        get => Workbench.Settings.SandboxWriteFolders;
+        set
+        {
+            Workbench.Settings.SandboxWriteFolders = [.. value];
+            Workbench.SaveSettings();
+        }
+    }
+
+    IReadOnlyList<string> IMcpHost.SandboxRefused =>
+        new Karvon.Claude.ProjectSandbox(Workbench.Workspace ?? Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+            Workbench.Settings.SandboxReadFolders, Workbench.Settings.SandboxWriteFolders).Refused;
+
     bool IMcpHost.Gateway
     {
         get => Workbench.Settings.ClaudeScanRequests;

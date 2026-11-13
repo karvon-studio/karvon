@@ -463,7 +463,13 @@ public sealed class ModelSession : IAgentSession
                     input = changed;
                 break;
         }
-        var (output, isError) = await ModelTools.RunAsync(call.Name, input, _options.WorkingDirectory, cancellationToken);
+        // Karvon's strict sandbox: the file tools kept to the project (the shell is in it as a whole).
+        if (_options.Confine is { } project && project.Check(call.Name, input) is { } outside)
+        {
+            Audit?.Decided(call.Id, call.Name, "deny", "Karvon's sandbox", outside);
+            return (outside, true);
+        }
+        var (output, isError) = await ModelTools.RunAsync(call.Name, input, _options.WorkingDirectory, cancellationToken, _options.Confine);
         Audit?.Ran(call.Name, input, DateTime.UtcNow, TimeSpan.Zero, isError, output, Redaction.Secrets(output), null, 0);
         return (output, isError);
     }

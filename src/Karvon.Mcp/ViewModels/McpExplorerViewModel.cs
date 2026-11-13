@@ -36,6 +36,18 @@ public interface IMcpHost
     /// <summary>Why the sandbox cannot start on this machine; null when nothing stops it.</summary>
     string? SandboxProblem => null;
 
+    /// <summary>Whether Karvon's strict sandbox keeps the agents to the project (a setting, for the sessions started after).</summary>
+    bool StrictSandbox { get => false; set { } }
+
+    /// <summary>The user's folders the agents may read besides the project, in the strict sandbox.</summary>
+    IReadOnlyList<string> SandboxReadFolders { get => []; set { } }
+
+    /// <summary>The user's folders the agents may change besides the project, in the strict sandbox.</summary>
+    IReadOnlyList<string> SandboxWriteFolders { get => []; set { } }
+
+    /// <summary>Of those folders, the ones not given (they are, or hold, what holds secrets).</summary>
+    IReadOnlyList<string> SandboxRefused => [];
+
     /// <summary>Whether what Claude Code sends the model goes through Karvon's gateway, which hides secrets (for the sessions started after).</summary>
     bool Gateway { get => true; set { } }
 
@@ -438,7 +450,53 @@ public sealed class McpBuiltInDocument(IReadOnlyList<McpBuiltInToolNode> tools, 
     }
 
     /// <summary>Why the sandbox, turned on, cannot start here.</summary>
-    public string? SandboxProblem => host.Sandbox ? host.SandboxProblem : null;
+    public string? SandboxProblem => host.Sandbox || host.StrictSandbox ? host.SandboxProblem : null;
+
+    /// <summary>Karvon's strict sandbox: the agents kept to the project. For the sessions started after.</summary>
+    public bool StrictSandbox
+    {
+        get => host.StrictSandbox;
+        set
+        {
+            if (host.StrictSandbox == value)
+                return;
+            host.StrictSandbox = value;
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(SandboxProblem));
+        }
+    }
+
+    /// <summary>The folders the agents may read besides the project, one a line.</summary>
+    public string ReadFolders
+    {
+        get => string.Join('\n', host.SandboxReadFolders);
+        set
+        {
+            host.SandboxReadFolders = Lines(value);
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(Refused));
+        }
+    }
+
+    /// <summary>The folders the agents may change besides the project, one a line.</summary>
+    public string WriteFolders
+    {
+        get => string.Join('\n', host.SandboxWriteFolders);
+        set
+        {
+            host.SandboxWriteFolders = Lines(value);
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(Refused));
+        }
+    }
+
+    /// <summary>Which of them are not given, and why; null when all are.</summary>
+    public string? Refused => host.SandboxRefused is { Count: > 0 } refused
+        ? "Not given (the home folder, or a place that holds secrets, or a folder that is not there): " + string.Join(", ", refused)
+        : null;
+
+    static List<string> Lines(string? text) =>
+        [.. (text ?? "").Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).Distinct(StringComparer.Ordinal)];
 
     public override string Key => "mcp:" + KarvonToolNames.Server;
 

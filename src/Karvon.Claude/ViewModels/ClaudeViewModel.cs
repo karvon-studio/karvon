@@ -221,9 +221,14 @@ public sealed partial class ClaudeViewModel : ObservableObject, IAsyncDisposable
             if (_backend is { } backend)
                 return await StartAgentAsync(backend, cwd);
             await StopSessionAsync();
+            // Karvon's strict sandbox: Claude Code does not start without it.
+            if (_settings.StrictSandbox && ClaudeSandbox.Problem() is { } strict)
+                throw new InvalidOperationException($"Karvon's sandbox cannot start here, so Claude Code is not started: {strict} "
+                    + "Or turn the strict sandbox off (MCP Servers > karvon).");
             var session = await ClaudeSession.StartAsync(new ClaudeStartOptions(CliPath!, cwd, SelectedModel?.Value, PermissionMode, _resumeId, SelectedAccount, Tools, McpServersFor(cwd),
                 _settings.ClaudeKeepSecretsAway, _settings.ClaudeSandbox, WorkspaceTrust.IsTrusted(_settings.TrustedFolders, cwd),
-                Path.Combine(Settings.ConfigDirectory, "audit"), _settings.ClaudeScanRequests));
+                Path.Combine(Settings.ConfigDirectory, "audit"), _settings.ClaudeScanRequests,
+                _settings.SandboxFor(cwd, ClaudeSandbox.ShellSnapshots(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile)))));
             session.Event += ev => Dispatcher.UIThread.Post(() => Handle(session, ev));
             _session = session;
             _sessionCwd = cwd;
@@ -231,7 +236,7 @@ public sealed partial class ClaudeViewModel : ObservableObject, IAsyncDisposable
             OnPropertyChanged(nameof(AuditFile));
             if (session.HiddenVariables.Count > 0)
                 VariablesHidden?.Invoke(session.HiddenVariables);
-            if (_settings.ClaudeSandbox && ClaudeSandbox.Problem() is { } problem)
+            if (_settings.ClaudeSandbox && !_settings.StrictSandbox && ClaudeSandbox.Problem() is { } problem)
                 Items.Add(new NoticeChatItem("Claude's shell is not in a sandbox here: " + problem, isError: true));
             if (session.GatewayProblem is { } gateway)
                 Items.Add(new NoticeChatItem("Karvon's gateway could not start, so Claude Code talks to the API directly this time: " + gateway, isError: true));

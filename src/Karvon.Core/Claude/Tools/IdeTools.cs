@@ -31,6 +31,8 @@ public static class IdeClaudeTools
         new CodeDiagnosticsTool(vm),
         new FindInFilesTool(vm),
         .. CodeClaudeTools.Create(vm),
+        .. GitClaudeTools.Create(() => ((Karvon.Modules.IWorkbench)vm).Workspace),
+        .. PackageClaudeTools.Create(() => ((Karvon.Modules.IWorkbench)vm).Workspace),
     ];
 
     /// <summary>The shell's build, tests and run of the workspace, which Karvon's own do (and show).</summary>
@@ -38,6 +40,8 @@ public static class IdeClaudeTools
     [
         ClaudeShellRule.Command("dotnet build", @"dotnet\s+(build|test|run|watch|clean|msbuild|vstest)\b", Use) with { InWorkspace = true },
         ClaudeShellRule.Command("npm scripts", @"(npm|pnpm|yarn|bun)\s+(run\s+)?(build|test|start|dev)\b", Use) with { InWorkspace = true },
+        .. GitClaudeTools.ShellRules,
+        .. PackageClaudeTools.ShellRules,
     ];
 
     const string Use =

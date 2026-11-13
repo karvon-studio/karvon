@@ -123,8 +123,11 @@ public static class SecretFiles
     /// The user's places that hold secrets, as full paths: the folders and files above, the SSH folder, Karvon's settings
     /// (its vault); what a sandbox denies reading.
     /// </summary>
-    public static IEnumerable<string> UserPlaces() =>
-        Folders.Concat(Files).Append(".ssh").Select(p => Path.GetFullPath(Path.Combine(Home, p)))
+    public static IEnumerable<string> UserPlaces() => UserPlaces(Home);
+
+    /// <summary>The same, of the home folder <paramref name="home"/> (Karvon's settings wherever they are).</summary>
+    public static IEnumerable<string> UserPlaces(string home) =>
+        Folders.Concat(Files).Append(".ssh").Select(p => Path.GetFullPath(Path.Combine(home, p)))
             .Append(Path.GetFullPath(Karvon.Services.Settings.ConfigDirectory))
             .Distinct(OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal);
 

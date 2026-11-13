@@ -60,7 +60,8 @@ public static class ModelTools
     };
 
     /// <summary>Runs one of these tools: its output and whether it failed.</summary>
-    public static async Task<(string Output, bool IsError)> RunAsync(string name, JsonElement input, string workspace, CancellationToken cancellationToken)
+    public static async Task<(string Output, bool IsError)> RunAsync(string name, JsonElement input, string workspace, CancellationToken cancellationToken,
+        ProjectSandbox? sandbox = null)
     {
         try
         {
@@ -71,7 +72,7 @@ public static class ModelTools
                 "Edit" => (Edit(Path(input, "file_path", workspace), Required(input, "old_string"), Required(input, "new_string"), ClaudeJson.Bool(input, "replace_all")), false),
                 "Glob" => (Glob(Required(input, "pattern"), Folder(input, workspace)), false),
                 "Grep" => (Grep(Required(input, "pattern"), Folder(input, workspace), ClaudeJson.Str(input, "glob")), false),
-                "Bash" or "PowerShell" => await RunCommandAsync(Required(input, "command"), workspace, cancellationToken),
+                "Bash" or "PowerShell" => await RunCommandAsync(Required(input, "command"), workspace, cancellationToken, sandbox),
                 _ => ($"There is no tool named {name}.", true),
             };
         }
@@ -236,11 +237,21 @@ public static class ModelTools
         return matches.Count == 0 ? "No matches" : string.Join("\n", matches) + (matches.Count >= 200 ? "\n… (more matches: narrow the search)" : "");
     }
 
-    static async Task<(string, bool)> RunCommandAsync(string command, string workspace, CancellationToken cancellationToken)
+    static async Task<(string, bool)> RunCommandAsync(string command, string workspace, CancellationToken cancellationToken, ProjectSandbox? sandbox = null)
     {
-        var psi = OperatingSystem.IsWindows()
-            ? new ProcessStartInfo("powershell.exe") { ArgumentList = { "-NoProfile", "-NonInteractive", "-Command", command } }
-            : new ProcessStartInfo("/bin/bash") { ArgumentList = { "-c", command } };
+        ProcessStartInfo psi;
+        if (sandbox is not null)
+        {
+            // In Karvon's strict sandbox, or not at all.
+            if (ProjectSandbox.Problem() is { } problem)
+                return ($"Karvon's sandbox cannot run commands here ({problem}), so this one did not run. Karvon's tools do what they do "
+                    + "outside it; run_outside_sandbox asks the user to run a command outside it.", true);
+            psi = sandbox.Wrap(command);
+        }
+        else
+            psi = OperatingSystem.IsWindows()
+                ? new ProcessStartInfo("powershell.exe") { ArgumentList = { "-NoProfile", "-NonInteractive", "-Command", command } }
+                : new ProcessStartInfo("/bin/bash") { ArgumentList = { "-c", command } };
         psi.WorkingDirectory = workspace;
         psi.RedirectStandardOutput = true;
         psi.RedirectStandardError = true;

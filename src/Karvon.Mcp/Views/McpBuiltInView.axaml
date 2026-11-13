@@ -51,8 +51,23 @@
                      Text="Claude Code's own sandbox (bubblewrap on Linux, Seatbelt on macOS): what holds secrets cannot be read, no command runs outside it, the package registries and code hosts are reached without a prompt. On Linux no Unix socket is reached from it: not the keyring, not ssh-agent, so a push over SSH is done from Git Changes. For the sessions started after." />
         </StackPanel>
       </CheckBox>
+      <CheckBox Name="StrictSandbox" IsChecked="{Binding StrictSandbox}" Margin="0,0,0,4">
+        <StackPanel Spacing="2">
+          <TextBlock Text="Keep the agents to the project (strict sandbox)" />
+          <TextBlock Classes="dkMuted" FontSize="12" TextWrapping="Wrap"
+                     Text="Their shell sees the project (and changes only it), the toolchains, the package caches and git's settings; the rest of your home folder, other disks and your keyring's and ssh-agent's sockets are not there for it. Their own file tools are kept to the project too. Claude Code's shell is in its sandbox with these rules (the package registries and code hosts reached); the Agents panel's is in bubblewrap, without the network. Builds, tests, git and packages go through Karvon's tools; a command that needs more asks you every time (run_outside_sandbox). Not for Codex and other agents that run their own commands. For the sessions started after." />
+        </StackPanel>
+      </CheckBox>
       <TextBlock Classes="dkMuted" Foreground="#F48771" TextWrapping="Wrap" Margin="28,0,0,10" FontSize="12"
                  Text="{Binding SandboxProblem}" IsVisible="{Binding SandboxProblem, Converter={x:Static ObjectConverters.IsNotNull}}" />
+      <StackPanel Margin="28,0,0,10" Spacing="4" IsVisible="{Binding StrictSandbox}">
+        <TextBlock Classes="dkMuted" FontSize="12" Text="Folders Claude may read besides the project (one a line)" />
+        <TextBox Name="ReadFolders" Text="{Binding ReadFolders, UpdateSourceTrigger=LostFocus}" AcceptsReturn="True" MinHeight="44" PlaceholderText="~/Documents/reports" />
+        <TextBlock Classes="dkMuted" FontSize="12" Text="Folders Claude may change besides the project (one a line)" />
+        <TextBox Name="WriteFolders" Text="{Binding WriteFolders, UpdateSourceTrigger=LostFocus}" AcceptsReturn="True" MinHeight="44" PlaceholderText="~/Documents/out" />
+        <TextBlock Classes="dkMuted" Foreground="#F48771" TextWrapping="Wrap" FontSize="12"
+                   Text="{Binding Refused}" IsVisible="{Binding Refused, Converter={x:Static ObjectConverters.IsNotNull}}" />
+      </StackPanel>
       <TextBlock Classes="dkMuted" FontSize="12" TextWrapping="Wrap" Margin="0,0,0,8"
                  Text="Each tool's rule is Karvon's, whatever Claude Code's permission mode (Bypass permissions too): Allow runs it at once, Ask asks every time, Deny refuses it. A destructive call asks every time whatever the rule. A rule for one target (db_query@shop, server_exec@prod-1, k8s_scale@prod) goes in ClaudeToolRules in Karvon's settings.json." />
       <ItemsControl ItemsSource="{Binding Tools}">

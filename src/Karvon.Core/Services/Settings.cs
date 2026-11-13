@@ -90,6 +90,24 @@ public sealed class Settings
     public bool ClaudeSandbox { get; set; }
 
     /// <summary>
+    /// Karvon's strict sandbox for the agents (<see cref="Karvon.Claude.ProjectSandbox"/>): their shells (Claude Code's in its
+    /// own sandbox, the Agents panel's in bubblewrap) see the project, the toolchains and caches, and nothing else of the
+    /// user's; their file tools are kept to the project. A command that needs more is run outside it only when the user
+    /// says so (run_outside_sandbox). Off at first.
+    /// </summary>
+    public bool StrictSandbox { get; set; }
+
+    /// <summary>The user's folders the agents may read besides the project, in the strict sandbox.</summary>
+    public List<string> SandboxReadFolders { get; set; } = [];
+
+    /// <summary>The user's folders the agents may change besides the project, in the strict sandbox.</summary>
+    public List<string> SandboxWriteFolders { get; set; } = [];
+
+    /// <summary>The strict sandbox for a project in <paramref name="workspace"/>, when it is on.</summary>
+    public Karvon.Claude.ProjectSandbox? SandboxFor(string workspace, IEnumerable<string>? extraReadable = null) =>
+        StrictSandbox ? new Karvon.Claude.ProjectSandbox(workspace, SandboxReadFolders, SandboxWriteFolders, extraReadable: extraReadable) : null;
+
+    /// <summary>
     /// What Claude Code sends the model goes through a gateway inside Karvon (its HTTPS proxy), which marks the
     /// secrets in it (Karvon.Claude's ClaudeGateway): beside the hook that marks what Claude Code's own tools give it,
     /// it covers what else a request holds (a file attached with @). On at first; a machine where the gateway cannot

@@ -286,6 +286,10 @@ public sealed class GitRepository
     /// <summary>A local branch made to track a remote one ("origin/feature" → "feature"), as Git Changes does.</summary>
     public Task<GitResult> SwitchTrackingAsync(string local, string remote) => RunAsync(Root, ["switch", "-c", local, "--track", remote]);
 
+    /// <summary>The changes not staged, or the staged ones; of one path when given.</summary>
+    public Task<GitResult> DiffAsync(bool staged, string? path = null) =>
+        RunAsync(Root, ["diff", "--no-color", .. (staged ? new[] { "--cached" } : []), "--", .. (path is { Length: > 0 } ? new[] { path } : [])], optionalLocks: false);
+
     /// <summary>The changes a commit would record, for Claude to describe: the staged ones, or everything against HEAD.</summary>
     public async Task<string> DiffForMessageAsync(bool staged) =>
         (await RunAsync(Root, staged ? ["diff", "--no-color", "--cached"] : ["diff", "--no-color", "HEAD"], optionalLocks: false)).Output;

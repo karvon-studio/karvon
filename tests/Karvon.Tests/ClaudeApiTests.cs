@@ -35,6 +35,45 @@ public class LiveClaudeApiTests
     }
 }
 
+/// <summary>Karvon's strict sandbox in the real Claude Code, on an Anthropic API key: only with a key given (a request or two).</summary>
+public class LiveStrictSandboxTests
+{
+    [Fact]
+    public async Task Live_Claude_Codes_shell_in_the_strict_sandbox_reads_the_project_and_not_the_home_folder()
+    {
+        var key = Environment.GetEnvironmentVariable("KARVON_LIVE_ANTHROPIC_KEY");
+        Assert.SkipUnless(key is { Length: > 0 } && ClaudeSandbox.Problem() is null,
+            "Set KARVON_LIVE_ANTHROPIC_KEY to an Anthropic API key (and have bubblewrap) to run Claude Code in Karvon's sandbox.");
+        var claude = Karvon.Workspace.TaskVariables.Find("claude", Environment.GetEnvironmentVariable("PATH") ?? "", Environment.CurrentDirectory);
+        Assert.SkipUnless(claude is not null, "Claude Code is not installed.");
+        var project = Directory.CreateTempSubdirectory("karvon-strict-").FullName;
+        File.WriteAllText(Path.Combine(project, "Program.cs"), "Console.WriteLine(\"Hello\");");
+        var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+        var sandbox = new ProjectSandbox(project, extraReadable: ClaudeSandbox.ShellSnapshots(home));
+        Environment.SetEnvironmentVariable("ANTHROPIC_API_KEY", key);
+        try
+        {
+            await using var session = await ClaudeSession.StartAsync(new ClaudeStartOptions(claude!, project, Confine: sandbox), TestContext.Current.CancellationToken);
+            var events = await ModelAgentTests.TurnAsync(session,
+                "Run exactly this one Bash command, then reply with its output only: cat Program.cs; "
+                + "(ls $HOME >/dev/null 2>&1 && ls -A $HOME | head -c 1 | grep -q . && echo HOME-SEEN) || echo HOME-HIDDEN; "
+                + "(ls $HOME/.ssh >/dev/null 2>&1 && echo SSH-SEEN) || echo SSH-HIDDEN; echo made > out.txt && echo WROTE",
+                _ => new ClaudePermissionDecision(true), timeout: TimeSpan.FromMinutes(3));
+
+            var output = string.Join("\n", events.OfType<ClaudeToolResults>().SelectMany(r => r.Results).Select(r => r.Content));
+            Assert.Contains("Hello", output);
+            Assert.Contains("HOME-HIDDEN", output);
+            Assert.Contains("SSH-HIDDEN", output);
+            Assert.Contains("WROTE", output);
+            Assert.True(File.Exists(Path.Combine(project, "out.txt")));
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable("ANTHROPIC_API_KEY", null);
+        }
+    }
+}
+
 /// <summary>Anthropic's API on localhost for the tests: /v1/models, and /v1/messages streaming the queued answers (server-sent events).</summary>
 public sealed class FakeAnthropicServer : IAsyncDisposable
 {

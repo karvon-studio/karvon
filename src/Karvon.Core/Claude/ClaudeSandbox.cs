@@ -20,6 +20,33 @@ public static class ClaudeSandbox
         "plugins.gradle.org", "services.gradle.org", "github.com", "*.github.com", "*.githubusercontent.com", "gitlab.com",
     ];
 
+    /// <summary>
+    /// The settings Claude Code is given with --settings for Karvon's strict sandbox (<paramref name="project"/>): the home
+    /// folder and the user's other places not read but for the project, the toolchains, caches and git's settings; only
+    /// the project (and the folders the user gave) written; and Claude Code refuses its shell where the sandbox cannot start.
+    /// </summary>
+    public static string Settings(ProjectSandbox project) => JsonSerializer.Serialize(new
+    {
+        sandbox = new
+        {
+            enabled = true,
+            failIfUnavailable = true,
+            allowUnsandboxedCommands = false,
+            autoAllowBashIfSandboxed = false,
+            filesystem = new
+            {
+                denyRead = project.Hidden.Concat(SecretFiles.UserPlaces(project.Home)).Distinct().ToArray(),
+                allowRead = project.Readable.ToArray(),
+                allowWrite = project.Writable.ToArray(),
+                denyWrite = project.Protected.ToArray(),
+            },
+            network = new { allowedDomains = Domains },
+        },
+    });
+
+    /// <summary>What Claude Code's shell reads besides, in Karvon's strict sandbox: its snapshot of the user's shell, run before each command.</summary>
+    public static IEnumerable<string> ShellSnapshots(string home) => [Path.Combine(home, ".claude", "shell-snapshots")];
+
     /// <summary>The settings Claude Code is given with --settings.</summary>
     public static string Settings() => JsonSerializer.Serialize(new
     {
@@ -37,8 +64,13 @@ public static class ClaudeSandbox
 
     static readonly Lazy<string?> Checked = new(Check);
 
+    static readonly Lazy<string?> BubblewrapChecked = new(CheckBubblewrap);
+
     /// <summary>Why the sandbox cannot start on this machine, with what to do; null when nothing stops it that Karvon knows of (asked once).</summary>
     public static string? Problem() => Checked.Value;
+
+    /// <summary>Why bubblewrap cannot make a sandbox on this machine (Linux), with what to do; null when it can (asked once).</summary>
+    public static string? BubblewrapProblem() => BubblewrapChecked.Value;
 
     static string? Check()
     {
@@ -46,6 +78,18 @@ public static class ClaudeSandbox
             return null;
         if (OperatingSystem.IsMacOS())
             return File.Exists("/usr/bin/sandbox-exec") ? null : "macOS's sandbox-exec is not there.";
+        if (BubblewrapProblem() is { } problem)
+            return problem;
+        // Claude Code's sandbox reaches the network through its proxy over socat: without it, it does not start.
+        return Workspace.TaskVariables.Find("socat", Environment.GetEnvironmentVariable("PATH") ?? "", Environment.CurrentDirectory) is null
+            ? "socat is not installed (Claude Code's sandbox needs it beside bubblewrap): sudo apt install socat (or your distribution's package)."
+            : null;
+    }
+
+    static string? CheckBubblewrap()
+    {
+        if (!OperatingSystem.IsLinux())
+            return "bubblewrap is Linux's.";
         if (Workspace.TaskVariables.Find("bwrap", Environment.GetEnvironmentVariable("PATH") ?? "", Environment.CurrentDirectory) is not { } bwrap)
             return "bubblewrap is not installed: sudo apt install bubblewrap (or your distribution's package).";
         // What the sandbox does first: a user namespace of its own, which AppArmor may refuse (Ubuntu's restriction).
