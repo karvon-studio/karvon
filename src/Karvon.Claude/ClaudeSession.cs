@@ -139,7 +139,7 @@ public sealed class ClaudeSession : IAgentSession
     static readonly JsonSerializerOptions Unescaped = new() { Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping };
 
     /// <summary>The tools whose input a secret's mark is given its value again in (what writes or runs; Grep's pattern).</summary>
-    static readonly HashSet<string> Revealed = new(StringComparer.Ordinal) { "Edit", "MultiEdit", "Write", "NotebookEdit", "Bash", "Grep" };
+    static readonly HashSet<string> Revealed = new(StringComparer.Ordinal) { "Edit", "MultiEdit", "Write", "NotebookEdit", "Bash", "PowerShell", "Grep" };
 
     /// <summary>
     /// The hooks Karvon answers (as the Agent SDK's callbacks), before a call of Claude Code's own tools: whether it reaches

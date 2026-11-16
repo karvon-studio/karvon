@@ -5,14 +5,14 @@ namespace Karvon.Claude;
 
 /// <summary>
 /// What keeps Claude Code's own tools away from the secrets on the machine, as Karvon's PreToolUse hook answers: a file
-/// that holds secrets is not read, edited or written by Read, Edit, Write, NotebookEdit or Grep, and a shell command that
-/// reads one, or asks a secret store for what it keeps, does not run. A guard against what slips, not a boundary of its
-/// own: the shell can reach them by ways no list has.
+/// that holds secrets is not read, edited or written by Read, Edit, Write, NotebookEdit or Grep, and a shell command (Bash's,
+/// or PowerShell's, which is Claude Code's shell on Windows) that reads one, or asks a secret store for what it keeps, does
+/// not run. A guard against what slips, not a boundary of its own: the shell can reach them by ways no list has.
 /// </summary>
 public static partial class SecretGuard
 {
     /// <summary>The tools whose calls the hook is asked about.</summary>
-    public const string Tools = "Read|Edit|MultiEdit|Write|NotebookEdit|Grep|Bash";
+    public const string Tools = "Read|Edit|MultiEdit|Write|NotebookEdit|Grep|Bash|PowerShell";
 
     const string Advice = "Ask the user for what you need from it (never the secret itself), or use Karvon's tools, which sign in for you.";
 
@@ -21,6 +21,8 @@ public static partial class SecretGuard
     {
         if (tool == "Bash")
             return Str(input, "command") is { } command ? CheckCommand(command, workspace) : null;
+        if (tool == "PowerShell")
+            return Str(input, "command") is { } command ? CheckPowerShell(command, workspace) : null;
         var path = Str(input, "file_path") ?? Str(input, "notebook_path") ?? (tool == "Grep" ? Str(input, "path") : null);
         return path is not null && Full(path, workspace) is { } full && SecretFiles.IsSecret(full)
             ? $"Karvon keeps secrets out of Claude's reach: {path} holds secrets, so Claude may not read or change it. {Advice}"
@@ -51,6 +53,55 @@ public static partial class SecretGuard
         "diff", "cmp", "jq", "yq", "openssl", "gpg", "curl", "wget", "nc", "python", "python3", "node", "perl", "ruby", "php",
         "type", "Get-Content", "gc", "sqlite3", "sqlitebrowser",
     ];
+
+    /// <summary>
+    /// The same of a PowerShell command, read as PowerShell reads it (<see cref="ShellCommand.PowerShellWords"/>): its
+    /// cmdlets and their aliases whatever their case, a program with or without its .exe, a parameter's value (-Path:file),
+    /// and .NET's own file calls.
+    /// </summary>
+    static string? CheckPowerShell(string command, string? workspace)
+    {
+        foreach (var words in ShellCommand.PowerShellWords(command))
+        {
+            var program = ProgramOf(words[0]);
+            if ((AsksSecretStore(program.ToLowerInvariant(), words) ?? AsksWindowsStore(program)) is { } store)
+                return $"Karvon keeps secrets out of Claude's reach: this command asks {store} for what it keeps, so it does not run. {Advice}";
+            if ((PowerShellReaders.Contains(program) || DotNetFileCall().IsMatch(words[0]))
+                && words.Skip(1).Select(w => ShellCommand.PowerShellPathOf(ValueOf(w), workspace)).FirstOrDefault(p => p is not null && SecretFiles.IsSecret(p)) is { } path)
+                return $"Karvon keeps secrets out of Claude's reach: this command reads {path}, which holds secrets, so it does not run. {Advice}";
+        }
+        return null;
+    }
+
+    /// <summary>The commands that show or copy what a file holds, in PowerShell: Bash's (Git's are on a Windows PATH), its own cmdlets and Windows' programs.</summary>
+    static readonly HashSet<string> PowerShellReaders = new(Readers, StringComparer.OrdinalIgnoreCase)
+    {
+        "Select-String", "sls", "Copy-Item", "copy", "cpi", "Import-Csv", "ipcsv", "Import-Clixml", "Format-Hex", "fhx", "Compress-Archive",
+        "Invoke-WebRequest", "iwr", "Invoke-RestMethod", "irm", "findstr", "certutil", "xcopy", "robocopy",
+    };
+
+    /// <summary>A command's name as the lists have it: without its folder and without the .exe (or .cmd, .bat) Windows lets it go by.</summary>
+    static string ProgramOf(string word)
+    {
+        var name = word[(word.LastIndexOfAny(['/', '\\']) + 1)..];
+        var extension = Path.GetExtension(name);
+        return extension.Equals(".exe", StringComparison.OrdinalIgnoreCase) || extension.Equals(".cmd", StringComparison.OrdinalIgnoreCase)
+            || extension.Equals(".bat", StringComparison.OrdinalIgnoreCase) ? name[..^extension.Length] : name;
+    }
+
+    /// <summary>A word's path, when it is a parameter with its value (-Path:file); nothing for a parameter's name alone.</summary>
+    static string ValueOf(string word) =>
+        !word.StartsWith('-') || word.Length == 1 ? word : word.IndexOf(':') is var colon and > 1 ? word[(colon + 1)..] : "";
+
+    /// <summary>Windows' secret stores, as PowerShell's modules ask them (the Credential Manager, a SecretManagement vault).</summary>
+    static string? AsksWindowsStore(string program) =>
+        program.Equals("Get-StoredCredential", StringComparison.OrdinalIgnoreCase) ? "the Credential Manager"
+        : program.Equals("Get-Secret", StringComparison.OrdinalIgnoreCase) ? "PowerShell's secret vault"
+        : null;
+
+    /// <summary>.NET's file calls, as PowerShell makes them: [IO.File]::ReadAllText(path), [System.IO.StreamReader]::new(path).</summary>
+    [GeneratedRegex(@"^\[(?:System\.)?IO\.(?:File|StreamReader|FileStream)\]::\w+$", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    private static partial Regex DotNetFileCall();
 
     /// <summary>A secret store's name, when the command asks it for a secret.</summary>
     static string? AsksSecretStore(string program, List<string> words)

@@ -1,4 +1,5 @@
 using System.Text;
+using System.Text.RegularExpressions;
 
 namespace Karvon.Claude;
 
@@ -69,6 +70,120 @@ static class ShellCommand
 
     /// <summary>A path a command was given (~ expanded), from the folder it runs in; null when the shell would expand it.</summary>
     public static string? PathOf(string word, string? folder) => Resolve(folder, word);
+
+    /// <summary>
+    /// A PowerShell command's simple commands, each with its words: split at ; | &amp; and new lines, and where a command
+    /// starts inside another (after a ( that is not a method's, a { or an =), quotes kept together, ` its escape (a \ is
+    /// a path's, not one), a method's ( ) and the commas between words, and a redirection's target left out.
+    /// </summary>
+    public static IEnumerable<List<string>> PowerShellWords(string command)
+    {
+        var words = new List<string>();
+        var word = new StringBuilder();
+        var inWord = false;
+        var skipNext = false;
+        void EndWord()
+        {
+            if (inWord && !skipNext)
+                words.Add(word.ToString());
+            else if (inWord)
+                skipNext = false;
+            word.Clear();
+            inWord = false;
+        }
+        for (var i = 0; i < command.Length; i++)
+        {
+            var c = command[i];
+            if (c is '\'' or '"')
+            {
+                var close = command.IndexOf(c, i + 1);
+                if (close < 0)
+                    close = command.Length;
+                word.Append(command, i + 1, close - i - 1);
+                inWord = true;
+                i = close;
+                continue;
+            }
+            if (c == '`' && i + 1 < command.Length)
+            {
+                // Before a new line it carries the command on; before anything else that character is taken as it is.
+                if (command[i + 1] is '\r' or '\n')
+                    EndWord();
+                else
+                {
+                    word.Append(command[i + 1]);
+                    inWord = true;
+                }
+                i++;
+                continue;
+            }
+            if (c == '>')
+            {
+                // A redirection (> file, 2> file, *>> file, 2>&1): its target is not a word of the command.
+                if (inWord && word.ToString() is var stream && (stream == "*" || stream.All(char.IsDigit)))
+                {
+                    word.Clear();
+                    inWord = false;
+                }
+                EndWord();
+                while (i + 1 < command.Length && command[i + 1] == '>')
+                    i++;
+                if (i + 2 < command.Length && command[i + 1] == '&' && char.IsDigit(command[i + 2]))
+                    i += 2;
+                else
+                    skipNext = true;
+                continue;
+            }
+            // A method's arguments are its words ([IO.File]::ReadAllText(path)); any other ( starts a command of its own.
+            var call = c == '(' && inWord && word.ToString().Contains("::", StringComparison.Ordinal);
+            if (c is ';' or '\n' or '|' or '&' or '{' or '=' || c == '(' && !call)
+            {
+                EndWord();
+                skipNext = false;
+                if (words.Count > 0)
+                    yield return words;
+                words = [];
+                continue;
+            }
+            if (char.IsWhiteSpace(c) || c is '(' or ')' or '}' or ',')
+            {
+                EndWord();
+                continue;
+            }
+            word.Append(c);
+            inWord = true;
+        }
+        EndWord();
+        if (words.Count > 0)
+            yield return words;
+    }
+
+    /// <summary>
+    /// A path a PowerShell command was given, from the folder it runs in: ~, $HOME, $PWD and $env: variables put in, and a
+    /// \ a separator on every system, as PowerShell reads it; null when only PowerShell can tell ($file).
+    /// </summary>
+    public static string? PowerShellPathOf(string word, string? folder)
+    {
+        var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+        word = PowerShellVariable.Replace(word, m =>
+        {
+            var name = m.Groups["name"].Value;
+            if (name.Equals("HOME", StringComparison.OrdinalIgnoreCase))
+                return home;
+            if (name.Equals("PWD", StringComparison.OrdinalIgnoreCase))
+                return folder ?? m.Value;
+            return Environment.GetEnvironmentVariable(name[4..]) is { Length: > 0 } value ? value : m.Value;
+        });
+        if (word == "~" || word.StartsWith("~/", StringComparison.Ordinal) || word.StartsWith("~\\", StringComparison.Ordinal))
+            word = home + word[1..];
+        if (Path.DirectorySeparatorChar != '\\')
+            word = word.Replace('\\', '/');
+        return Resolve(folder, word);
+    }
+
+    /// <summary>$HOME, $PWD, $env:NAME, and the same in braces (${env:NAME}).</summary>
+    static readonly Regex PowerShellVariable = new(@"\$(?:\{(?<name>HOME|PWD|env:\w+)\}|(?<name>HOME|PWD|env:\w+)\b)",
+        RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
 
     static bool IsAssignment(string word) =>
         word.IndexOf('=') is var eq and > 0 && (char.IsLetter(word[0]) || word[0] == '_') && word[..eq].All(c => char.IsLetterOrDigit(c) || c == '_');

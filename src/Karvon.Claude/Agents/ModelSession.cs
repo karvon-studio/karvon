@@ -441,8 +441,8 @@ public sealed class ModelSession : IAgentSession
             return await CallKarvonAsync(tools, call.Name, input, cancellationToken);
         if (!ModelTools.Definitions().Any(d => d["function"]?["name"]?.GetValue<string>() == call.Name))
             return ($"There is no tool named {call.Name}.", true);
-        // Karvon's secret guard reads the call as it reads Claude Code's (the shell's as Bash).
-        if (_options.GuardSecrets && SecretGuard.Check(call.Name == "PowerShell" ? "Bash" : call.Name, input, _options.WorkingDirectory) is { } refusal)
+        // Karvon's secret guard reads the call as it reads Claude Code's (the shell's as the shell it is: Bash's, or PowerShell's).
+        if (_options.GuardSecrets && SecretGuard.Check(call.Name, input, _options.WorkingDirectory) is { } refusal)
         {
             Audit?.Decided(null, call.Name, "deny", "Karvon's secret guard", refusal);
             return (refusal, true);

@@ -9,7 +9,7 @@ boundary, whether it is enforced (with the test that proves it) or planned.
 A call goes through these, in this order:
 
 1. **Karvon's guard of the secrets** (a PreToolUse hook, on by default: MCP Servers > karvon > Keep the secrets away)
-   refuses Claude Code's own Read, Edit, Write, NotebookEdit, Grep and Bash when they reach a file that holds secrets
+   refuses Claude Code's own Read, Edit, Write, NotebookEdit, Grep, Bash and PowerShell when they reach a file that holds secrets
    or ask a secret store (`secret-tool`, `security find-*`, `gh auth token`, `kubectl config view --raw`,
    `git credential fill`, the cloud CLIs' token commands). It is a guard against what slips: the shell can reach
    secrets in ways no list has. The sandbox (below) is the boundary.
