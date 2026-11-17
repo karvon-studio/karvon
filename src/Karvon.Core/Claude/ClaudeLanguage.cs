@@ -232,6 +232,7 @@ public sealed class ClaudeLanguage : INotifyPropertyChanged
         ["Show less"] = "Kamroq ko‘rsatish",
         ["The summary that replaced the earlier messages"] = "Oldingi xabarlar o‘rnini olgan xulosa",
         ["Copied"] = "Nusxalandi",
+        ["Copy the answer"] = "Javobni nusxalash",
         ["Copy the code"] = "Kodni nusxalash",
         ["Attach to the prompt"] = "So‘rovga biriktirish",
         ["Images"] = "Rasmlar",

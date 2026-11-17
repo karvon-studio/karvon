@@ -787,4 +787,43 @@ public class ModelAgentPanelTests
         Assert.Equal("fake-coder", server.Requests.Single().GetProperty("model").GetString());
         await vm.DisposeAsync();
     }
+
+    [AvaloniaFact]
+    public async Task Under_each_answer_its_whole_text_is_copied_with_one_click()
+    {
+        await using var server = new FakeModelServer();
+        var dir = Path.Combine(Path.GetTempPath(), "karvon-model-copy-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(dir);
+        File.WriteAllText(Path.Combine(dir, "a.txt"), "content");
+        var settings = new Karvon.Services.Settings();
+        var backend = new ModelBackend(ModelProvider.OpenRouter with { Url = server.Url, EnvironmentKey = "KARVON_TEST_NO_SUCH_KEY" });
+        backend.SetKey("sk-test");
+        var vm = new ClaudeViewModel(settings, () => dir, () => null, () => [], () => null) { Backends = [backend] };
+        await vm.UseAgentAsync(backend, null);
+
+        // An answer in two blocks, a tool call between them.
+        server.Reply(FakeModelServer.Text("First I read it."), FakeModelServer.Call(0, "call_1", "Read", JsonSerializer.Serialize(new { file_path = Path.Combine(dir, "a.txt") })));
+        server.Reply(FakeModelServer.Text("It says **content**."));
+        vm.Prompt = "What is in a.txt?";
+        vm.SendCommand.Execute(null);
+        await WaitUntil(() => vm.Items.OfType<AnswerChatItem>().Any() && !vm.IsRunning, TimeSpan.FromSeconds(10));
+        var answer = Assert.IsType<AnswerChatItem>(vm.Items.Last());
+        Assert.Equal("First I read it.\n\nIt says **content**.", answer.Text);
+
+        // The next turn's answer is its own.
+        server.Reply(FakeModelServer.Text("Done."));
+        vm.Prompt = "Thanks.";
+        vm.SendCommand.Execute(null);
+        await WaitUntil(() => vm.Items.OfType<AnswerChatItem>().Count() == 2 && !vm.IsRunning, TimeSpan.FromSeconds(10));
+        Assert.Equal("Done.", vm.Items.OfType<AnswerChatItem>().Last().Text);
+
+        // A conversation shown again from its transcript gets them too, each after its turn.
+        List<ChatItem> shown = [new UserChatItem("a", null), new TextChatItem("One."), new UserChatItem("b", null), new TextChatItem("Two"), new TextChatItem("Three")];
+        AnswerChatItem.AddTo(shown);
+        Assert.Equal(["User", "Text", "Answer:One.", "User", "Text", "Text", "Answer:Two\n\nThree"],
+            shown.Select(i => i switch { AnswerChatItem a => "Answer:" + a.Text, UserChatItem => "User", _ => "Text" }));
+        AnswerChatItem.AddTo(shown);
+        Assert.Equal(2, shown.OfType<AnswerChatItem>().Count());
+        await vm.DisposeAsync();
+    }
 }

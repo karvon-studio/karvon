@@ -162,6 +162,17 @@ public partial class ClaudeView : UserControl
         vm.AddFiles(ImageFit.AttachLargeImages(vm, files.Select(f => f.TryGetLocalPath()).OfType<string>()));
     }
 
+    /// <summary>The answer under which it was clicked, copied whole (Markdown); the button says so for a moment.</summary>
+    async void OnCopyAnswerClick(object? sender, RoutedEventArgs e)
+    {
+        if ((sender as Control)?.DataContext is not AnswerChatItem answer || TopLevel.GetTopLevel(this)?.Clipboard is not { } clipboard)
+            return;
+        await clipboard.SetTextAsync(answer.Text);
+        answer.IsCopied = true;
+        await Task.Delay(1500);
+        answer.IsCopied = false;
+    }
+
     /// <summary>English / O'zbekcha: the panel's language, remembered in the settings.</summary>
     void OnLanguageClick(object? sender, RoutedEventArgs e)
     {

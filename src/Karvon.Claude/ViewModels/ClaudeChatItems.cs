@@ -70,6 +70,53 @@ public sealed partial class TextChatItem(string text) : ChatItem
     internal string? StreamKey { get; set; }
 }
 
+/// <summary>Under an answer: the whole of it (each text block of the turn, as Markdown) copied with one click.</summary>
+public sealed partial class AnswerChatItem(string text) : ChatItem
+{
+    public string Text { get; } = text;
+
+    /// <summary>It was copied a moment ago (the button says so).</summary>
+    [ObservableProperty]
+    public partial bool IsCopied { get; set; }
+
+    /// <summary>
+    /// The answers in <paramref name="items"/>, each after the last item of its turn: the text blocks since the prompt
+    /// before them, joined (an answer already there is not added again). From <paramref name="from"/> on.
+    /// </summary>
+    public static void AddTo(IList<ChatItem> items, int from = 0)
+    {
+        var texts = new List<string>();
+        void End(int at)
+        {
+            if (texts.Count > 0 && !(at > 0 && items[at - 1] is AnswerChatItem))
+                items.Insert(at, new AnswerChatItem(string.Join("\n\n", texts)));
+            texts.Clear();
+        }
+        // The turn the range begins in starts at its prompt.
+        var start = from;
+        while (start > 0 && items[start - 1] is not UserChatItem)
+            start--;
+        for (var i = start; i < items.Count; i++)
+        {
+            switch (items[i])
+            {
+                case UserChatItem when i > start:
+                    var before = items.Count;
+                    End(i);
+                    i += items.Count - before;
+                    break;
+                case AnswerChatItem:
+                    texts.Clear();
+                    break;
+                case TextChatItem { Text: { Length: > 0 } text }:
+                    texts.Add(text.Trim());
+                    break;
+            }
+        }
+        End(items.Count);
+    }
+}
+
 public sealed partial class ThinkingChatItem(string text) : ChatItem
 {
     [ObservableProperty]

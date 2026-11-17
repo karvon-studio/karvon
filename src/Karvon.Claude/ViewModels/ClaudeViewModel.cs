@@ -796,6 +796,8 @@ public sealed partial class ClaudeViewModel : ObservableObject, IAsyncDisposable
                     _settings.ClaudeModel = choice.Value;
                     _settings.Save();
                 }
+                // The answer, to be copied whole.
+                AnswerChatItem.AddTo(Items, Math.Max(0, Items.Count - 1));
                 _interrupting = false;
                 _pendingModelCommand = null;
                 foreach (var tool in _tools.Values.Where(t => t.IsRunning))
@@ -1566,6 +1568,7 @@ public sealed partial class ClaudeViewModel : ObservableObject, IAsyncDisposable
         // Calls that never got a result in the transcript are shown as finished, not as still running.
         foreach (var tool in _tools.Values.Where(t => t.IsRunning))
             tool.State = ToolState.Done;
+        AnswerChatItem.AddTo(Items);
         _resumeId = conversation.SessionId;
         OnPropertyChanged(nameof(SessionId));
         IsHistoryOpen = false;
