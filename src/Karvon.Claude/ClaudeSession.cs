@@ -71,8 +71,6 @@ public sealed class ClaudeSession : IAgentSession
     /// <summary>The permission requests the user is asked (by Karvon's card), for the trail to say how each was answered.</summary>
     readonly System.Collections.Concurrent.ConcurrentDictionary<string, (string? ToolUseId, string Tool)> _asked = new();
 
-    /// <summary>The Bash commands Karvon sent to its tools once: the same command again goes through (they could not do it).</summary>
-    readonly HashSet<string> _redirected = [];
     int _requestCounter;
     bool _disposed;
 
@@ -124,7 +122,8 @@ public sealed class ClaudeSession : IAgentSession
     /// <summary>The id of the PreToolUse hook Karvon answers for Bash (its shell rules).</summary>
     public const string ShellHook = "karvon_shell";
 
-    const string RedirectNote = "If they cannot do this one, run the same command again: Karvon lets it through then.";
+    const string RedirectNote = "If they cannot do this one, run the same command again: Karvon lets it through then, and the commands of "
+        + "this kind after it too.";
 
     /// <summary>The id of the PreToolUse hook that keeps Claude Code's own tools away from the secrets (<see cref="SecretGuard"/>).</summary>
     public const string SecretsHook = "karvon_secrets";
@@ -575,7 +574,7 @@ public sealed class ClaudeSession : IAgentSession
         else if (ClaudeProtocol.Str(request, "callback_id") == ShellHook && request.TryGetProperty("input", out var input)
             && ClaudeProtocol.Str(input, "tool_name") == "Bash" && input.TryGetProperty("tool_input", out var toolInput)
             && ClaudeProtocol.Str(toolInput, "command") is { } command && _tools?.ShellRuleFor(command, _workingDirectory) is { } rule
-            && FirstRedirect(command))
+            && Redirects(rule, command))
         {
             Audit?.Decided(ClaudeProtocol.Str(input, "tool_use_id") ?? ClaudeProtocol.Str(request, "tool_use_id"), "Bash", "deny", "Karvon's tools before the shell", rule.Name);
             answer = new { hookSpecificOutput = new { hookEventName = "PreToolUse", permissionDecision = "deny", permissionDecisionReason =
@@ -604,11 +603,9 @@ public sealed class ClaudeSession : IAgentSession
         return at < 0 ? result : result[(at + before.Length)..];
     }
 
-    bool FirstRedirect(string command)
-    {
-        lock (_redirected)
-            return _redirected.Add(command.Trim());
-    }
+    bool Redirects(ClaudeShellRule rule, string command) => _shellRedirects.Redirects(rule.Name, command);
+
+    readonly ShellRedirects _shellRedirects = new();
 
     /// <summary>A JSON-RPC message for Karvon's MCP server, answered when the tool is done (a query may take a while).</summary>
     async Task AnswerMcpAsync(string? requestId, string? serverName, JsonElement message)
@@ -709,4 +706,27 @@ public sealed record ClaudePermissionDecision(
     internal object ToResponse() => Allow
         ? (object)new { behavior = "allow", updatedInput = UpdatedInput, updatedPermissions = UpdatedPermissions is { Count: > 0 } p ? p : null }
         : new { behavior = "deny", message = Message ?? "The user declined.", interrupt = Interrupt ? true : (bool?)null };
+}
+
+/// <summary>
+/// Which shell commands a session sends to Karvon's tools: a command a rule covers, the first time; a command Claude runs
+/// again goes through, as Claude found the tools could not do it, and so does every command of that rule from then on.
+/// </summary>
+public sealed class ShellRedirects
+{
+    readonly HashSet<string> _sent = new(StringComparer.Ordinal);
+    readonly HashSet<string> _passed = new(StringComparer.Ordinal);
+
+    public bool Redirects(string rule, string command)
+    {
+        lock (_sent)
+        {
+            if (_passed.Contains(rule))
+                return false;
+            if (_sent.Add(command.Trim()))
+                return true;
+            _passed.Add(rule);
+            return false;
+        }
+    }
 }

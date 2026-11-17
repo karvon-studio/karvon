@@ -25,4 +25,13 @@ public interface IPipelineProvider : IDisposable
 
     /// <summary>One job again; a manual one started.</summary>
     Task RetryJobAsync(PipelineJob job, CancellationToken ct);
+
+    /// <summary>
+    /// A run started by hand on a branch or tag, with its inputs (GitHub: a workflow's, by its file or id; GitLab: the
+    /// project's pipeline, the inputs its variables): the run it made, once the service shows it (null when not yet).
+    /// </summary>
+    Task<Pipeline?> DispatchAsync(string? workflow, string reference, IReadOnlyDictionary<string, string> inputs, CancellationToken ct);
+
+    /// <summary>What the account (the repository's owner) used of the service's CI this month, as the service tells it.</summary>
+    Task<string> UsageAsync(CancellationToken ct);
 }

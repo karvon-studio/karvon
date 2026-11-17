@@ -45,6 +45,9 @@ public sealed class GhCliApi(string gh, string host) : IGitHubApi
     public async Task<string> GetAsync(string path, CancellationToken ct)
     {
         var (code, output, error) = await RunAsync(gh, ["api", "--hostname", host, "-H", "Accept: application/vnd.github+json", path], ct);
+        // A job's log has colors: gh refuses to print terminal escape sequences unless told to (gh 2.80 on; older ones know no such flag).
+        if (code != 0 && error.Contains("--allow-escape-sequences", StringComparison.Ordinal))
+            (code, output, error) = await RunAsync(gh, ["api", "--hostname", host, "--allow-escape-sequences", "-H", "Accept: application/vnd.github+json", path], ct);
         return code == 0 ? output : throw new PipelineException(Message(error, output));
     }
 
@@ -237,7 +240,7 @@ public sealed class GitHubActions(RepoRemote remote, IGitHubApi api) : IPipeline
         {
             return await api.GetAsync($"{Repo}/actions/jobs/{job.Id}/logs", ct);
         }
-        catch (PipelineException)
+        catch (PipelineException failed)
         {
             using var json = JsonDocument.Parse(await api.GetAsync($"{Repo}/check-runs/{job.Id}/annotations", ct));
             var notes = json.RootElement.EnumerateArray()
@@ -245,9 +248,10 @@ public sealed class GitHubActions(RepoRemote remote, IGitHubApi api) : IPipeline
                 .Where(a => a.Text.Length > 0)
                 .Select(a => (a.Level == "failure" ? "##[error]" : a.Level == "warning" ? "##[warning]" : "##[notice]") + a.Text)
                 .ToList();
+            // Why the log did not come is said, not taken for there being none.
             return notes.Count > 0
-                ? "GitHub has no log of this job; what it says of it:\n" + string.Join('\n', notes) + "\n"
-                : throw new PipelineException("GitHub has no log of this job: it did not run, or its log has expired.");
+                ? $"GitHub did not give this job's log ({failed.Message}); what it says of the job:\n" + string.Join('\n', notes) + "\n"
+                : throw new PipelineException($"GitHub did not give this job's log: {failed.Message}");
         }
     }
 
@@ -257,6 +261,67 @@ public sealed class GitHubActions(RepoRemote remote, IGitHubApi api) : IPipeline
     public Task CancelAsync(Pipeline pipeline, CancellationToken ct) => api.PostAsync($"{Repo}/actions/runs/{pipeline.Id}/cancel", ct);
 
     public Task RetryJobAsync(PipelineJob job, CancellationToken ct) => api.PostAsync($"{Repo}/actions/jobs/{job.Id}/rerun", ct);
+
+    public async Task<Pipeline?> DispatchAsync(string? workflow, string reference, IReadOnlyDictionary<string, string> inputs, CancellationToken ct)
+    {
+        if (workflow is not { Length: > 0 })
+            throw new PipelineException("Name the workflow to run: its file (ci.yml) or id.");
+        var file = Uri.EscapeDataString(Path.GetFileName(workflow));
+        var since = DateTimeOffset.UtcNow.AddSeconds(-10);
+        var body = new System.Text.Json.Nodes.JsonObject
+        {
+            ["ref"] = reference,
+            ["inputs"] = new System.Text.Json.Nodes.JsonObject(inputs.Select(i => KeyValuePair.Create(i.Key, (System.Text.Json.Nodes.JsonNode?)i.Value))),
+        };
+        await api.SendAsync("POST", $"{Repo}/actions/workflows/{file}/dispatches", body.ToJsonString(), ct);
+        // GitHub answers without the run: it is the workflow's newest run by hand since then, once it shows.
+        for (var i = 0; i < 8; i++)
+        {
+            await Task.Delay(TimeSpan.FromSeconds(2), ct);
+            using var json = JsonDocument.Parse(await api.GetAsync($"{Repo}/actions/workflows/{file}/runs?event=workflow_dispatch&per_page=5", ct));
+            if (json.RootElement.GetProperty("workflow_runs").EnumerateArray().Select(Run).FirstOrDefault(r => r.Created >= since) is { } run)
+                return run;
+        }
+        return null;
+    }
+
+    /// <summary>The owner's Actions minutes this month (GitHub's billing usage report: an organization's, else a user's).</summary>
+    public async Task<string> UsageAsync(CancellationToken ct)
+    {
+        var owner = remote.Path.Split('/')[0];
+        var now = DateTime.UtcNow;
+        var month = $"?year={now.Year}&month={now.Month}";
+        string body;
+        try
+        {
+            body = await api.GetAsync($"organizations/{owner}/settings/billing/usage{month}", ct);
+        }
+        catch (PipelineException)
+        {
+            try
+            {
+                body = await api.GetAsync($"users/{owner}/settings/billing/usage{month}", ct);
+            }
+            catch (PipelineException user)
+            {
+                throw new PipelineException($"GitHub did not give {owner}'s usage ({user.Message}). A personal account's needs gh's \"user\" scope: "
+                    + "the user runs gh auth refresh -h " + remote.Host + " -s user.");
+            }
+        }
+        using var json = JsonDocument.Parse(body);
+        var items = json.RootElement.TryGetProperty("usageItems", out var list) && list.ValueKind == JsonValueKind.Array ? list.EnumerateArray().ToList() : [];
+        var actions = items.Where(i => Str(i, "product") == "actions" && Str(i, "unitType") == "Minutes").ToList();
+        double Sum(IEnumerable<JsonElement> e, string field) => e.Sum(i => i.TryGetProperty(field, out var v) && v.ValueKind == JsonValueKind.Number ? v.GetDouble() : 0);
+        var text = new StringBuilder($"GitHub Actions of {owner}, {now:MMMM yyyy} so far: {Sum(actions, "quantity"):0} minutes.\n");
+        foreach (var sku in actions.GroupBy(i => Str(i, "sku")))
+            text.Append($"  {sku.Key}: {Sum(sku, "quantity"):0} min\n");
+        foreach (var repo in actions.GroupBy(i => Str(i, "repositoryName")).OrderByDescending(r => Sum(r, "quantity")))
+            text.Append($"  repository {(repo.Key.Length > 0 ? repo.Key : "(none)")}: {Sum(repo, "quantity"):0} min\n");
+        var all = items.Where(i => Str(i, "product") == "actions").ToList();
+        text.Append(System.Globalization.CultureInfo.InvariantCulture, $"Cost of Actions this month: ${Sum(all, "grossAmount"):0.00}, of which discounted ${Sum(all, "discountAmount"):0.00} (included minutes, public repositories), billed ${Sum(all, "netAmount"):0.00}.\n");
+        text.Append("GitHub's report does not say how many of the plan's included minutes are left.");
+        return text.ToString();
+    }
 
     static Pipeline Run(JsonElement run) => new(
         Num(run, "id"), Num(run, "run_number"), Str(run, "name"),

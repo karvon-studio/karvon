@@ -32,6 +32,8 @@ public static class DockerClaudeTools
         new ContainerRestartTool(host),
         new ComposeUpTool(host),
         new ContainerRemoveTool(host),
+        new ContainerRunTool(host),
+        new ContainerExecTool(host),
     ];
 }
 
@@ -335,5 +337,151 @@ sealed class ContainerRemoveTool(IDockerToolHost host) : DockerTool(host)
         var container = await ContainerAsync(input, cancellationToken);
         var result = await Host.Docker.RunAsync(["rm", "-f", container.Id], cancellationToken: cancellationToken);
         return result.Succeeded ? new ClaudeToolOutput($"Removed {container.Name}.") : ClaudeToolOutput.Error(Redaction.Text(result.Message));
+    }
+}
+
+/// <summary>
+/// <c>container_run</c> (asks first): a container of an image, its command run to its end (removed after) or left running
+/// (detach): to try a build in a clean system as CI does, with the project's folder mounted. A mount of the home folder
+/// itself, of a place that holds secrets, or of the engine's socket is refused.
+/// </summary>
+sealed class ContainerRunTool(IDockerToolHost host) : DockerTool(host)
+{
+    public override string Name => "container_run";
+
+    public override string Description =>
+        "Runs a container of an image: its command (run by sh -c) to its end, the container removed after, its output returned; or left "
+        + "running (detach) for container_exec and container_logs. Mounts are host:container[:ro] (a host path relative to the solution's "
+        + "folder). To reproduce a CI job in a clean image (ubuntu:24.04) with the project mounted. The user approves each call.";
+
+    public override JsonObject InputSchema => Schema("""
+        {"type":"object","properties":{
+          "image":{"type":"string","description":"The image (ubuntu:24.04)"},
+          "command":{"type":"string","description":"What to run, by sh -c (default: the image's own)"},
+          "mounts":{"type":"array","items":{"type":"string"},"description":"host:container or host:container:ro; host relative to the solution's folder"},
+          "workdir":{"type":"string","description":"The folder in the container to run in"},
+          "env":{"type":"object","additionalProperties":{"type":"string"},"description":"Environment variables"},
+          "network":{"type":"string","description":"bridge (default), host or none"},
+          "name":{"type":"string","description":"The container's name"},
+          "detach":{"type":"boolean","description":"Leave it running (not removed) and return its id"},
+          "timeout_minutes":{"type":"integer","description":"How long to wait for it to end (default 10, at most 60)"}},
+         "required":["image"]}
+        """);
+
+    public override ClaudeToolPlan Plan(JsonElement input)
+    {
+        var (args, _) = Arguments(input);
+        return new(ToolAccess.Write, "Run Container", Str(input, "image"), $"Allow Claude to run a container of {Str(input, "image")}?")
+        {
+            Code = "docker " + string.Join(' ', args.Select(a => a.Contains(' ') ? $"'{a}'" : a)),
+            Warning = "What it runs can read and change the folders mounted into it.",
+        };
+    }
+
+    /// <summary>docker run's arguments; why not, when a mount is refused.</summary>
+    (List<string> Args, string? Refused) Arguments(JsonElement input)
+    {
+        List<string> args = ["run"];
+        args.Add(Bool(input, "detach") ? "-d" : "--rm");
+        if (Str(input, "name") is { Length: > 0 } name)
+            args.AddRange(["--name", name]);
+        if (Str(input, "network") is { Length: > 0 } network)
+            args.AddRange(["--network", network]);
+        if (Str(input, "workdir") is { Length: > 0 } workdir)
+            args.AddRange(["-w", workdir]);
+        if (input.TryGetProperty("env", out var env) && env.ValueKind == JsonValueKind.Object)
+            foreach (var variable in env.EnumerateObject())
+                args.AddRange(["-e", $"{variable.Name}={(variable.Value.ValueKind == JsonValueKind.String ? variable.Value.GetString() : variable.Value.GetRawText())}"]);
+        string? refused = null;
+        if (input.TryGetProperty("mounts", out var mounts) && mounts.ValueKind == JsonValueKind.Array)
+            foreach (var mount in mounts.EnumerateArray().Select(m => m.GetString() ?? ""))
+            {
+                var parts = mount.Split(':');
+                if (parts.Length < 2)
+                {
+                    refused ??= $"{mount} is not host:container.";
+                    continue;
+                }
+                var source = Path.GetFullPath(parts[0].StartsWith('~') ? Home + parts[0][1..] : parts[0], Host.SolutionDirectory ?? Environment.CurrentDirectory);
+                if (Refuse(source) is { } why)
+                    refused ??= why;
+                args.AddRange(["-v", string.Join(':', [source, .. parts[1..]])]);
+            }
+        args.Add(Str(input, "image") ?? "");
+        if (Str(input, "command") is { Length: > 0 } command)
+            args.AddRange(["sh", "-c", command]);
+        return (args, refused);
+    }
+
+    static string Home => Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+
+    /// <summary>Why a host folder may not be mounted: the home folder itself or the root, what holds secrets, the engine's socket.</summary>
+    static string? Refuse(string source)
+    {
+        var full = Path.TrimEndingDirectorySeparator(source);
+        if (full == Path.TrimEndingDirectorySeparator(Home) || full == "/" || full.Length <= 3 && OperatingSystem.IsWindows())
+            return $"{source} is not mounted: it holds all of the user's files. Mount the project's folder, or the one the work needs.";
+        if (full.EndsWith("docker.sock", StringComparison.Ordinal) || full.EndsWith("podman.sock", StringComparison.Ordinal))
+            return $"{source} is not mounted: the engine's socket gives what runs in the container the whole machine.";
+        if (SecretFiles.IsSecret(full) || SecretFiles.UserPlaces().Any(p => p.StartsWith(full + Path.DirectorySeparatorChar, StringComparison.Ordinal)))
+            return $"{source} is not mounted: it is, or holds, a place with secrets (keys, credentials).";
+        return null;
+    }
+
+    protected override async Task<ClaudeToolOutput> RunAsync(JsonElement input, CancellationToken cancellationToken)
+    {
+        if (Str(input, "image") is not { Length: > 0 })
+            return ClaudeToolOutput.Error("Name the image (ubuntu:24.04).");
+        var (args, refused) = Arguments(input);
+        if (refused is not null)
+            return ClaudeToolOutput.Error(refused);
+        var result = await Host.Docker.RunAsync(args, Host.SolutionDirectory, TimeSpan.FromMinutes(Int(input, "timeout_minutes", 10, 1, 60)),
+            cancellationToken: cancellationToken);
+        var output = Redaction.Text(Tail((result.Output + "\n" + result.Error).Trim(), 30_000));
+        return Bool(input, "detach") && result.Succeeded
+            ? new ClaudeToolOutput($"Running: {result.Output.Trim()}")
+            : new ClaudeToolOutput((output.Length > 0 ? output + "\n" : "") + $"Exit code {result.ExitCode}", !result.Succeeded);
+    }
+}
+
+/// <summary><c>container_exec</c> (asks first): a command run in a running container, to its end.</summary>
+sealed class ContainerExecTool(IDockerToolHost host) : DockerTool(host)
+{
+    public override string Name => "container_exec";
+
+    public override string Description =>
+        "Runs a command (by sh -c) in a running container, to its end, and returns its output and exit code. By container or compose "
+        + "service name. The user approves each call.";
+
+    public override JsonObject InputSchema => Schema("""
+        {"type":"object","properties":{
+          "name":{"type":"string","description":"Container or compose service name"},
+          "command":{"type":"string","description":"What to run, by sh -c"},
+          "workdir":{"type":"string","description":"The folder in the container to run in"},
+          "user":{"type":"string","description":"Run as this user"},
+          "timeout_minutes":{"type":"integer","description":"How long to wait (default 5, at most 60)"}},
+         "required":["name","command"]}
+        """);
+
+    public override ClaudeToolPlan Plan(JsonElement input) =>
+        new(ToolAccess.Write, "Exec", Str(input, "name"), $"Allow Claude to run this in the container {Str(input, "name")}?")
+        {
+            Code = Str(input, "command"),
+        };
+
+    protected override async Task<ClaudeToolOutput> RunAsync(JsonElement input, CancellationToken cancellationToken)
+    {
+        var container = await ContainerAsync(input, cancellationToken);
+        if (!container.IsUp)
+            return ClaudeToolOutput.Error($"{container.Name} is not running: container_restart starts it.");
+        List<string> args = ["exec"];
+        if (Str(input, "workdir") is { Length: > 0 } workdir)
+            args.AddRange(["-w", workdir]);
+        if (Str(input, "user") is { Length: > 0 } user)
+            args.AddRange(["-u", user]);
+        args.AddRange([container.Id, "sh", "-c", Str(input, "command") ?? "true"]);
+        var result = await Host.Docker.RunAsync(args, timeout: TimeSpan.FromMinutes(Int(input, "timeout_minutes", 5, 1, 60)), cancellationToken: cancellationToken);
+        var output = Redaction.Text(Tail((result.Output + "\n" + result.Error).Trim(), 30_000));
+        return new ClaudeToolOutput((output.Length > 0 ? output + "\n" : "") + $"Exit code {result.ExitCode}", !result.Succeeded);
     }
 }

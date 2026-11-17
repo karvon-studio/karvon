@@ -29,6 +29,15 @@ public interface IPipelinesHost
     void Status(string text);
 
     void AskClaude(string prompt);
+
+    /// <summary>The folder open in Karvon (its repositories, nested ones too, are Claude's to name); null for none.</summary>
+    string? Workspace => null;
+}
+
+/// <summary>A repository Claude's CI tools reach: its folder, its remote, its branch and its service.</summary>
+public sealed record PipelineTarget(string Folder, RepoRemote Remote, string? Branch, IPipelineProvider Provider)
+{
+    public string Service => $"{Remote.ProviderName} ({Remote.Authority}/{Remote.Path})";
 }
 
 public enum RepoState
@@ -469,6 +478,110 @@ public sealed partial class PipelinesViewModel : ObservableObject, IDisposable
         Host.GitPushed -= OnGitPushed;
         foreach (var repo in Repositories)
             repo.Provider?.Dispose();
+        foreach (var target in _targets.Values)
+            target.Provider.Dispose();
+    }
+
+    // ---- Claude's repositories ----------------------------------------------------------------------------------
+
+    /// <summary>The services of repositories Claude named that the window does not show (connected once).</summary>
+    readonly Dictionary<string, PipelineTarget> _targets = new(StringComparer.Ordinal);
+
+    /// <summary>
+    /// The git repositories of the workspace (it, and those in its folders: a workspace of several), with their remotes;
+    /// the window's first.
+    /// </summary>
+    public async Task<IReadOnlyList<(string Folder, RepoRemote? Remote)>> WorkspaceRepositoriesAsync()
+    {
+        var found = new List<(string Folder, RepoRemote? Remote)>();
+        foreach (var repo in Repositories)
+            found.Add((repo.Repository.Root, repo.Remote));
+        if (Host.Workspace is { } workspace)
+            foreach (var folder in GitFolders(workspace, 3))
+                if (found.All(f => f.Folder != folder) && await GitRepository.OpenAsync(folder) is { } git && git.Root == folder)
+                    found.Add((folder, await git.RemoteUrlAsync() is { } url ? RepoRemote.Parse(url) : null));
+        return found;
+    }
+
+    /// <summary>The folders under <paramref name="root"/> (it too) that hold a git repository, so deep at most.</summary>
+    static IEnumerable<string> GitFolders(string root, int depth)
+    {
+        if (Directory.Exists(Path.Combine(root, ".git")) || File.Exists(Path.Combine(root, ".git")))
+            yield return Path.GetFullPath(root);
+        if (depth == 0)
+            yield break;
+        IEnumerable<string> children;
+        try
+        {
+            children = Directory.EnumerateDirectories(root).ToList();
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            yield break;
+        }
+        foreach (var child in children)
+        {
+            var name = Path.GetFileName(child);
+            if (name.StartsWith('.') || name is "node_modules" or "bin" or "obj" or "target" or "vendor" or "venv" or "dist" or "build")
+                continue;
+            foreach (var folder in GitFolders(child, depth - 1))
+                yield return folder;
+        }
+    }
+
+    /// <summary>
+    /// The repository Claude names (owner/name, its name, or its folder), its service connected; with none named, the
+    /// window's. An error lists the workspace's repositories when no one is that.
+    /// </summary>
+    public async Task<PipelineTarget> TargetAsync(string? name, CancellationToken ct)
+    {
+        if (name is not { Length: > 0 })
+        {
+            var provider = ProviderOrThrow();
+            return new PipelineTarget(Repository!.Repository.Root, Repository.Remote!, Repository.Branch, provider);
+        }
+        var repositories = await WorkspaceRepositoriesAsync();
+        var wanted = name.Trim().TrimEnd('/');
+        var full = Host.Workspace is { } workspace ? Path.GetFullPath(wanted, workspace) : null;
+        var match = repositories.FirstOrDefault(r => r.Remote is { } remote && string.Equals(remote.Path, wanted, StringComparison.OrdinalIgnoreCase))
+            is { Folder: not null } exact ? exact
+            : repositories.FirstOrDefault(r => r.Folder == full || string.Equals(Path.GetFileName(r.Folder), wanted, StringComparison.OrdinalIgnoreCase)
+                || r.Remote is { } remote && remote.Path.EndsWith("/" + wanted, StringComparison.OrdinalIgnoreCase));
+        if (match.Folder is null)
+            throw new InvalidOperationException($"No repository {name} is in the workspace. Its repositories: "
+                + (repositories.Count == 0 ? "none." : string.Join(", ", repositories.Select(r => $"{Path.GetFileName(r.Folder)} ({r.Remote?.Path ?? "no GitHub or GitLab remote"})")) + "."));
+        if (match.Remote is not { } found)
+            throw new InvalidOperationException($"{Path.GetFileName(match.Folder)}'s remote is not a GitHub or GitLab repository.");
+        if (Repositories.FirstOrDefault(r => r.Repository.Root == match.Folder) is { Provider: { } shown } repo)
+            return new PipelineTarget(match.Folder, found, repo.Branch, shown);
+        var git = await GitRepository.OpenAsync(match.Folder);
+        var branch = git is null ? null : (await git.StatusAsync()).Branch.Branch;
+        lock (_targets)
+            if (_targets.TryGetValue(match.Folder, out var known))
+                return known with { Branch = branch };
+        var connected = await Connector.ConnectAsync(found, ct) ?? throw new InvalidOperationException(
+            $"Karvon has no token for {found.ProviderName} on {found.Authority}: the user gives one in View > Pipelines (Sign In).");
+        var target = new PipelineTarget(match.Folder, found, branch, connected);
+        lock (_targets)
+            _targets[match.Folder] = target;
+        return target;
+    }
+
+    /// <summary>A run of the target by its id, or its number among its latest runs.</summary>
+    public static async Task<Pipeline> FindAsync(PipelineTarget target, string id, CancellationToken ct)
+    {
+        try
+        {
+            return await target.Provider.PipelineAsync(id, ct);
+        }
+        catch (PipelineException) when (id.Length < 7)
+        {
+            // A number: among the branch's latest runs, then every branch's.
+            foreach (var branch in new[] { target.Branch, null }.Distinct())
+                if ((await target.Provider.PipelinesAsync(branch, 100, ct)).FirstOrDefault(r => r.Number == id) is { } run)
+                    return run;
+            throw new PipelineException($"{target.Service} has no run {id}.");
+        }
     }
 }
 

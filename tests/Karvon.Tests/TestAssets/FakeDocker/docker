@@ -212,6 +212,13 @@ def main():
         save(state)
     elif command == "compose":
         compose(state, rest)
+    elif command == "exec" and "-c" in rest:
+        # A command run in it to its end (container_exec): what it ran, said.
+        at = rest.index("sh")
+        c = find(state, rest[at - 1])
+        if c is None:
+            fail(f"Error response from daemon: No such container: {rest[at - 1]}")
+        out(f"ran in {c['name']}: {rest[rest.index('-c') + 1]}")
     elif command == "exec":
         shell(state, rest)
     else:
@@ -330,9 +337,10 @@ def act(state, verb, refs):
 def run(state, rest):
     name, ports, env, mounts = None, [], [], []
     i = 0
+    removed = "--rm" in rest
     while i < len(rest) and rest[i].startswith("-"):
         flag = rest[i]
-        if flag == "-d":
+        if flag in ("-d", "--rm"):
             i += 1
             continue
         value = rest[i + 1]
@@ -350,6 +358,12 @@ def run(state, rest):
     image = rest[i]
     if not any(f"{im['repo']}:{im['tag']}" == image or im["repo"] == image for im in state["images"]):
         fail(f"Unable to find image '{image}' locally\ndocker: Error response from daemon: pull access denied for {image}")
+    if removed:
+        # Run to its end and removed (--rm): what it ran, and where its folders were mounted.
+        out(f"ran {image}: {' '.join(rest[i + 1:])}")
+        for m in mounts:
+            out(f"mounted {m['source']} at {m['destination']}")
+        return
     cid = "%064x" % random.getrandbits(256)
     name = name or f"festive_{cid[:4]}"
     if any(c["name"] == name for c in state["containers"]):

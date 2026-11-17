@@ -41,6 +41,10 @@ if args[:1] == ["api"]:
         sys.stderr.write("gh: Not Found (HTTP 404)\n")
         sys.stdout.write(json.dumps({"message": "Not Found"}))
         sys.exit(1)
+    # A body with terminal escape sequences (a job's log): gh refuses to print it unless told to.
+    if route.get("escapes") and "--allow-escape-sequences" not in args:
+        sys.stderr.write("the response contains terminal escape sequences; pass --allow-escape-sequences to output it anyway\n")
+        sys.exit(1)
     body = route.get("body", "")
     sys.stdout.write(body if isinstance(body, str) else json.dumps(body))
     sys.stderr.write(route.get("stderr", ""))

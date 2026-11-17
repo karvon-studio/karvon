@@ -86,14 +86,15 @@ public sealed partial class PipelinesModule : KarvonModule, IPipelinesHost
     /// <summary>gh run, glab ci, GitLab's pipelines API by curl: Karvon's tools instead (its sign-in, its window).</summary>
     public override IEnumerable<ClaudeShellRule> ClaudeShellRules() =>
     [
-        ClaudeShellRule.Command("ci cli", @"gh\s+run\s+(list|view|watch|rerun|cancel)\b|glab\s+(ci|pipeline|job)\b", Use),
+        ClaudeShellRule.Command("ci cli", @"gh\s+run\s+(list|view|watch|rerun|cancel)\b|gh\s+workflow\s+run\b|glab\s+(ci|pipeline|job)\b", Use),
         ClaudeShellRule.Command("ci api", @"(curl|wget|http|https|xh)\b[^;&|\n]*/api/v4/projects/[^\s;&|]*/(pipelines|jobs)\b", Use),
     ];
 
     const string Use =
-        "Karvon reads the repository's CI for the user (its Pipelines window, the user's gh or a kept token): use "
-        + "mcp__karvon__pipeline_list, pipeline_jobs and pipeline_log, and pipeline_retry or pipeline_cancel (the user approves "
-        + "them), not the CLI or curl; no token is needed.";
+        "Karvon reads the CI of the workspace's repositories for the user (its Pipelines window, the user's gh or a kept token): use "
+        + "mcp__karvon__pipeline_list, pipeline_jobs, pipeline_log (failed steps only, one step, or grep with context lines), "
+        + "pipeline_watch (waits until a run ends) and pipeline_usage (the month's minutes), with repo for another repository; "
+        + "pipeline_dispatch, pipeline_retry and pipeline_cancel ask the user. Not the CLI or curl: no token is needed.";
 
     /// <summary>What Claude looked at shows in Karvon: the run's page.</summary>
     public override Task ShowClaudeToolAsync(string tool, JsonElement input, ClaudeToolOutput output)
@@ -125,4 +126,6 @@ public sealed partial class PipelinesModule : KarvonModule, IPipelinesHost
     void IPipelinesHost.Status(string text) => Workbench.Status(text);
 
     void IPipelinesHost.AskClaude(string prompt) => _claude?.Ask(prompt);
+
+    string? IPipelinesHost.Workspace => Workbench.Workspace;
 }

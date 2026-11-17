@@ -43,6 +43,84 @@ public static partial class PipelineLog
         return all.Length <= lines ? string.Join('\n', all) : $"(the last {lines} of {all.Length} lines)\n" + string.Join('\n', all[^lines..]);
     }
 
+    /// <summary>The log Claude reads, whole and plain.</summary>
+    public static string[] PlainLines(string cleaned) => Ansi().Replace(cleaned, "").TrimEnd('\n').Split('\n');
+
+    /// <summary>
+    /// A GitHub job log's lines within the spans (a step's start to its end), by each line's timestamp; a line without
+    /// one goes with the line before it. Its steps are not marked in the log, their times are.
+    /// </summary>
+    public static string Slice(string log, IReadOnlyList<(DateTimeOffset From, DateTimeOffset To)> spans)
+    {
+        var text = new StringBuilder();
+        var keep = false;
+        foreach (var raw in log.Replace("\r\n", "\n").Split('\n'))
+        {
+            var line = raw.TrimStart('\uFEFF');
+            if (GitHubTime().Match(line) is { Success: true } time
+                && DateTimeOffset.TryParse(time.Value.Trim(), System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.AssumeUniversal, out var at))
+                keep = spans.Any(s => at >= s.From.AddSeconds(-1) && at < s.To.AddSeconds(1));
+            if (keep)
+                text.Append(line).Append('\n');
+        }
+        return text.ToString();
+    }
+
+    /// <summary>
+    /// The lines that match <paramref name="pattern"/> (a regular expression, or the text as it is when it is not one;
+    /// case aside), each with <paramref name="context"/> lines around it and its line number; at most
+    /// <paramref name="max"/> lines.
+    /// </summary>
+    public static string Grep(IReadOnlyList<string> lines, string pattern, int context, int max)
+    {
+        Regex regex;
+        try
+        {
+            regex = new Regex(pattern, RegexOptions.IgnoreCase | RegexOptions.CultureInvariant, TimeSpan.FromSeconds(1));
+        }
+        catch (ArgumentException)
+        {
+            regex = new Regex(Regex.Escape(pattern), RegexOptions.IgnoreCase | RegexOptions.CultureInvariant, TimeSpan.FromSeconds(1));
+        }
+        var shown = new bool[lines.Count];
+        var hits = 0;
+        for (var i = 0; i < lines.Count; i++)
+        {
+            bool match;
+            try
+            {
+                match = regex.IsMatch(lines[i]);
+            }
+            catch (RegexMatchTimeoutException)
+            {
+                match = false;
+            }
+            if (!match)
+                continue;
+            hits++;
+            for (var j = Math.Max(0, i - context); j <= Math.Min(lines.Count - 1, i + context); j++)
+                shown[j] = true;
+        }
+        if (hits == 0)
+            return $"No line of the {lines.Count} matches {pattern}.";
+        var text = new StringBuilder($"{hits} of {lines.Count} lines match {pattern}:\n");
+        var written = 0;
+        for (var i = 0; i < lines.Count; i++)
+        {
+            if (!shown[i])
+                continue;
+            if (i > 0 && !shown[i - 1] && written > 0)
+                text.Append("--\n");
+            if (written++ == max)
+            {
+                text.Append($"… (more: narrow the pattern, or lower context)\n");
+                break;
+            }
+            text.Append(i + 1).Append(": ").Append(lines[i]).Append('\n');
+        }
+        return text.ToString().TrimEnd('\n');
+    }
+
     [GeneratedRegex(@"^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(\.\d+)?Z ")]
     private static partial Regex GitHubTime();
 

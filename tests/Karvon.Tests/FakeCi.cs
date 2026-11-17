@@ -38,9 +38,10 @@ sealed class FakeGh
         }
     }
 
-    public void Route(string method, string path, object body, int code = 0, string stderr = "")
+    /// <param name="escapes">The body has terminal escape sequences (a job's log): gh prints it only with --allow-escape-sequences.</param>
+    public void Route(string method, string path, object body, int code = 0, string stderr = "", bool escapes = false)
     {
-        _routes[$"{method} {path}"] = new { body = body is string s ? s : JsonSerializer.Serialize(body), code, stderr };
+        _routes[$"{method} {path}"] = new { body = body is string s ? s : JsonSerializer.Serialize(body), code, stderr, escapes };
         Write();
     }
 

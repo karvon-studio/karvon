@@ -86,9 +86,10 @@ public sealed partial class DockerModule : KarvonModule, IDockerHost, IDockerToo
     public override IEnumerable<ClaudeShellRule> ClaudeShellRules() =>
     [
         ClaudeShellRule.Command("docker",
-            @"(docker\s+(ps|logs|inspect|restart|rm|stats|container\s+(ls|list|logs|inspect|restart|rm))|docker(\s+|-)compose\s+(up|ps|logs))\b",
+            @"(docker\s+(ps|logs|inspect|restart|rm|stats|run|exec|container\s+(ls|list|logs|inspect|restart|rm|run|exec))|docker(\s+|-)compose\s+(up|ps|logs))\b",
             "Karvon works with the user's Docker engine (Docker Explorer shows it): use mcp__karvon__container_list, container_logs, "
-            + "container_inspect, container_restart, compose_up and container_remove, not the docker CLI."),
+            + "container_inspect, container_restart, compose_up, container_remove, container_run (a new container, its command to its "
+            + "end or left running) and container_exec (a command in a running one), not the docker CLI."),
     ];
 
     public override async Task ShowClaudeToolAsync(string tool, JsonElement input, ClaudeToolOutput output)

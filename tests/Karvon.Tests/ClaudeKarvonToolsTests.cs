@@ -128,7 +128,7 @@ public class ClaudeKarvonToolsTests
         Assert.Equal(ClaudeSession.SecretsHook, only.GetProperty("hookCallbackIds")[0].GetString());
         var mcp = entries.Where(e => e.Kind == "mcp").Select(e => e.Data).ToList();
         Assert.Equal("karvon", mcp[0].GetProperty("response").GetProperty("result").GetProperty("serverInfo").GetProperty("name").GetString());
-        Assert.Equal(12, mcp[2].GetProperty("response").GetProperty("result").GetProperty("tools").GetArrayLength());
+        Assert.Equal(14, mcp[2].GetProperty("response").GetProperty("result").GetProperty("tools").GetArrayLength());
         Assert.Contains("1 row(s) affected", mcp.Last().GetProperty("response").GetProperty("result").GetProperty("content")[0].GetProperty("text").GetString());
         // The SELECT's approval was Karvon's own, without the user: allowed once, no rule remembered.
         var first = entries.First(e => e.Kind == "decision").Data;
@@ -182,16 +182,33 @@ public class ClaudeKarvonToolsTests
         Assert.Equal(6, answers.Count);
         var deny = Assert.Single(answers, a => a.TryGetProperty("hookSpecificOutput", out _)).GetProperty("hookSpecificOutput");
         Assert.Equal(("PreToolUse", "deny"), (deny.GetProperty("hookEventName").GetString(), deny.GetProperty("permissionDecision").GetString()));
-        Assert.EndsWith("run the same command again: Karvon lets it through then.", deny.GetProperty("permissionDecisionReason").GetString());
+        Assert.EndsWith("run the same command again: Karvon lets it through then, and the commands of this kind after it too.", deny.GetProperty("permissionDecisionReason").GetString());
         Assert.True(answers.IndexOf(answers.First(a => a.TryGetProperty("hookSpecificOutput", out _))) == 1);
         await vm.DisposeAsync();
         window.Close();
     }
 
     [Fact]
+    public void A_kind_of_command_Claude_ran_again_goes_through_from_then_on()
+    {
+        var redirects = new ShellRedirects();
+        Assert.True(redirects.Redirects("ci cli", "gh run view 1 --log-failed"));
+        Assert.True(redirects.Redirects("ci cli", "gh run list"));
+        Assert.True(redirects.Redirects("docker", "docker ps"));
+        // Claude ran it again: the tools could not do it, so that kind of command goes through from now on.
+        Assert.False(redirects.Redirects("ci cli", "gh run view 1 --log-failed"));
+        Assert.False(redirects.Redirects("ci cli", "gh run view 2 --log"));
+        Assert.False(redirects.Redirects("ci cli", "gh run list"));
+        // Another kind is still sent to its tools once.
+        Assert.True(redirects.Redirects("dotnet build", "dotnet build"));
+        Assert.False(redirects.Redirects("docker", "docker ps"));
+    }
+
+    [Fact]
     public void Only_Karvons_redirect_reads_as_one_a_refusal_stays_an_error()
     {
-        const string use = "Use mcp__karvon__run_build. If they cannot do this one, run the same command again: Karvon lets it through then.";
+        const string use = "Use mcp__karvon__run_build. If they cannot do this one, run the same command again: Karvon lets it through then, and the "
+            + "commands of this kind after it too.";
         Assert.Equal(use, ClaudeSession.RedirectOf("PreToolUse:Bash hook error: " + use));
         Assert.Null(ClaudeSession.RedirectOf("PreToolUse:Bash hook error: Karvon does not let Claude read this key."));
         Assert.Null(ClaudeSession.RedirectOf("Exit code 1"));
@@ -476,5 +493,19 @@ public class ClaudeKarvonToolsTests
         Assert.Contains(calls, c => c == $"""["restart","{new string('b', 64)}"]""");
         Assert.Contains(calls, c => c.StartsWith("""["compose","up","-d","web"]""", StringComparison.Ordinal));
         Assert.Contains(calls, c => c == $"""["rm","-f","{new string('a', 64)}"]""");
+
+        // A clean container of an image, its command run to its end with the project mounted; a command in a running one.
+        var run = Plan(server, "container_run", new { image = "alpine:3.20", command = "make test", mounts = new[] { ".:/src" }, workdir = "/src", network = "host" });
+        Assert.Equal((ToolAccess.Write, "Allow Claude to run a container of alpine:3.20?"), (run.Access, run.Question));
+        Assert.StartsWith("docker run --rm --network host -w /src -v ", run.Code);
+        var ran = Text(await Call(server, "container_run", new { image = "alpine:3.20", command = "make test", mounts = new[] { ".:/src" }, workdir = "/src" }));
+        Assert.StartsWith("ran alpine:3.20: sh -c make test\nmounted ", ran);
+        Assert.EndsWith(" at /src\nExit code 0", ran);
+        Assert.Equal("ran in shop-api-1: dotnet --info\nExit code 0", Text(await Call(server, "container_exec", new { name = "api", command = "dotnet --info" })));
+        Assert.Equal(ToolAccess.Write, Plan(server, "container_exec", new { name = "api", command = "ls" }).Access);
+        // The home folder, a place with secrets, the engine's socket: not mounted.
+        var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+        foreach (var mount in new[] { home + ":/h", Path.Combine(home, ".ssh") + ":/k:ro", "/var/run/docker.sock:/var/run/docker.sock" })
+            Assert.Contains("is not mounted", Text(await Call(server, "container_run", new { image = "alpine:3.20", command = "ls", mounts = new[] { mount } })));
     }
 }

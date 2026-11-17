@@ -56,6 +56,21 @@ public sealed class GitLabCi : IPipelineProvider
 
     public Task RetryJobAsync(PipelineJob job, CancellationToken ct) => PostAsync($"jobs/{job.Id}/{(job.CanPlay ? "play" : "retry")}", ct);
 
+    /// <summary>The project's pipeline on the ref, the inputs its variables (GitLab has no workflow to name).</summary>
+    public async Task<Pipeline?> DispatchAsync(string? workflow, string reference, IReadOnlyDictionary<string, string> inputs, CancellationToken ct)
+    {
+        var body = new System.Text.Json.Nodes.JsonObject
+        {
+            ["ref"] = reference,
+            ["variables"] = new System.Text.Json.Nodes.JsonArray([.. inputs.Select(i => (System.Text.Json.Nodes.JsonNode)new System.Text.Json.Nodes.JsonObject { ["key"] = i.Key, ["value"] = i.Value })]),
+        };
+        using var json = JsonDocument.Parse(await _api.SendAsync(HttpMethod.Post, _api.Project + "pipeline", body.ToJsonString(), ct));
+        return Run(json.RootElement);
+    }
+
+    public Task<string> UsageAsync(CancellationToken ct) => throw new PipelineException(
+        $"Karvon does not read GitLab's CI minutes yet: the group's or the user's Usage Quotas page on {Remote.Authority} shows them.");
+
     static Pipeline Run(JsonElement run) => new(
         Num(run, "id"), Num(run, "id"), Str(run, "name") is { Length: > 0 } name ? name : "Pipeline", "", Str(run, "ref"), Str(run, "sha"), Str(run, "source"),
         Status(Str(run, "status")), Date(run, "created_at"), Date(run, "started_at") ?? Date(run, "created_at"),

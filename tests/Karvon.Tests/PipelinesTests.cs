@@ -50,6 +50,8 @@ sealed class TestPipelinesHost : IPipelinesHost
     public void Status(string text) => Statuses.Add(text);
 
     public void AskClaude(string prompt) => Prompts.Add(prompt);
+
+    public string? Workspace { get; set; }
 }
 
 /// <summary>Pipelines: GitHub Actions through a fake gh, GitLab CI through a fake server; the window, a run's page, Claude's tools.</summary>
@@ -143,7 +145,7 @@ public class PipelinesTests
         // A job that never started has no log: its annotations say why.
         gh.Route("GET", $"{Repo}/check-runs/73/annotations", new[] { new { annotation_level = "failure", title = "", message = "The job was not started because your spending limit needs to be increased." } });
         var blocked = new PipelineJob("73", "deploy", "", PipelineStatus.Failed, null, null, "", []);
-        Assert.Equal("GitHub has no log of this job; what it says of it:\n\u001b[31mError: The job was not started because your spending limit needs to be increased.\u001b[0m\n",
+        Assert.Equal("GitHub did not give this job's log (GitHub: Not Found (HTTP 404)); what it says of the job:\n\u001b[31mError: The job was not started because your spending limit needs to be increased.\u001b[0m\n",
             PipelineLog.Clean(await actions.LogAsync(blocked, default), CiProvider.GitHub));
 
         // A job still running has no log yet; GitHub's own error is said as it is.
@@ -376,9 +378,9 @@ public class PipelinesTests
 
         var retry = tools.Plan(ClaudeToolServer.Prefix + "pipeline_retry", Input(new { pipeline = "9000" }))!;
         Assert.Equal((ToolAccess.Write, "Allow Claude to run the failed jobs of run 9000 again?"), (retry.Access, retry.Question));
-        Assert.Contains("CI time", retry.Warning);
+        Assert.Contains("uses its minutes", retry.Warning);
         Assert.Equal(ToolAccess.Read, tools.Plan(ClaudeToolServer.Prefix + "pipeline_log", Input(new { pipeline = "9000" }))!.Access);
-        Assert.Equal("CI #41 runs again (its failed jobs): see pipeline_jobs for how it goes.", (await Call("pipeline_retry", new { pipeline = "9000" })).Text);
+        Assert.Equal("CI #41 runs again (its failed jobs): pipeline_watch waits for it.", (await Call("pipeline_retry", new { pipeline = "9000" })).Text);
         Assert.True((await Call("pipeline_cancel", new { pipeline = "9000" })).IsError);
 
         // Without a sign-in Claude is told where the user gives one.
@@ -389,11 +391,117 @@ public class PipelinesTests
         Assert.Equal("Karvon has no token for GitHub Actions on github.com: the user gives one in View > Pipelines (Sign In).", none.Text);
     }
 
+    [AvaloniaFact]
+    public async Task Claude_reads_any_repositorys_failed_steps_and_matches_waits_for_a_run_starts_one_and_sees_the_minutes()
+    {
+        const string Api = "repos/karvon-test/api";
+        var gh = new FakeGh();
+        object ApiRun(string status, string? conclusion) => new
+        {
+            id = 501, name = "CI", display_title = "Conformance", run_number = 96, @event = "workflow_dispatch", status, conclusion, head_branch = "main",
+            head_sha = "fedcba9876543210", html_url = "https://github.com/karvon-test/api/actions/runs/501", created_at = DateTimeOffset.UtcNow.ToString("O"),
+            updated_at = DateTimeOffset.UtcNow.ToString("O"), run_started_at = DateTimeOffset.UtcNow.ToString("O"), run_attempt = 1,
+        };
+        object ApiJobs(string status, string? conclusion) => new
+        {
+            jobs = new object[]
+            {
+                new { id = 81, name = "conformance", status, conclusion, started_at = "2026-11-16T10:00:00Z", completed_at = conclusion is null ? null : "2026-11-16T10:01:00Z", html_url = "",
+                    steps = new object[]
+                    {
+                        new { number = 1, name = "Set up job", status = "completed", conclusion = "success", started_at = "2026-11-16T10:00:00Z", completed_at = "2026-11-16T10:00:10Z" },
+                        new { number = 2, name = "Run conformance", status, conclusion, started_at = "2026-11-16T10:00:10Z", completed_at = conclusion is null ? null : "2026-11-16T10:01:00Z" },
+                    } },
+            },
+        };
+        // A log with colors, as GitHub gives it: gh prints it only when told to.
+        const string Log = "\uFEFF2026-11-16T10:00:01.0000000Z Runner image ubuntu-24.04\n"
+            + "2026-11-16T10:00:20.0000000Z PASS case 1\n2026-11-16T10:00:21.0000000Z PASS case 2\n"
+            + "2026-11-16T10:00:22.0000000Z \u001b[31mFAIL case 3: expected 4, got 5\u001b[0m\n"
+            + "2026-11-16T10:00:23.0000000Z   at spec/math.arche:12\n2026-11-16T10:00:30.0000000Z ##[error]Process completed with exit code 2.\n";
+        gh.Route("GET", $"{Api}/actions/runs?per_page=15&branch=main", new { workflow_runs = new[] { ApiRun("completed", "failure") } });
+        gh.Route("GET", $"{Api}/actions/runs/501", ApiRun("completed", "failure"));
+        gh.Route("GET", $"{Api}/actions/runs/501/jobs?per_page=100", ApiJobs("completed", "failure"));
+        gh.Route("GET", $"{Api}/actions/jobs/81/logs", Log, escapes: true);
+        gh.Route("GET", $"{Repo}/actions/runs?per_page=30&branch=main", new { workflow_runs = Array.Empty<object>() });
+        gh.Route("GET", $"{Repo}/actions/runs?per_page=15&branch=main", new { workflow_runs = Array.Empty<object>() });
+        var now = DateTime.UtcNow;
+        gh.Route("GET", $"organizations/karvon-test/settings/billing/usage?year={now.Year}&month={now.Month}", new
+        {
+            usageItems = new object[]
+            {
+                new { product = "actions", sku = "Actions Linux", unitType = "Minutes", quantity = 1035.0, repositoryName = "api", grossAmount = 6.21, discountAmount = 6.21, netAmount = 0.0 },
+                new { product = "actions", sku = "Actions macOS 3-core", unitType = "Minutes", quantity = 40.0, repositoryName = "shop", grossAmount = 2.48, discountAmount = 2.48, netAmount = 0.0 },
+                new { product = "actions", sku = "Actions storage", unitType = "GigabyteHours", quantity = 12.5, repositoryName = "api", grossAmount = 0.01, discountAmount = 0.01, netAmount = 0.0 },
+            },
+        });
+
+        // A workspace of two repositories: the window shows the shop; the api is in a folder of the workspace.
+        var workspace = Directory.CreateTempSubdirectory("karvon-workspace-").FullName;
+        var (shop, _) = await RepoAsync("git@github.com:karvon-test/shop.git");
+        var (api, _) = await RepoAsync("https://github.com/karvon-test/api.git");
+        var apiFolder = Path.Combine(workspace, "api");
+        Directory.Move(api.Root, apiFolder);
+        var host = new TestPipelinesHost { Workspace = workspace };
+        host.States.Add(new GitRepositoryState(shop, "main"));
+        using var pipelines = new PipelinesViewModel(host, keyring: null, () => gh.Command);
+        await WaitUntil(() => pipelines.IsReady, TimeSpan.FromSeconds(10));
+        var tools = KarvonTools.Create(PipelinesClaudeTools.Create(() => pipelines));
+        static JsonElement Input(object value) => JsonSerializer.SerializeToElement(value);
+        async Task<ClaudeToolOutput> Call(string name, object input) => await tools.Tools.Single(t => t.Name == name).CallAsync(Input(input), default);
+
+        // The window's repository names the others; Claude names one.
+        Assert.EndsWith("The workspace's other repositories (repo): api (karvon-test/api).", (await Call("pipeline_list", new { })).Text);
+        Assert.StartsWith("GitHub Actions (github.com/karvon-test/api), main:\nid 501: CI #96 [failed] Conformance", (await Call("pipeline_list", new { repo = "api" })).Text);
+        Assert.StartsWith("No repository web is in the workspace. Its repositories: ", (await Call("pipeline_list", new { repo = "web" })).Text);
+
+        // The log comes (gh is told to print its colors), plain; its failed step only, one step, or the lines that match.
+        var whole = await Call("pipeline_log", new { repo = "karvon-test/api", pipeline = "501" });
+        Assert.False(whole.IsError, whole.Text);
+        Assert.Contains("FAIL case 3: expected 4, got 5", whole.Text);
+        Assert.DoesNotContain('\u001b', whole.Text);
+        Assert.Equal("job 81 conformance [failed] of CI #96, step 2 Run conformance:\nPASS case 1\nPASS case 2\nFAIL case 3: expected 4, got 5\n  at spec/math.arche:12\n"
+            + "Error: Process completed with exit code 2.", (await Call("pipeline_log", new { repo = "api", pipeline = "501", failed = true })).Text);
+        Assert.Equal("job 81 conformance [failed] of CI #96, step 1 Set up job:\nRunner image ubuntu-24.04",
+            (await Call("pipeline_log", new { repo = "api", pipeline = "501", step = "1" })).Text);
+        Assert.Equal("job 81 conformance [failed] of CI #96:\n1 of 6 lines match fail case:\n3: PASS case 2\n4: FAIL case 3: expected 4, got 5\n5:   at spec/math.arche:12",
+            (await Call("pipeline_log", new { repo = "api", pipeline = "501", grep = "fail case", context = 1 })).Text);
+
+        // A run waited for until it ends.
+        PipelineWatchTool.Interval = TimeSpan.FromMilliseconds(200);
+        gh.Route("GET", $"{Api}/actions/runs/501", ApiRun("in_progress", null));
+        gh.Route("GET", $"{Api}/actions/runs/501/jobs?per_page=100", ApiJobs("in_progress", null));
+        var watching = Call("pipeline_watch", new { repo = "api", pipeline = "501" });
+        await Task.Delay(500);
+        Assert.False(watching.IsCompleted);
+        gh.Route("GET", $"{Api}/actions/runs/501", ApiRun("completed", "failure"));
+        gh.Route("GET", $"{Api}/actions/runs/501/jobs?per_page=100", ApiJobs("completed", "failure"));
+        var watched = await watching.WaitAsync(TimeSpan.FromSeconds(10));
+        Assert.StartsWith("It ended:\nid 501: CI #96 [failed]", watched.Text);
+        Assert.Contains("    step 2 Run conformance [failed]", watched.Text);
+
+        // A run started by hand, asked first; the run it made is found.
+        var dispatch = tools.Plan(ClaudeToolServer.Prefix + "pipeline_dispatch", Input(new { repo = "api", workflow = "ci.yml", inputs = new { level = "full" } }))!;
+        Assert.Equal((ToolAccess.Write, "Allow Claude to start the workflow ci.yml?"), (dispatch.Access, dispatch.Question));
+        gh.Route("GET", $"{Api}/actions/workflows/ci.yml/runs?event=workflow_dispatch&per_page=5", new { workflow_runs = new[] { ApiRun("queued", null) } });
+        var started = await Call("pipeline_dispatch", new { repo = "api", workflow = "ci.yml", inputs = new { level = "full" } });
+        Assert.StartsWith("Started: id 501: CI #96 [queued]", started.Text);
+        Assert.Contains($"api --hostname github.com --method POST -H Accept: application/vnd.github+json {Api}/actions/workflows/ci.yml/dispatches --input -", gh.Calls);
+        Assert.Contains("< {\"inputs\":{\"level\":\"full\"},\"ref\":\"main\"}", gh.Calls);
+
+        // The month's minutes, by runner and by repository.
+        var usage = (await Call("pipeline_usage", new { repo = "api" })).Text;
+        Assert.StartsWith($"GitHub Actions of karvon-test, {now:MMMM yyyy} so far: 1075 minutes.\n  Actions Linux: 1035 min\n  Actions macOS 3-core: 40 min\n", usage);
+        Assert.Contains("  repository api: 1035 min\n  repository shop: 40 min\n", usage);
+        Assert.Contains("billed $0.00", usage);
+    }
+
     [Theory]
     [InlineData("gh run list", true)]
     [InlineData("gh run view 9000 --log-failed", true)]
     [InlineData("glab ci status", true)]
     [InlineData("curl -s -H 'PRIVATE-TOKEN: x' https://gitlab.example.com/api/v4/projects/1/pipelines", true)]
+    [InlineData("gh workflow run ci.yml --ref main", true)]
     [InlineData("gh pr create", false)]
     [InlineData("gh repo view", false)]
     public void A_CI_CLI_goes_to_the_pipeline_tools(string command, bool redirected) =>
