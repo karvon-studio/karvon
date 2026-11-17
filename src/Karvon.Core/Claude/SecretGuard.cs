@@ -66,8 +66,10 @@ public static partial class SecretGuard
             var program = ProgramOf(words[0]);
             if ((AsksSecretStore(program.ToLowerInvariant(), words) ?? AsksWindowsStore(program)) is { } store)
                 return $"Karvon keeps secrets out of Claude's reach: this command asks {store} for what it keeps, so it does not run. {Advice}";
-            if ((PowerShellReaders.Contains(program) || DotNetFileCall().IsMatch(words[0]))
-                && words.Skip(1).Select(w => ShellCommand.PowerShellPathOf(ValueOf(w), workspace)).FirstOrDefault(p => p is not null && SecretFiles.IsSecret(p)) is { } path)
+            // What reads: the command itself, or a .NET file call among its words ([Convert]::ToBase64String([IO.File]::ReadAllBytes(path))).
+            var reads = PowerShellReaders.Contains(program) ? 0 : words.FindIndex(w => DotNetFileCall().IsMatch(w));
+            if (reads >= 0
+                && words.Skip(reads + 1).Select(w => ShellCommand.PowerShellPathOf(ValueOf(w), workspace)).FirstOrDefault(p => p is not null && SecretFiles.IsSecret(p)) is { } path)
                 return $"Karvon keeps secrets out of Claude's reach: this command reads {path}, which holds secrets, so it does not run. {Advice}";
         }
         return null;

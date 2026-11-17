@@ -134,6 +134,10 @@ public class ClaudeSecretsTests
                      // The secret stores.
                      "gh auth token", "gh.exe auth status --show-token", "kubectl config view --raw", "Get-StoredCredential -Target karvon-vault/key",
                      "Get-Secret -Name deploy -AsPlainText",
+                     // An = in an argument is the argument's; an assignment's value is a command of its own.
+                     "rg --color=never KEY .env", "grep --max-count=1 KEY .env", "$x += Get-Content .env", "[string]$key=(gc .env)", "${k} = Get-Content .env",
+                     // A .NET file call inside another call.
+                     "[Convert]::ToBase64String([IO.File]::ReadAllBytes('.env'))", @"$t = [Text.Encoding]::UTF8.GetString([IO.File]::ReadAllBytes(""$HOME\.ssh\id_rsa""))",
                  })
             Assert.True(PowerShell(command) is not null, command);
         foreach (var command in new[]
@@ -141,6 +145,7 @@ public class ClaudeSecretsTests
                      "dotnet build", "Get-Content Program.cs", @"ssh -i ~\.ssh\id_ed25519 deploy@host uptime", @"Get-ChildItem ~\.ssh", "gh auth status",
                      "kubectl config view", "Copy-Item .env.example .env.local.example", "git push", @"Select-String -Path src\*.cs -Pattern TODO",
                      "Write-Output 'see .env.example'", "Get-Content $file", "Test-Path .env", "Get-Content README.md 2> .env",
+                     "rg --color=never TODO src", "$count = 5", "[Convert]::ToBase64String([IO.File]::ReadAllBytes('logo.png'))",
                  })
             Assert.True(PowerShell(command) is null, command);
         Assert.StartsWith("Karvon keeps secrets out of Claude's reach: this command asks the Credential Manager", PowerShell("Get-StoredCredential -Target x"));

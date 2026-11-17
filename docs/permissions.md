@@ -114,7 +114,7 @@ Code Claude wrote into the project runs that way when they run it.
 | Boundary | State | Proved by |
 | --- | --- | --- |
 | Secret variables kept from `claude` | enforced | `ClaudeSecretsTests.Claude_Code_is_started_without_them`, `ClaudeNegativeTests` |
-| The guard of the secrets (Claude Code's own tools) | enforced, as a guard | `ClaudeSecretsTests.Claude_Codes_tools_may_not_read_change_or_print_them`, `A_session_denies_Claude_Codes_own_tools_the_secrets`, `ClaudeNegativeTests` |
+| The guard of the secrets (Claude Code's own tools) | enforced, as a guard | `ClaudeSecretsTests.Claude_Codes_tools_may_not_read_change_or_print_them`, `PowerShell_which_is_Claude_Codes_shell_on_Windows_may_not_read_or_print_them_either`, `A_session_denies_Claude_Codes_own_tools_the_secrets`, `ClaudeNegativeTests` |
 | The vault: encrypted, and not openable by Claude's tools | enforced | `ClaudeSecretsTests.The_vault_keeps_secrets_encrypted_in_its_database_and_takes_over_the_keyrings`, `Claude_Codes_tools_may_not_open_the_vault` |
 | A copy of the vault opens for no one without your keyring's key or its passphrase | enforced | `SecretStorageTests.A_vault_copied_to_another_machine_opens_for_no_one_without_this_keyring_or_its_passphrase` |
 | A data source's password never in a server list's file (one an older Karvon left there moved into the vault) | enforced | `SecretStorageTests.A_data_sources_saved_password_is_kept_in_the_vault_never_in_the_list_file`, `With_the_vault_locked_or_none_a_saved_password_lasts_until_Karvon_closes_and_is_never_written_down`, `A_password_an_older_Karvon_left_in_the_list_file_is_moved_into_the_vault` |

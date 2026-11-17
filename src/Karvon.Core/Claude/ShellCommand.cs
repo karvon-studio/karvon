@@ -104,6 +104,17 @@ static class ShellCommand
                 i = close;
                 continue;
             }
+            // A variable in braces (${key}, ${env:HOME}) is one word, its { } not a block's.
+            if (c == '$' && i + 1 < command.Length && command[i + 1] == '{')
+            {
+                var end = command.IndexOf('}', i + 2);
+                if (end < 0)
+                    end = command.Length - 1;
+                word.Append(command, i, end - i + 1);
+                inWord = true;
+                i = end;
+                continue;
+            }
             if (c == '`' && i + 1 < command.Length)
             {
                 // Before a new line it carries the command on; before anything else that character is taken as it is.
@@ -136,6 +147,13 @@ static class ShellCommand
             }
             // A method's arguments are its words ([IO.File]::ReadAllText(path)); any other ( starts a command of its own.
             var call = c == '(' && inWord && word.ToString().Contains("::", StringComparison.Ordinal);
+            // An assignment's value is a command of its own ($key = Get-Content .env); an = in an argument (--color=never) is the argument's.
+            if (c == '=' && !Assigns(words, inWord ? word.ToString() : null))
+            {
+                word.Append(c);
+                inWord = true;
+                continue;
+            }
             if (c is ';' or '\n' or '|' or '&' or '{' or '=' || c == '(' && !call)
             {
                 EndWord();
@@ -157,6 +175,25 @@ static class ShellCommand
         if (words.Count > 0)
             yield return words;
     }
+
+    /// <summary>
+    /// Whether an = after these words assigns: a variable before it ($key, ${key}, [string]$key, $env:NAME), alone or with
+    /// an operator that assigns with it (+=, -=, *=, /=, %=, ??=).
+    /// </summary>
+    static bool Assigns(List<string> words, string? current)
+    {
+        var before = current is null ? words : [.. words, current];
+        static bool Variable(string w) => PowerShellAssigned.IsMatch(w);
+        return before.Count switch
+        {
+            1 => Variable(before[0]) || before[0].Length > 1 && before[0][^1] is '+' or '-' or '*' or '/' or '%' or '?' && Variable(before[0].TrimEnd('+', '-', '*', '/', '%', '?')),
+            2 => Variable(before[0]) && before[1] is "+" or "-" or "*" or "/" or "%" or "??",
+            _ => false,
+        };
+    }
+
+    /// <summary>What an assignment assigns to: a variable, typed or not.</summary>
+    static readonly Regex PowerShellAssigned = new(@"^(\[[\w.\[\]]+\])?\$(\{[^}]+\}|[\w:]+)$", RegexOptions.CultureInvariant);
 
     /// <summary>
     /// A path a PowerShell command was given, from the folder it runs in: ~, $HOME, $PWD and $env: variables put in, and a
