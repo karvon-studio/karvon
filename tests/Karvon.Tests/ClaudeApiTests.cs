@@ -150,6 +150,12 @@ public sealed class FakeAnthropicServer : IAsyncDisposable
                 var body = System.Text.Json.JsonDocument.Parse(await reader.ReadToEndAsync()).RootElement.Clone();
                 lock (Requests)
                     Requests.Add((body, context.Request.Headers));
+                if (Unanswered(body) is { } refused)
+                {
+                    response.StatusCode = 400;
+                    await Write(response, "application/json", refused);
+                    continue;
+                }
                 var events = _answers.TryDequeue(out var queued) ? queued : [Start(1), End("end_turn", 1)];
                 await Write(response, "text/event-stream", string.Concat(events));
             }
@@ -158,6 +164,38 @@ public sealed class FakeAnthropicServer : IAsyncDisposable
             }
         }
     }
+
+    /// <summary>
+    /// The API's error for a conversation it refuses: an answer's calls not followed at once by their results (the next
+    /// user turn starts with them), or a result of no call.
+    /// </summary>
+    static string? Unanswered(System.Text.Json.JsonElement body)
+    {
+        var messages = body.GetProperty("messages").EnumerateArray().ToList();
+        for (var i = 0; i < messages.Count; i++)
+        {
+            static IEnumerable<System.Text.Json.JsonElement> Blocks(System.Text.Json.JsonElement message) =>
+                message.GetProperty("content") is { ValueKind: System.Text.Json.JsonValueKind.Array } content ? content.EnumerateArray() : [];
+            var calls = messages[i].GetProperty("role").GetString() == "assistant"
+                ? Blocks(messages[i]).Where(b => b.GetProperty("type").GetString() == "tool_use").Select(b => b.GetProperty("id").GetString()).ToList()
+                : [];
+            var results = i + 1 < messages.Count && messages[i + 1].GetProperty("role").GetString() == "user"
+                ? Blocks(messages[i + 1]).TakeWhile(b => b.GetProperty("type").GetString() == "tool_result").Select(b => b.GetProperty("tool_use_id").GetString()).ToList()
+                : [];
+            if (calls.Except(results).ToList() is { Count: > 0 } left)
+                return Refusal($"messages.{i}: `tool_use` ids were found without `tool_result` blocks immediately after: {string.Join(", ", left)}");
+            if (results.Except(calls).ToList() is { Count: > 0 } stray)
+                return Refusal($"messages.{i + 1}: unexpected `tool_use_id` found in `tool_result` blocks: {string.Join(", ", stray)}");
+        }
+        return null;
+    }
+
+    static string Refusal(string message) =>
+        new System.Text.Json.Nodes.JsonObject
+        {
+            ["type"] = "error",
+            ["error"] = new System.Text.Json.Nodes.JsonObject { ["type"] = "invalid_request_error", ["message"] = message },
+        }.ToJsonString();
 
     static async Task Write(System.Net.HttpListenerResponse response, string type, string text)
     {
@@ -280,5 +318,68 @@ public class ClaudeApiTests
         Assert.Empty(cut.OfType<ClaudeToolResults>());
         Assert.Equal("error_max_tokens", Assert.Single(cut.OfType<ClaudeResult>()).Subtype);
         Assert.False(File.Exists(Path.Combine(dir, "a.txt")));
+
+        // The cut-off call is answered as not run, so the conversation goes on (the API refuses a call with no result).
+        var next = Assert.Single((await ModelAgentTests.TurnAsync(session, "Write it in parts.")).OfType<ClaudeResult>());
+        Assert.False(next.IsError, next.Text);
+        var result = ResultOf(server.Requests[^1].Body, "toolu_9");
+        Assert.Contains("length limit", result.GetProperty("content").GetString());
     }
+
+    [Fact]
+    public async Task A_prompt_sent_while_a_call_waits_goes_after_its_result_and_a_call_stopped_midway_still_gets_one()
+    {
+        await using var server = new FakeAnthropicServer();
+        var ct = TestContext.Current.CancellationToken;
+        var backend = new ModelBackend(ModelProvider.Claude with { Url = server.Url, EnvironmentKey = "KARVON_TEST_NO_SUCH_KEY" });
+        backend.SetKey("sk-ant-test");
+        var (dir, _) = ModelAgentTests.Workspace();
+        server.Answer(Call("toolu_1", ModelTools.Shell, """{"command":"echo hi"}"""));
+        await using var session = await backend.StartAsync(new AgentStartOptions(server.Url, dir), ct);
+
+        // While the command waits for the user's yes, another prompt comes: the same turn takes it, after the command's result.
+        var events = await ModelAgentTests.TurnAsync(session, "Say hi.", also: async ev =>
+        {
+            if (ev is ClaudePermissionRequest request)
+            {
+                await session.SendUserMessageAsync("Then say bye.");
+                await session.RespondToPermissionAsync(request.RequestId, new ClaudePermissionDecision(true));
+            }
+        });
+        var end = Assert.Single(events.OfType<ClaudeResult>());
+        Assert.False(end.IsError, end.Text);
+        var turn = server.Requests[^1].Body.GetProperty("messages")[2].GetProperty("content");
+        Assert.Equal(("tool_result", "toolu_1"), (turn[0].GetProperty("type").GetString(), turn[0].GetProperty("tool_use_id").GetString()));
+        Assert.Equal("hi", turn[0].GetProperty("content").GetString());
+        Assert.Equal(("text", "Then say bye."), (turn[1].GetProperty("type").GetString(), turn[1].GetProperty("text").GetString()));
+
+        // Stopped while a call waits: the call is answered as stopped, so the next prompt goes on.
+        server.Answer(Call("toolu_2", ModelTools.Shell, """{"command":"echo again"}"""));
+        var stopped = await ModelAgentTests.TurnAsync(session, "Say it again.", also: async ev =>
+        {
+            if (ev is ClaudePermissionRequest)
+                await session.InterruptAsync();
+        });
+        Assert.Equal("error_during_execution", Assert.Single(stopped.OfType<ClaudeResult>()).Subtype);
+        var next = Assert.Single((await ModelAgentTests.TurnAsync(session, "Never mind.")).OfType<ClaudeResult>());
+        Assert.False(next.IsError, next.Text);
+        Assert.Contains("stopped", ResultOf(server.Requests[^1].Body, "toolu_2").GetProperty("content").GetString());
+    }
+
+    /// <summary>An answer that is one call.</summary>
+    static string[] Call(string id, string name, string input) =>
+    [
+        FakeAnthropicServer.Start(500),
+        FakeAnthropicServer.BlockStart(0, $$"""{"type":"tool_use","id":"{{id}}","name":"{{name}}","input":{""" + "}}"),
+        FakeAnthropicServer.Delta(0, """{"type":"input_json_delta","partial_json":""" + System.Text.Json.JsonSerializer.Serialize(input) + "}"),
+        FakeAnthropicServer.BlockStop(0),
+        FakeAnthropicServer.End("tool_use", 20),
+    ];
+
+    /// <summary>The result a request gives the call <paramref name="id"/>.</summary>
+    static System.Text.Json.JsonElement ResultOf(System.Text.Json.JsonElement body, string id) =>
+        body.GetProperty("messages").EnumerateArray()
+            .Where(m => m.GetProperty("content").ValueKind == System.Text.Json.JsonValueKind.Array)
+            .SelectMany(m => m.GetProperty("content").EnumerateArray())
+            .Single(b => b.GetProperty("type").GetString() == "tool_result" && b.GetProperty("tool_use_id").GetString() == id);
 }

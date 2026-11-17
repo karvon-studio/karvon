@@ -111,9 +111,9 @@ public sealed class AnthropicChat : IChatEndpoint
             throw new InvalidOperationException("Claude declined the request" + (declined is { Length: > 0 } ? $" ({declined})." : "."));
         var all = blocks.Values.ToList();
         var boundary = all.FindLastIndex(b => b.Type == "fallback");
-        // A call cut off by the length limit is not run; one before a fallback was the declining model's.
-        var calls = stop == "max_tokens" ? [] : all.Skip(boundary + 1).Where(b => b.Type == "tool_use")
-            .Select(b => new ModelToolCall(b.Id!, b.Name!, b.Text.Length == 0 ? "{}" : b.Text.ToString())).ToList();
+        // A call cut off by the length limit is not run (it is answered as cut off); one before a fallback was the declining model's.
+        var started = all.Skip(boundary + 1).Where(b => b.Type == "tool_use").ToList();
+        var calls = stop == "max_tokens" ? [] : started.Select(b => new ModelToolCall(b.Id!, b.Name!, b.Text.Length == 0 ? "{}" : b.Text.ToString())).ToList();
         return new ModelReply(
             string.Concat(all.Where(b => b.Type == "text").Select(b => b.Text)),
             string.Concat(all.Where(b => b.Type == "thinking").Select(b => b.Text)),
@@ -121,7 +121,8 @@ public sealed class AnthropicChat : IChatEndpoint
             stop switch { "tool_use" => "tool_calls", "end_turn" or "stop_sequence" => "stop", "max_tokens" => "length", _ => stop },
             prompt,
             output,
-            new JsonArray([.. all.Select(b => (JsonNode)b.ToJson())]));
+            new JsonArray([.. all.Select(b => (JsonNode)b.ToJson())]),
+            stop == "max_tokens" ? [.. started.Select(b => b.Id!)] : null);
     }
 
     static int? Tokens(long input, long? read, long? written) => (int)(input + (read ?? 0) + (written ?? 0));

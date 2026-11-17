@@ -35,8 +35,13 @@ public sealed class ModelSession : IAgentSession
     readonly HashSet<string> _allowedCommands = new(StringComparer.Ordinal);
     readonly HashSet<string> _loaded = new(StringComparer.Ordinal);
     readonly Dictionary<string, int?> _contexts = new(StringComparer.Ordinal);
+    /// <summary>The running turn's stop, and those of turns waiting for it.</summary>
+    readonly List<CancellationTokenSource> _turns = [];
     List<JsonObject> _messages = [];
-    CancellationTokenSource? _turn;
+    /// <summary>The turns one after another: each starts when the one before it has ended.</summary>
+    Task _running = Task.CompletedTask;
+    /// <summary>The prompts that came while the running turn ran, which it takes at its next step; null when no turn takes them.</summary>
+    List<JsonObject>? _queue;
     string _mode;
     string? _model;
     int? _contextTokens;
@@ -212,9 +217,21 @@ public sealed class ModelSession : IAgentSession
                 ["type"] = "image_url",
                 ["image_url"] = new JsonObject { ["url"] = $"data:{i.MediaType};base64,{i.Base64}" },
             }), new JsonObject { ["type"] = "text", ["text"] = all }]);
+        var prompt = new JsonObject { ["role"] = "user", ["content"] = content };
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        List<JsonObject> queue;
         lock (_messages)
-            _messages.Add(new JsonObject { ["role"] = "user", ["content"] = content });
-        return StartTurn(RunTurnAsync);
+        {
+            // While a turn runs, a prompt goes to it: the model reads it at its next step, after the results of the calls
+            // it made (never between a call and its result, which the APIs refuse).
+            if (_queue is { } taking)
+            {
+                taking.Add(prompt);
+                return Task.CompletedTask;
+            }
+            _queue = queue = [];
+        }
+        return StartTurn(token => RunTurnAsync(prompt, queue, token));
     }
 
     public Task SendCommandAsync(string command) =>
@@ -224,10 +241,40 @@ public sealed class ModelSession : IAgentSession
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
         var cancellation = new CancellationTokenSource();
-        _turn = cancellation;
-        // The turn runs on its own; what it does comes as events, its end as a result.
-        _ = Task.Run(() => turn(cancellation.Token));
+        lock (_messages)
+        {
+            _turns.Add(cancellation);
+            var before = _running;
+            // The turn runs on its own; what it does comes as events, its end as a result. One stopped a moment ago (a tool
+            // winding down) ends first: this one goes on from the conversation as that one left it.
+            _running = Task.Run(async () =>
+            {
+                try
+                {
+                    await before.ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
+                    await turn(cancellation.Token);
+                }
+                finally
+                {
+                    lock (_messages)
+                        _turns.Remove(cancellation);
+                }
+            });
+        }
         return Task.CompletedTask;
+    }
+
+    /// <summary>The running turn stops, and those waiting for it; a prompt after this starts a turn of its own.</summary>
+    void Stop()
+    {
+        List<CancellationTokenSource> turns;
+        lock (_messages)
+        {
+            _queue = null;
+            turns = [.. _turns];
+        }
+        foreach (var turn in turns)
+            turn.Cancel();
     }
 
     public Task RespondToPermissionAsync(string requestId, ClaudePermissionDecision decision, string by = "the user")
@@ -239,7 +286,7 @@ public sealed class ModelSession : IAgentSession
 
     public Task InterruptAsync()
     {
-        _turn?.Cancel();
+        Stop();
         return Task.CompletedTask;
     }
 
@@ -265,10 +312,15 @@ public sealed class ModelSession : IAgentSession
         Event?.Invoke(result);
     }
 
-    async Task RunTurnAsync(CancellationToken cancellationToken)
+    async Task RunTurnAsync(JsonObject prompt, List<JsonObject> queue, CancellationToken cancellationToken)
     {
         var clock = Stopwatch.StartNew();
         var nudged = false;
+        // The calls of the model's last answer, and how many have their result.
+        IReadOnlyList<ModelToolCall> calls = [];
+        var answered = 0;
+        lock (_messages)
+            _messages.Add(prompt);
         try
         {
             for (var step = 0; step < MaxSteps; step++)
@@ -276,6 +328,8 @@ public sealed class ModelSession : IAgentSession
                 if (TooLong())
                     await CompactAsync(cancellationToken);
                 var reply = await AskModelAsync(cancellationToken);
+                Unanswered(reply.CutOff ?? [], "Not run: your answer reached its length limit, which cut it off at or after this call. "
+                    + "Make the call again, smaller (a big file in parts).");
                 // A thinking model sometimes ends with its answer in its thoughts and none for the user: asked for it once.
                 if (reply.ToolCalls.Count == 0 && reply.Text.Trim().Length == 0 && reply.Thinking.Trim().Length > 0 && !nudged)
                 {
@@ -286,31 +340,86 @@ public sealed class ModelSession : IAgentSession
                 }
                 if (reply.ToolCalls.Count == 0)
                 {
+                    // A prompt that came while the model answered: the turn goes on with it.
+                    if (TakeQueued(queue, ending: true))
+                        continue;
                     End(new ClaudeResult(reply.FinishReason == "length" ? "error_max_tokens" : "success", reply.FinishReason == "length",
                         clock.ElapsedMilliseconds, null, reply.FinishReason == "length" ? "The model's answer was cut off: it reached its length limit." : null,
                         SessionId, _contextTokens, Window()));
                     return;
                 }
-                foreach (var call in reply.ToolCalls)
+                (calls, answered) = (reply.ToolCalls, 0);
+                foreach (var call in calls)
                 {
                     var (output, isError) = await CallAsync(call, cancellationToken);
                     Event?.Invoke(new ClaudeToolResults([new ClaudeToolResult(call.Id, output, isError)], null));
                     lock (_messages)
                         _messages.Add(new JsonObject { ["role"] = "tool", ["tool_call_id"] = call.Id, ["content"] = Redaction.Secrets(output) });
+                    answered++;
                 }
+                // Prompts that came while the calls ran go after their results.
+                TakeQueued(queue, ending: false);
             }
+            Ended(queue);
             End(new ClaudeResult("error_max_turns", true, clock.ElapsedMilliseconds, null, null, SessionId, _contextTokens, Window()));
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
             CancelQuestions();
+            Unanswered(calls.Skip(answered).Select(c => c.Id), "No result: the user stopped the turn before this call gave one.");
+            Ended(queue);
             End(new ClaudeResult("error_during_execution", true, clock.ElapsedMilliseconds, null, null, SessionId, _contextTokens, Window()));
         }
         // Whatever went wrong ends the turn with it shown.
         catch (Exception ex)
         {
             CancelQuestions();
+            Unanswered(calls.Skip(answered).Select(c => c.Id), $"No result: the turn ended on an error before this call gave one ({ex.Message}).");
+            Ended(queue);
             End(new ClaudeResult("error", true, clock.ElapsedMilliseconds, null, $"{_agentName}: {ex.Message}", SessionId, _contextTokens, Window()));
+        }
+    }
+
+    /// <summary>
+    /// Calls of the model's left without a result (the turn stopped or failed before they gave one, the length limit cut them
+    /// off) are answered as such, right after them: the APIs ask a result for every call before the conversation goes on.
+    /// </summary>
+    void Unanswered(IEnumerable<string> ids, string why)
+    {
+        lock (_messages)
+            foreach (var id in ids)
+                _messages.Add(new JsonObject { ["role"] = "tool", ["tool_call_id"] = id, ["content"] = why });
+    }
+
+    /// <summary>
+    /// The prompts that came while the turn ran join the conversation; whether there were any. When the turn would end
+    /// (<paramref name="ending"/>) and there were none, it takes no more: the next prompt starts a turn of its own.
+    /// </summary>
+    bool TakeQueued(List<JsonObject> queue, bool ending)
+    {
+        lock (_messages)
+        {
+            if (queue.Count > 0)
+            {
+                _messages.AddRange(queue);
+                queue.Clear();
+                return true;
+            }
+            if (ending && _queue == queue)
+                _queue = null;
+            return false;
+        }
+    }
+
+    /// <summary>The turn ends without answering what came while it ran: those prompts stay in the conversation, and the next goes on with them.</summary>
+    void Ended(List<JsonObject> queue)
+    {
+        lock (_messages)
+        {
+            if (_queue == queue)
+                _queue = null;
+            _messages.AddRange(queue);
+            queue.Clear();
         }
     }
 
@@ -456,7 +565,7 @@ public sealed class ModelSession : IAgentSession
                 if (!decision.Allow)
                 {
                     if (decision.Interrupt)
-                        _turn?.Cancel();
+                        Stop();
                     return (decision.Message ?? "The user said no. Do not try it another way: wait for what they say.", true);
                 }
                 if (decision.UpdatedInput is { ValueKind: JsonValueKind.Object } changed)
@@ -665,7 +774,7 @@ public sealed class ModelSession : IAgentSession
     public ValueTask DisposeAsync()
     {
         _disposed = true;
-        _turn?.Cancel();
+        Stop();
         CancelQuestions();
         return ValueTask.CompletedTask;
     }

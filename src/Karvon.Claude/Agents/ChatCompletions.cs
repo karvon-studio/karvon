@@ -12,8 +12,9 @@ public sealed record ModelToolCall(string Id, string Name, string Arguments);
 /// <summary>What one streamed answer of a model came to.</summary>
 /// <param name="PromptTokens">How much context the request took (the provider's count); null when it did not say.</param>
 /// <param name="Blocks">The answer in its provider's own words, sent back as it was (Claude's blocks); null for none.</param>
+/// <param name="CutOff">The ids of calls in <paramref name="Blocks"/> that the length limit cut off: not run, but each answered as such.</param>
 public sealed record ModelReply(string Text, string Thinking, IReadOnlyList<ModelToolCall> ToolCalls, string? FinishReason, int? PromptTokens, int? OutputTokens,
-    JsonArray? Blocks = null);
+    JsonArray? Blocks = null, IReadOnlyList<string>? CutOff = null);
 
 /// <summary>Where a model Karvon drives itself answers: its models, and an answer streamed (in Chat Completions' terms).</summary>
 public interface IChatEndpoint
