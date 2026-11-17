@@ -175,7 +175,7 @@ public class ClaudeKarvonToolsTests
         var argv = entries.First(e => e.Kind == "argv").Data.EnumerateArray().Select(a => a.GetString()).ToList();
         Assert.Equal(KarvonTools.SystemPrompt, argv[argv.IndexOf("--append-system-prompt") + 1]);
         var hooks = Initialize(entries).GetProperty("hooks").GetProperty("PreToolUse").EnumerateArray().ToList();
-        var shell = hooks.Single(h => h.GetProperty("matcher").GetString() == "Bash");
+        var shell = hooks.Single(h => h.GetProperty("matcher").GetString() == "Bash|PowerShell");
         Assert.Equal(ClaudeSession.ShellHook, shell.GetProperty("hookCallbackIds")[0].GetString());
         // Each command is asked of both hooks (the secrets' first): only the first build is denied, by the shell rules.
         var answers = entries.Where(e => e.Kind == "hook").Select(e => e.Data).ToList();
@@ -270,6 +270,24 @@ public class ClaudeKarvonToolsTests
     [InlineData("git status", null)]
     public void Shell_rules_name_the_commands_Karvons_tools_do(string command, string? rule) =>
         Assert.Equal(rule, ShellRules.ShellRuleFor(command)?.Name);
+
+    [Theory]
+    // PowerShell, Claude Code's shell on Windows: its commands go to Karvon's tools as Bash's do.
+    [InlineData("dotnet build", "dotnet build")]
+    [InlineData("dotnet.exe test --no-build", "dotnet build")]
+    [InlineData(@"& 'C:\Program Files\dotnet\dotnet.exe' build -c Release", "dotnet build")]
+    [InlineData("Set-Location src; dotnet build", "dotnet build")]
+    [InlineData("if ($ok) { npm test }", "npm scripts")]
+    [InlineData("$out = (dotnet build 2>&1)", "dotnet build")]
+    [InlineData("git push origin main", "git")]
+    [InlineData("npm install lodash", "package install")]
+    // A loop that waits, a command elsewhere, a word in a string: the shell's.
+    [InlineData("while ($true) { docker ps; Start-Sleep 5 }", null)]
+    [InlineData(@"Set-Location ..\..\other; dotnet build", null)]
+    [InlineData("Write-Output 'dotnet build'", null)]
+    [InlineData("dotnet --version", null)]
+    public void PowerShells_commands_go_to_Karvons_tools_as_Bashs_do(string command, string? rule) =>
+        Assert.Equal(rule, ShellRules.ShellRuleFor(command, Path.Combine(Path.GetTempPath(), "app", "ws"), powerShell: true)?.Name);
 
     [Theory]
     // The workspace's build, tests and run go to Karvon's tools, also from a folder in it or with output elsewhere...

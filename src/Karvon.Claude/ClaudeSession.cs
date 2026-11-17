@@ -153,7 +153,7 @@ public sealed class ClaudeSession : IAgentSession
         if (guardSecrets)
             preToolUse.Add(new { matcher = SecretGuard.Tools, hookCallbackIds = new[] { SecretsHook } });
         if (tools is { ShellRules.Count: > 0 })
-            preToolUse.Add(new { matcher = "Bash", hookCallbackIds = new[] { ShellHook } });
+            preToolUse.Add(new { matcher = "Bash|PowerShell", hookCallbackIds = new[] { ShellHook } });
         if (preToolUse.Count == 0)
             return null;
         var hooks = new Dictionary<string, object> { ["PreToolUse"] = preToolUse };
@@ -572,11 +572,13 @@ public sealed class ClaudeSession : IAgentSession
                 answer = new { hookSpecificOutput = new { hookEventName = "PreToolUse", updatedInput = revealed } };
         }
         else if (ClaudeProtocol.Str(request, "callback_id") == ShellHook && request.TryGetProperty("input", out var input)
-            && ClaudeProtocol.Str(input, "tool_name") == "Bash" && input.TryGetProperty("tool_input", out var toolInput)
-            && ClaudeProtocol.Str(toolInput, "command") is { } command && _tools?.ShellRuleFor(command, _workingDirectory) is { } rule
+            && ClaudeProtocol.Str(input, "tool_name") is "Bash" or "PowerShell" && input.TryGetProperty("tool_input", out var toolInput)
+            && ClaudeProtocol.Str(toolInput, "command") is { } command
+            && _tools?.ShellRuleFor(command, _workingDirectory, ClaudeProtocol.Str(input, "tool_name") == "PowerShell") is { } rule
             && Redirects(rule, command))
         {
-            Audit?.Decided(ClaudeProtocol.Str(input, "tool_use_id") ?? ClaudeProtocol.Str(request, "tool_use_id"), "Bash", "deny", "Karvon's tools before the shell", rule.Name);
+            Audit?.Decided(ClaudeProtocol.Str(input, "tool_use_id") ?? ClaudeProtocol.Str(request, "tool_use_id"), ClaudeProtocol.Str(input, "tool_name")!,
+                "deny", "Karvon's tools before the shell", rule.Name);
             answer = new { hookSpecificOutput = new { hookEventName = "PreToolUse", permissionDecision = "deny", permissionDecisionReason =
                 rule.Use + " " + RedirectNote } };
         }

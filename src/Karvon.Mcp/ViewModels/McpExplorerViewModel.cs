@@ -394,7 +394,7 @@ public sealed class McpBuiltInDocument(IReadOnlyList<McpBuiltInToolNode> tools, 
     public bool IsOff => Tools.Count == 0;
 
     /// <summary>
-    /// The sessions use these before the shell: their system prompt says so, and a Bash command one of them does is sent to it
+    /// The sessions use these before the shell: their system prompt says so, and a shell command (Bash's or PowerShell's) one of them does is sent to it
     /// once. For the sessions started after.
     /// </summary>
     public bool ToolsFirst

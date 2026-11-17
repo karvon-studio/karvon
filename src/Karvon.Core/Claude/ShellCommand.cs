@@ -177,6 +177,39 @@ static class ShellCommand
     }
 
     /// <summary>
+    /// A PowerShell command as the shell rules read a command: each simple command on a line of its own, its program's name
+    /// without its folder and its .exe, PowerShell's own cmdlets for cd, sleep and loops by Bash's names, and its paths with
+    /// / (a \ is not an escape in it).
+    /// </summary>
+    public static string AsBash(string powerShell) =>
+        string.Join('\n', PowerShellWords(powerShell).Select(words =>
+            string.Join(' ', words.Select((w, i) => Quote(i == 0 ? BashName(w) : w.Replace('\\', '/'))))));
+
+    /// <summary>A PowerShell command's program as Bash would name it (dotnet.exe is dotnet; Set-Location is cd).</summary>
+    static string BashName(string word)
+    {
+        var name = word.Replace('\\', '/');
+        name = name[(name.LastIndexOf('/') + 1)..];
+        if (Path.GetExtension(name).ToLowerInvariant() is ".exe" or ".cmd" or ".bat")
+            name = name[..^4];
+        return name.ToLowerInvariant() switch
+        {
+            "set-location" or "sl" or "chdir" => "cd",
+            "push-location" => "pushd",
+            "start-sleep" => "sleep",
+            "foreach" or "foreach-object" or "%" => "for",
+            "do" => "while",
+            _ => name,
+        };
+    }
+
+    /// <summary>A word as Bash reads it back as one: in single quotes when it has what Bash would split or expand.</summary>
+    static string Quote(string word) =>
+        word.Length > 0 && word.All(c => char.IsLetterOrDigit(c) || c is '-' or '_' or '.' or '/' or ':' or '=' or '@' or '+' or ',' or '~')
+            ? word
+            : "'" + word.Replace("'", "'\\''") + "'";
+
+    /// <summary>
     /// Whether an = after these words assigns: a variable before it ($key, ${key}, [string]$key, $env:NAME), alone or with
     /// an operator that assigns with it (+=, -=, *=, /=, %=, ??=).
     /// </summary>

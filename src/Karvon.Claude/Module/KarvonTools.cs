@@ -28,7 +28,7 @@ public static class KarvonTools
 
     /// <summary>
     /// What each session's system prompt gets (as Claude Code's own rules are): in Karvon, its tools before the shell. The
-    /// MCP server's instructions say the same at more length; a Bash call they cover is sent to them besides (when the user
+    /// MCP server's instructions say the same at more length; a Bash or PowerShell call they cover is sent to them besides (when the user
     /// keeps that on).
     /// </summary>
     public const string SystemPrompt =

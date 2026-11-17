@@ -27,7 +27,7 @@
         <StackPanel Spacing="2">
           <TextBlock Text="Before the shell" />
           <TextBlock Classes="dkMuted" FontSize="12" TextWrapping="Wrap"
-                     Text="Claude is told to use these, and a Bash command one of them does (dotnet build, psql, docker ps, ssh to one of the Servers, curl to Jira) is sent to it; the same command again goes through. For the sessions started after." />
+                     Text="Claude is told to use these, and a shell command one of them does (Bash's, or PowerShell's on Windows: dotnet build, psql, docker ps, ssh to one of the Servers, curl to Jira) is sent to it; the same command again goes through, and the commands of its kind after it. For the sessions started after." />
         </StackPanel>
       </CheckBox>
       <CheckBox Name="KeepSecretsAway" IsChecked="{Binding KeepSecretsAway}" Margin="0,0,0,10">
