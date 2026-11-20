@@ -16,8 +16,8 @@ public sealed partial class BekModule : KarvonModule, IPreviewHost
 {
     public const string ToolWindowId = "BekPreview";
 
-    /// <summary>Where cargo puts a Rust app's component, by its build's profile.</summary>
-    static readonly string[] BuiltComponents = [Path.Combine("target", "wasm32-wasip2", "release"), Path.Combine("target", "wasm32-wasip2", "debug")];
+    /// <summary>Where cargo puts a Rust app's component in a target folder, by its build's profile.</summary>
+    static readonly string[] BuiltComponents = [Path.Combine("wasm32-wasip2", "release"), Path.Combine("wasm32-wasip2", "debug")];
 
     PreviewViewModel? _preview;
 
@@ -45,17 +45,35 @@ public sealed partial class BekModule : KarvonModule, IPreviewHost
         return _preview ??= new PreviewViewModel(this);
     }
 
-    /// <summary>An app's component, or its folder (a manifest beside a cargo build): Preview on the Phone.</summary>
+    /// <summary>An app's component, or its folder (a manifest and a cargo build): Preview on the Phone. Not on any WebAssembly (a web app's).</summary>
     public override IReadOnlyList<ModuleMenuItem> ExplorerMenu(ExplorerNode node) =>
-        ComponentOf(node.Path) is var (component, manifest)
+        node.Path is { } path && (Directory.Exists(path) || IsAppComponent(path)) && ComponentOf(path) is var (component, manifest)
             ? [new("Preview on the Phone", () => OpenAsync(component, manifest))]
             : [];
 
     /// <summary>
-    /// The component a path names and the manifest that goes with it: a <c>.wasm</c> itself (its manifest found beside it by
-    /// bek-preview), or an app's folder, with its <c>manifest</c> and the newest component cargo built for it.
+    /// Whether a <c>.wasm</c> is a Bek app's: cargo's build of one (<c>wasm32-wasip2/release</c> or <c>debug</c> of a target
+    /// folder), or one with its manifest beside it (<c>name.manifest</c>).
     /// </summary>
-    internal static (string Component, string? Manifest)? ComponentOf(string? path)
+    internal static bool IsAppComponent(string file)
+    {
+        if (!file.EndsWith(".wasm", StringComparison.OrdinalIgnoreCase) || !File.Exists(file))
+            return false;
+        if (File.Exists(Path.ChangeExtension(file, ".manifest")))
+            return true;
+        var profile = Path.GetDirectoryName(file);
+        return Path.GetFileName(profile) is "release" or "debug" && Path.GetFileName(Path.GetDirectoryName(profile)) == "wasm32-wasip2";
+    }
+
+    /// <inheritdoc cref="ComponentOf(string?, string?)"/>
+    internal static (string Component, string? Manifest)? ComponentOf(string? path) => ComponentOf(path, Environment.GetEnvironmentVariable("CARGO_TARGET_DIR"));
+
+    /// <summary>
+    /// The component a path names and the manifest that goes with it: a <c>.wasm</c> itself (its manifest found beside it by
+    /// bek-preview), or an app's folder, with its <c>manifest</c> and the newest component cargo built for it: in its own
+    /// target folder, its cargo workspace's, or <paramref name="cargoTarget"/> (CARGO_TARGET_DIR), by its crate's name.
+    /// </summary>
+    internal static (string Component, string? Manifest)? ComponentOf(string? path, string? cargoTarget)
     {
         if (path is null)
             return null;
@@ -64,13 +82,71 @@ public sealed partial class BekModule : KarvonModule, IPreviewHost
         var manifest = Path.Combine(path, "manifest");
         if (!Directory.Exists(path) || !File.Exists(manifest))
             return null;
-        var built = BuiltComponents
-            .Select(folder => Path.Combine(path, folder))
+        var own = Path.Combine(Path.GetFullPath(path), "target");
+        // cargo names a component after its crate (its lib's name when it has one), with dashes as underscores.
+        var crate = CrateName(path)?.Replace('-', '_');
+        var built = TargetFolders(path, cargoTarget)
+            .SelectMany(target => BuiltComponents.Select(profile => Path.Combine(target, profile)))
             .Where(Directory.Exists)
             .SelectMany(folder => Directory.EnumerateFiles(folder, "*.wasm"))
+            // In a target folder crates share, only this one's; with no Cargo.toml to say which, only its own folder's.
+            .Where(file => crate is not null
+                ? string.Equals(Path.GetFileNameWithoutExtension(file), crate, StringComparison.Ordinal)
+                : file.StartsWith(own + Path.DirectorySeparatorChar, StringComparison.Ordinal))
             .OrderByDescending(File.GetLastWriteTimeUtc)
             .FirstOrDefault();
         return built is null ? null : (built, manifest);
+    }
+
+    /// <summary>Where cargo may have built the app: CARGO_TARGET_DIR, its own target folder, then those of the folders above it up to its workspace's.</summary>
+    static IEnumerable<string> TargetFolders(string app, string? cargoTarget)
+    {
+        if (cargoTarget is { Length: > 0 } && Path.IsPathRooted(cargoTarget))
+            yield return cargoTarget;
+        for (var folder = new DirectoryInfo(Path.GetFullPath(app)); folder is not null; folder = folder.Parent)
+        {
+            yield return Path.Combine(folder.FullName, "target");
+            if (folder.FullName != Path.GetFullPath(app) && IsWorkspaceRoot(folder.FullName))
+                yield break;
+        }
+    }
+
+    static bool IsWorkspaceRoot(string folder) => ReadToml(folder).Any(line => line == "[workspace]");
+
+    /// <summary>The crate's name in its Cargo.toml: its [lib]'s when it names one, else its [package]'s; null without one.</summary>
+    static string? CrateName(string folder)
+    {
+        string? section = null, package = null, lib = null;
+        foreach (var line in ReadToml(folder))
+        {
+            if (line.StartsWith('['))
+            {
+                section = line;
+                continue;
+            }
+            if (System.Text.RegularExpressions.Regex.Match(line, "^name\\s*=\\s*\"([^\"]+)\"") is { Success: true } name)
+            {
+                if (section == "[package]")
+                    package ??= name.Groups[1].Value;
+                else if (section == "[lib]")
+                    lib ??= name.Groups[1].Value;
+            }
+        }
+        return lib ?? package;
+    }
+
+    /// <summary>A folder's Cargo.toml, a trimmed line each; none when it has none (or it cannot be read).</summary>
+    static IEnumerable<string> ReadToml(string folder)
+    {
+        var toml = Path.Combine(folder, "Cargo.toml");
+        try
+        {
+            return File.Exists(toml) ? [.. File.ReadLines(toml).Select(line => line.Trim())] : [];
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            return [];
+        }
     }
 
     /// <summary>The app shown in the Bek Preview window, which comes to the front.</summary>

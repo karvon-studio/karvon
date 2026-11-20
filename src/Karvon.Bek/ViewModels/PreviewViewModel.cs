@@ -33,11 +33,17 @@ public sealed partial class PreviewViewModel(IPreviewHost host) : ObservableObje
 
     public static IReadOnlyList<string> Sizes { get; } = ["536x984", "412x868", "360x740"];
 
-    /// <summary>One action at a time, in the order they were made: typing stays in order.</summary>
+    /// <summary>One action at a time, the user's and Claude's, in the order they were made: typing stays in order.</summary>
     readonly SemaphoreSlim _acting = new(1, 1);
+
+    /// <summary>One app opened, or stopped, at a time: one asked for while another starts takes its place.</summary>
+    readonly SemaphoreSlim _opening = new(1, 1);
 
     PreviewProcess? _preview;
     CancellationTokenSource? _following;
+
+    /// <summary>The start of the app on its way, which a newer one, or a stop, cancels.</summary>
+    CancellationTokenSource? _starting;
 
     /// <summary>The settings being shown from bek-preview's state, not chosen by the user.</summary>
     bool _showing;
@@ -47,6 +53,9 @@ public sealed partial class PreviewViewModel(IPreviewHost host) : ObservableObje
     bool _scrollSending;
 
     public IPreviewHost Host => host;
+
+    /// <summary>bek-preview's program: on the PATH or in cargo's bin folder (the tests give their own).</summary>
+    internal Func<string?> FindProgram { get; init; } = () => PreviewProcess.Find();
 
     /// <summary>The API of the app shown; null when none is.</summary>
     public PreviewClient? Client => _preview?.Client;
@@ -87,24 +96,47 @@ public sealed partial class PreviewViewModel(IPreviewHost host) : ObservableObje
     public partial string Size { get; set; } = "536x984";
 
     /// <summary>Shows <paramref name="component"/> (its manifest beside it, or <paramref name="manifest"/>), in place of the app shown.</summary>
-    /// <exception cref="InvalidOperationException">bek-preview is not installed, or ended at once.</exception>
+    /// <exception cref="InvalidOperationException">
+    /// bek-preview is not installed, ended at once or did not answer; or another app was asked for, or the preview stopped, before this one showed.
+    /// </exception>
     public async Task OpenAsync(string component, string? manifest, CancellationToken cancellationToken = default)
     {
-        await StopAsync();
-        var program = PreviewProcess.Find() ?? throw new InvalidOperationException($"bek-preview is not installed: {PreviewProcess.Install}");
-        Message = $"Starting {Path.GetFileName(component)}…";
+        var program = FindProgram() ?? throw new InvalidOperationException($"bek-preview is not installed: {PreviewProcess.Install}");
+        // An app still on its way gives way to this one: its bek-preview ends before this one starts.
+        _starting?.Cancel();
+        await _opening.WaitAsync(cancellationToken);
+        using var starting = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        _starting = starting;
         try
         {
-            _preview = await PreviewProcess.StartAsync(program, component, manifest, host.Said, cancellationToken);
+            await StopShownAsync();
+            Message = $"Starting {Path.GetFileName(component)}…";
+            var preview = await PreviewProcess.StartAsync(program, component, manifest, host.Said, starting.Token);
+            _preview = preview;
+            HasApp = true;
+            _following = new CancellationTokenSource();
+            _ = FollowAsync(preview, _following.Token);
+        }
+        catch (OperationCanceledException) when (starting.IsCancellationRequested && !cancellationToken.IsCancellationRequested)
+        {
+            throw new InvalidOperationException($"{Path.GetFileName(component)} was not shown: another app was opened in its place, or the preview was stopped.");
+        }
+        catch (OperationCanceledException)
+        {
+            Message = "The preview was stopped.";
+            throw;
         }
         catch (InvalidOperationException ex)
         {
             Message = ex.Message;
             throw;
         }
-        HasApp = true;
-        _following = new CancellationTokenSource();
-        _ = FollowAsync(_preview.Client, _following.Token);
+        finally
+        {
+            if (_starting == starting)
+                _starting = null;
+            _opening.Release();
+        }
     }
 
     [RelayCommand]
@@ -138,8 +170,24 @@ public sealed partial class PreviewViewModel(IPreviewHost host) : ObservableObje
             host.OpenUrl(client.Address.ToString());
     }
 
+    /// <summary>The app shown stops, and one on its way: their bek-preview has ended when this returns.</summary>
     [RelayCommand(CanExecute = nameof(HasApp))]
     public async Task StopAsync()
+    {
+        _starting?.Cancel();
+        await _opening.WaitAsync();
+        try
+        {
+            await StopShownAsync();
+            Message = "The preview was stopped.";
+        }
+        finally
+        {
+            _opening.Release();
+        }
+    }
+
+    async Task StopShownAsync()
     {
         _following?.Cancel();
         _following = null;
@@ -150,11 +198,18 @@ public sealed partial class PreviewViewModel(IPreviewHost host) : ObservableObje
         }
         State = null;
         HasApp = false;
-        Screen = null;
+        ShowScreen(null);
         Error = null;
         Title = "Bek Preview";
         Timing = "";
-        Message = "The preview was stopped.";
+    }
+
+    /// <summary>The screen shown, the one before it let go of: its pixels are native memory, a frame's worth each.</summary>
+    void ShowScreen(Bitmap? screen)
+    {
+        var before = Screen;
+        Screen = screen;
+        before?.Dispose();
     }
 
     partial void OnDarkChanged(bool value) => Change(new PreviewAction.Change(Dark: value));
@@ -194,8 +249,24 @@ public sealed partial class PreviewViewModel(IPreviewHost host) : ObservableObje
     /// <summary>Does <paramref name="action"/> after those before it; the state then, or null when it could not be done (the log says why).</summary>
     public async Task<PreviewState?> ActAsync(PreviewAction action, CancellationToken cancellationToken = default)
     {
-        if (Client is not { } client)
+        if (Client is null)
             return null;
+        try
+        {
+            return await DoAsync(action, cancellationToken);
+        }
+        catch (Exception ex) when (ex is HttpRequestException or InvalidOperationException or OperationCanceledException or System.Text.Json.JsonException)
+        {
+            AddLog($"preview: {ex.Message}");
+            return null;
+        }
+    }
+
+    /// <summary>Does <paramref name="action"/> after those before it, the user's and Claude's in one line; the state then, shown.</summary>
+    /// <exception cref="InvalidOperationException">No app is shown, or bek-preview refused it (the words say why).</exception>
+    internal async Task<PreviewState> DoAsync(PreviewAction action, CancellationToken cancellationToken)
+    {
+        var client = Client ?? throw new InvalidOperationException("No app is in the Bek Preview window: open one with bek_preview_open.");
         await _acting.WaitAsync(cancellationToken);
         try
         {
@@ -203,20 +274,20 @@ public sealed partial class PreviewViewModel(IPreviewHost host) : ObservableObje
             Show(state);
             return state;
         }
-        catch (Exception ex) when (ex is HttpRequestException or InvalidOperationException or TaskCanceledException)
-        {
-            AddLog($"preview: {ex.Message}");
-            return null;
-        }
         finally
         {
             _acting.Release();
         }
     }
 
-    /// <summary>Follows bek-preview: each new state as soon as it is there, its screen when its pixels changed, its new log lines.</summary>
-    async Task FollowAsync(PreviewClient client, CancellationToken cancellationToken)
+    /// <summary>
+    /// Follows bek-preview: each new state as soon as it is there, its screen when its pixels changed, its new log lines.
+    /// What it says that cannot be read, or a request it takes too long with, is logged and asked again; it ends with the
+    /// preview, or with bek-preview.
+    /// </summary>
+    async Task FollowAsync(PreviewProcess preview, CancellationToken cancellationToken)
     {
+        var client = preview.Client;
         long after = 0, screen = -1, lastLine = 0;
         while (!cancellationToken.IsCancellationRequested)
         {
@@ -227,7 +298,7 @@ public sealed partial class PreviewViewModel(IPreviewHost host) : ObservableObje
                 if (state.Screen != screen)
                 {
                     using var png = new MemoryStream(await client.ScreenAsync(cancellationToken));
-                    Screen = new Bitmap(png);
+                    ShowScreen(new Bitmap(png));
                     screen = state.Screen;
                 }
                 if (state.LastLog > lastLine)
@@ -240,18 +311,23 @@ public sealed partial class PreviewViewModel(IPreviewHost host) : ObservableObje
                 }
                 Show(state);
             }
-            catch (OperationCanceledException)
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
             {
                 return;
             }
-            catch (HttpRequestException)
+            // Whatever else (bek-preview gone, its answer unreadable, the client's time out) leaves the window following.
+            catch (Exception ex)
             {
-                if (_preview is not { HasExited: false })
+                if (cancellationToken.IsCancellationRequested)
+                    return;
+                if (preview.HasExited)
                 {
                     Message = "bek-preview ended: see its output.";
                     HasApp = false;
                     return;
                 }
+                if (ex is not HttpRequestException)
+                    AddLog($"preview: {ex.Message}");
                 // A moment's wait before asking again; a stop meanwhile ends the loop at its top.
                 await Task.Delay(TimeSpan.FromSeconds(1), CancellationToken.None);
             }
@@ -284,5 +360,6 @@ public sealed partial class PreviewViewModel(IPreviewHost host) : ObservableObje
     {
         await StopAsync();
         _acting.Dispose();
+        _opening.Dispose();
     }
 }

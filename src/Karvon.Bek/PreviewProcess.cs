@@ -30,7 +30,21 @@ public sealed class PreviewProcess : IAsyncDisposable
     /// <summary>The app's component, as it was given.</summary>
     public string Component { get; }
 
-    public bool HasExited => _process.HasExited;
+    /// <summary>Whether bek-preview has ended (once let go of, it has).</summary>
+    public bool HasExited
+    {
+        get
+        {
+            try
+            {
+                return _process.HasExited;
+            }
+            catch (InvalidOperationException)
+            {
+                return true;
+            }
+        }
+    }
 
     static string Program => OperatingSystem.IsWindows() ? "bek-preview.exe" : "bek-preview";
 
@@ -47,8 +61,10 @@ public sealed class PreviewProcess : IAsyncDisposable
     }
 
     /// <summary>bek-preview started for <paramref name="component"/>, once its API answers.</summary>
-    /// <exception cref="InvalidOperationException">It ended first (its last words went to <paramref name="said"/>), or did not answer in a minute.</exception>
-    public static async Task<PreviewProcess> StartAsync(string program, string component, string? manifest, Action<string> said, CancellationToken cancellationToken)
+    /// <param name="readyWithin">How long it has to say it is ready: a minute (the tests' is shorter).</param>
+    /// <exception cref="InvalidOperationException">It ended first (its last words went to <paramref name="said"/>), or did not answer in time.</exception>
+    public static async Task<PreviewProcess> StartAsync(string program, string component, string? manifest, Action<string> said, CancellationToken cancellationToken,
+        TimeSpan? readyWithin = null)
     {
         var start = new ProcessStartInfo(program) { RedirectStandardOutput = true, RedirectStandardError = true, UseShellExecute = false, CreateNoWindow = true };
         start.ArgumentList.Add(component);
@@ -75,21 +91,38 @@ public sealed class PreviewProcess : IAsyncDisposable
                 said(line);
         };
         process.EnableRaisingEvents = true;
-        process.Exited += (_, _) => ready.TrySetException(new InvalidOperationException($"bek-preview ended ({process.ExitCode}): see its output."));
+        process.Exited += (_, _) => ready.TrySetException(new InvalidOperationException($"bek-preview ended ({ExitCode(process)}): see its output."));
         process.BeginOutputReadLine();
         process.BeginErrorReadLine();
+        var within = readyWithin ?? TimeSpan.FromMinutes(1);
         using var limit = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        limit.CancelAfter(TimeSpan.FromMinutes(1));
+        limit.CancelAfter(within);
         try
         {
             var address = await ready.Task.WaitAsync(limit.Token);
             return new PreviewProcess(process, new PreviewClient(address), component);
         }
-        catch
+        catch (Exception ex)
         {
-            End(process);
-            process.Dispose();
+            // Ended before this says it failed: a stop, or the app opened in its place, finds it gone.
+            await EndAsync(process);
+            // Its time ran out (not the caller's stop): said as what went wrong, as its other failures are.
+            if (ex is OperationCanceledException && !cancellationToken.IsCancellationRequested)
+                throw new InvalidOperationException($"bek-preview did not say it was ready in {within.TotalSeconds:0} seconds: see its output (Output > Bek Preview).", ex);
             throw;
+        }
+    }
+
+    /// <summary>How it ended; unknown once it was let go of (it may end after that, killed).</summary>
+    static string ExitCode(Process process)
+    {
+        try
+        {
+            return process.ExitCode.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        }
+        catch (InvalidOperationException)
+        {
+            return "killed";
         }
     }
 
@@ -101,7 +134,8 @@ public sealed class PreviewProcess : IAsyncDisposable
         return ((IPEndPoint)listener.LocalEndpoint).Port;
     }
 
-    static void End(Process process)
+    /// <summary>bek-preview killed, and waited for (a few seconds at most), then let go of.</summary>
+    static async Task EndAsync(Process process)
     {
         try
         {
@@ -112,21 +146,21 @@ public sealed class PreviewProcess : IAsyncDisposable
         {
             // It ended on its own meanwhile.
         }
-    }
-
-    public async ValueTask DisposeAsync()
-    {
-        Client.Dispose();
-        End(_process);
         using var limit = new CancellationTokenSource(TimeSpan.FromSeconds(5));
         try
         {
-            await _process.WaitForExitAsync(limit.Token);
+            await process.WaitForExitAsync(limit.Token);
         }
         catch (OperationCanceledException)
         {
             // Killed; the system gathers it.
         }
-        _process.Dispose();
+        process.Dispose();
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        Client.Dispose();
+        await EndAsync(_process);
     }
 }

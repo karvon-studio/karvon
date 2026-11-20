@@ -375,8 +375,9 @@ Your `$SHELL` in a real pty, in the solution folder; a console app's own console
 
 An app of Bek OS's phone (a WebAssembly component of its world) runs in the tool window as the phone runs it, without an
 emulator: bek-preview, bek-sdk's tool (`cargo install --git https://github.com/bek-family/bek-sdk bek-preview`), draws its
-page with the phone's own code. Solution Explorer's **Preview on the Phone** opens a component (`.wasm`), or an app's
-folder (its `manifest` beside a `cargo build --target wasm32-wasip2`). A click taps, a drag or the wheel scrolls, keys
+page with the phone's own code. Solution Explorer's **Preview on the Phone** opens an app's component (cargo's
+`wasm32-wasip2` build, or a `.wasm` with its `.manifest` beside it), or an app's folder (its `manifest`, and its crate's
+`cargo build --target wasm32-wasip2` in its own `target`, its workspace's or `CARGO_TARGET_DIR`). A click taps, a drag or the wheel scrolls, keys
 type into the field in focus, Esc is Back; Dark, the phone's language and the page's size change how it shows; a new
 build of the component starts it again at once, its store kept (Reset empties it). Its log is under it, and in Output
 (Bek Preview); its elements with their boxes and styles, and its store, are in bek-preview's page in the browser.

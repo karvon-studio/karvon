@@ -159,7 +159,8 @@ sealed class PreviewActTool(Func<PreviewViewModel> preview) : PreviewTool(previe
     protected override async Task<ClaudeToolOutput> RunAsync(JsonElement input, CancellationToken cancellationToken)
     {
         var client = Client;
-        var state = await client.ActAsync(Action(input), cancellationToken);
+        // In the window's line of actions, after the user's: a tap of Claude's does not land in the middle of their typing.
+        var state = await Preview.DoAsync(Action(input), cancellationToken);
         return await BekClaudeTools.ScreenOutput(client, state, null, cancellationToken);
     }
 
