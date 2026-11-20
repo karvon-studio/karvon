@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Avalonia.Controls.Templates;
 using Karvon.Bek.ViewModels;
 using Karvon.Bek.Views;
 using Karvon.Claude;
@@ -10,16 +11,16 @@ namespace Karvon.Bek;
 /// <summary>
 /// Bek OS apps: an app of the phone's (a WebAssembly component of its world) previewed live by bek-preview, bek-sdk's tool,
 /// in place of the phone in an emulator. Its page is drawn by the phone's own code, so what the window shows is what the
-/// phone shows; a new build of the component starts it again. Claude Code's tools see the same screen and act on it.
+/// phone shows; a new build of the component starts it again. Claude Code's tools see the same screen and act on it. The
+/// preview is a document (<see cref="PreviewDocument"/>), so that it is in view beside Claude Code's conversation.
 /// </summary>
 public sealed partial class BekModule : KarvonModule, IPreviewHost
 {
-    public const string ToolWindowId = "BekPreview";
-
     /// <summary>Where cargo puts a Rust app's component in a target folder, by its build's profile.</summary>
     static readonly string[] BuiltComponents = [Path.Combine("wasm32-wasip2", "release"), Path.Combine("wasm32-wasip2", "debug")];
 
     PreviewViewModel? _preview;
+    PreviewDocument? _document;
 
     /// <summary>The module's pane of the Output window: what bek-preview says, from its own threads.</summary>
     Karvon.ViewModels.OutputChannel? _output;
@@ -35,10 +36,12 @@ public sealed partial class BekModule : KarvonModule, IPreviewHost
         + "and Back, the theme, the language and the page's size, a new build started at once; its elements, styles and store in "
         + "the browser; and Claude Code's preview tools.";
 
-    public override IReadOnlyList<ToolWindowInfo> ToolWindows =>
-        [new(ToolWindowId, "Bek Preview", "Bek Pre_view", "Eye", DockSide.Right, () => new PreviewView { DataContext = EnsurePreview() })];
+    public override IReadOnlyList<IDataTemplate> DocumentTemplates => [Document<PreviewDocument>(document => new PreviewView { DataContext = document.Preview })];
 
-    /// <summary>The window's view model, made the first time it is needed (on the UI thread, with its Output pane).</summary>
+    /// <summary>View > Bek Preview...: an app's component picked, and previewed.</summary>
+    public override IReadOnlyList<ModuleMainMenuItem> MainMenus => [new("View", new("Bek Pre_view...", PickAndOpenAsync) { After = "Output" })];
+
+    /// <summary>The preview's view model, made the first time it is needed (on the UI thread, with its Output pane).</summary>
     public PreviewViewModel EnsurePreview()
     {
         _output ??= Workbench.Output("Bek Preview");
@@ -149,10 +152,26 @@ public sealed partial class BekModule : KarvonModule, IPreviewHost
         }
     }
 
-    /// <summary>The app shown in the Bek Preview window, which comes to the front.</summary>
+    /// <summary>The preview's document, in front in the document well (added again after it was closed).</summary>
+    internal PreviewDocument ShowPreview()
+    {
+        _document ??= new PreviewDocument(EnsurePreview());
+        if (!Workbench.Documents.Contains(_document))
+            _document = new PreviewDocument(EnsurePreview());
+        Workbench.ShowDocument(_document);
+        return _document;
+    }
+
+    async Task PickAndOpenAsync()
+    {
+        if (await ((IPreviewHost)this).PickComponentAsync() is { } component)
+            await OpenAsync(component, null);
+    }
+
+    /// <summary>The app shown in the Bek Preview document, which comes to the front.</summary>
     public async Task OpenAsync(string component, string? manifest)
     {
-        Workbench.ShowToolWindow(ToolWindowId);
+        ShowPreview();
         try
         {
             await EnsurePreview().OpenAsync(component, manifest);
@@ -165,11 +184,11 @@ public sealed partial class BekModule : KarvonModule, IPreviewHost
 
     public override IEnumerable<IClaudeTool> ClaudeTools() => BekClaudeTools.Create(EnsurePreview, () => Workbench.Workspace);
 
-    /// <summary>What Claude does shows where the user would look: the Bek Preview window, beside Claude Code.</summary>
+    /// <summary>What Claude does shows where the user would look: the Bek Preview document, beside Claude Code.</summary>
     public override Task ShowClaudeToolAsync(string tool, JsonElement input, ClaudeToolOutput output)
     {
         if (tool is "bek_preview_open" or "bek_preview_act")
-            Workbench.ShowToolWindowBesideClaude(ToolWindowId);
+            ShowPreview();
         return Task.CompletedTask;
     }
 

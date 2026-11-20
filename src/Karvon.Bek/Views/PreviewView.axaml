@@ -53,7 +53,8 @@
       <TextBlock Name="TimingText" Text="{Binding Timing}" Classes="dkMuted" FontSize="11" />
     </StackPanel>
 
-    <Border DockPanel.Dock="Bottom" Height="150" BorderBrush="#3F3F46" BorderThickness="0,1,0,0">
+    <!-- The log beside the phone: a document is wide, and the phone keeps the whole height. -->
+    <Border DockPanel.Dock="Right" Width="380" BorderBrush="#3F3F46" BorderThickness="1,0,0,0">
       <ListBox Name="LogList" Classes="log" ItemsSource="{Binding Log}" Background="Transparent"
                FontFamily="{StaticResource VsCodeFont}" FontSize="11.5" />
     </Border>

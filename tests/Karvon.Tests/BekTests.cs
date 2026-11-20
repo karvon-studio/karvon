@@ -284,6 +284,64 @@ public class BekTests
         }
     }
 
+    /// <summary>
+    /// The preview is a document, so that Claude's calls show it beside the conversation: a tool window at the side shares
+    /// Claude Code's group, and Claude's calls never hide the conversation. Closed, it stops its app; asked for again, it comes back.
+    /// </summary>
+    [AvaloniaFact]
+    public async Task Claudes_calls_show_the_preview_as_a_document_beside_the_conversation()
+    {
+        var vm = NewViewModel();
+        var module = vm.AllModules.OfType<BekModule>().Single();
+        Assert.Empty(module.ToolWindows);
+        Assert.Null(vm.Documents.OfType<PreviewDocument>().FirstOrDefault());
+
+        await module.ShowClaudeToolAsync("bek_preview_screen", Args(new { }), new("read"));
+        Assert.Null(vm.Documents.OfType<PreviewDocument>().FirstOrDefault());
+        await module.ShowClaudeToolAsync("bek_preview_open", Args(new { component = "counter.wasm" }), new("opened"));
+        var document = Assert.IsType<PreviewDocument>(vm.ActiveDocument);
+        Assert.Equal("Bek Preview", document.Title);
+        Assert.Same(module.EnsurePreview(), document.Preview);
+
+        // A second call brings the same one to the front, after the user went to another.
+        vm.ActiveDocument = null;
+        await module.ShowClaudeToolAsync("bek_preview_act", Args(new { action = "back" }), new("back"));
+        Assert.Same(document, vm.ActiveDocument);
+
+        // Closed by the user: shown again as a new one.
+        ((Karvon.Modules.IWorkbench)vm).CloseDocument(document);
+        Assert.DoesNotContain(document, vm.Documents);
+        await module.ShowClaudeToolAsync("bek_preview_open", Args(new { component = "counter.wasm" }), new("opened"));
+        Assert.IsType<PreviewDocument>(vm.ActiveDocument);
+        Assert.NotSame(document, vm.ActiveDocument);
+    }
+
+    /// <summary>In Karvon's window, with bek-preview itself (KARVON_BEK_COMPONENT): the app in the document well, beside Claude Code.</summary>
+    [AvaloniaFact]
+    public async Task An_app_opened_in_Karvon_is_in_the_document_well_beside_Claude_Code()
+    {
+        var component = Environment.GetEnvironmentVariable("KARVON_BEK_COMPONENT");
+        Assert.SkipUnless(component is { Length: > 0 } && File.Exists(component) && PreviewProcess.Find() is not null,
+            "Set KARVON_BEK_COMPONENT to bek-sdk's counter example (cargo xtask examples), with bek-preview installed, to run it.");
+        var vm = NewViewModel();
+        var window = new Karvon.Views.MainWindow { DataContext = vm, Width = 1500, Height = 950 };
+        window.Show();
+        var module = vm.AllModules.OfType<BekModule>().Single();
+        try
+        {
+            await module.OpenAsync(component!, null);
+            var document = Assert.IsType<PreviewDocument>(vm.ActiveDocument);
+            await WaitUntil(() => document.Preview.Screen is not null, TimeSpan.FromSeconds(30));
+            Assert.Equal("Counter · Bek Preview", document.Title);
+            Assert.True(File.Exists(Snapshot(window, "bek-preview-document")));
+        }
+        finally
+        {
+            await module.DisposeAsync();
+            window.Close();
+        }
+    }
+
     /// <summary>bek-preview itself, with an app's component KARVON_BEK_COMPONENT names (bek-sdk's examples/counter: a count and "Add one").</summary>
     [AvaloniaFact]
     public async Task An_app_is_shown_tapped_and_shown_again()
