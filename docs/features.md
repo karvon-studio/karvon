@@ -371,6 +371,18 @@ a sign-in ask first. A confirm or prompt a page shows is turned down, an alert c
 
 Your `$SHELL` in a real pty, in the solution folder; a console app's own console while it runs (see Build and run).
 
+## Bek Preview (View > Bek Preview)
+
+An app of Bek OS's phone (a WebAssembly component of its world) runs in the tool window as the phone runs it, without an
+emulator: bek-preview, bek-sdk's tool (`cargo install --git https://github.com/bek-family/bek-sdk bek-preview`), draws its
+page with the phone's own code. Solution Explorer's **Preview on the Phone** opens a component (`.wasm`), or an app's
+folder (its `manifest` beside a `cargo build --target wasm32-wasip2`). A click taps, a drag or the wheel scrolls, keys
+type into the field in focus, Esc is Back; Dark, the phone's language and the page's size change how it shows; a new
+build of the component starts it again at once, its store kept (Reset empties it). Its log is under it, and in Output
+(Bek Preview); its elements with their boxes and styles, and its store, are in bek-preview's page in the browser.
+Claude Code's `bek_preview_open`, `bek_preview_screen` (with the page's nodes), `bek_preview_act` and `bek_preview_log`
+see and use the same preview.
+
 ## Packages
 
 Each language's packages in one Package Manager, as Visual Studio's NuGet one: Browse its registry, the Installed

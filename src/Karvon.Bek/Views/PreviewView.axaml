@@ -1,0 +1,76 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:v="using:Karvon.Views"
+             xmlns:bvm="using:Karvon.Bek.ViewModels"
+             x:Class="Karvon.Bek.Views.PreviewView"
+             x:DataType="bvm:PreviewViewModel">
+  <UserControl.Styles>
+    <StyleInclude Source="avares://Karvon.Core/Themes/ExplorerStyles.axaml" />
+    <Style Selector="ComboBox.setting">
+      <Setter Property="MinHeight" Value="22" />
+      <Setter Property="Padding" Value="6,0" />
+      <Setter Property="FontSize" Value="11.5" />
+      <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+    <Style Selector="ListBox.log ListBoxItem">
+      <Setter Property="Padding" Value="8,1" />
+      <Setter Property="MinHeight" Value="0" />
+    </Style>
+  </UserControl.Styles>
+
+  <DockPanel>
+    <Border DockPanel.Dock="Top" Padding="4,2">
+      <WrapPanel Orientation="Horizontal">
+        <Button Name="OpenButton" Classes="tbi" Command="{Binding OpenCommand}" ToolTip.Tip="Preview an App's Component…">
+          <v:VsIcon Kind="Plus" />
+        </Button>
+        <Button Name="ReloadButton" Classes="tbi" Command="{Binding ReloadCommand}" ToolTip.Tip="Start Again (its store kept)">
+          <v:VsIcon Kind="Refresh" />
+        </Button>
+        <Button Name="ResetButton" Classes="tbi" Command="{Binding ResetCommand}" ToolTip.Tip="Start Again with Its Store Emptied">
+          <v:VsIcon Kind="Trash" />
+        </Button>
+        <Button Name="BackButton" Classes="tbi" Command="{Binding BackCommand}" ToolTip.Tip="Back (Esc)">
+          <TextBlock Text="◁" FontSize="12" />
+        </Button>
+        <Button Name="StopButton" Classes="tbi" Command="{Binding StopCommand}" ToolTip.Tip="Stop">
+          <v:VsIcon Kind="Stop" />
+        </Button>
+        <Button Name="BrowserButton" Classes="tbi" Command="{Binding OpenInBrowserCommand}" ToolTip.Tip="Elements, Styles and Store in the Browser">
+          <v:VsIcon Kind="Globe" />
+        </Button>
+        <ToggleButton Name="DarkButton" IsChecked="{Binding Dark}" IsEnabled="{Binding HasApp}" Content="Dark" FontSize="11.5"
+                      Padding="8,1" Margin="6,0,2,0" VerticalAlignment="Center" ToolTip.Tip="The Dark Theme" />
+        <ComboBox Name="LocaleBox" Classes="setting" ItemsSource="{x:Static bvm:PreviewViewModel.Locales}" SelectedItem="{Binding Locale}"
+                  IsEnabled="{Binding HasApp}" ToolTip.Tip="The Phone's Language" Margin="2,0" />
+        <ComboBox Name="SizeBox" Classes="setting" ItemsSource="{x:Static bvm:PreviewViewModel.Sizes}" SelectedItem="{Binding Size}"
+                  IsEnabled="{Binding HasApp}" ToolTip.Tip="The Page's Size" Margin="2,0" />
+      </WrapPanel>
+    </Border>
+
+    <StackPanel DockPanel.Dock="Top" Margin="10,2,10,4" IsVisible="{Binding HasApp}">
+      <TextBlock Name="TitleText" Text="{Binding Title}" FontWeight="SemiBold" />
+      <TextBlock Name="TimingText" Text="{Binding Timing}" Classes="dkMuted" FontSize="11" />
+    </StackPanel>
+
+    <Border DockPanel.Dock="Bottom" Height="150" BorderBrush="#3F3F46" BorderThickness="0,1,0,0">
+      <ListBox Name="LogList" Classes="log" ItemsSource="{Binding Log}" Background="Transparent"
+               FontFamily="{StaticResource VsCodeFont}" FontSize="11.5" />
+    </Border>
+
+    <Panel>
+      <TextBlock Name="MessageText" Text="{Binding Message}" IsVisible="{Binding !HasApp}" TextWrapping="Wrap" Margin="16" Classes="dkMuted" />
+      <Viewbox IsVisible="{Binding HasApp}" Margin="12" Stretch="Uniform" StretchDirection="DownOnly">
+        <!-- The phone around the page: its status bar above it, its navigation bar below. -->
+        <Border Background="#0C0C0E" CornerRadius="22" Padding="8,26,8,34" BorderBrush="#3F3F46" BorderThickness="1">
+          <Panel>
+            <Image Name="ScreenImage" Source="{Binding Screen}" Stretch="None" Focusable="True" Cursor="Hand" />
+            <Border Name="ErrorPanel" IsVisible="{Binding Error, Converter={x:Static ObjectConverters.IsNotNull}}" Background="#E6140000">
+              <TextBlock Text="{Binding Error}" Foreground="#FFD7D5" TextWrapping="Wrap" Margin="20" FontFamily="{StaticResource VsCodeFont}" />
+            </Border>
+          </Panel>
+        </Border>
+      </Viewbox>
+    </Panel>
+  </DockPanel>
+</UserControl>

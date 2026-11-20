@@ -68,6 +68,7 @@ src/Karvon.Java/        module: Java (jdtls with java-debug in it, Maven's and G
 src/Karvon.Kotlin/      module: Kotlin (JetBrains' kotlin-lsp and its debugger, Gradle's tests in Test Explorer, a template)
 src/Karvon.Jwc/         module: JWC (jwc lsp, jwc fmt, jwc check/build/lint/serve/run, jwc test in Test Explorer, a grammar and an icon)
 src/Karvon.Arche/       module: Arche (arche-lsp, arche-driver build/run/clean, arche-test in Test Explorer, a grammar and an icon)
+src/Karvon.Bek/         module: Bek OS apps previewed live by bek-preview (bek-sdk), Claude's preview tools
 src/Karvon.Claude/      module: Claude Code (its session, protocol and view model, and the panel)
 external/bengine/       Bengine (submodule): the schema AST and the live-database layer the Database Explorer uses
 ```
