@@ -57,6 +57,14 @@ public interface IWorkbench
     Task<ProgramConsole> StartInConsoleAsync(WorkspaceTask task);
 
     /// <summary>
+    /// A program of this computer (whatever machine the workspace is on) in a console of its own in the Terminal window, with
+    /// these variables besides (null: without that one). One that runs in the console is not ended for it.
+    /// </summary>
+    /// <exception cref="InvalidOperationException">A program runs in the console, or this one could not start.</exception>
+    Task<ProgramConsole> StartHereInConsoleAsync(string name, string program, IReadOnlyList<string> arguments, string folder,
+        IReadOnlyDictionary<string, string?> variables);
+
+    /// <summary>
     /// The Package Manager of one of the module's projects (npm's of a package.json folder), as Visual Studio's NuGet
     /// Package Manager is: the one open, else a new one.
     /// </summary>

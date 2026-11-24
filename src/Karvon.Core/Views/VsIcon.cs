@@ -38,7 +38,7 @@ public sealed class VsIcon : Control
         "Dependencies", "Package", "Framework", "cs", "razor", "css", "js", "json", "xml", "html", "sql", "md", "proto",
         "yaml", "image", "binary", "file", "CloneRepository", "OpenProject", "NewProject", "FsProject", "VbProject", "ArrowRight",
         "Claude", "History", "Send", "Copy", "Eye", "EyeOff", "Attach", "Hand", "CodeBrackets", "PlanDoc", "Bolt", "Gauge", "Plug", "Check",
-        "Sparkle", "FileCode", "ChevronUp", "GitCommit", "Repo", "Globe", "ShieldOff", "Remote", "HotReload",
+        "Sparkle", "FileCode", "ChevronUp", "GitCommit", "Repo", "Globe", "User", "ShieldOff", "Remote", "HotReload",
         "Docker", "DockerContainer", "DockerStack", "DockerImage", "DockerVolume", "DockerNetwork", "DockerPlay", "DockerStop", "DockerRestart",
         "DockerPause", "DockerDelete", "DockerMore", "DockerLink", "DockerBack", "DockerTerminal", "DockerLogs", "DockerStats", "DockerInspect",
         "ToolExplorer", "ToolTests", "ToolGit", "ToolDatabase", "ToolErrors", "ToolOutput", "ToolFind", "ToolLocals", "ToolCallStack", "ToolImmediate", "ToolCoverage", "ToolTerminal",
@@ -651,6 +651,10 @@ public sealed class VsIcon : Control
                 break;
             case "Globe":
                 Line(dc, "M12 2a10 10 0 1 0 0 20a10 10 0 1 0 0-20z M2 12h20 M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z", fg, 1.6);
+                break;
+            case "User":
+                // A person: head and shoulders.
+                Stroke(dc, "M8,2 A2.9,2.9 0 1 0 8,7.8 A2.9,2.9 0 1 0 8,2 Z M2.5,14.5 C2.5,11.3 5,9.6 8,9.6 C11,9.6 13.5,11.3 13.5,14.5", fg, 1.2);
                 break;
             case "Bolt":
                 Stroke(dc, "M9,1.5 L3.5,9 L8,9 L7,14.5 L12.5,7 L8,7 Z", fg, 1.1);

@@ -228,7 +228,7 @@ public sealed partial class ClaudeViewModel : ObservableObject, IAsyncDisposable
             var session = await ClaudeSession.StartAsync(new ClaudeStartOptions(CliPath!, cwd, SelectedModel?.Value, PermissionMode, _resumeId, SelectedAccount, Tools, McpServersFor(cwd),
                 _settings.ClaudeKeepSecretsAway, _settings.ClaudeSandbox, WorkspaceTrust.IsTrusted(_settings.TrustedFolders, cwd),
                 Path.Combine(Settings.ConfigDirectory, "audit"), _settings.ClaudeScanRequests,
-                _settings.SandboxFor(cwd, ClaudeSandbox.ShellSnapshots(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile)))));
+                _settings.SandboxFor(cwd, ClaudeSandbox.ShellSnapshots(SelectedAccount?.ConfigDirectory ?? ClaudeCli.ConfigDirectory))));
             session.Event += ev => Dispatcher.UIThread.Post(() => Handle(session, ev));
             _session = session;
             _sessionCwd = cwd;

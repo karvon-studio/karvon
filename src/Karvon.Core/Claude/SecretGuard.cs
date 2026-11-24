@@ -182,7 +182,21 @@ public static class SecretFiles
     public static IEnumerable<string> UserPlaces(string home) =>
         Folders.Concat(Files).Append(".ssh").Select(p => Path.GetFullPath(Path.Combine(home, p)))
             .Append(Path.GetFullPath(Karvon.Services.Settings.ConfigDirectory))
+            .Concat(ClaudeSignIns(home))
             .Distinct(OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal);
+
+    /// <summary>The sign-ins of Claude Code's other accounts (~/.claude-NAME).</summary>
+    static IEnumerable<string> ClaudeSignIns(string home)
+    {
+        try
+        {
+            return [.. Directory.EnumerateDirectories(home, ".claude-*").Select(folder => Path.GetFullPath(Path.Combine(folder, ".credentials.json")))];
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            return [];
+        }
+    }
 
     public static bool IsSecret(string path)
     {

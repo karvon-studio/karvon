@@ -45,7 +45,8 @@ public static class ClaudeSandbox
     });
 
     /// <summary>What Claude Code's shell reads besides, in Karvon's strict sandbox: its snapshot of the user's shell, run before each command.</summary>
-    public static IEnumerable<string> ShellSnapshots(string home) => [Path.Combine(home, ".claude", "shell-snapshots")];
+    /// <param name="configDirectory">The account's folder (~/.claude).</param>
+    public static IEnumerable<string> ShellSnapshots(string configDirectory) => [Path.Combine(configDirectory, "shell-snapshots")];
 
     /// <summary>The settings Claude Code is given with --settings.</summary>
     public static string Settings() => JsonSerializer.Serialize(new

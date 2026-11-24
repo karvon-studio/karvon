@@ -318,7 +318,8 @@ public partial class MainViewModel
         try
         {
             var (prepared, program, environment) = PrepareTask(task);
-            (_, exited) = await OpenProgramConsoleAsync(task.Name, program, prepared.Arguments, prepared.WorkingDirectory, environment);
+            (_, exited) = await OpenProgramConsoleAsync(task.Name, program, prepared.Arguments, prepared.WorkingDirectory,
+                environment.ToDictionary(v => v.Key, v => (string?)v.Value));
         }
         catch (Exception ex) when (IsStartFailure(ex))
         {

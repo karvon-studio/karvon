@@ -49,7 +49,7 @@ public class LiveStrictSandboxTests
         var project = Directory.CreateTempSubdirectory("karvon-strict-").FullName;
         File.WriteAllText(Path.Combine(project, "Program.cs"), "Console.WriteLine(\"Hello\");");
         var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-        var sandbox = new ProjectSandbox(project, extraReadable: ClaudeSandbox.ShellSnapshots(home));
+        var sandbox = new ProjectSandbox(project, extraReadable: ClaudeSandbox.ShellSnapshots(Path.Combine(home, ".claude")));
         Environment.SetEnvironmentVariable("ANTHROPIC_API_KEY", key);
         try
         {

@@ -53,6 +53,16 @@ if ARGS[:2] == ["mcp", "add"]:
     print(f"Added {transport} MCP server {name} to {scope} config")
     sys.exit(0)
 
+# `claude auth login`: its account's folder (CLAUDE_CONFIG_DIR) is signed in to, unless the folder's name says the user gives up.
+if ARGS[:2] == ["auth", "login"]:
+    print("Opening browser to sign in...")
+    if os.path.basename(CONFIG).endswith("-giveup"):
+        sys.exit(1)
+    with open(os.path.join(CONFIG, ".claude.json"), "w", newline="") as f:
+        json.dump({"oauthAccount": {"emailAddress": os.path.basename(CONFIG) + "@example.com"}, "cwd": os.getcwd()}, f)
+    print("Login successful.")
+    sys.exit(0)
+
 # `claude -p ...` (a one-shot prompt on stdin, as Git Changes' commit message): the prompt is kept next to the config for
 # the tests, and the answer is a message wrapped the way a model might wrap it, with a trailer Karvon must remove.
 if ARGS[:1] == ["-p"]:
@@ -785,6 +795,7 @@ def turn(prompt, content, sent=None):
 
 
 log("argv", ARGS)
+log("config", CONFIG)
 # The names of the variables it was started with (never their values).
 log("env", sorted(os.environ))
 while True:

@@ -53,7 +53,7 @@ public partial class MainViewModel
 
     /// <summary>A program in a console of its own (the one there before closed): started, its exit to come.</summary>
     async Task<(TerminalSession Console, Task<int> Exited)> OpenProgramConsoleAsync(string name, string program, IReadOnlyList<string> arguments,
-        string workingDirectory, IReadOnlyDictionary<string, string> environment)
+        string workingDirectory, IReadOnlyDictionary<string, string?> environment)
     {
         await CloseProgramConsoleAsync();
         var exited = _consoleExited = new TaskCompletionSource<int>(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -61,7 +61,7 @@ public partial class MainViewModel
         {
             Name = name,
             WorkingDirectory = workingDirectory,
-            Variables = environment.ToDictionary(v => v.Key, v => (string?)v.Value),
+            Variables = environment,
             RestartHint = "Press Enter to close this console.",
             EnterAfterExit = () => _ = CloseProgramConsoleAsync(),
         };

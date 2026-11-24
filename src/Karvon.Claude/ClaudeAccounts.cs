@@ -35,7 +35,7 @@ public static class ClaudeAccounts
 {
     const string Prefix = ".claude-";
 
-    static string Home => Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+    static string Home => Services.UserHome.Path;
 
     public static string DefaultDirectory => Path.Combine(Home, ".claude");
 

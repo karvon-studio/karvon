@@ -453,6 +453,15 @@
               <TextBlock Text="{Binding Code, Source={x:Static c:ClaudeLanguage.Instance}}" FontSize="11" FontWeight="SemiBold" VerticalAlignment="Center" />
             </StackPanel>
           </Button>
+          <!-- The account conversations run with (~/.claude, ~/.claude-NAME...): its name, once there are several. -->
+          <Button Name="AccountsButton" Classes="tbi" Width="NaN" Padding="5,0" IsVisible="{Binding IsClaude}" Command="{Binding ToggleAccountsCommand}"
+                  ToolTip.Tip="{v:L 'Switch or add a Claude account'}">
+            <StackPanel Orientation="Horizontal" Spacing="4">
+              <v:VsIcon Kind="User" Width="14" Height="14" />
+              <TextBlock Name="AccountText" Text="{v:Tr AccountName}" IsVisible="{Binding HasSeveralAccounts}" FontSize="11" MaxWidth="84"
+                         TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+            </StackPanel>
+          </Button>
           <Button Name="RemoteControlButton" Classes="tbi" IsVisible="{Binding IsClaude}" Classes.remoteOn="{Binding IsRemoteControlActive}" Command="{Binding ToggleRemoteControlCommand}"
                   ToolTip.Tip="{v:Tr RemoteControlTip}">
             <v:VsIcon Kind="Remote" />
@@ -1069,6 +1078,65 @@
       </Border>
     </Panel>
   </DockPanel>
+
+    <!-- ===== Accounts menu (under the header) ===== -->
+    <Panel IsVisible="{Binding IsAccountsOpen}">
+      <Border Background="Transparent" PointerPressed="OnBackdropPressed" />
+      <Border Name="AccountsMenu" Classes="menuCard" VerticalAlignment="Top" HorizontalAlignment="Right" Margin="10,36,10,10" MaxWidth="330">
+        <DockPanel>
+          <TextBlock DockPanel.Dock="Top" Text="{v:L 'Accounts'}" Classes="muted" FontSize="12" Margin="12,9,12,4" />
+          <StackPanel DockPanel.Dock="Bottom">
+            <Border Height="1" Background="#3A3A3D" Margin="0,4" />
+            <TextBlock Text="{v:L 'Add an account'}" FontWeight="SemiBold" FontSize="12" Margin="12,6,12,2" />
+            <TextBlock Text="{v:L 'Each account gets its own folder (~/.claude-NAME), like CLAUDE_CONFIG_DIR in a terminal. You sign in once in the terminal that opens.'}"
+                       Classes="muted" FontSize="11" TextWrapping="Wrap" Margin="12,0,12,6" />
+            <Grid ColumnDefinitions="*,Auto" Margin="12,0,12,10">
+              <TextBox Name="NewAccountBox" Classes="feedback" Text="{Binding NewAccountName}" PlaceholderText="{v:L 'Name, e.g. work'}">
+                <TextBox.KeyBindings>
+                  <KeyBinding Gesture="Enter" Command="{Binding AddAccountCommand}" />
+                </TextBox.KeyBindings>
+              </TextBox>
+              <Button Name="AddAccountButton" Grid.Column="1" Classes="pill" Content="{v:L 'Add'}" Margin="6,0,0,0" Command="{Binding AddAccountCommand}" />
+            </Grid>
+            <TextBlock Name="AccountMessageText" Text="{v:Tr AccountMessage}" Foreground="#F48771" FontSize="11" TextWrapping="Wrap" Margin="12,0,12,10"
+                       IsVisible="{Binding AccountMessage, Converter={x:Static ObjectConverters.IsNotNull}}" />
+          </StackPanel>
+          <ScrollViewer>
+            <ItemsControl Name="AccountsList" ItemsSource="{Binding Accounts}">
+              <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="c:ClaudeAccount">
+                  <Grid ColumnDefinitions="*,Auto">
+                    <Button Classes="menuRow" Command="{Binding $parent[UserControl].((vm:ClaudeViewModel)DataContext).SelectAccountCommand}" CommandParameter="{Binding}">
+                      <Grid ColumnDefinitions="Auto,*,Auto">
+                        <Border Width="26" Height="26" CornerRadius="13" Background="#33D97757" Margin="0,0,10,0">
+                          <v:VsIcon Kind="User" Width="14" Height="14" Foreground="#D97757" />
+                        </Border>
+                        <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                          <TextBlock Text="{v:Tr Name}" FontSize="13" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                          <TextBlock Text="{v:Tr Detail}" Classes="muted" FontSize="11" TextTrimming="CharacterEllipsis" />
+                        </StackPanel>
+                        <v:VsIcon Grid.Column="2" Kind="Check" Width="14" Height="14" Margin="8,0,0,0" VerticalAlignment="Center" Foreground="#E0E0E0">
+                          <v:VsIcon.IsVisible>
+                            <MultiBinding Converter="{x:Static v:SameAccountConverter.Instance}">
+                              <Binding />
+                              <Binding Path="$parent[UserControl].((vm:ClaudeViewModel)DataContext).SelectedAccount" />
+                            </MultiBinding>
+                          </v:VsIcon.IsVisible>
+                        </v:VsIcon>
+                      </Grid>
+                    </Button>
+                    <Button Grid.Column="1" Classes="pill" Content="{v:L 'Sign in'}" FontSize="11" Margin="0,0,8,0" VerticalAlignment="Center"
+                            IsVisible="{Binding $parent[UserControl].((vm:ClaudeViewModel)DataContext).CanSignIn}"
+                            ToolTip.Tip="{v:L 'Open the Claude CLI for this account in a terminal to sign in'}"
+                            Command="{Binding $parent[UserControl].((vm:ClaudeViewModel)DataContext).SignInCommand}" CommandParameter="{Binding}" />
+                  </Grid>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+          </ScrollViewer>
+        </DockPanel>
+      </Border>
+    </Panel>
 
     <!-- ===== Modes menu (above the prompt) ===== -->
     <Panel IsVisible="{Binding IsModesOpen}">

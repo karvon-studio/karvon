@@ -438,8 +438,9 @@ never the key.
 Drives your installed `claude` CLI, so your login, settings and MCP servers apply.
 Streamed answers, tool calls with inline diffs, approvals, questions and plans, modes (Bypass permissions among
 them) and effort, usage, MCP servers, images, `/` commands and `@` files, past conversations, conversations that
-keep working in the background, Remote Control (go on from claude.ai or the Claude app), Ask Claude from Solution
-Explorer; English or O‘zbekcha. Old conversations open at their last message, compaction summaries and long
+keep working in the background, Remote Control (go on from claude.ai or the Claude app), several accounts (each
+`~/.claude-NAME` folder is one beside `~/.claude`, as with `CLAUDE_CONFIG_DIR` in a terminal: chosen, added and signed in
+to, by `claude auth login` in the Terminal window, from the header), Ask Claude from Solution Explorer; English or O‘zbekcha. Old conversations open at their last message, compaction summaries and long
 prompts fold.
 Claude gets Karvon's own tools (`mcp__karvon__*`, an MCP server inside Karvon): the build and the tests (`run_build`,
 `build_errors`, `run_tests`, `test_failures`, `test_coverage`), running the app as Ctrl+F5 does (`app_control`: start, stop, restart,

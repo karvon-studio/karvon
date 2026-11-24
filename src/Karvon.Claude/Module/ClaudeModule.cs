@@ -59,6 +59,7 @@ public sealed class ClaudeModule : AgentPanelModule, IClaudeService
             McpServers = cwd => ExtraMcpServers?.Invoke(cwd),
         };
         Wire(claude, ToolWindowId, "Claude Code", () => "Claude", "claude");
+        claude.SignInWith = account => SignInAsync(claude, account);
         // Another account has other servers (its own .claude.json) and its own skills.
         claude.PropertyChanged += (_, e) =>
         {
@@ -66,6 +67,21 @@ public sealed class ClaudeModule : AgentPanelModule, IClaudeService
                 Changed?.Invoke();
         };
         return claude;
+    }
+
+    /// <summary>
+    /// The CLI's own sign-in to an account, in a console of the Terminal window: the browser opens, its code may be pasted
+    /// there. Away from the folder: what a repository has for Claude Code plays no part in it.
+    /// </summary>
+    async Task<int> SignInAsync(ClaudeViewModel claude, ClaudeAccount account)
+    {
+        var console = await Workbench.StartHereInConsoleAsync($"Claude Code: {account.Name}", claude.CliPath!, ["auth", "login"],
+            Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), new Dictionary<string, string?>
+            {
+                ["CLAUDECODE"] = null,
+                ["CLAUDE_CONFIG_DIR"] = account.IsDefault ? null : account.ConfigDirectory,
+            });
+        return await console.Exited;
     }
 
     /// <summary>Another folder: the conversation runs there; a solution opened gets back the conversation it had.</summary>

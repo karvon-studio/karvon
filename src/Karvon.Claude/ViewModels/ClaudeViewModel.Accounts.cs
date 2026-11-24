@@ -13,6 +13,12 @@ public sealed partial class ClaudeViewModel
 {
     bool _loadingAccounts;
 
+    /// <summary>The last switch to another account: its fresh conversation.</summary>
+    Task _switching = Task.CompletedTask;
+
+    /// <summary>The account chosen is signed in to first: no CLI of its starts meanwhile (both would write its settings).</summary>
+    bool _signInFirst;
+
     public ObservableCollection<ClaudeAccount> Accounts { get; } = [];
 
     /// <summary>The account conversations run with; changing it starts a fresh conversation there.</summary>
@@ -35,10 +41,10 @@ public sealed partial class ClaudeViewModel
     [ObservableProperty]
     public partial string? AccountMessage { get; set; }
 
-    /// <summary>Sign in to an account: the host opens the CLI for it in a terminal (it has no headless sign-in).</summary>
-    public event Action<ClaudeAccount>? SignInRequested;
+    /// <summary>The CLI's own sign-in to an account, where the host can show it (a terminal), until it ends: its exit code.</summary>
+    public Func<ClaudeAccount, Task<int>>? SignInWith { get; set; }
 
-    public bool CanSignIn => SignInRequested is not null;
+    public bool CanSignIn => SignInWith is not null;
 
     void LoadAccounts()
     {
@@ -59,7 +65,7 @@ public sealed partial class ClaudeViewModel
             return;
         _settings.ClaudeAccount = newValue.ConfigDirectory;
         _settings.Save();
-        _ = SwitchAccountAsync();
+        _switching = SwitchAccountAsync();
     }
 
     /// <summary>Conversations, history, usage and MCP servers belong to an account: start fresh in the new one.</summary>
@@ -72,7 +78,8 @@ public sealed partial class ClaudeViewModel
         ShowLimits([]);
         _mcpServers = [];
         McpGroups.Clear();
-        WarmUp();
+        if (!_signInFirst)
+            WarmUp();
         FocusInputRequested?.Invoke();
     }
 
@@ -88,34 +95,62 @@ public sealed partial class ClaudeViewModel
         LoadAccounts();
     }
 
+    /// <summary>The account conversations run with from now on; one not signed in yet is signed in to (not the default one: it may use an API key).</summary>
     [RelayCommand]
-    void SelectAccount(ClaudeAccount? account)
+    async Task SelectAccount(ClaudeAccount? account)
     {
         if (account is null)
             return;
         IsAccountsOpen = false;
-        if (!account.IsSignedIn && CanSignIn)
-        {
-            SelectedAccount = account;
-            SignIn(account);
-            return;
-        }
+        _signInFirst = !account.IsSignedIn && !account.IsDefault && CanSignIn;
         SelectedAccount = account;
+        await _switching;
+        if (_signInFirst)
+            await SignIn(account);
     }
 
+    /// <summary>Signs in to an account (again, when it is): the conversation goes on with it when it is the one chosen.</summary>
     [RelayCommand]
-    void SignIn(ClaudeAccount? account)
+    async Task SignIn(ClaudeAccount? account)
     {
-        if (account is null || CliPath is null)
+        CheckCli();
+        if (account is null || CliPath is null || SignInWith is not { } signIn)
             return;
-        SignInRequested?.Invoke(account);
-        AccountMessage = $"Sign in to “{account.Name}” in the terminal that opened, then pick it here again.";
-        Items.Add(new NoticeChatItem($"Signing in to the {account.Name} account in a terminal window. When you are done, send your prompt here.", isError: false));
+        IsAccountsOpen = false;
+        Items.Add(new NoticeChatItem($"Signing in to the {account.Name} account in the Terminal window: finish it in the browser that opens.", isError: false));
+        int exit;
+        try
+        {
+            exit = await signIn(account);
+        }
+        catch (Exception ex) when (ex is InvalidOperationException or IOException or System.ComponentModel.Win32Exception)
+        {
+            Items.Add(new NoticeChatItem("Could not open a terminal to sign in: " + ex.Message, isError: true));
+            return;
+        }
+        finally
+        {
+            _signInFirst = false;
+        }
+        LoadAccounts();
+        if (exit != 0 || Accounts.FirstOrDefault(a => ClaudeAccount.SamePath(a.ConfigDirectory, account.ConfigDirectory)) is not { IsSignedIn: true })
+        {
+            Items.Add(new NoticeChatItem($"The sign-in to the {account.Name} account was not finished.", isError: true));
+            return;
+        }
+        var chosen = SelectedAccount is { } selected && ClaudeAccount.SamePath(selected.ConfigDirectory, account.ConfigDirectory);
+        Items.Add(new NoticeChatItem($"Signed in to the {account.Name} account." + (chosen ? "" : " Pick it in the accounts menu to use it."), isError: false));
+        if (!chosen || IsRunning)
+            return;
+        // A CLI that started before the sign-in starts again, with the conversation it had.
+        await SettleStartingAsync();
+        await StopSessionAsync();
+        WarmUp();
     }
 
     /// <summary>Adds ~/.claude-NAME, switches to it and opens the sign-in.</summary>
     [RelayCommand]
-    void AddAccount()
+    async Task AddAccount()
     {
         ClaudeAccount account;
         try
@@ -130,6 +165,6 @@ public sealed partial class ClaudeViewModel
         NewAccountName = "";
         LoadAccounts();
         var added = Accounts.FirstOrDefault(a => ClaudeAccount.SamePath(a.ConfigDirectory, account.ConfigDirectory)) ?? account;
-        SelectAccount(added);
+        await SelectAccount(added);
     }
 }

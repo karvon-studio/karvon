@@ -541,10 +541,13 @@ public sealed class ClaudeLanguage : INotifyPropertyChanged
         (new(@"^Claude Code stopped \(exit code (-?\d+)\)\.(.*)$", RegexOptions.Singleline), m => $"Claude Code to‘xtadi (chiqish kodi {m.Groups[1].Value}).{m.Groups[2].Value}"),
         (new(@"^Usage is not available: (.+)$", RegexOptions.Singleline), m => "Limitlar mavjud emas: " + m.Groups[1].Value),
         (new(@"^MCP servers are not available: (.+)$", RegexOptions.Singleline), m => "MCP serverlar mavjud emas: " + m.Groups[1].Value),
-        (new(@"^Sign in to “(.+)” in the terminal that opened, then pick it here again\.$"), m =>
-            $"Ochilgan terminalda “{m.Groups[1].Value}” akkauntiga kiring, so‘ng uni shu yerda qayta tanlang."),
-        (new(@"^Signing in to the (.+) account in a terminal window\. When you are done, send your prompt here\.$"), m =>
-            $"{m.Groups[1].Value} akkauntiga terminal oynasida kirilmoqda. Tugatgach, so‘rovingizni shu yerda yuboring."),
+        (new(@"^Signing in to the (.+) account in the Terminal window: finish it in the browser that opens\.$"), m =>
+            $"{m.Groups[1].Value} akkauntiga Terminal oynasida kirilmoqda: ochilgan brauzerda yakunlang."),
+        (new(@"^Signed in to the (.+) account\.$"), m => $"{m.Groups[1].Value} akkauntiga kirildi."),
+        (new(@"^Signed in to the (.+) account\. Pick it in the accounts menu to use it\.$"), m =>
+            $"{m.Groups[1].Value} akkauntiga kirildi. Ishlatish uchun uni akkauntlar menyusidan tanlang."),
+        (new(@"^The sign-in to the (.+) account was not finished\.$"), m => $"{m.Groups[1].Value} akkauntiga kirish yakunlanmadi."),
+        (new(@"^Could not open a terminal to sign in: (.+)$", RegexOptions.Singleline), m => "Kirish uchun terminal ochilmadi: " + m.Groups[1].Value),
         (new(@"^(.+) is not a PNG, JPEG, GIF or WebP image\.$"), m => $"{m.Groups[1].Value} PNG, JPEG, GIF yoki WebP rasm emas."),
         (new(@"^(.+) is larger than 5 MB\.$"), m => $"{m.Groups[1].Value} 5 MB dan katta."),
         (new(@"^Could not paste: (.+)$"), m => "Joylab bo‘lmadi: " + m.Groups[1].Value),

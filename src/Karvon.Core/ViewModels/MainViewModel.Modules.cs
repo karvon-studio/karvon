@@ -166,7 +166,18 @@ public partial class MainViewModel : IWorkbench
     async Task<ProgramConsole> IWorkbench.StartInConsoleAsync(WorkspaceTask task)
     {
         var (prepared, program, environment) = PrepareTask(task);
-        var (console, exited) = await OpenProgramConsoleAsync(task.Name, program, prepared.Arguments, prepared.WorkingDirectory, environment);
+        var (console, exited) = await OpenProgramConsoleAsync(task.Name, program, prepared.Arguments, prepared.WorkingDirectory,
+            environment.ToDictionary(v => v.Key, v => (string?)v.Value));
+        return new ProgramConsole(console.ProcessId!.Value, exited);
+    }
+
+    async Task<ProgramConsole> IWorkbench.StartHereInConsoleAsync(string name, string program, IReadOnlyList<string> arguments, string folder,
+        IReadOnlyDictionary<string, string?> variables)
+    {
+        if (ProgramConsole is { IsAlive: true } busy)
+            throw new InvalidOperationException($"{busy.Name} runs in the Terminal window's console: end it first.");
+        var (console, exited) = await OpenProgramConsoleAsync(name, program, arguments, folder, variables);
+        Avalonia.Threading.Dispatcher.UIThread.Post(() => console.Control.Focus(), Avalonia.Threading.DispatcherPriority.Loaded);
         return new ProgramConsole(console.ProcessId!.Value, exited);
     }
 
