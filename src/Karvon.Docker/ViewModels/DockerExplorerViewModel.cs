@@ -145,7 +145,7 @@ public sealed partial class DockerExplorerViewModel : ObservableObject, IDisposa
     [NotifyPropertyChangedFor(nameof(VersionText), nameof(MachineText))]
     public partial DockerInfo? Info { get; set; }
 
-    public string VersionText => Info is { Version.Length: > 0 } info ? $"{Engine.Name} {info.Version}" : Engine.Name;
+    public string VersionText => (Info is { Version.Length: > 0 } info ? $"{Engine.Name} {info.Version}" : Engine.Name) + (Engine.IsWsl ? " in WSL" : "");
 
     public string MachineText => Info is { } info
         ? string.Join(" · ", new[] { info.OperatingSystem, info.Cpus > 0 ? $"{info.Cpus} CPUs" : null, info.Memory > 0 ? DockerFormat.Size(info.Memory) : null }.Where(s => s is { Length: > 0 }))
@@ -214,13 +214,17 @@ public sealed partial class DockerExplorerViewModel : ObservableObject, IDisposa
         EngineMessage = ex.Message;
         EngineHint = ex.Problem switch
         {
+            DockerProblem.NotInstalled when Engine.IsWsl => "Install Docker Engine in WSL's default distribution, or Docker Desktop (or Podman) on Windows, or set KARVON_DOCKER_PATH to its command line, then retry.",
             DockerProblem.NotInstalled => "Install Docker Engine (or Podman), or set KARVON_DOCKER_PATH to its command line, then retry.",
+            DockerProblem.PermissionDenied when Engine.IsWsl => "Your user in WSL may not use the Docker socket. There, add it to the docker group (sudo usermod -aG docker $USER), then run wsl --shutdown in Windows and retry.",
             DockerProblem.PermissionDenied => "Your user may not use the Docker socket. Add it to the docker group (sudo usermod -aG docker $USER), sign in again, then retry.",
+            DockerProblem.NotRunning when Engine.IsWsl => "Start the Docker daemon in WSL (wsl -u root systemctl start docker). Karvon connects as soon as it is up.",
             DockerProblem.NotRunning => "Start the Docker daemon (sudo systemctl start docker), or Docker Desktop. Karvon connects as soon as it is up.",
             _ => null,
         };
-        // The rows stay, for the documents open on them; the tree and the documents say the engine is away meanwhile.
-        if (!_disposed)
+        // The rows stay, for the documents open on them; the tree and the documents say the engine is away meanwhile. A
+        // docker missing in WSL is not looked for again by itself: each look would keep WSL running.
+        if (!_disposed && !(Engine.IsWsl && ex.Problem == DockerProblem.NotInstalled))
             _retryTimer.Start();
     }
 

@@ -29,29 +29,64 @@ public sealed record DockerResult(int ExitCode, string Output, string Error)
 
 /// <summary>
 /// The container engine through its command line, as Docker Desktop's own CLI: <c>docker</c>, or <c>podman</c> when
-/// Docker is not installed (<c>KARVON_DOCKER_PATH</c> names another). Lists are read as JSON lines; events, stats and
-/// logs are long-running commands whose lines arrive as they are printed (<see cref="Stream"/>).
+/// Docker is not installed (<c>KARVON_DOCKER_PATH</c> names another); on Windows with neither, the <c>docker</c> in WSL's
+/// default distribution (<see cref="IsWsl"/>). Lists are read as JSON lines; events, stats and logs are long-running
+/// commands whose lines arrive as they are printed (<see cref="Stream"/>).
 /// </summary>
 public sealed class DockerEngine(string program)
 {
     static readonly TimeSpan DefaultTimeout = TimeSpan.FromSeconds(60);
 
+    /// <summary>
+    /// A command in WSL that ends with Karvon's: wsl.exe ended leaves what it started there running, and only closes its
+    /// input. So the command runs beside a reader of that input, which ends it.
+    /// </summary>
+    const string Follow = "exec 3<&0; \"$0\" \"$@\" </dev/null 3<&- & d=$!; { cat <&3; kill $d; } >/dev/null 2>&1 & w=$!; exec 3<&-; "
+        + "wait $d; c=$?; kill $w 2>/dev/null; exit $c";
+
     public string Program { get; } = program;
 
-    /// <summary>KARVON_DOCKER_PATH, else docker on the PATH, else podman, else "docker" (which reports it is missing).</summary>
+    /// <summary>The engine is in WSL, its docker run there by wsl.exe (<c>wsl --exec docker ...</c>: no shell takes its arguments apart).</summary>
+    public bool IsWsl { get; } = Path.GetFileNameWithoutExtension(program).Equals("wsl", StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// KARVON_DOCKER_PATH (wsl: the docker in WSL), else docker on the PATH, else podman, else on Windows the docker in WSL
+    /// when it has a distribution, else "docker" (which reports it is missing).
+    /// </summary>
     public static DockerEngine Find()
     {
         if (Environment.GetEnvironmentVariable("KARVON_DOCKER_PATH") is { Length: > 0 } path)
             return new DockerEngine(path);
-        return new DockerEngine(OnPath("docker") ? "docker" : OnPath("podman") ? "podman" : "docker");
+        return new DockerEngine(OnPath("docker") ? "docker" : OnPath("podman") ? "podman" : OperatingSystem.IsWindows() && HasWsl() ? "wsl.exe" : "docker");
+    }
+
+    /// <summary>WSL has a distribution (wsl.exe alone is on every Windows).</summary>
+    [System.Runtime.Versioning.SupportedOSPlatform("windows")]
+    static bool HasWsl()
+    {
+        try
+        {
+            using var key = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(@"Software\Microsoft\Windows\CurrentVersion\Lxss");
+            return key?.GetValue("DefaultDistribution") is string { Length: > 0 } && OnPath("wsl");
+        }
+        catch (Exception ex) when (ex is System.Security.SecurityException or UnauthorizedAccessException or IOException)
+        {
+            return false;
+        }
     }
 
     static bool OnPath(string name) =>
         (Environment.GetEnvironmentVariable("PATH") ?? "").Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries)
             .Any(folder => File.Exists(Path.Combine(folder, name)) || File.Exists(Path.Combine(folder, name + ".exe")));
 
-    /// <summary>The command line's name: docker, podman (docker.exe's on Windows too).</summary>
-    public string Name => Path.GetFileNameWithoutExtension(Program);
+    /// <summary>The command line's name: docker, podman (docker.exe's on Windows too; WSL's is docker).</summary>
+    public string Name => IsWsl ? "docker" : Path.GetFileNameWithoutExtension(Program);
+
+    /// <summary><see cref="Program"/>'s arguments for the engine's command <paramref name="args"/>.</summary>
+    public IReadOnlyList<string> Command(IEnumerable<string> args) => IsWsl ? ["--exec", Name, .. args] : [.. args];
+
+    /// <summary>A path of this computer as the engine says it: in WSL its place there, else as it is (as a volume's name is).</summary>
+    public string InEngine(string path) => IsWsl && WslPaths.ToLinux(path) is { } there ? there : path;
 
     // ---- Running ------------------------------------------------------------------------------------------------
 
@@ -68,12 +103,16 @@ public sealed class DockerEngine(string program)
         {
             throw new DockerException($"{Name} is not installed or not on the PATH ({ex.Message}).", DockerProblem.NotInstalled);
         }
+        if (IsWsl)
+            process.StandardInput.Close();
         var output = new StringBuilder();
         var error = new StringBuilder();
         async Task Read(StreamReader reader, StringBuilder into)
         {
             while (await reader.ReadLineAsync(CancellationToken.None) is { } line)
             {
+                if (IsWsl && into == error && IsWslNote(line))
+                    continue;
                 lock (into)
                     into.Append(line).Append('\n');
                 onLine?.Invoke(line);
@@ -106,9 +145,14 @@ public sealed class DockerEngine(string program)
         return result.Output;
     }
 
+    /// <summary>What WSL itself says beside a command's own words (a proxy it does not mirror...).</summary>
+    internal static bool IsWslNote(string line) => line.StartsWith("wsl: ", StringComparison.Ordinal);
+
     /// <summary>The engine's error, told apart: the daemon is not running, or the user may not use its socket.</summary>
     public DockerException Failure(string message)
     {
+        if (IsWsl && message.Contains("execvpe(", StringComparison.Ordinal))
+            return new DockerException("docker is not on the PATH, nor in WSL's default distribution (wsl --status names it).", DockerProblem.NotInstalled);
         if (message.Contains("permission denied", StringComparison.OrdinalIgnoreCase) && message.Contains(".sock", StringComparison.Ordinal))
             return new DockerException(message, DockerProblem.PermissionDenied);
         if (message.Contains("Cannot connect to the Docker daemon", StringComparison.OrdinalIgnoreCase)
@@ -128,7 +172,7 @@ public sealed class DockerEngine(string program)
     {
         try
         {
-            return new DockerStream(StartInfo(args, null), onLine, onExit);
+            return new DockerStream(StartInfo(args, null, follow: true), onLine, onExit, IsWsl);
         }
         catch (System.ComponentModel.Win32Exception ex)
         {
@@ -136,10 +180,11 @@ public sealed class DockerEngine(string program)
         }
     }
 
-    ProcessStartInfo StartInfo(IEnumerable<string> args, string? folder)
+    ProcessStartInfo StartInfo(IEnumerable<string> args, string? folder, bool follow = false)
     {
         var info = new ProcessStartInfo(Program)
         {
+            RedirectStandardInput = IsWsl,
             RedirectStandardOutput = true,
             RedirectStandardError = true,
             UseShellExecute = false,
@@ -148,7 +193,10 @@ public sealed class DockerEngine(string program)
             StandardErrorEncoding = Encoding.UTF8,
             WorkingDirectory = folder is not null && Directory.Exists(folder) ? folder : "",
         };
-        foreach (var arg in args)
+        // WSL's own words in UTF-8, as docker's are.
+        if (IsWsl)
+            info.Environment["WSL_UTF8"] = "1";
+        foreach (var arg in IsWsl && follow ? ["--exec", "sh", "-c", Follow, Name, .. args] : Command(args))
             info.ArgumentList.Add(arg);
         return info;
     }
@@ -319,7 +367,7 @@ public sealed class DockerEngine(string program)
         foreach (var (host, container) in ports)
             args.AddRange(["-p", $"{host}:{container}"]);
         foreach (var (host, container) in volumes)
-            args.AddRange(["-v", $"{host}:{container}"]);
+            args.AddRange(["-v", $"{InEngine(host)}:{container}"]);
         foreach (var (key, value) in environment)
             args.AddRange(["-e", $"{key}={value}"]);
         args.Add(image);
@@ -341,16 +389,17 @@ public sealed class DockerStream : IDisposable
     readonly Process _process = new();
     int _disposed;
 
-    internal DockerStream(ProcessStartInfo info, Action<string> onLine, Action<int>? onExit)
+    /// <param name="wsl">It runs in WSL, whose own words are not the command's; its input stays open until it is ended.</param>
+    internal DockerStream(ProcessStartInfo info, Action<string> onLine, Action<int>? onExit, bool wsl = false)
     {
         _process.StartInfo = info;
         _process.Start();
-        async Task Read(StreamReader reader)
+        async Task Read(StreamReader reader, bool errors = false)
         {
             try
             {
                 while (await reader.ReadLineAsync() is { } line)
-                    if (Volatile.Read(ref _disposed) == 0)
+                    if (Volatile.Read(ref _disposed) == 0 && !(wsl && errors && DockerEngine.IsWslNote(line)))
                         onLine(line);
             }
             catch (Exception ex) when (ex is IOException or ObjectDisposedException or InvalidOperationException)
@@ -359,7 +408,7 @@ public sealed class DockerStream : IDisposable
         }
         _ = Task.Run(async () =>
         {
-            await Task.WhenAll(Read(_process.StandardOutput), Read(_process.StandardError));
+            await Task.WhenAll(Read(_process.StandardOutput), Read(_process.StandardError, errors: true));
             int code;
             try
             {

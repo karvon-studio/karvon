@@ -182,7 +182,7 @@ public sealed partial class ContainerDetailViewModel : ObservableObject, IDispos
         if (Terminal is not null || !Row.IsRunning)
             return;
         Terminal = new TerminalSession(_explorer.Engine.Program,
-            ["exec", "-it", Row.Container.Id, "sh", "-c", "if command -v bash >/dev/null 2>&1; then exec bash; else exec sh; fi"])
+            _explorer.Engine.Command(["exec", "-it", Row.Container.Id, "sh", "-c", "if command -v bash >/dev/null 2>&1; then exec bash; else exec sh; fi"]))
         {
             RestartHint = "Press Enter to connect again.",
         };

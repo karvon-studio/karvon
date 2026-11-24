@@ -73,7 +73,7 @@ abstract class DockerTool(IDockerToolHost host) : IClaudeTool
     {
         var all = await Host.Docker.ContainersAsync(cancellationToken);
         return Host.SolutionDirectory is { } solution && !Host.AllContainers
-            ? all.Where(c => Compose.IsInFolder(c.WorkingDir, solution)).ToList()
+            ? all.Where(c => Compose.IsInFolder(Host.Docker, c.WorkingDir, solution)).ToList()
             : all;
     }
 
@@ -396,16 +396,17 @@ sealed class ContainerRunTool(IDockerToolHost host) : DockerTool(host)
         if (input.TryGetProperty("mounts", out var mounts) && mounts.ValueKind == JsonValueKind.Array)
             foreach (var mount in mounts.EnumerateArray().Select(m => m.GetString() ?? ""))
             {
-                var parts = mount.Split(':');
-                if (parts.Length < 2)
+                if (Mount(mount, OperatingSystem.IsWindows() || Host.Docker.IsWsl) is not var (host, container))
                 {
                     refused ??= $"{mount} is not host:container.";
                     continue;
                 }
-                var source = Path.GetFullPath(parts[0].StartsWith('~') ? Home + parts[0][1..] : parts[0], Host.SolutionDirectory ?? Environment.CurrentDirectory);
+                // In WSL a path from the root is the distribution's own, and a drive's is a full one whatever runs this.
+                var source = Host.Docker.IsWsl && WslPaths.ToLinux(host) is { } there ? there
+                    : Path.GetFullPath(host.StartsWith('~') ? Home + host[1..] : host, Host.SolutionDirectory ?? Environment.CurrentDirectory);
                 if (Refuse(source) is { } why)
                     refused ??= why;
-                args.AddRange(["-v", string.Join(':', [source, .. parts[1..]])]);
+                args.AddRange(["-v", $"{Host.Docker.InEngine(source)}:{container}"]);
             }
         args.Add(Str(input, "image") ?? "");
         if (Str(input, "command") is { Length: > 0 } command)
@@ -413,18 +414,49 @@ sealed class ContainerRunTool(IDockerToolHost host) : DockerTool(host)
         return (args, refused);
     }
 
+    /// <summary>A mount's host and the rest (container, or container:ro); a Windows path's drive has a colon of its own. Null for none.</summary>
+    internal static (string Host, string Container)? Mount(string mount, bool drives)
+    {
+        var colon = mount.IndexOf(':', drives && mount is [var letter, ':', '\\' or '/', ..] && char.IsAsciiLetter(letter) ? 2 : 0);
+        return colon > 0 && colon < mount.Length - 1 ? (mount[..colon], mount[(colon + 1)..]) : null;
+    }
+
     static string Home => Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
 
-    /// <summary>Why a host folder may not be mounted: the home folder itself or the root, what holds secrets, the engine's socket.</summary>
-    static string? Refuse(string source)
+    /// <summary>
+    /// Why a host folder may not be mounted. With the engine in WSL: what Windows's own folder may not be for, on a drive; of
+    /// the distribution's own files, all but the solution's folder (its secrets' places are not known here).
+    /// </summary>
+    string? Refuse(string source)
     {
+        if (!Host.Docker.IsWsl)
+            return RefuseHere(source);
+        if (WslPaths.ToLinux(source) is not { } there)
+            return $"{source} is not mounted: WSL does not see it.";
+        if (there.EndsWith("docker.sock", StringComparison.Ordinal) || there.EndsWith("podman.sock", StringComparison.Ordinal))
+            return RefuseHere(there);
+        if (WslPaths.ToWindows(there) is { } here)
+            return here.Length <= 3 ? WholeFiles(here) : RefuseHere(here);
+        return Host.SolutionDirectory is { } solution && WslPaths.ToLinux(solution) is { } root && root != "/" && WslPaths.IsInside(there, root)
+            ? SecretFiles.IsSecretName(there[(there.LastIndexOf('/') + 1)..]) ? Secrets(source) : null
+            : $"{source} is not mounted: of WSL's own files, only the open solution's folder is.";
+    }
+
+    static string WholeFiles(string source) => $"{source} is not mounted: it holds all of the user's files. Mount the project's folder, or the one the work needs.";
+
+    static string Secrets(string source) => $"{source} is not mounted: it is, or holds, a place with secrets (keys, credentials).";
+
+    /// <summary>Why a folder of this computer may not be mounted: the home folder itself or the root, what holds secrets, the engine's socket.</summary>
+    static string? RefuseHere(string source)
+    {
+        var comparison = OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
         var full = Path.TrimEndingDirectorySeparator(source);
-        if (full == Path.TrimEndingDirectorySeparator(Home) || full == "/" || full.Length <= 3 && OperatingSystem.IsWindows())
-            return $"{source} is not mounted: it holds all of the user's files. Mount the project's folder, or the one the work needs.";
+        if (full.Equals(Path.TrimEndingDirectorySeparator(Home), comparison) || full == "/" || full.Length <= 3 && OperatingSystem.IsWindows())
+            return WholeFiles(source);
         if (full.EndsWith("docker.sock", StringComparison.Ordinal) || full.EndsWith("podman.sock", StringComparison.Ordinal))
             return $"{source} is not mounted: the engine's socket gives what runs in the container the whole machine.";
-        if (SecretFiles.IsSecret(full) || SecretFiles.UserPlaces().Any(p => p.StartsWith(full + Path.DirectorySeparatorChar, StringComparison.Ordinal)))
-            return $"{source} is not mounted: it is, or holds, a place with secrets (keys, credentials).";
+        if (SecretFiles.IsSecret(full) || SecretFiles.UserPlaces().Any(p => p.StartsWith(full + Path.DirectorySeparatorChar, comparison)))
+            return Secrets(source);
         return null;
     }
 

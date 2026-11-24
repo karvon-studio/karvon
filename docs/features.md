@@ -187,6 +187,10 @@ its compose file and what the file gets wrong (a service that reaches another th
 containers opened in the Database Explorer, Ask Claude why a container fails (with its last log lines, secrets
 hidden).
 
+On Windows with no `docker` or `podman` on the PATH, it is the Docker Engine in WSL's default distribution (`wsl --exec
+docker`): folders are mounted where WSL has them (`E:\x` is `/mnt/e/x`), a stack compose started there is known as the
+solution's, and what is followed ends with Karvon. `KARVON_DOCKER_PATH=wsl` chooses it whatever is on the PATH.
+
 ## Servers (View > Servers)
 
 The machines of `~/.ssh/config` (Include, ProxyJump and wildcards as OpenSSH reads

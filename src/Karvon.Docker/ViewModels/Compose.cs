@@ -20,8 +20,13 @@ public static partial class Compose
 
     public static string? FileIn(string folder) => FileNames.Select(name => Path.Combine(folder, name)).FirstOrDefault(File.Exists);
 
-    /// <summary>Compose ran in the folder (or a folder inside it).</summary>
-    public static bool IsInFolder(string? workingDir, string folder)
+    /// <summary>Compose ran in the folder (or a folder inside it), where <paramref name="engine"/> sees that folder.</summary>
+    public static bool IsInFolder(DockerEngine engine, string? workingDir, string folder) =>
+        engine.IsWsl
+            ? !string.IsNullOrEmpty(workingDir) && WslPaths.ToLinux(folder) is { } there && WslPaths.IsInside(workingDir, there)
+            : IsInFolder(workingDir, folder);
+
+    static bool IsInFolder(string? workingDir, string folder)
     {
         if (string.IsNullOrEmpty(workingDir))
             return false;

@@ -453,7 +453,7 @@ public sealed partial class ContainersPage : ObservableObject
 
     /// <summary>The problems of a container's service, when compose started it from the solution's file.</summary>
     internal IReadOnlyList<ComposeProblem> ProblemsFor(DockerContainer container) =>
-        container.Service is { } service && _explorer.Host.SolutionDirectory is { } dir && Compose.IsInFolder(container.WorkingDir, dir)
+        container.Service is { } service && _explorer.Host.SolutionDirectory is { } dir && Compose.IsInFolder(_explorer.Engine, container.WorkingDir, dir)
             ? ComposeProblems.Where(p => p.Service == service).ToList()
             : [];
 
@@ -507,7 +507,7 @@ public sealed partial class ContainersPage : ObservableObject
             _stacks.Remove(empty);
         foreach (var stack in _stacks.Values)
         {
-            stack.IsThisSolution = solution is not null && stack.Children.Any(c => Compose.IsInFolder(c.Container.WorkingDir, solution));
+            stack.IsThisSolution = solution is not null && stack.Children.Any(c => Compose.IsInFolder(_explorer.Engine, c.Container.WorkingDir, solution));
             stack.Refresh();
         }
         OnPropertyChanged(nameof(Count));
