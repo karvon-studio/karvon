@@ -53,6 +53,77 @@ public partial class MainViewModel
         return await starting;
     }
 
+    /// <summary>Files a request opened in a server, not in the editor (one that answers only for open files), and how many requests have each.</summary>
+    readonly Dictionary<(LspClient, string), int> _openedForRequests = [];
+
+    /// <summary>
+    /// A request about a file: asked as it is (Roslyn and Pyright answer for any file of the workspace), and again with the
+    /// file open in the server when that finds nothing (TypeScript's answers only for open files).
+    /// </summary>
+    internal async Task<IReadOnlyList<T>> AskAboutFileAsync<T>(LspClient lsp, string file, Func<Task<IReadOnlyList<T>>> ask, CancellationToken cancellationToken)
+    {
+        if (Editors.Any(d => d.FilePath == file))
+            return await ask();
+        try
+        {
+            if (await ask() is { Count: > 0 } found)
+                return found;
+        }
+        catch (LspException)
+        {
+        }
+        var key = (lsp, file);
+        if (_openedForRequests.TryGetValue(key, out var count))
+            _openedForRequests[key] = count + 1;
+        else
+        {
+            _openedForRequests[key] = 1;
+            await lsp.DidOpenAsync(file, await File.ReadAllTextAsync(file, cancellationToken));
+        }
+        try
+        {
+            return await ask();
+        }
+        finally
+        {
+            _openedForRequests[key]--;
+            if (_openedForRequests[key] == 0)
+            {
+                _openedForRequests.Remove(key);
+                // Opened in the editor meanwhile: the editor closes it.
+                if (!Editors.Any(d => d.FilePath == file))
+                    await lsp.DidCloseAsync(file);
+            }
+        }
+    }
+
+    /// <summary>IWorkbench's outline of a file: its server's, once the server is ready; null when none serves it.</summary>
+    async Task<IReadOnlyList<LspDocumentSymbol>?> IWorkbench.OutlineAsync(string file, bool start, CancellationToken cancellationToken)
+    {
+        if (Modules.SelectMany(m => m.LanguageServers).FirstOrDefault(s => !s.Lints && s.Serves(file)) is not { } info)
+            return null;
+        if (!start && !_moduleServers.ContainsKey(info.Id))
+            throw new LanguageServerNotRunningException(info.Name);
+        if (await StartLanguageServerForClaudeAsync(file) is not { } lsp)
+            throw new LanguageServerNotRunningException(info.Name);
+        if (!lsp.IsReady)
+        {
+            var ready = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            void OnReady() => ready.TrySetResult();
+            lsp.Ready += OnReady;
+            try
+            {
+                if (!lsp.IsReady)
+                    await ready.Task.WaitAsync(cancellationToken);
+            }
+            finally
+            {
+                lsp.Ready -= OnReady;
+            }
+        }
+        return await AskAboutFileAsync(lsp, file, () => lsp.DocumentSymbolsAsync(file, cancellationToken), cancellationToken);
+    }
+
     /// <summary>The servers running or starting for the workspace, not linters (Claude's code_symbols asks each).</summary>
     internal async Task<IReadOnlyList<LspClient>> LanguageServersForClaudeAsync()
     {

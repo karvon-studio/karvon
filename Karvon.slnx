@@ -18,6 +18,7 @@
     <Project Path="src/Karvon.Documents/Karvon.Documents.csproj" />
     <Project Path="src/Karvon.Browser/Karvon.Browser.csproj" />
     <Project Path="src/Karvon.Completions/Karvon.Completions.csproj" />
+    <Project Path="src/Karvon.CodeMap/Karvon.CodeMap.csproj" />
     <Project Path="src/Karvon.DotNet/Karvon.DotNet.csproj" />
     <Project Path="src/Karvon.DotNet.DebugWait/Karvon.DotNet.DebugWait.csproj" />
     <Project Path="src/Karvon.TypeScript/Karvon.TypeScript.csproj" />

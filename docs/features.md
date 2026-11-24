@@ -433,6 +433,30 @@ bar says where they come from (and why none came, as Output (Inline Completions)
 Completions, changes that, turns them off, or forgets the key. The settings are in `completions.json` beside Karvon's,
 never the key.
 
+## Code Map (View > Code Map)
+
+The workspace's map: its files (git's, without what `.gitignore` leaves out; else the folder's, without build output and
+dependencies), each file's declarations as its language server outlines them (types, their members, functions; with
+their signatures and their doc comment's first sentence), and a sentence for each file of code and each folder saying
+what it is for. It is kept in the solution's own folder (`.vs/…/Karvon/codemap.db`, never in the repository) and kept as
+the workspace is: a scan, cheap for files that did not change (their size and time, then their hash), reads again only
+what changed, when a file is saved, after a checkout or a commit, every 30 seconds while the window shows, and before
+each of Claude's calls, so Claude never reads a map older than the files. Declarations come from language servers that
+run already (the map starts none: one would be downloaded the first time); a language's files are read once its server
+runs, as when one of its files is opened.
+**Search** as you type: declarations, files and folders by the start of any word of their names (`PortsSecrets` by
+"secrets" or "ports sec", `Type.Member` by "type member"), their paths, signatures, doc comments and summaries ("keyring
+api key"), the name itself first; Down goes to the hits, Enter opens one at its line. Below, the tree: folders, files,
+their declarations, each with its summary or doc comment.
+**Summaries**, written by whom the window's choice says: no one (the default), **Claude** through your Claude Code
+sign-in (its fast model, `claude -p`), or **a local model through Ollama** (its address and model; the code stays on the
+machine). Files go to the model twenty at a time (their declarations and their first lines), then the folders a level at
+a time, the workspace's own last; each summary is for what it was written from, so after the first time only what
+changed is written again, a minute after the last change.
+Claude reads it with `code_map` (a folder's tree with its files' count and what each folder and file is for, or a file's
+declarations with their lines) and `code_search` (the search above, best first), before `code_read_symbol` reads what
+they found; `tree`, `ls -R` and `find` with a test in the workspace are sent to them, before the shell.
+
 ## Claude Code (Ctrl+Esc)
 
 Drives your installed `claude` CLI, so your login, settings and MCP servers apply.
@@ -446,7 +470,9 @@ Claude gets Karvon's own tools (`mcp__karvon__*`, an MCP server inside Karvon): 
 `build_errors`, `run_tests`, `test_failures`, `test_coverage`), running the app as Ctrl+F5 does (`app_control`: start, stop, restart,
 its URLs and output), the debugger where it stopped (`debug_state`, `debug_locals`, `debug_evaluate`,
 `debug_control`), the editor (`editor_selection`, `open_document`, `code_diagnostics`,
-`find_in_files`), the code by what it means, through the language servers (`code_symbols`: declarations by name;
+`find_in_files`), the project by the Code Map (`code_map`: its tree with what each folder and file is for, or a file's
+declarations; `code_search`: declarations, files and folders by name or by what they do), the code by what it means,
+through the language servers (`code_symbols`: declarations by name;
 `code_outline`: a file's declarations with their lines; `code_read_symbol`: a declaration's source by its name, every
 overload; `code_definition`: what a name on a line refers to; `code_references`: every use, with the member each is in;
 `code_implementations`), in place of grep and reading files by line ranges, the Database Explorer's data sources (`db_connections`, `db_schema`, `db_query`, `db_export`: every row of a query to an Excel, CSV, TSV or JSON file, `db_add_connection`: a connection string of the solution's appsettings as a data source, its password kept by Karvon, `db_explain`),

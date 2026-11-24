@@ -40,9 +40,6 @@ abstract class CodeTool(MainViewModel vm) : IdeTool(vm)
     /// <summary>Lines of one declaration's source a call gives at most.</summary>
     protected const int MaxSourceLines = 400;
 
-    /// <summary>Files a call opened in a server, not in the editor (one that answers only for open files), and how many calls have each.</summary>
-    static readonly Dictionary<(LspClient, string), int> Opened = [];
-
     /// <summary>The server of a file of the solution, started if need be, and ready.</summary>
     protected async Task<LspClient> ServerOfAsync(string file, CancellationToken cancellationToken)
     {
@@ -99,42 +96,8 @@ abstract class CodeTool(MainViewModel vm) : IdeTool(vm)
     /// A request about a file: asked as it is (Roslyn and Pyright answer for any file of the workspace), and again with the
     /// file open in the server when that finds nothing (TypeScript's answers only for open files).
     /// </summary>
-    protected async Task<IReadOnlyList<T>> AskAboutAsync<T>(LspClient lsp, string file, Func<Task<IReadOnlyList<T>>> ask, CancellationToken cancellationToken)
-    {
-        if (Vm.Editors.Any(d => d.FilePath == file))
-            return await ask();
-        try
-        {
-            if (await ask() is { Count: > 0 } found)
-                return found;
-        }
-        catch (LspException)
-        {
-        }
-        var key = (lsp, file);
-        if (Opened.TryGetValue(key, out var count))
-            Opened[key] = count + 1;
-        else
-        {
-            Opened[key] = 1;
-            await lsp.DidOpenAsync(file, await File.ReadAllTextAsync(file, cancellationToken));
-        }
-        try
-        {
-            return await ask();
-        }
-        finally
-        {
-            Opened[key]--;
-            if (Opened[key] == 0)
-            {
-                Opened.Remove(key);
-                // Opened in the editor meanwhile: the editor closes it.
-                if (!Vm.Editors.Any(d => d.FilePath == file))
-                    await lsp.DidCloseAsync(file);
-            }
-        }
-    }
+    protected Task<IReadOnlyList<T>> AskAboutAsync<T>(LspClient lsp, string file, Func<Task<IReadOnlyList<T>>> ask, CancellationToken cancellationToken) =>
+        Vm.AskAboutFileAsync(lsp, file, ask, cancellationToken);
 
     protected Task<IReadOnlyList<LspDocumentSymbol>> OutlineAsync(LspClient lsp, string file, CancellationToken cancellationToken) =>
         AskAboutAsync(lsp, file, () => lsp.DocumentSymbolsAsync(file, cancellationToken), cancellationToken);
