@@ -117,6 +117,23 @@ public sealed partial class DockerModule : KarvonModule, IDockerHost, IDockerToo
             docker.OpenContainer(row, tab);
     }
 
+    /// <summary>In Settings' page of Claude's: which containers its tools see.</summary>
+    public override IReadOnlyList<SettingsPage> SettingsPages() =>
+    [
+        new("claude", "Claude and Agents", "Claude",
+        [
+            new("Karvon's tools",
+            [
+                new SwitchSetting("Docker: every container", "Karvon's Docker tools see every container, not only the open solution's compose project.",
+                    () => Workbench.Settings.ClaudeAllContainers, on =>
+                    {
+                        Workbench.Settings.ClaudeAllContainers = on;
+                        Workbench.SaveSettings();
+                    }) { Keywords = nameof(Services.Settings.ClaudeAllContainers) },
+            ]),
+        ]),
+    ];
+
     // ---- IDockerToolHost ----------------------------------------------------------------------------------------
 
     string? IDockerToolHost.SolutionDirectory => Workbench.Workspace;

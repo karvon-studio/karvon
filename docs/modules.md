@@ -108,6 +108,7 @@ application's project references.
 | `EditorPane(host)` | A pane of its own beside the editor of a file it takes (`EditorPane`: its `View`, disposed with the editor), as the HTTP client's response beside a `.http` file; it may add margins to the editor (`EditorHost.AddMargin`). Null for the files it does not take. |
 | `InlineCompletions` | Where the editor's inline completions come from (an AI's suggestion in gray after the caret: Tab takes it): a request's file and its text before and after the caret, and the text to put in there, or null for none. Asked a moment after typing stops, cancelled when typing goes on; what it returns is fitted to the line (its start written again, the brackets after the caret it closes, are dropped). The first module's serves every editor. |
 | `ClaudeTools()` | The tools it gives the Claude Code sessions Karvon starts (`mcp__karvon__*`). A module that is off gives none. |
+| `SettingsPages()` | Its settings, in Settings (Tools > Settings, Ctrl+,): pages of its own (`SettingsPage`), or groups in Karvon's (`"general"`, `"editor"`, `"debugging"`, `"claude"`, and `"tools"`, `"languages"`, by their id; groups of the same title are one). A setting keeps no value: it reads and writes where the module keeps it (`SwitchSetting`, `ChoiceSetting`, `TextSetting`, a list of entries that can be removed as `EntriesSetting`, and `ActionSetting` for what is changed in a dialog of its own); `ShownWhen` says whether it applies now, `Problem` what is wrong with it. Asked when Settings opens: quick, and it starts nothing. |
 | `StatusItem` | Its item in the status bar, before Git's (`ModuleStatusItem`: an icon, a few words, a tooltip, what a click does; hidden until `IsVisible`). |
 | `ClaudeShellRules()` | The shell commands its tools do (`ClaudeShellRule.Command(name, pattern, use)`: a command at the start of the line or after `;`, `&&`, `\|`, sudo or `VAR=value`; or a test of its own, as the Servers' ssh to a known machine). A session's Bash call of one is denied once, `use` its reason: which tool to use. |
 | `ShowClaudeToolAsync` | One of its tools ran: show what it did where the user would have done it (a container's logs on its page). |
@@ -129,7 +130,7 @@ also matches null, so one added to the application would take over every empty p
 ## What Karvon offers a module
 
 `IWorkbench` gives a module:
-- the settings;
+- the settings, and Settings on a page (`ShowSettings`);
 - the open folder, its changes, and the folder where Karvon keeps the solution's own things;
 - the open solution and its projects, read again on request (a package added) and when that happened, the project
   of a Solution Explorer node, and Add New Item in a node's folder;

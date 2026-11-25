@@ -57,6 +57,7 @@ public sealed partial class McpModule : KarvonModule, IMcpHost
     {
         // Another folder has its own .mcp.json and its own servers in Claude Code's settings; another account its own .claude.json.
         Workbench.WorkspaceChanged += Refresh;
+        Workbench.Settings.Saved += OnSettingsSaved;
         _claude = Workbench.Service<IClaudeService>();
         if (_claude is not null)
         {
@@ -67,9 +68,34 @@ public sealed partial class McpModule : KarvonModule, IMcpHost
 
     void Refresh() => Explorer?.Refresh();
 
+    /// <summary>In Settings' page of Claude's: the tools' rules, on Karvon's page here.</summary>
+    public override IReadOnlyList<SettingsPage> SettingsPages() =>
+    [
+        new("claude", "Claude and Agents", "Claude",
+        [
+            new("Karvon's tools",
+            [
+                new ActionSetting("Tools and their rules", "Each of Karvon's tools, what it does, and its rule: Allow, Ask or Deny.", null, new SettingAction("Open...", () =>
+                {
+                    EnsureExplorer().OpenBuiltIn();
+                    return Task.CompletedTask;
+                })) { Keywords = nameof(Services.Settings.ClaudeToolRules) + " mcp permissions" },
+            ]),
+        ]),
+    ];
+
+    /// <summary>A setting changed elsewhere (Settings): Karvon's page here shows it as it is.</summary>
+    void OnSettingsSaved() => Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+    {
+        foreach (var document in Workbench.Documents.OfType<McpBuiltInDocument>())
+            document.Refresh();
+    });
+
     /// <summary>Karvon closes: the servers it started stop.</summary>
     public override void Dispose()
     {
+        if (IsStarted)
+            Workbench.Settings.Saved -= OnSettingsSaved;
         Explorer?.Dispose();
         Overlay = Explorer = null;
         if (_claudeMcpFile is { } file && File.Exists(file))

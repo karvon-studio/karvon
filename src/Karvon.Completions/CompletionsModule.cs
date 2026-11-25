@@ -49,6 +49,64 @@ public sealed class CompletionsModule : KarvonModule
 
     public override IReadOnlyList<ModuleMainMenuItem> MainMenus => [new("Tools", new("Inline _Completions...", ShowSettingsAsync) { After = "Settings Sync" })];
 
+    /// <summary>In Settings' Editor page; the key is changed in the dialog only.</summary>
+    public override IReadOnlyList<SettingsPage> SettingsPages()
+    {
+        bool From(CompletionProvider provider) => Settings.Enabled && Settings.Provider == provider;
+        return
+        [
+            new("editor", "Editor", "Pencil",
+            [
+                new("Inline Completions",
+                [
+                    new SwitchSetting("Suggest code as you type", "An AI's suggestion in gray after the caret: Tab takes it. It sends the code around the caret to the provider.",
+                        () => Settings.Enabled, on => Change(s => s.Enabled = on)) { Keywords = "ai copilot" },
+                    new ChoiceSetting("Suggestions come from", null,
+                        [new(nameof(CompletionProvider.Claude), CompletionsSettingsDialog.Providers[0]), new(nameof(CompletionProvider.Ollama), CompletionsSettingsDialog.Providers[1])],
+                        () => Settings.Provider.ToString(), provider => Change(s => s.Provider = Enum.Parse<CompletionProvider>(provider))) { ShownWhen = () => Settings.Enabled },
+                    new ChoiceSetting("Claude's model", null, [.. CompletionSettings.ClaudeModels.Select(m => new SettingChoice(m, m))],
+                        () => Settings.ClaudeModel, model => Change(s => s.ClaudeModel = model)) { ShownWhen = () => From(CompletionProvider.Claude) },
+                    new ActionSetting("Anthropic's API key", "Kept in the system keyring, never in a file.", null, new SettingAction("Change...", ShowSettingsAsync))
+                    {
+                        ShownWhen = () => From(CompletionProvider.Claude),
+                    },
+                    new TextSetting("Ollama's address", null, () => Settings.OllamaUrl, url => Change(s => s.OllamaUrl = url))
+                    {
+                        Placeholder = CompletionSettings.DefaultOllamaUrl,
+                        ShownWhen = () => From(CompletionProvider.Ollama),
+                        Check = CompletionsSettingsDialog.OllamaUrlProblem,
+                    },
+                    new TextSetting("Ollama's model", "One Ollama has pulled.", () => Settings.OllamaModel, model => Change(s => s.OllamaModel = model))
+                    {
+                        Placeholder = CompletionSettings.DefaultOllamaModel,
+                        ShownWhen = () => From(CompletionProvider.Ollama),
+                        Check = model => model.Length == 0 ? CompletionsSettingsDialog.NoOllamaModel : null,
+                    },
+                ]),
+            ]),
+        ];
+    }
+
+    /// <summary>A setting changed outside the dialog: kept, and in use at once.</summary>
+    void Change(Action<CompletionSettings> change)
+    {
+        change(Settings);
+        SaveSettings();
+        Reset();
+    }
+
+    void SaveSettings()
+    {
+        try
+        {
+            Settings.Save(SettingsFile);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            Workbench.Status($"Inline Completions' settings were not saved: {ex.Message}");
+        }
+    }
+
     public override IDataTemplate OverlayTemplate => Template<CompletionsOverlay>(_ => new CompletionsOverlayView());
 
     public override Func<InlineCompletionRequest, CancellationToken, Task<string?>>? InlineCompletions => CompleteAsync;
@@ -267,14 +325,7 @@ public sealed class CompletionsModule : KarvonModule
         settings.ClaudeModel = form.ClaudeModel.Trim();
         settings.OllamaUrl = form.OllamaUrl.Trim();
         settings.OllamaModel = form.OllamaModel.Trim();
-        try
-        {
-            settings.Save(SettingsFile);
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-        {
-            Workbench.Status($"Inline Completions' settings were not saved: {ex.Message}");
-        }
+        SaveSettings();
         if (form.Forget)
         {
             if (!Secrets.Forget())

@@ -45,6 +45,20 @@ public sealed partial class PortsModule : KarvonModule, IPortsHost
 
     internal ICredentialStore? Keyring { get; set; } = Karvon.Services.Keyring.System;
 
+    /// <summary>In Settings' Tool Windows page: the tunnel service, changed with its key in its dialog.</summary>
+    public override IReadOnlyList<SettingsPage> SettingsPages() =>
+    [
+        new("tools", "Tool Windows", "ToolExplorer",
+        [
+            new("Ports",
+            [
+                new ActionSetting("Tunnel service", "What your ports are forwarded through; its API key stays in the system keyring.",
+                    () => Ports?.ServiceName ?? PortsSettings.NameOf(new PortsSettings(Path.Combine(Services.Settings.ConfigDirectory, "ports.json")).Service),
+                    new SettingAction("Change...", () => EnsurePorts().ServiceSettingsCommand.ExecuteAsync(null))),
+            ]),
+        ]),
+    ];
+
     public PortsViewModel EnsurePorts()
     {
         if (Ports is null)

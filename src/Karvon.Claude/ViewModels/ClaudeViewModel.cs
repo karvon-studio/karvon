@@ -62,6 +62,8 @@ public sealed partial class ClaudeViewModel : ObservableObject, IAsyncDisposable
             Models.Add(model);
         SelectedModel = Models.FirstOrDefault(m => m.Value == settings.ClaudeModel) ?? Models[0];
         PermissionMode = KnownMode(settings.ClaudePermissionMode);
+        // A folder may be trusted no longer (Settings).
+        settings.Saved += () => Dispatcher.UIThread.Post(() => OnPropertyChanged(nameof(IsFolderTrusted)));
         Effort = settings.ClaudeEffort;
         RefreshModes();
         RefreshEffortSteps();

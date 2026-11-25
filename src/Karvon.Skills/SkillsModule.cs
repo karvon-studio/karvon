@@ -62,6 +62,58 @@ public sealed partial class SkillsModule : KarvonModule, ISkillsHost
 
     void Refresh() => Explorer?.Refresh();
 
+    /// <summary>In Settings' Tool Windows page: the marketplace's sources, the memory files. A marketplace that is open follows.</summary>
+    public override IReadOnlyList<SettingsPage> SettingsPages()
+    {
+        SkillsMarketplaceViewModel? Marketplace() => Workbench.Documents.OfType<SkillsMarketplaceDocument>().FirstOrDefault()?.Marketplace;
+        var settings = Workbench.Settings;
+        return
+        [
+            new("tools", "Tool Windows", "ToolExplorer",
+            [
+                new("Skills marketplace",
+                [
+                    new TextSetting("Sources", "Where it finds skills, one a line: github:owner/repo[/folder][@ref], a registry's URL, or a registry on disk.",
+                        () => string.Join('\n', settings.SkillSources), text =>
+                        {
+                            settings.SkillSources = TextSetting.Lines(text);
+                            Workbench.SaveSettings();
+                            if (Marketplace() is not { } marketplace)
+                                return;
+                            marketplace.Sources = string.Join('\n', settings.SkillSources);
+                            marketplace.SaveSourcesCommand.Execute(null);
+                        })
+                    {
+                        IsList = true,
+                        Keywords = nameof(settings.SkillSources),
+                    },
+                    new SwitchSetting("Agensi", "Its marketplace's skills (agensi.io), through its MCP server.", () => settings.SkillsAgensi, on =>
+                    {
+                        if (Marketplace() is { } marketplace)
+                            marketplace.UsesAgensi = on;
+                        settings.SkillsAgensi = on;
+                        Workbench.SaveSettings();
+                    }) { Keywords = nameof(settings.SkillsAgensi) },
+                ]),
+                new("Memory files",
+                [
+                    new ChoiceSetting("Written from", "The memory file the others are generated from.", [.. MemoryFiles.Names.Select(n => new SettingChoice(n, n))],
+                        () => settings.SkillsMemorySource, source =>
+                        {
+                            settings.SkillsMemorySource = source;
+                            Workbench.SaveSettings();
+                            Refresh();
+                        }) { Keywords = nameof(settings.SkillsMemorySource) + " CLAUDE.md AGENTS.md GEMINI.md" },
+                    new SwitchSetting("Keep the generated ones in step", "They are written again when their source changes; never those written by hand.", () => settings.SkillsSyncMemoryFiles, on =>
+                    {
+                        settings.SkillsSyncMemoryFiles = on;
+                        Workbench.SaveSettings();
+                    }) { Keywords = nameof(settings.SkillsSyncMemoryFiles) },
+                ]),
+            ]),
+        ];
+    }
+
     public override void Dispose()
     {
         Explorer?.Dispose();

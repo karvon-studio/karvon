@@ -495,8 +495,22 @@ public sealed class McpBuiltInDocument(IReadOnlyList<McpBuiltInToolNode> tools, 
         ? "Not given (the home folder, or a place that holds secrets, or a folder that is not there): " + string.Join(", ", refused)
         : null;
 
-    static List<string> Lines(string? text) =>
-        [.. (text ?? "").Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).Distinct(StringComparer.Ordinal)];
+    static List<string> Lines(string? text) => Karvon.Modules.TextSetting.Lines(text ?? "");
+
+    string? _shownFolders;
+
+    /// <summary>Read again (changed elsewhere); the folders only when they changed, so what is being typed stays.</summary>
+    public void Refresh()
+    {
+        foreach (var name in new[] { nameof(ToolsFirst), nameof(KeepSecretsAway), nameof(Gateway), nameof(Sandbox), nameof(StrictSandbox), nameof(SandboxProblem) })
+            OnPropertyChanged(name);
+        var folders = ReadFolders + "\0" + WriteFolders;
+        if (folders == _shownFolders)
+            return;
+        _shownFolders = folders;
+        foreach (var name in new[] { nameof(ReadFolders), nameof(WriteFolders), nameof(Refused) })
+            OnPropertyChanged(name);
+    }
 
     public override string Key => "mcp:" + KarvonToolNames.Server;
 

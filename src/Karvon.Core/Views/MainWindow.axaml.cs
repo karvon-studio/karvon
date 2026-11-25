@@ -51,6 +51,7 @@ public partial class MainWindow : Window, IDialogService
                 vm.ToolWindowBesideRequested += OnToolWindowBesideRequested;
                 AttachModules(vm);
                 AttachUpdateNotification(vm);
+                vm.InstallerRequested = (page, check) => ShowInstaller(page, check);
                 BuildToolSets(vm);
                 ApplySavedDockLayout(vm);
                 vm.BreakModeEntered += () =>
@@ -1220,6 +1221,7 @@ public partial class MainWindow : Window, IDialogService
         const string text = """
             Ctrl+Shift+O      Open solution
             Ctrl+S / Ctrl+Shift+S   Save / Save all
+            Ctrl+,            Settings
             Ctrl+Shift+B      Build solution
             F5 / Ctrl+F5      Start or Continue / Start without debugging
             Shift+F5          Stop

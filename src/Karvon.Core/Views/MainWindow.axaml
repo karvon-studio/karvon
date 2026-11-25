@@ -36,6 +36,7 @@
     <KeyBinding Gesture="Ctrl+Alt+E" Command="{Binding ShowExceptionSettingsCommand}" />
     <KeyBinding Gesture="Ctrl+Alt+F2" Command="{Binding ShowDiagnosticToolsCommand}" />
     <KeyBinding Gesture="Ctrl+Shift+F9" Command="{Binding DeleteAllBreakpointsCommand}" />
+    <KeyBinding Gesture="Ctrl+OemComma" Command="{Binding ShowSettingsCommand}" />
   </Window.KeyBindings>
 
   <DockPanel>
@@ -349,6 +350,8 @@
         <MenuItem Header="Reset _Window Layout" Click="OnResetWindowLayout" />
         <Separator />
         <MenuItem Header="_Get Tools and Features..." Click="OnGetToolsAndFeatures" />
+        <Separator />
+        <MenuItem Name="SettingsMenuItem" Header="S_ettings..." InputGesture="Ctrl+OemComma" Command="{Binding ShowSettingsCommand}" />
       </MenuItem>
       <MenuItem Name="WindowMenu" Header="_Window">
         <MenuItem Name="SplitMenuItem" Header="Spl_it" Click="OnSplitWindow" />
@@ -374,6 +377,8 @@
 
     <!-- ===== Standard toolbar (VS layout: files | undo | configuration | start | debug | build) ===== -->
     <Border DockPanel.Dock="Top" Background="{StaticResource VsEnvironmentBrush}" BorderBrush="{StaticResource VsBorderBrush}" BorderThickness="0,0,0,1" Padding="6,3">
+      <DockPanel>
+      <Button Name="SettingsButton" DockPanel.Dock="Right" Classes="tbi" Command="{Binding ShowSettingsCommand}" ToolTip.Tip="Settings (Ctrl+,)"><v:VsIcon Kind="Settings" /></Button>
       <StackPanel Orientation="Horizontal" Spacing="1">
         <Button Classes="tbi" ToolTip.Tip="Open Project/Solution (Ctrl+Shift+O)" Command="{Binding OpenSolutionCommand}"><v:VsIcon Kind="Open" /></Button>
         <Button Classes="tbi" ToolTip.Tip="Save (Ctrl+S)" Command="{Binding SaveCommand}"><v:VsIcon Kind="Save" /></Button>
@@ -417,6 +422,7 @@
         <Border Classes="tbsep" />
         <Button Classes="tbi" Command="{Binding ShowClaudeCommand}" IsVisible="{Binding HasClaude}" ToolTip.Tip="Claude Code (Ctrl+Esc)"><v:VsIcon Kind="Claude" /></Button>
       </StackPanel>
+      </DockPanel>
     </Border>
 
     <!-- ===== Status bar ===== -->

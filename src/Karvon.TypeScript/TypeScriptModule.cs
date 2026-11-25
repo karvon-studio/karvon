@@ -64,6 +64,31 @@ public sealed class TypeScriptModule : KarvonModule
     public override IReadOnlyList<ModuleMainMenuItem> MainMenus =>
         [new("Tools", new("_ESLint in This Folder...", ChooseEslintAsync) { After = "Restart Language Server" })];
 
+    /// <summary>In Settings' Languages page: the folders ESLint was let into, or not; one removed is asked about again.</summary>
+    public override IReadOnlyList<SettingsPage> SettingsPages() =>
+    [
+        new("languages", "Languages", "CodeBrackets",
+        [
+            new("TypeScript and JavaScript",
+            [
+                new EntriesSetting("ESLint's folders", "Where ESLint may check the files, as you answered: it runs the folder's own ESLint, configuration and plugins. "
+                        + "One removed is asked about again.",
+                    () => Workbench.Settings.EslintFolders.OrderBy(f => f.Key, StringComparer.Ordinal).Select(f => (f.Key, f.Key + (f.Value ? ": checked" : ": not checked"))), folder =>
+                    {
+                        Workbench.Settings.EslintFolders.Remove(folder);
+                        Workbench.SaveSettings();
+                        // The open folder's ESLint does not go on without the answer it ran by.
+                        if (Workbench.Workspace is { } workspace && FolderKey(workspace) == folder)
+                            _ = Workbench.RestartLanguageServersAsync();
+                    })
+                {
+                    Keywords = nameof(Services.Settings.EslintFolders),
+                    Empty = "Not asked about any folder yet.",
+                },
+            ]),
+        ]),
+    ];
+
     static string FolderKey(string workspace) => Path.TrimEndingDirectorySeparator(Path.GetFullPath(workspace));
 
     /// <summary>

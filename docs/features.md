@@ -501,6 +501,17 @@ file and folder, the macOS app by its bundle, the Windows installer silently, th
 exited. Help > Check for Updates checks now; the settings are on the installer's page. A build of the sources does not
 update itself.
 
+## Settings (Tools > Settings, Ctrl+,)
+
+Every setting of Karvon's and its modules' in one document (also the cog at the toolbar's right): General (updates, modules,
+Settings Sync, the vault, settings.json), Editor (zoom, inlay hints, CodeLens, sticky scroll, the minimap, line blame, the
+Markdown preview, inline completions), Run and Debug, Claude and Agents (safety: the secrets, the gateway, the sandboxes and
+their folders, the trusted folders; Karvon's tools and their rules; the language), Tool Windows (the skills marketplace, the
+memory files, the tunnel service) and Languages (ESLint's folders). The search finds a setting in any page, by its words or
+by its name in settings.json. A change is kept at once; one made elsewhere (the View menu, MCP Servers' Karvon page,
+Settings Sync) shows there. A module that is off has none. The model, the permission mode and the effort are chosen in the
+Claude Code window.
+
 ## Settings Sync (Tools > Settings Sync)
 
 The preferences go with you to your other machines, as VS Code's Settings Sync takes them: the editor's (inlay hints,

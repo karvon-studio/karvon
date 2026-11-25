@@ -104,10 +104,16 @@ public sealed partial class CompletionsSettingsDialog : OverlayDialog
 
     public string? Problem =>
         IsClaude && ClaudeModel.Trim().Length == 0 ? "The model: a Claude model's id (claude-opus-5-5)."
-        : IsOllama && !(Uri.TryCreate(OllamaUrl.Trim(), UriKind.Absolute, out var address) && address.Scheme is "http" or "https")
-            ? "Ollama's address, with its http://: http://localhost:11434, or where it runs."
-        : IsOllama && OllamaModel.Trim().Length == 0 ? "The model: one Ollama has pulled (ollama pull qwen2.5-coder:1.5b)."
+        : IsOllama && OllamaUrlProblem(OllamaUrl) is { } address ? address
+        : IsOllama && OllamaModel.Trim().Length == 0 ? NoOllamaModel
         : null;
+
+    internal const string NoOllamaModel = "The model: one Ollama has pulled (ollama pull qwen2.5-coder:1.5b).";
+
+    /// <summary>Why a text is not Ollama's address; null when it is one.</summary>
+    internal static string? OllamaUrlProblem(string url) => Uri.TryCreate(url.Trim(), UriKind.Absolute, out var address) && address.Scheme is "http" or "https"
+        ? null
+        : "Ollama's address, with its http://: http://localhost:11434, or where it runs.";
 
     public override bool CanConfirm => Problem is null;
 

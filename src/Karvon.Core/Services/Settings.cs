@@ -242,6 +242,10 @@ public sealed class Settings
 
     static string FilePath => Path.Combine(ConfigDirectory, "settings.json");
 
+    /// <summary>The file they are kept in.</summary>
+    [System.Text.Json.Serialization.JsonIgnore]
+    public string SettingsFile => _file ?? FilePath;
+
     const int MaxRecent = 20;
 
     public void AddRecent(string solutionPath)

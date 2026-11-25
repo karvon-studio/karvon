@@ -1,0 +1,142 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:v="using:Karvon.Views"
+             xmlns:vm="using:Karvon.ViewModels"
+             xmlns:mod="using:Karvon.Modules"
+             x:Class="Karvon.Views.SettingsView"
+             x:DataType="vm:SettingsDocument"
+             Background="#1E1E1E">
+  <UserControl.Styles>
+    <StyleInclude Source="avares://Karvon.Core/Themes/ExplorerStyles.axaml" />
+    <Style Selector="ListBox#Pages">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderThickness" Value="0" />
+    </Style>
+    <Style Selector="ListBox#Pages ListBoxItem">
+      <Setter Property="Padding" Value="14,7" />
+    </Style>
+    <Style Selector="TextBlock.settingTitle">
+      <Setter Property="FontSize" Value="13" />
+      <Setter Property="Foreground" Value="#E6E6E6" />
+      <Setter Property="TextWrapping" Value="Wrap" />
+    </Style>
+    <Style Selector="TextBlock.settingText">
+      <Setter Property="FontSize" Value="12" />
+      <Setter Property="Foreground" Value="#9D9D9D" />
+      <Setter Property="TextWrapping" Value="Wrap" />
+    </Style>
+    <Style Selector="TextBlock.settingProblem">
+      <Setter Property="FontSize" Value="12" />
+      <Setter Property="Foreground" Value="#F48771" />
+      <Setter Property="TextWrapping" Value="Wrap" />
+    </Style>
+  </UserControl.Styles>
+
+  <!-- Settings: the pages at the left, the chosen one's settings (or what a search found in all of them) at the right. -->
+  <Grid ColumnDefinitions="230,*">
+    <Border BorderBrush="#333337" BorderThickness="0,0,1,0" Background="#252526">
+      <DockPanel>
+        <TextBox Name="SearchBox" DockPanel.Dock="Top" Classes="search" Margin="10,12,10,8" Text="{Binding Search}" PlaceholderText="Search settings" />
+        <ListBox Name="Pages" ItemsSource="{Binding Pages}" SelectedItem="{Binding SelectedPage}">
+          <ListBox.ItemTemplate>
+            <DataTemplate x:DataType="mod:SettingsPage">
+              <StackPanel Orientation="Horizontal" Spacing="9">
+                <v:VsIcon Kind="{Binding Icon}" Width="15" Height="15" />
+                <TextBlock Text="{Binding Title}" VerticalAlignment="Center" />
+              </StackPanel>
+            </DataTemplate>
+          </ListBox.ItemTemplate>
+        </ListBox>
+      </DockPanel>
+    </Border>
+
+    <ScrollViewer Name="Scroller" Grid.Column="1" HorizontalScrollBarVisibility="Disabled">
+      <Grid Margin="26,16,26,24">
+      <Grid.ColumnDefinitions>
+        <ColumnDefinition Width="*" MaxWidth="820" />
+      </Grid.ColumnDefinitions>
+      <StackPanel>
+        <TextBlock Classes="dkTitle" Text="{Binding Heading}" />
+        <TextBlock Classes="dkMuted" Margin="0,12" Text="No setting matches." IsVisible="{Binding HasNoResults}" />
+        <ItemsControl Name="Sections" ItemsSource="{Binding Sections}">
+          <ItemsControl.DataTemplates>
+            <DataTemplate DataType="mod:SwitchSetting" x:DataType="mod:SwitchSetting">
+              <CheckBox IsChecked="{Binding IsOn}" Margin="0,5" IsVisible="{Binding IsShown}" VerticalContentAlignment="Top">
+                <StackPanel Spacing="2">
+                  <TextBlock Classes="settingTitle" Text="{Binding Title}" />
+                  <TextBlock Classes="settingText" Text="{Binding Description}" IsVisible="{Binding HasDescription}" />
+                  <TextBlock Classes="settingProblem" Text="{Binding ProblemText}" IsVisible="{Binding ProblemText, Converter={x:Static ObjectConverters.IsNotNull}}" />
+                </StackPanel>
+              </CheckBox>
+            </DataTemplate>
+            <DataTemplate DataType="mod:ChoiceSetting" x:DataType="mod:ChoiceSetting">
+              <StackPanel Spacing="4" Margin="0,7" IsVisible="{Binding IsShown}">
+                <TextBlock Classes="settingTitle" Text="{Binding Title}" />
+                <TextBlock Classes="settingText" Text="{Binding Description}" IsVisible="{Binding HasDescription}" />
+                <ComboBox ItemsSource="{Binding Choices}" SelectedItem="{Binding Choice}" MinWidth="240" HorizontalAlignment="Left" />
+                <TextBlock Classes="settingProblem" Text="{Binding ProblemText}" IsVisible="{Binding ProblemText, Converter={x:Static ObjectConverters.IsNotNull}}" />
+              </StackPanel>
+            </DataTemplate>
+            <DataTemplate DataType="mod:TextSetting" x:DataType="mod:TextSetting">
+              <StackPanel Spacing="4" Margin="0,7" IsVisible="{Binding IsShown}">
+                <TextBlock Classes="settingTitle" Text="{Binding Title}" />
+                <TextBlock Classes="settingText" Text="{Binding Description}" IsVisible="{Binding HasDescription}" />
+                <TextBox Text="{Binding Text, UpdateSourceTrigger=LostFocus}" AcceptsReturn="{Binding IsList}" PlaceholderText="{Binding Placeholder}"
+                         MinHeight="28" MaxWidth="520" HorizontalAlignment="Stretch" KeyDown="OnTextKeyDown" />
+                <TextBlock Classes="settingProblem" Text="{Binding Refused}" IsVisible="{Binding Refused, Converter={x:Static ObjectConverters.IsNotNull}}" />
+                <TextBlock Classes="settingProblem" Text="{Binding ProblemText}" IsVisible="{Binding ProblemText, Converter={x:Static ObjectConverters.IsNotNull}}" />
+              </StackPanel>
+            </DataTemplate>
+            <DataTemplate DataType="mod:EntriesSetting" x:DataType="mod:EntriesSetting">
+              <StackPanel Spacing="4" Margin="0,7" IsVisible="{Binding IsShown}">
+                <TextBlock Classes="settingTitle" Text="{Binding Title}" />
+                <TextBlock Classes="settingText" Text="{Binding Description}" IsVisible="{Binding HasDescription}" />
+                <TextBlock Classes="settingText" Text="{Binding Empty}" IsVisible="{Binding IsEmpty}" FontStyle="Italic" />
+                <ItemsControl ItemsSource="{Binding Entries}" HorizontalAlignment="Left">
+                  <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="mod:SettingEntry">
+                      <Grid ColumnDefinitions="*,Auto" MinWidth="360" MaxWidth="620">
+                        <TextBlock Text="{Binding Text}" VerticalAlignment="Center" TextTrimming="PathSegmentEllipsis" ToolTip.Tip="{Binding Text}" FontSize="12" />
+                        <Button Grid.Column="1" Classes="tbi" Command="{Binding Remove}" ToolTip.Tip="Remove"><v:VsIcon Kind="Close" Width="12" Height="12" /></Button>
+                      </Grid>
+                    </DataTemplate>
+                  </ItemsControl.ItemTemplate>
+                </ItemsControl>
+              </StackPanel>
+            </DataTemplate>
+            <DataTemplate DataType="mod:ActionSetting" x:DataType="mod:ActionSetting">
+              <StackPanel Spacing="4" Margin="0,7" IsVisible="{Binding IsShown}">
+                <TextBlock Classes="settingTitle" Text="{Binding Title}" />
+                <TextBlock Classes="settingText" Text="{Binding Description}" IsVisible="{Binding HasDescription}" />
+                <TextBlock Classes="settingText" Foreground="#CCCCCC" Text="{Binding State}" IsVisible="{Binding HasState}" />
+                <ItemsControl ItemsSource="{Binding Actions}" Margin="0,2,0,0">
+                  <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                      <WrapPanel />
+                    </ItemsPanelTemplate>
+                  </ItemsControl.ItemsPanel>
+                  <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="mod:SettingAction">
+                      <Button Classes="dkOutline" Content="{Binding Text}" Command="{Binding Command}" IsVisible="{Binding IsShown}" Margin="0,0,6,0" />
+                    </DataTemplate>
+                  </ItemsControl.ItemTemplate>
+                </ItemsControl>
+                <TextBlock Classes="settingProblem" Text="{Binding ProblemText}" IsVisible="{Binding ProblemText, Converter={x:Static ObjectConverters.IsNotNull}}" />
+              </StackPanel>
+            </DataTemplate>
+          </ItemsControl.DataTemplates>
+          <ItemsControl.ItemTemplate>
+            <DataTemplate x:DataType="vm:SettingsSection">
+              <StackPanel Margin="0,16,0,0" IsVisible="{Binding IsShown}">
+                <TextBlock Text="{Binding Title}" FontSize="14.5" FontWeight="SemiBold" Foreground="#E6E6E6" />
+                <Border Height="1" Background="#333337" Margin="0,5,0,5" />
+                <ItemsControl ItemsSource="{Binding Settings}" />
+              </StackPanel>
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+      </StackPanel>
+      </Grid>
+    </ScrollViewer>
+  </Grid>
+</UserControl>

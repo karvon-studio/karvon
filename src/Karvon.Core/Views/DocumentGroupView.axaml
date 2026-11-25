@@ -92,6 +92,11 @@
           <git:MergeEditorView />
         </Border>
       </DataTemplate>
+      <DataTemplate DataType="vm:SettingsDocument" x:DataType="vm:SettingsDocument">
+        <Border Classes="docframe" BorderBrush="#007ACC" BorderThickness="0,2,0,0">
+          <v:SettingsView />
+        </Border>
+      </DataTemplate>
       <DataTemplate DataType="pkg:PackagesViewModel" x:DataType="pkg:PackagesViewModel">
         <Border Classes="docframe" BorderBrush="#007ACC" BorderThickness="0,2,0,0">
           <pkg:PackagesView />

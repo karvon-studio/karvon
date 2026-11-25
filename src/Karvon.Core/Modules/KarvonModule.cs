@@ -288,6 +288,12 @@ public abstract partial class KarvonModule : ObservableObject, IDisposable, IAsy
     /// <summary>The debuggers it brings: F5 starts the one of a launch configuration's type.</summary>
     public virtual IReadOnlyList<DebuggerInfo> Debuggers => [];
 
+    /// <summary>
+    /// Its settings, in Settings (Tools > Settings): pages of its own, or groups in Karvon's ("general", "editor",
+    /// "debugging", "claude", by their id). Asked when Settings opens; quick, and it starts nothing.
+    /// </summary>
+    public virtual IReadOnlyList<SettingsPage> SettingsPages() => [];
+
     /// <summary>Where Settings Sync can keep the settings besides a folder (the Pipelines module's: a secret GitHub gist).</summary>
     public virtual IReadOnlyList<Services.SettingsSyncTarget> SettingsSyncTargets => [];
 

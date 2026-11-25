@@ -17,6 +17,9 @@ public interface IWorkbench
 
     void SaveSettings();
 
+    /// <summary>Settings (Tools > Settings), on a page when its id is given ("claude").</summary>
+    void ShowSettings(string? page = null);
+
     /// <summary>The open solution's folder, or null.</summary>
     string? Workspace { get; }
 

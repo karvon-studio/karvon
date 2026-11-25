@@ -37,7 +37,7 @@ public sealed class VsIcon : Control
         "Error", "Warning", "Info", "Ok", "Pending", "Running", "Solution", "Folder", "FolderOpen", "PropertiesFolder", "WebFolder", "Project",
         "Dependencies", "Package", "Framework", "cs", "razor", "css", "js", "json", "xml", "html", "sql", "md", "proto",
         "yaml", "image", "binary", "file", "CloneRepository", "OpenProject", "NewProject", "FsProject", "VbProject", "ArrowRight",
-        "Claude", "History", "Send", "Copy", "Eye", "EyeOff", "Attach", "Hand", "CodeBrackets", "PlanDoc", "Bolt", "Gauge", "Plug", "Check",
+        "Claude", "History", "Send", "Copy", "Eye", "EyeOff", "Attach", "Hand", "CodeBrackets", "PlanDoc", "Bolt", "Gauge", "Plug", "Check", "Settings",
         "Sparkle", "FileCode", "ChevronUp", "GitCommit", "Repo", "Globe", "User", "ShieldOff", "Remote", "HotReload",
         "Docker", "DockerContainer", "DockerStack", "DockerImage", "DockerVolume", "DockerNetwork", "DockerPlay", "DockerStop", "DockerRestart",
         "DockerPause", "DockerDelete", "DockerMore", "DockerLink", "DockerBack", "DockerTerminal", "DockerLogs", "DockerStats", "DockerInspect",
@@ -662,6 +662,12 @@ public sealed class VsIcon : Control
             case "Gauge":
                 Stroke(dc, "M2,11.5 A6,6 0 1 1 14,11.5 M8,11 L11,6.5", fg, 1.3);
                 Fill(dc, "M8,9.7 A1.3,1.3 0 1 0 8,12.3 A1.3,1.3 0 1 0 8,9.7 Z", fg);
+                break;
+            case "Settings":
+                // A cog: its teeth, its ring, its hole.
+                Stroke(dc, "M8,1.2 L8,3.2 M8,12.8 L8,14.8 M1.2,8 L3.2,8 M12.8,8 L14.8,8 M3.2,3.2 L4.6,4.6 M11.4,11.4 L12.8,12.8 M3.2,12.8 L4.6,11.4 M11.4,4.6 L12.8,3.2", fg, 1.9);
+                Stroke(dc, "M8,3.6 A4.4,4.4 0 1 0 8,12.4 A4.4,4.4 0 1 0 8,3.6 Z", fg, 1.3);
+                Stroke(dc, "M8,6.2 A1.8,1.8 0 1 0 8,9.8 A1.8,1.8 0 1 0 8,6.2 Z", fg, 1.1);
                 break;
             case "Plug":
                 Stroke(dc, "M5.5,1.5 L5.5,4.5 M10.5,1.5 L10.5,4.5 M3.5,4.5 L12.5,4.5 L12.5,7 C12.5,9.5 10.5,11 8,11 C5.5,11 3.5,9.5 3.5,7 Z M8,11 L8,14.5", fg, 1.2);
