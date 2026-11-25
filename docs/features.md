@@ -436,26 +436,20 @@ never the key.
 ## Code Map (View > Code Map)
 
 The workspace's map: its files (git's, its submodules' too, without what `.gitignore` leaves out; else the folder's, without
-build output and dependencies; those that are not text by their names alone), each file's declarations as its language server outlines them (types, their members, functions; with
-their signatures and their doc comment's first sentence), and a sentence for each file of code and each folder saying
-what it is for. It is kept in the solution's own folder (`.vs/…/Karvon/codemap.db`, never in the repository; in Karvon's
+build output and dependencies; those that are not text by their names alone), and each file's declarations as its language
+server outlines them (types, their members, functions; with their signatures and their doc comment's first sentence).
+It is kept in the solution's own folder (`.vs/…/Karvon/codemap.db`, never in the repository; in Karvon's
 own when that cannot be written, and made anew when it is damaged) and kept as
 the workspace is: a scan, cheap for files that did not change (their size and time, then their hash), reads again only
 what changed, when a file is saved, after a checkout or a commit, every 30 seconds while the window shows, and before
 each of Claude's calls, so Claude never reads a map older than the files. Declarations come from language servers that
 run already (the map starts none: one would be downloaded the first time); a language's files are read once its server
 runs, as when one of its files is opened.
-**Search** as you type: declarations, files and folders by the start of any word of their names (`OrderTotals` by
-"totals" or "order tot", `Type.Member` by "type member"), their paths, signatures, doc comments and summaries ("invoice
-tax rate"), in any script, the name itself first; Down goes to the hits, Enter opens one at its line. Below, the tree: folders, files,
-their declarations, each with its summary or doc comment.
-**Summaries**, written by whom the window's choice says: no one (the default), **Claude** through your Claude Code
-sign-in (its fast model, `claude -p`), or **a local model through Ollama** (its address and model; the code stays on the
-machine). Files go to the model twenty at a time (their declarations and their first lines), then the folders a level at
-a time, the workspace's own last; each summary is for what it was written from, so after the first time only what
-changed is written again, a minute after the last change. An answer that is not one (a limit reached) stops the run and
-is shown; nothing is taken as summarized by it.
-Claude reads it with `code_map` (a folder's tree with its files' count and what each folder and file is for, or a file's
+**Search** as you type: declarations and files by the start of any word of their names (`OrderTotals` by "totals" or
+"order tot", `Type.Member` by "type member"), their paths, signatures and doc comments ("invoice tax rate"), in any
+script, the name itself first; Down goes to the hits, Enter opens one at its line. Below, the tree: folders, files, their
+declarations, each with its doc comment.
+Claude reads it with `code_map` (a folder's tree with its files' count and what each file declares, or a file's
 declarations with their lines) and `code_search` (the search above, best first), before `code_read_symbol` reads what
 they found; a command that only lists what the map has (`tree`, `ls -R`, `find` by name or type) is sent to them, before
 the shell; one that does anything else with the files, or anything else beside it, is the shell's.
@@ -473,8 +467,8 @@ Claude gets Karvon's own tools (`mcp__karvon__*`, an MCP server inside Karvon): 
 `build_errors`, `run_tests`, `test_failures`, `test_coverage`), running the app as Ctrl+F5 does (`app_control`: start, stop, restart,
 its URLs and output), the debugger where it stopped (`debug_state`, `debug_locals`, `debug_evaluate`,
 `debug_control`), the editor (`editor_selection`, `open_document`, `code_diagnostics`,
-`find_in_files`), the project by the Code Map (`code_map`: its tree with what each folder and file is for, or a file's
-declarations; `code_search`: declarations, files and folders by name or by what they do), the code by what it means,
+`find_in_files`), the project by the Code Map (`code_map`: its tree with what each file declares, or a file's
+declarations; `code_search`: declarations and files by name or doc comment), the code by what it means,
 through the language servers (`code_symbols`: declarations by name;
 `code_outline`: a file's declarations with their lines; `code_read_symbol`: a declaration's source by its name, every
 overload; `code_definition`: what a name on a line refers to; `code_references`: every use, with the member each is in;

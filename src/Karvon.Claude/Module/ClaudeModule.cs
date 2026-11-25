@@ -163,7 +163,7 @@ public sealed class ClaudeModule : AgentPanelModule, IClaudeService
     }
 
     /// <summary>claude -p with a fast model and no tools, as the chosen account; the run is not kept as a session.</summary>
-    public async Task<string> PrintAsync(string directory, string prompt, CancellationToken cancellationToken = default)
+    public async Task<string> PrintAsync(string directory, string prompt)
     {
         var claude = Claude;
         claude.CheckCli();
@@ -190,8 +190,7 @@ public sealed class ClaudeModule : AgentPanelModule, IClaudeService
         var error = process.StandardError.ReadToEndAsync();
         await using (var stdin = new StreamWriter(process.StandardInput.BaseStream, new UTF8Encoding(false)))
             await stdin.WriteAsync(prompt);
-        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        timeout.CancelAfter(TimeSpan.FromMinutes(2));
+        using var timeout = new CancellationTokenSource(TimeSpan.FromMinutes(2));
         try
         {
             await process.WaitForExitAsync(timeout.Token);
@@ -199,7 +198,6 @@ public sealed class ClaudeModule : AgentPanelModule, IClaudeService
         catch (OperationCanceledException)
         {
             process.Kill(entireProcessTree: true);
-            cancellationToken.ThrowIfCancellationRequested();
             throw new InvalidOperationException("claude did not answer within 2 minutes.");
         }
         var (text, problem) = (await output, (await error).Trim());

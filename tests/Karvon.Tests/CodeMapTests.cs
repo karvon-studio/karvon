@@ -1,5 +1,3 @@
-using System.Net;
-using System.Text;
 using System.Text.Json;
 using Avalonia.Controls;
 using Avalonia.Headless.XUnit;
@@ -13,7 +11,7 @@ using static Karvon.Tests.UiTests;
 
 namespace Karvon.Tests;
 
-/// <summary>The Code Map: its index and search, its scans that keep it up to date, its summaries, Claude's tools and its window.</summary>
+/// <summary>The Code Map: its index and search, its scans that keep it up to date, Claude's tools and its window.</summary>
 public class CodeMapTests
 {
     /// <summary>A folder of its own, with files in it.</summary>
@@ -93,7 +91,7 @@ public class CodeMapTests
     }
 
     [Fact]
-    public void The_store_finds_declarations_by_their_words_and_files_by_what_they_do()
+    public void The_store_finds_declarations_by_their_words_and_files_by_their_paths()
     {
         var root = Workspace();
         using var store = new CodeMapStore(Path.Combine(root, ".vs", "codemap.db"));
@@ -104,25 +102,19 @@ public class CodeMapTests
             new MapSymbol("class", "PortsSettings", null, null, 13, 55, null, 0),
         ]);
         store.Put(new MapFile("src/Jira/JiraClient.cs", 10, 1, "h2", "C#", 80, true), [new MapSymbol("class", "JiraClient", null, null, 5, 80, null, 0)]);
-        store.SetSummary("src/Jira/JiraClient.cs", "h2", "Talks to Jira's REST API with a site's token.");
-        store.SetFolderSummary("src/Ports", "x", "Port forwarding through a tunnel service.");
 
         // By a word of a name, the start of one, a type and its member.
         Assert.Equal("PortsSecrets", store.Search("secrets")[0].Name);
         Assert.Equal("PortsSecrets", store.Search("ports sec")[0].Name);
         var get = Assert.Single(store.Search("PortsSecrets.Get", kind: "declaration"));
         Assert.Equal(("PortsSecrets", "Get(string) : string?", 108), (get.Container, get.Detail, get.Line));
-        // The name itself first (a folder's here), then what has it as a word.
+        // The name itself first, then what has it as a word.
         Assert.Equal("PortsSettings", store.Search("PortsSettings")[0].Name);
-        var ports = store.Search("ports");
-        Assert.Equal(("Ports", true), (ports[0].Name, ports[0].IsFolder));
-        Assert.Contains(ports, h => h.Name == "PortsService.cs");
-        // By what it does: a doc comment, a file's summary, a folder's.
-        Assert.Equal("PortsSecrets", store.Search("keyring").Single().Name);
-        var jira = Assert.Single(store.Search("token rest", kind: "file"));
-        Assert.Equal("src/Jira/JiraClient.cs", jira.Path);
-        Assert.Equal("Talks to Jira's REST API with a site's token.", jira.Text);
-        Assert.True(Assert.Single(store.Search("tunnel", kind: "folder")).IsFolder);
+        Assert.Contains(store.Search("ports"), h => h.Name == "PortsService.cs");
+        // By what it does, as its doc comment says.
+        var secrets = store.Search("keyring").Single();
+        Assert.Equal(("PortsSecrets", "The services' API keys, in the system keyring."), (secrets.Name, secrets.Doc));
+        Assert.Equal("src/Jira/JiraClient.cs", Assert.Single(store.Search("jira", kind: "file")).Path);
         // Under a folder only; any word when not all of them match.
         Assert.NotEmpty(store.Search("c", under: "src/Jira"));
         Assert.All(store.Search("c", under: "src/Jira"), h => Assert.StartsWith("src/Jira/", h.Path));
@@ -185,14 +177,6 @@ public class CodeMapTests
         Assert.Equal([".gitignore", "app.py"], repoStore.Files().Keys.Order(StringComparer.Ordinal));
     }
 
-    /// <summary>A wait for a condition off the window's thread (a test without a window has none).</summary>
-    static async Task Until(Func<bool> condition)
-    {
-        for (var i = 0; i < 200 && !condition(); i++)
-            await Task.Delay(50, TestContext.Current.CancellationToken);
-        Assert.True(condition());
-    }
-
     static async Task Git(string folder, params string[] arguments)
     {
         var psi = new System.Diagnostics.ProcessStartInfo("git",
@@ -235,7 +219,6 @@ public class CodeMapTests
         // Not text: listed, not read.
         Assert.False(store.Files()["assets/logo.png"].IsRead);
         Assert.True(Assert.Single(store.Search("logo")).IsFile);
-        Assert.DoesNotContain("assets/logo.png", store.Files().Values.Where(CodeSummarizer.IsSummarized).Select(f => f.Path));
     }
 
     [Fact]
@@ -372,124 +355,6 @@ public class CodeMapTests
         Assert.Single(store.Search("beta"));
     }
 
-    /// <summary>The tests' model: a line for each path asked about, its sentence saying which.</summary>
-    static string Answer(string prompt) => string.Join("\n", System.Text.RegularExpressions.Regex.Matches(prompt, "<(file|folder) path=\"([^\"]*)\"")
-        .Select(m => $"{m.Groups[2].Value}\tAbout {m.Groups[2].Value}."));
-
-    [Fact]
-    public async Task Summaries_are_written_once_and_again_only_for_what_changed()
-    {
-        var root = Workspace(("shop/orders.py", "class Orders:\n    def total(self): pass\n"), ("shop/stock.py", "def reserve(): pass\n"), ("tools/run.py", "def main(): pass\n"),
-            ("data.json", "{}"));
-        using var store = new CodeMapStore(Path.Combine(root, ".vs", "codemap.db"));
-        await new CodeMapIndexer(root, store, new FakeOutline().OutlineAsync).ScanAsync();
-        var prompts = new List<string>();
-        var word = "About";
-        var summarizer = new CodeSummarizer(store, (prompt, _) =>
-        {
-            prompts.Add(prompt);
-            return Task.FromResult(Answer(prompt).Replace("About ", word + " "));
-        });
-
-        await summarizer.RunAsync(root, TestContext.Current.CancellationToken);
-        Assert.Null(summarizer.Problem);
-        Assert.Equal("About shop/orders.py.", store.Files()["shop/orders.py"].Summary);
-        Assert.Null(store.Files()["data.json"].Summary);
-        Assert.Contains("Declarations: class Orders; method Orders.total", prompts[0]);
-        var folders = store.Folders();
-        Assert.Equal(["", "shop", "tools"], folders.Keys.Order(StringComparer.Ordinal));
-        Assert.Equal("About /.", folders[""].Summary);
-        Assert.Contains("shop/ — About shop.", prompts[^1]);
-
-        // Nothing changed: nothing asked. A file changed (and what it is for): it, and the folders above it.
-        prompts.Clear();
-        await summarizer.RunAsync(root, TestContext.Current.CancellationToken);
-        Assert.Empty(prompts);
-        word = "Now";
-        var orders = store.Files()["shop/orders.py"];
-        store.Put(orders with { Hash = "changed" }, store.Symbols(orders.Path));
-        await summarizer.RunAsync(root, TestContext.Current.CancellationToken);
-        Assert.Contains("<file path=\"shop/orders.py\"", prompts[0]);
-        Assert.DoesNotContain("stock.py\"", prompts[0]);
-        Assert.Equal(3, prompts.Count);
-        Assert.Equal("Now /.", store.Folders()[""].Summary);
-        Assert.Equal("About shop/stock.py.", store.Files()["shop/stock.py"].Summary);
-
-        // The model's error stops the run and says why.
-        var failing = new CodeSummarizer(store, (_, _) => throw new InvalidOperationException("Ollama is not running."));
-        store.Put(orders with { Hash = "again" }, []);
-        await failing.RunAsync(root, TestContext.Current.CancellationToken);
-        Assert.Equal("Ollama is not running.", failing.Problem);
-    }
-
-    [Fact]
-    public async Task An_answer_without_summaries_stops_the_run_and_summarizes_nothing_and_what_one_left_out_is_asked_once_more()
-    {
-        var root = Workspace(("a.py", "def a(): pass\n"), ("b.py", "def b(): pass\n"));
-        using var store = new CodeMapStore(Path.Combine(root, ".vs", "codemap.db"));
-        await new CodeMapIndexer(root, store, new FakeOutline().OutlineAsync).ScanAsync();
-        var limit = new CodeSummarizer(store, (_, _) => Task.FromResult("You've hit your limit, it resets at 5pm."));
-        await limit.RunAsync(root, TestContext.Current.CancellationToken);
-        Assert.Equal("the model answered: You've hit your limit, it resets at 5pm.", limit.Problem);
-        Assert.Equal(2, CodeSummarizer.Pending(store.Files()));
-        Assert.All(store.Files().Values, f => Assert.Null(f.Summary));
-        Assert.Empty(store.Folders());
-
-        // b.py is left out of the first answer: it is asked about again, alone.
-        var prompts = new List<string>();
-        var leftOut = new HashSet<string>();
-        var forgets = true;
-        Task<string> Ask(string prompt)
-        {
-            prompts.Add(prompt);
-            return Task.FromResult(forgets && prompt.Contains("<file path=\"a.py\"", StringComparison.Ordinal) ? "a.py\tAbout a.py." : Answer(prompt));
-        }
-        await new CodeSummarizer(store, (prompt, _) => Ask(prompt), leftOut).RunAsync(root, TestContext.Current.CancellationToken);
-        Assert.DoesNotContain("<file path=\"a.py\"", prompts[1]);
-        Assert.Equal(["About a.py.", "About b.py."], store.Files().Values.OrderBy(f => f.Path).Select(f => f.Summary));
-        Assert.Empty(leftOut);
-
-        // Left out twice: not asked about again in this workspace's runs, not taken as summarized either.
-        store.Put(store.Files()["b.py"] with { Hash = "changed" }, []);
-        prompts.Clear();
-        Task<string> Never(string prompt)
-        {
-            prompts.Add(prompt);
-            return Task.FromResult(prompt.Contains("<folder", StringComparison.Ordinal) ? Answer(prompt) : prompts.Count == 1 ? "a.py\tAbout a.py." : "No.");
-        }
-        store.Put(store.Files()["a.py"] with { Hash = "changed" }, []);
-        await new CodeSummarizer(store, (prompt, _) => Never(prompt), leftOut).RunAsync(root, TestContext.Current.CancellationToken);
-        Assert.Equal(1, CodeSummarizer.Pending(store.Files()));
-        prompts.Clear();
-        await new CodeSummarizer(store, (prompt, _) => Never(prompt), leftOut).RunAsync(root, TestContext.Current.CancellationToken);
-        Assert.Empty(prompts);
-    }
-
-    [Fact]
-    public async Task Another_writer_chosen_while_one_writes_starts_at_once_and_the_first_s_answer_is_not_used()
-    {
-        var root = Workspace(("a.py", "def a(): pass\n"));
-        using var map = new CodeMapWorkspace(root, Path.Combine(root, ".vs", "codemap.db"), new FakeOutline().OutlineAsync);
-        await map.Indexer.ScanAsync(TestContext.Current.CancellationToken);
-        var asked = new TaskCompletionSource();
-        var slow = new TaskCompletionSource<string>();
-        map.SetWriter((_, _) =>
-        {
-            asked.TrySetResult();
-            return slow.Task;
-        });
-        await asked.Task.WaitAsync(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken);
-        map.SetWriter((prompt, _) => Task.FromResult(Answer(prompt).Replace("About", "The second's about")));
-        await Until(() => map.Store.Files()["a.py"].Summary is not null);
-        slow.SetResult("a.py\tThe first's.");
-        await Until(() => !map.IsSummarizing);
-        Assert.Equal("The second's about a.py.", map.Store.Files()["a.py"].Summary);
-        // No one chosen: the run stops, and no other starts.
-        map.SetWriter((_, _) => new TaskCompletionSource<string>().Task);
-        map.SetWriter(null);
-        await Until(() => !map.IsSummarizing);
-    }
-
     [Fact]
     public void Names_and_comments_in_any_script_are_found()
     {
@@ -511,19 +376,6 @@ public class CodeMapTests
         Assert.Equal("ПлатёжЗаказа", Assert.Single(store.Search("зак плат")).Name);
         Assert.Single(store.Search("café"));
         Assert.Single(store.Search("注文"));
-    }
-
-    [Fact]
-    public void A_models_lines_are_read_by_the_paths_asked_about()
-    {
-        var lines = CodeSummarizer.Lines("""
-            Here are the summaries:
-            src/a.cs	Reads the settings.
-            - `src/b.cs`: Writes **them**.
-            src/ab.cs — Neither.
-            src/c.cs
-            """, ["src/a.cs", "src/b.cs", "src/ab.cs", "src/c.cs"]);
-        Assert.Equal(new Dictionary<string, string> { ["src/a.cs"] = "Reads the settings.", ["src/b.cs"] = "Writes them.", ["src/ab.cs"] = "Neither." }, lines);
     }
 
     [Fact]
@@ -549,8 +401,6 @@ public class CodeMapTests
                 stock.py: function reserve
               README.md
             """, tree);
-        map.Store.SetSummary("shop/stock.py", map.Store.Files()["shop/stock.py"].Hash, "Reserves the items of an order.");
-        Assert.Contains("stock.py — Reserves the items of an order.", await Call("code_map", """{"path":"shop"}"""));
         Assert.Equal("""
             shop/orders.py (3 lines, Python)
               1: class Orders
@@ -647,32 +497,12 @@ public class CodeMapTests
             [new("fake-symbols", "Fake symbols server", path => path.EndsWith(".hint", StringComparison.Ordinal), start => FakeLanguageClient.StartAsync(start, null, "--symbols"))];
     }
 
-    sealed class FakeOllama : HttpMessageHandler
-    {
-        public List<string> Prompts { get; } = [];
-
-        protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
-        {
-            using var json = JsonDocument.Parse(await request.Content!.ReadAsStringAsync(cancellationToken));
-            var prompt = json.RootElement.GetProperty("prompt").GetString()!;
-            lock (Prompts)
-                Prompts.Add(prompt);
-            return new HttpResponseMessage(HttpStatusCode.OK)
-            {
-                Content = new StringContent(JsonSerializer.Serialize(new { response = Answer(prompt), done = true }), Encoding.UTF8, "application/json"),
-            };
-        }
-    }
-
     [AvaloniaFact]
-    public async Task The_window_maps_the_workspace_searches_it_as_you_type_and_shows_the_summaries_ollama_wrote()
+    public async Task The_window_maps_the_workspace_and_searches_it_as_you_type()
     {
         var root = Workspace(("tools.hint", "def alpha\ndef beta\n"), ("notes/plan.md", "# Plan\n"));
         var vm = NewViewModel(modules: [new FakeSymbolsModule(), .. Karvon.BuiltInModules.Create()]);
         var codeMap = vm.Module<CodeMapModule>()!;
-        var ollama = new FakeOllama();
-        codeMap.Http = new HttpClient(ollama);
-        CodeMapWorkspace.SummaryDelay = TimeSpan.FromMilliseconds(100);
         codeMap.Indexes = true;
         var window = new MainWindow { DataContext = vm, Width = 1400, Height = 900 };
         window.Show();
@@ -686,21 +516,12 @@ public class CodeMapTests
         Assert.Equal("2 files · 2 declarations", view.Status);
         Assert.Equal(["notes", "tools.hint"], view.Roots.Select(r => r.Name));
         Assert.Equal("1 file", view.Roots[0].Detail);
-        Assert.Equal("No summaries: choose who writes them below.", view.SummaryStatus);
 
         view.Query = "bet";
         await WaitUntil(() => view.Results.Count > 0, TimeSpan.FromSeconds(5));
         var hit = view.Results[0];
         Assert.Equal(("beta", "tools.hint:2"), (hit.Title, hit.Location));
         view.Query = "";
-
-        // Summaries by Ollama: written, shown in the tree, kept in codemap.json.
-        view.SourceIndex = (int)SummarySource.Ollama;
-        await WaitUntil(() => view.SummaryStatus.EndsWith("up to date.", StringComparison.Ordinal), TimeSpan.FromSeconds(30));
-        Assert.Equal("1 file summarized: up to date.", view.SummaryStatus);
-        Assert.Equal("About tools.hint.", view.Roots.Single(r => r.Name == "tools.hint").Detail);
-        Assert.Contains("\"summaries\": \"ollama\"", File.ReadAllText(codeMap.SettingsFile));
-        Assert.Contains(ollama.Prompts, p => p.Contains("def alpha", StringComparison.Ordinal));
 
         // A file's declarations under it; opening one goes to its line.
         var file = view.Roots.Single(r => r.Name == "tools.hint");

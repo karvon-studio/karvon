@@ -6,9 +6,9 @@ using static Karvon.Claude.Tools.ToolInput;
 namespace Karvon.CodeMap;
 
 /// <summary>
-/// Claude's tools on the Code Map: the workspace's tree with what each part is for, a file's declarations, and a search of
-/// all of it by name, word, path, signature, doc comment and summary. The map is brought up to date before each answer, so
-/// it is never older than the workspace.
+/// Claude's tools on the Code Map: the workspace's tree with what each file declares, a file's declarations, and a search
+/// of all of it by name, word, path, signature and doc comment. The map is brought up to date before each answer, so it is
+/// never older than the workspace.
 /// </summary>
 static class CodeMapTools
 {
@@ -74,16 +74,16 @@ static class CodeMapTools
         protected abstract Task<ClaudeToolOutput> RunAsync(JsonElement input, CancellationToken cancellationToken);
     }
 
-    /// <summary><c>code_map</c>: a folder's tree (the workspace's, by default) or a file's declarations, with what each is for.</summary>
+    /// <summary><c>code_map</c>: a folder's tree (the workspace's, by default) or a file's declarations.</summary>
     sealed class CodeMapTool(Func<CodeMapWorkspace?> map) : Tool(map)
     {
         public override string Name => "code_map";
 
         public override string Description =>
             "The workspace's map, kept up to date by Karvon: a folder's tree (the workspace's by default) with each folder's file count "
-            + "and each folder's and file's one-line summary (or its first declarations), or, for a file, its declarations with their "
-            + "lines, signatures and doc comments. Start here to learn a project or a part of it, instead of ls, find, tree or reading "
-            + "files to see what they are; then code_search to find something by name or by what it does, and code_read_symbol to read it.";
+            + "and each file's first declarations, or, for a file, its declarations with their lines, signatures and doc comments. "
+            + "Start here to learn a project or a part of it, instead of ls, find, tree or reading files to see what they are; then "
+            + "code_search to find something by name or by what its doc comment says, and code_read_symbol to read it.";
 
         public override JsonObject InputSchema => Schema("""
             {"type":"object","properties":{
@@ -109,16 +109,16 @@ static class CodeMapTools
         public override string Name => "code_search";
 
         public override string Description =>
-            "Searches Karvon's Code Map of the workspace, at once: declarations (types, members, functions), files and folders, by the start "
-            + "of any word of their names (OrderTotals is found by 'totals' or 'order tot', Type.Member by 'type member'), their paths, "
-            + "signatures, doc comments and summaries (what they are for: 'invoice tax rate'). Best first: path:line: kind name — doc or "
-            + "summary. Use it instead of grep or find to find where something is or what does something; read what it finds with "
-            + "code_read_symbol or code_map (a file's declarations).";
+            "Searches Karvon's Code Map of the workspace, at once: declarations (types, members, functions) and files, by the start of any "
+            + "word of their names (OrderTotals is found by 'totals' or 'order tot', Type.Member by 'type member'), their paths, "
+            + "signatures and doc comments (what they are for: 'invoice tax rate'). Best first: path:line: kind name — doc. Use it "
+            + "instead of grep or find to find where something is or what does something; read what it finds with code_read_symbol "
+            + "or code_map (a file's declarations).";
 
         public override JsonObject InputSchema => Schema("""
             {"type":"object","properties":{
-              "query":{"type":"string","description":"Words of a name, a path or what it does."},
-              "kind":{"type":"string","enum":["declaration","file","folder"],"description":"Only declarations, files or folders."},
+              "query":{"type":"string","description":"Words of a name, a path or a doc comment."},
+              "kind":{"type":"string","enum":["declaration","file"],"description":"Only declarations or files."},
               "path":{"type":"string","description":"Only under this folder of the workspace."},
               "limit":{"type":"integer","description":"At most this many (default 25, at most 100)."}},
              "required":["query"]}
@@ -128,7 +128,7 @@ static class CodeMapTools
 
         protected override async Task<ClaudeToolOutput> RunAsync(JsonElement input, CancellationToken cancellationToken)
         {
-            var query = Str(input, "query") is { Length: > 0 } q ? q : throw new InvalidOperationException("Give the query: words of a name, a path or what it does.");
+            var query = Str(input, "query") is { Length: > 0 } q ? q : throw new InvalidOperationException("Give the query: words of a name, a path or a doc comment.");
             var (map, note) = await FreshAsync(Map, cancellationToken);
             var hits = map.Store.Search(query, Str(input, "kind"), PathOf(map, Str(input, "path")), Int(input, "limit", 25, 1, 100));
             return new ClaudeToolOutput(note + (hits.Count == 0 ? $"Nothing in the Code Map matches {query}." : CodeMapText.Hits(hits)));

@@ -4,47 +4,37 @@ using Microsoft.Data.Sqlite;
 
 namespace Karvon.CodeMap;
 
-/// <summary>A file of the map: where it is (relative to the workspace, with /), what it was when read, and its summary.</summary>
+/// <summary>A file of the map: where it is (relative to the workspace, with /), and what it was when read.</summary>
 public sealed record MapFile(string Path, long Size, long Modified, string Hash, string? Language, int Lines, bool Outlined)
 {
-    public string? Summary { get; init; }
-
     /// <summary>Whether the file was read (text, not too large nor generated), not only listed.</summary>
     public bool IsRead => Hash.Length > 0;
-
-    /// <summary>The hash of the file the summary was written for: another one, and it is to be written again.</summary>
-    public string? SummaryHash { get; init; }
 }
 
 /// <summary>A declaration of a file: its kind, name, what it is in, its signature, its lines (from 1) and its doc comment's first sentence.</summary>
 public sealed record MapSymbol(string Kind, string Name, string? Container, string? Detail, int Line, int EndLine, string? Doc, int Depth);
 
-/// <summary>A folder's summary, and the hash of what it was written from (its files' and folders' summaries).</summary>
-public sealed record MapFolder(string Path, string? Summary, string? SummaryHash);
-
-/// <summary>What a search found: a declaration (its kind), a file or a folder, and the text that goes with it.</summary>
-public sealed record MapHit(string Kind, string Path, int Line, string Name, string? Container, string? Detail, string? Text)
+/// <summary>What a search found: a declaration (its kind), with its doc comment, or a file.</summary>
+public sealed record MapHit(string Kind, string Path, int Line, string Name, string? Container, string? Detail, string? Doc)
 {
     public bool IsFile => Kind == CodeMapStore.FileKind;
-
-    public bool IsFolder => Kind == CodeMapStore.FolderKind;
 }
 
 /// <summary>
 /// The map of a workspace, in a SQLite file of the solution's own folder (.vs/…/Karvon): its files, their declarations,
-/// the summaries, and a full-text index (FTS5) of all of them that a search ranks by name first, then by the words of the
-/// name (OrderTotals is found by "totals"), the path, the signature, the doc comment and the summary. One file's rows
-/// are replaced together, so the map follows the workspace a file at a time. Safe to use from any thread.
+/// and a full-text index (FTS5) of both that a search ranks by name first, then by the words of the name (OrderTotals is
+/// found by "totals"), the path, the signature and the doc comment. One file's rows are replaced together, so the map
+/// follows the workspace a file at a time. Safe to use from any thread.
 /// </summary>
 public sealed class CodeMapStore : IDisposable
 {
-    public const string FileKind = "file", FolderKind = "folder";
+    public const string FileKind = "file";
 
     /// <summary>The schema's version: a store of another is made anew (it is only a cache of the workspace).</summary>
-    const int Version = 2;
+    const int Version = 3;
 
-    /// <summary>Where the files' and the folders' search rows are among the declarations' (whose ids are the rows' own).</summary>
-    const long FileRows = -1, FolderRows = -1_000_000_000_000;
+    /// <summary>Where the files' search rows are among the declarations' (whose ids are the rows' own).</summary>
+    const long FileRows = -1;
 
     readonly Lock _lock = new();
     readonly string? _file;
@@ -103,14 +93,13 @@ public sealed class CodeMapStore : IDisposable
             Execute(db, "CREATE TABLE IF NOT EXISTS meta(key TEXT PRIMARY KEY, value TEXT)");
             if (Scalar(db, "SELECT value FROM meta WHERE key = 'version'") is not string version || version != Version.ToString())
                 Execute(db, """
-                    DROP TABLE IF EXISTS files; DROP TABLE IF EXISTS symbols; DROP TABLE IF EXISTS folders; DROP TABLE IF EXISTS search;
+                    DROP TABLE IF EXISTS files; DROP TABLE IF EXISTS symbols; DROP TABLE IF EXISTS search;
                     CREATE TABLE files(id INTEGER PRIMARY KEY, path TEXT NOT NULL UNIQUE, size INTEGER, modified INTEGER, hash TEXT,
-                        language TEXT, lines INTEGER, outlined INTEGER, summary TEXT, summary_hash TEXT);
+                        language TEXT, lines INTEGER, outlined INTEGER);
                     CREATE TABLE symbols(id INTEGER PRIMARY KEY, path TEXT NOT NULL, kind TEXT, name TEXT, container TEXT, detail TEXT,
                         line INTEGER, end_line INTEGER, doc TEXT, depth INTEGER);
                     CREATE INDEX symbols_path ON symbols(path);
-                    CREATE TABLE folders(id INTEGER PRIMARY KEY, path TEXT NOT NULL UNIQUE, summary TEXT, summary_hash TEXT);
-                    CREATE VIRTUAL TABLE search USING fts5(kind UNINDEXED, path, line UNINDEXED, name, words, container, detail, text,
+                    CREATE VIRTUAL TABLE search USING fts5(kind UNINDEXED, path, line UNINDEXED, name, words, container, detail, doc,
                         owner UNINDEXED, tokenize = 'unicode61');
                     """);
             // Written at each opening: a file that can only be read is known here, not at the first scan.
@@ -168,20 +157,16 @@ public sealed class CodeMapStore : IDisposable
         return Use(() =>
         {
             var files = new Dictionary<string, MapFile>(StringComparer.Ordinal);
-            using var command = Command("SELECT path, size, modified, hash, language, lines, outlined, summary, summary_hash FROM files");
+            using var command = Command("SELECT path, size, modified, hash, language, lines, outlined FROM files");
             using var reader = command.ExecuteReader();
             while (reader.Read())
                 files[reader.GetString(0)] = new MapFile(reader.GetString(0), reader.GetInt64(1), reader.GetInt64(2), reader.GetString(3),
-                    reader.IsDBNull(4) ? null : reader.GetString(4), reader.GetInt32(5), reader.GetInt64(6) != 0)
-                {
-                    Summary = reader.IsDBNull(7) ? null : reader.GetString(7),
-                    SummaryHash = reader.IsDBNull(8) ? null : reader.GetString(8),
-                };
+                    reader.IsDBNull(4) ? null : reader.GetString(4), reader.GetInt32(5), reader.GetInt64(6) != 0);
             return files;
         });
     }
 
-    /// <summary>A file read (again): its row, its declarations and their search rows, all at once. Its summary stays until a new one is written.</summary>
+    /// <summary>A file read (again): its row, its declarations and their search rows, all at once.</summary>
     public void Put(MapFile file, IReadOnlyList<MapSymbol> symbols)
     {
         Use(() =>
@@ -206,7 +191,7 @@ public sealed class CodeMapStore : IDisposable
                 InsertSearch(id, symbol.Kind, file.Path, symbol.Line, symbol.Name, CodeText.Words(symbol.Name),
                     symbol.Container is { } c ? string.Join(' ', c.Split('.').Select(CodeText.Words)) : null, symbol.Detail, symbol.Doc, symbol.Container);
             }
-            PutFileSearch(file.Path, Summary(file.Path));
+            PutFileSearch(file.Path);
             transaction.Commit();
         });
     }
@@ -221,18 +206,6 @@ public sealed class CodeMapStore : IDisposable
             if (Scalar("SELECT id FROM files WHERE path = $p", ("$p", path)) is long id)
                 Execute("DELETE FROM search WHERE rowid = $r", ("$r", FileRows - id));
             Execute("DELETE FROM files WHERE path = $p", ("$p", path));
-            transaction.Commit();
-        });
-    }
-
-    /// <summary>A file's summary, written for the file as it is (its hash); searched with its name from now on.</summary>
-    public void SetSummary(string path, string hash, string summary)
-    {
-        Use(() =>
-        {
-            using var transaction = _db.BeginTransaction();
-            Execute("UPDATE files SET summary = $s, summary_hash = $h WHERE path = $p", ("$s", summary), ("$h", hash), ("$p", path));
-            PutFileSearch(path, summary);
             transaction.Commit();
         });
     }
@@ -268,68 +241,22 @@ public sealed class CodeMapStore : IDisposable
         Execute("DELETE FROM symbols WHERE path = $p", ("$p", path));
     }
 
-    string? Summary(string path) => Scalar("SELECT summary FROM files WHERE path = $p", ("$p", path)) as string;
-
-    void PutFileSearch(string path, string? summary)
+    void PutFileSearch(string path)
     {
         if (Scalar("SELECT id FROM files WHERE path = $p", ("$p", path)) is not long id)
             return;
         var name = System.IO.Path.GetFileName(path);
         Execute("DELETE FROM search WHERE rowid = $r", ("$r", FileRows - id));
         InsertSearch(FileRows - id, FileKind, path, 0, name,
-            string.Join(' ', path.Split('/').Select(p => CodeText.Words(System.IO.Path.GetFileNameWithoutExtension(p)))), null, null, summary);
-    }
-
-    // ---- Folders ----------------------------------------------------------------------------------------------
-
-    public IReadOnlyDictionary<string, MapFolder> Folders()
-    {
-        return Use(() =>
-        {
-            var folders = new Dictionary<string, MapFolder>(StringComparer.Ordinal);
-            using var command = Command("SELECT path, summary, summary_hash FROM folders");
-            using var reader = command.ExecuteReader();
-            while (reader.Read())
-                folders[reader.GetString(0)] = new MapFolder(reader.GetString(0), Text(reader, 1), Text(reader, 2));
-            return folders;
-        });
-    }
-
-    /// <summary>A folder's summary ("" is the workspace's own), written from its files' and folders' (their hash).</summary>
-    public void SetFolderSummary(string path, string hash, string summary)
-    {
-        Use(() =>
-        {
-            using var transaction = _db.BeginTransaction();
-            Execute("""
-                INSERT INTO folders(path, summary, summary_hash) VALUES ($p, $s, $h)
-                ON CONFLICT(path) DO UPDATE SET summary = $s, summary_hash = $h
-                """, ("$p", path), ("$s", summary), ("$h", hash));
-            var id = (long)Scalar("SELECT id FROM folders WHERE path = $p", ("$p", path))!;
-            Execute("DELETE FROM search WHERE rowid = $r", ("$r", FolderRows - id));
-            var name = path.Length == 0 ? "/" : System.IO.Path.GetFileName(path);
-            InsertSearch(FolderRows - id, FolderKind, path, 0, name, string.Join(' ', path.Split('/').Select(CodeText.Words)), null, null, summary);
-            transaction.Commit();
-        });
-    }
-
-    /// <summary>A folder gone (no file of the map is in it any more): its summary goes.</summary>
-    public void RemoveFolder(string path)
-    {
-        Use(() =>
-        {
-            if (Scalar("SELECT id FROM folders WHERE path = $p", ("$p", path)) is long id)
-                Execute("DELETE FROM search WHERE rowid = $r", ("$r", FolderRows - id));
-            Execute("DELETE FROM folders WHERE path = $p", ("$p", path));
-        });
+            string.Join(' ', path.Split('/').Select(p => CodeText.Words(System.IO.Path.GetFileNameWithoutExtension(p)))), null, null, null);
     }
 
     // ---- Search -----------------------------------------------------------------------------------------------
 
     /// <summary>
-    /// What a query finds, best first: every word of it (the start of a word of a name, a path, a signature, a doc comment or
-    /// a summary), the name matching it exactly first; with no such hit, any of its words. <paramref name="kind"/>: "file",
-    /// "folder", "declaration" or null for all; <paramref name="under"/>: a folder's path, or null for the workspace.
+    /// What a query finds, best first: every word of it (the start of a word of a name, a path, a signature or a doc comment),
+    /// the name matching it exactly first; with no such hit, any of its words. <paramref name="kind"/>: "file",
+    /// "declaration" or null for both; <paramref name="under"/>: a folder's path, or null for the workspace.
     /// </summary>
     public IReadOnlyList<MapHit> Search(string query, string? kind = null, string? under = null, int limit = 25)
     {
@@ -347,16 +274,13 @@ public sealed class CodeMapStore : IDisposable
     List<MapHit> Find(string match, string exact, string? kind, string? under, int limit)
     {
         var sql = new StringBuilder("""
-            SELECT kind, path, line, name, owner, detail, text FROM search WHERE search MATCH $q
+            SELECT kind, path, line, name, owner, detail, doc FROM search WHERE search MATCH $q
             """);
         var parameters = new List<(string, object?)> { ("$q", match), ("$exact", exact), ("$limit", limit) };
-        if (kind == FileKind || kind == FolderKind)
-        {
-            sql.Append(" AND kind = $kind");
-            parameters.Add(("$kind", kind));
-        }
+        if (kind == FileKind)
+            sql.Append($" AND kind = '{FileKind}'");
         else if (kind == "declaration")
-            sql.Append($" AND kind NOT IN ('{FileKind}', '{FolderKind}')");
+            sql.Append($" AND kind <> '{FileKind}'");
         if (under is { Length: > 0 })
         {
             sql.Append(@" AND (path = $under OR path LIKE $prefix ESCAPE '\')");
@@ -364,12 +288,12 @@ public sealed class CodeMapStore : IDisposable
             parameters.Add(("$prefix", Like(under.TrimEnd('/')) + "/%"));
         }
         // The name itself first (a file's without its extension), a type before a file, a function and a member of that name;
-        // then the rank, by weights in the columns' order: kind, path, line, name, words, container, detail, text, owner.
+        // then the rank, by weights in the columns' order: kind, path, line, name, words, container, detail, doc, owner.
         sql.Append("""
              ORDER BY (lower_all(name) = $exact OR (kind = 'file' AND lower_all(name) LIKE $exact || '.%')) DESC,
                 CASE WHEN lower_all(name) = $exact OR (kind = 'file' AND lower_all(name) LIKE $exact || '.%') THEN
                     CASE kind WHEN 'class' THEN 0 WHEN 'interface' THEN 0 WHEN 'struct' THEN 0 WHEN 'enum' THEN 0 WHEN 'module' THEN 0
-                        WHEN 'file' THEN 1 WHEN 'folder' THEN 1 WHEN 'function' THEN 2 ELSE 3 END
+                        WHEN 'file' THEN 1 WHEN 'function' THEN 2 ELSE 3 END
                 ELSE 0 END,
                 bm25(search, 0, 2.0, 0, 10.0, 6.0, 2.0, 1.0, 1.0, 0)
              LIMIT $limit
@@ -398,12 +322,12 @@ public sealed class CodeMapStore : IDisposable
 
     static string Like(string text) => text.Replace(@"\", @"\\").Replace("%", @"\%").Replace("_", @"\_");
 
-    void InsertSearch(long rowid, string kind, string path, int line, string name, string words, string? container, string? detail, string? text,
+    void InsertSearch(long rowid, string kind, string path, int line, string name, string words, string? container, string? detail, string? doc,
         string? owner = null) =>
         Execute("""
-            INSERT INTO search(rowid, kind, path, line, name, words, container, detail, text, owner) VALUES ($r, $k, $p, $l, $n, $w, $c, $d, $t, $o)
+            INSERT INTO search(rowid, kind, path, line, name, words, container, detail, doc, owner) VALUES ($r, $k, $p, $l, $n, $w, $c, $d, $t, $o)
             """,
-            ("$r", rowid), ("$k", kind), ("$p", path), ("$l", line), ("$n", name), ("$w", words), ("$c", container), ("$d", detail), ("$t", text),
+            ("$r", rowid), ("$k", kind), ("$p", path), ("$l", line), ("$n", name), ("$w", words), ("$c", container), ("$d", detail), ("$t", doc),
             ("$o", owner));
 
     // ---- SQLite -----------------------------------------------------------------------------------------------

@@ -35,7 +35,7 @@ public static class KarvonTools
         "You run inside Karvon Studio, the user's IDE; its tools are mcp__karvon__*. Use them, not Bash, for what they do: build "
         + "and test (run_build, run_tests), run and debug the app (app_control, debug_control), learn a project and find code by what it is "
         + "and what it does rather than ls, find, grep, sed and cat on source files (code_map, the project's tree with what each "
-        + "folder and file is for; code_search, by name or what it does; then code_symbols, code_read_symbol, code_references, "
+        + "file declares; code_search, by name or doc comment; then code_symbols, code_read_symbol, code_references, "
         + "code_definition, code_implementations, code_outline), and the user's databases, Docker, SSH servers, Jira, CI runs, pull requests, "
         + "Kubernetes and HTTP requests to the app (db_, container_, server_, jira_, pipeline_, pr_, k8s_ and http_ tools), and PDF, "
         + "Word, Excel and PowerPoint files (document_ tools; a script for what they cannot do), and web pages in Karvon's own Chrome (browser_ tools, "

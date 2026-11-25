@@ -155,9 +155,6 @@ public static partial class CodeText
         };
     }
 
-    /// <summary>Whether a file is source code of a language the map knows (a summary is worth writing for it), not data or configuration.</summary>
-    public static bool IsCode(string? language) => language is not null && !IsData(language);
-
     /// <summary>Whether a file is data, configuration or prose: no language server outlines it for the map.</summary>
     public static bool IsData(string? language) => language is "JSON" or "YAML" or "TOML" or "XML" or "Markdown";
 }

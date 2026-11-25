@@ -40,23 +40,11 @@
       </StackPanel>
     </Border>
     <TextBox Name="SearchBox" DockPanel.Dock="Top" Classes="search" Margin="4,0,4,4" Text="{Binding Query}"
-             PlaceholderText="Search the code: names, paths, what it does" />
+             PlaceholderText="Search the code: names, paths, doc comments" />
 
-    <!-- How far the map and its summaries are, and who writes the summaries. -->
+    <!-- How far the map is. -->
     <Border DockPanel.Dock="Bottom" BorderBrush="#3F3F46" BorderThickness="0,1,0,0" Padding="8,6">
-      <StackPanel Spacing="4">
-        <TextBlock Name="StatusText" Classes="dkMuted" FontSize="11.5" TextWrapping="Wrap" Text="{Binding Status}" />
-        <TextBlock Name="SummaryText" Classes="dkMuted" FontSize="11.5" TextWrapping="Wrap" Text="{Binding SummaryStatus}" IsVisible="{Binding HasMap}" />
-        <ComboBox Name="SourceBox" ItemsSource="{x:Static cvm:CodeMapViewModel.Sources}" SelectedIndex="{Binding SourceIndex}"
-                  HorizontalAlignment="Stretch" FontSize="12" />
-        <Grid ColumnDefinitions="*,6,*,Auto" IsVisible="{Binding IsOllama}">
-          <TextBox Classes="dkField" Text="{Binding OllamaUrl}" PlaceholderText="http://localhost:11434" FontSize="12" />
-          <TextBox Grid.Column="2" Classes="dkField" Text="{Binding OllamaModel}" PlaceholderText="qwen2.5-coder:7b" FontSize="12" />
-          <Button Grid.Column="3" Classes="dkOutline" Margin="6,0,0,0" Content="Use" Command="{Binding ApplySourceCommand}" FontSize="12" />
-        </Grid>
-        <TextBlock Classes="dkMuted" FontSize="11" TextWrapping="Wrap" IsVisible="{Binding HasSource}"
-                   Text="Summaries send the start of each file of code to the model; each is written once, and again only when its file changes." />
-      </StackPanel>
+      <TextBlock Name="StatusText" Classes="dkMuted" FontSize="11.5" TextWrapping="Wrap" Text="{Binding Status}" />
     </Border>
 
     <Panel>

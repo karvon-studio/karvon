@@ -308,12 +308,9 @@ The results say where the tools pay off: large projects, code questions, builds;
 session does to learn a project (listing folders, opening files to see what they are). The Code Map (`code_map`,
 `code_search`, [features](features.md#code-map-view--code-map)) is for that, and the same runner measures it:
 
-- **Arm D, B with the Code Map**: as B, the Code Map's tools and its shell rules too; once with no summaries and once
-  with Claude's, so what the summaries add is measured apart from the structure.
+- **Arm D, B with the Code Map**: as B, the Code Map's tools and its shell rules too.
 - **The tasks it is for**: the code questions (T03, T12) and the large project's (T15–T17), 5 times each on the three
   models; the core suite once, to see that D costs no more than B where the map does not help.
-- **The map's own cost**: the summaries' first writing (its tokens and money, from the model's answers) is reported
-  apart, as what a workspace pays once, and what a change costs after (a file and the folders above it).
 - **What decides**: D against B on those tasks, cost and time per task done, as the decision above reads them; and
   whether Haiku 5.5 with the map does what Sonnet 5.5 does without it.
 

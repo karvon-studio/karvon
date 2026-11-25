@@ -2,22 +2,20 @@ using System.Text;
 
 namespace Karvon.CodeMap;
 
-/// <summary>The map as Claude reads it: a folder's tree with what each part is for, a file's declarations, a search's hits.</summary>
+/// <summary>The map as Claude reads it: a folder's tree with what each file declares, a file's declarations, a search's hits.</summary>
 public static class CodeMapText
 {
     /// <summary>A folder's files listed at most, the rest counted; and those not read (pictures, archives), which are counted by their extension past that.</summary>
     const int FilesPerFolder = 30, UnreadPerFolder = 3;
 
     /// <summary>
-    /// A folder's tree, <paramref name="depth"/> levels down: each folder with its files' count and its summary, each file
-    /// with its summary (or its first declarations, without one); at most <paramref name="maxLines"/> lines, what is left
-    /// said with the path to ask for.
+    /// A folder's tree, <paramref name="depth"/> levels down: each folder with its files' count, each file with its first
+    /// declarations; at most <paramref name="maxLines"/> lines, what is left said with the path to ask for.
     /// </summary>
     public static string Tree(CodeMapStore store, string root, string path, int depth, int maxLines = 300)
     {
         path = path.Trim('/');
         var files = store.Files();
-        var folders = store.Folders();
         var under = files.Keys.Where(p => path.Length == 0 || p.StartsWith(path + "/", StringComparison.Ordinal)).ToList();
         var counts = new Dictionary<string, int>(StringComparer.Ordinal);
         foreach (var file in under)
@@ -41,7 +39,7 @@ public static class CodeMapText
             lines++;
         }
         var name = path.Length == 0 ? Path.GetFileName(root) : path;
-        Line(0, $"{name}/ ({Files(counts.GetValueOrDefault(path))}){Summary(folders.GetValueOrDefault(path)?.Summary)}");
+        Line(0, $"{name}/ ({Files(counts.GetValueOrDefault(path))})");
         Walk(path, 1);
         if (cut)
             text.Append("… more than ").Append(maxLines).Append(" lines: ask code_map for a folder above (path), or code_search.\n");
@@ -54,7 +52,7 @@ public static class CodeMapText
             var subfolders = counts.Keys.Where(f => f.Length > 0 && Parent(f) == folder && f != folder).Order(StringComparer.Ordinal).ToList();
             foreach (var sub in subfolders)
             {
-                Line(level, $"{Path.GetFileName(sub)}/ ({Files(counts[sub])}){Summary(folders.GetValueOrDefault(sub)?.Summary)}");
+                Line(level, $"{Path.GetFileName(sub)}/ ({Files(counts[sub])})");
                 Walk(sub, level + 1);
             }
             var inFolder = under.Where(f => Parent(f) == folder).Order(StringComparer.Ordinal).ToList();
@@ -71,12 +69,12 @@ public static class CodeMapText
         }
     }
 
-    /// <summary>A file's summary and declarations: each with its line, its signature and its doc comment's first sentence.</summary>
+    /// <summary>A file's declarations: each with its line, its signature and its doc comment's first sentence.</summary>
     public static string Outline(CodeMapStore store, MapFile file, int maxLines = 300)
     {
         if (!file.IsRead)
             return $"{file.Path} ({file.Size:N0} bytes): not read (not text, generated, or too large).";
-        var text = new StringBuilder($"{file.Path} ({file.Lines} lines{(file.Language is { } l ? ", " + l : "")}){Summary(file.Summary)}\n");
+        var text = new StringBuilder($"{file.Path} ({file.Lines} lines{(file.Language is { } l ? ", " + l : "")})\n");
         var symbols = store.Symbols(file.Path);
         if (symbols.Count == 0)
             text.Append(file.Outlined ? "No declarations.\n" : "Its declarations are not known (no language server reads this kind of file).\n");
@@ -88,34 +86,28 @@ public static class CodeMapText
         return text.ToString().TrimEnd();
     }
 
-    /// <summary>A search's hits, a line each: where, what, and its doc comment or summary.</summary>
+    /// <summary>A search's hits, a line each: where, what, and its doc comment.</summary>
     public static string Hits(IReadOnlyList<MapHit> hits)
     {
         var text = new StringBuilder();
         foreach (var hit in hits)
         {
-            if (hit.IsFolder)
-                text.Append(hit.Path.Length == 0 ? "/" : hit.Path + "/");
-            else if (hit.IsFile)
+            if (hit.IsFile)
                 text.Append(hit.Path);
             else
                 text.Append(hit.Path).Append(':').Append(hit.Line).Append(": ").Append(hit.Kind).Append(' ')
                     .Append(hit.Container is { } c ? c + "." : "").Append(hit.Detail ?? hit.Name);
-            text.Append(Summary(hit.Text)).Append('\n');
+            text.Append(hit.Doc is { Length: > 0 } doc ? " — " + doc : "").Append('\n');
         }
         return text.ToString().TrimEnd();
     }
 
-    /// <summary>What a file is: its summary, else its first declarations.</summary>
+    /// <summary>What a file is: its first declarations.</summary>
     static string About(CodeMapStore store, MapFile file)
     {
-        if (file.Summary is { Length: > 0 } summary)
-            return " — " + summary;
         var top = store.Symbols(file.Path).Where(s => s.Depth == 0).Take(3).Select(s => $"{s.Kind} {s.Name}").ToList();
         return top.Count > 0 ? ": " + string.Join(", ", top) : "";
     }
-
-    static string Summary(string? summary) => summary is { Length: > 0 } ? " — " + summary : "";
 
     static string Files(int count) => count == 1 ? "1 file" : $"{count} files";
 

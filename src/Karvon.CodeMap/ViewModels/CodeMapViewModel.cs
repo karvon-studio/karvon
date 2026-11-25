@@ -5,7 +5,7 @@ using CommunityToolkit.Mvvm.Input;
 
 namespace Karvon.CodeMap.ViewModels;
 
-/// <summary>A row of the map's tree: a folder, a file or a declaration, with what it is for; its children made when it opens.</summary>
+/// <summary>A row of the map's tree: a folder, a file or a declaration, with its doc comment; its children made when it opens.</summary>
 public sealed partial class CodeMapNode : ObservableObject
 {
     readonly Func<CodeMapNode, IEnumerable<CodeMapNode>>? _children;
@@ -28,7 +28,7 @@ public sealed partial class CodeMapNode : ObservableObject
 
     public string Name { get; }
 
-    /// <summary>Its summary, its doc comment or its signature, in gray after it.</summary>
+    /// <summary>Its files' count (a folder's), its doc comment or its signature, in gray after it.</summary>
     public string? Detail { get; }
 
     public bool HasDetail => Detail is { Length: > 0 };
@@ -40,8 +40,6 @@ public sealed partial class CodeMapNode : ObservableObject
     public string Path { get; }
 
     public int Line { get; }
-
-    public bool IsFolder => Icon == "Folder";
 
     public ObservableCollection<CodeMapNode> Children { get; } = [];
 
@@ -65,15 +63,15 @@ public sealed partial class CodeMapNode : ObservableObject
     }
 }
 
-/// <summary>A search's hit as the window lists it: what, where, and its doc comment or summary.</summary>
+/// <summary>A search's hit as the window lists it: what, where, and its doc comment or signature.</summary>
 public sealed record CodeMapHitItem(string Icon, string Title, string Location, string? Detail, string Path, int Line)
 {
     public bool HasDetail => Detail is { Length: > 0 };
 }
 
 /// <summary>
-/// The Code Map window: a search of the map as you type (declarations, files and folders, best first), the workspace's
-/// tree with what each part is for, how far the map and its summaries are, and who writes the summaries.
+/// The Code Map window: a search of the map as you type (declarations and files, best first), the workspace's tree, and how
+/// far the map is.
 /// </summary>
 public sealed partial class CodeMapViewModel : ObservableObject, IDisposable
 {
@@ -86,7 +84,6 @@ public sealed partial class CodeMapViewModel : ObservableObject, IDisposable
     Dictionary<string, List<string>> _filesIn = [];
     Dictionary<string, int> _counts = [];
     IReadOnlyDictionary<string, MapFile> _files = new Dictionary<string, MapFile>();
-    IReadOnlyDictionary<string, MapFolder> _summaries = new Dictionary<string, MapFolder>();
 
     public CodeMapViewModel(CodeMapModule module)
     {
@@ -108,15 +105,8 @@ public sealed partial class CodeMapViewModel : ObservableObject, IDisposable
                 _ = _map?.Indexer.ScanAsync();
         });
         _scanTimer.Start();
-        var settings = module.Settings;
-        SourceIndex = (int)settings.Summaries;
-        OllamaUrl = settings.OllamaUrl;
-        OllamaModel = settings.OllamaModel;
         SetMap(module.Map);
     }
-
-    public static IReadOnlyList<string> Sources { get; } =
-        ["Summaries: none", "Summaries: Claude (your Claude Code sign-in)", "Summaries: a local model (Ollama)"];
 
     public ObservableCollection<CodeMapNode> Roots { get; } = [];
 
@@ -135,47 +125,10 @@ public sealed partial class CodeMapViewModel : ObservableObject, IDisposable
     [ObservableProperty]
     public partial string Status { get; set; } = "";
 
-    /// <summary>The summaries: written, to write, or why they stopped.</summary>
-    [ObservableProperty]
-    public partial string SummaryStatus { get; set; } = "";
-
-    [ObservableProperty]
-    public partial bool HasMap { get; set; }
-
-    [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(IsOllama), nameof(HasSource))]
-    public partial int SourceIndex { get; set; }
-
-    public bool IsOllama => SourceIndex == (int)SummarySource.Ollama;
-
-    public bool HasSource => SourceIndex != (int)SummarySource.None;
-
-    [ObservableProperty]
-    public partial string OllamaUrl { get; set; } = "";
-
-    [ObservableProperty]
-    public partial string OllamaModel { get; set; } = "";
-
     partial void OnQueryChanged(string value)
     {
         _searchTimer.Stop();
         _searchTimer.Start();
-    }
-
-    bool _applying;
-
-    partial void OnSourceIndexChanged(int value)
-    {
-        if (!_applying)
-            ApplySource();
-    }
-
-    /// <summary>Who writes the summaries (and Ollama's address and model, when it is Ollama), kept and put to work.</summary>
-    [RelayCommand]
-    void ApplySource()
-    {
-        _module.SetSummaries((SummarySource)SourceIndex, OllamaUrl, OllamaModel);
-        UpdateStatus();
     }
 
     /// <summary>The map of another workspace (or none).</summary>
@@ -186,7 +139,6 @@ public sealed partial class CodeMapViewModel : ObservableObject, IDisposable
         _map = map;
         if (map is not null)
             map.Changed += OnMapChanged;
-        HasMap = map is not null;
         Reload();
     }
 
@@ -213,7 +165,6 @@ public sealed partial class CodeMapViewModel : ObservableObject, IDisposable
         if (_map is { } map)
         {
             _files = map.Store.Files();
-            _summaries = map.Store.Folders();
             _folders = [];
             _filesIn = [];
             _counts = [];
@@ -257,12 +208,11 @@ public sealed partial class CodeMapViewModel : ObservableObject, IDisposable
     IEnumerable<CodeMapNode> ChildrenOf(string folder)
     {
         foreach (var sub in _folders.GetValueOrDefault(folder, []).Order(StringComparer.Ordinal))
-            yield return new CodeMapNode(System.IO.Path.GetFileName(sub), _summaries.GetValueOrDefault(sub)?.Summary is { Length: > 0 } summary ? summary : Files(_counts.GetValueOrDefault(sub)),
-                "Folder", sub, 0, _ => ChildrenOf(sub));
+            yield return new CodeMapNode(System.IO.Path.GetFileName(sub), Files(_counts.GetValueOrDefault(sub)), "Folder", sub, 0, _ => ChildrenOf(sub));
         foreach (var path in _filesIn.GetValueOrDefault(folder, []).Order(StringComparer.Ordinal))
         {
             var file = _files[path];
-            yield return new CodeMapNode(System.IO.Path.GetFileName(path), file.Summary, "FileCode", path, 1,
+            yield return new CodeMapNode(System.IO.Path.GetFileName(path), null, "FileCode", path, 1,
                 file.Outlined ? node => SymbolsOf(node.Path) : null);
         }
     }
@@ -299,44 +249,24 @@ public sealed partial class CodeMapViewModel : ObservableObject, IDisposable
             return;
         }
         foreach (var hit in map.Store.Search(Query, limit: 60))
-            Results.Add(hit.IsFolder
-                ? new CodeMapHitItem("Folder", (hit.Path.Length == 0 ? "/" : hit.Path + "/"), "", hit.Text, hit.Path, 0)
-                : hit.IsFile
-                    ? new CodeMapHitItem("FileCode", hit.Name, hit.Path, hit.Text, hit.Path, 1)
-                    : new CodeMapHitItem(IconOf(hit.Kind), (hit.Container is { } c ? c + "." : "") + hit.Name, $"{hit.Path}:{hit.Line}",
-                        hit.Text ?? hit.Detail, hit.Path, hit.Line));
+            Results.Add(hit.IsFile
+                ? new CodeMapHitItem("FileCode", hit.Name, hit.Path, null, hit.Path, 1)
+                : new CodeMapHitItem(IconOf(hit.Kind), (hit.Container is { } c ? c + "." : "") + hit.Name, $"{hit.Path}:{hit.Line}",
+                    hit.Doc ?? hit.Detail, hit.Path, hit.Line));
         HasNoResults = Results.Count == 0;
     }
 
     void UpdateStatus()
     {
-        _applying = true;
-        SourceIndex = (int)_module.Settings.Summaries;
-        _applying = false;
         if (_map is not { } map)
         {
             Status = "Open a solution or a folder: its map is made here.";
-            SummaryStatus = "";
             return;
         }
         var (done, total) = map.Indexer.Progress;
         Status = total > 0
             ? $"Reading the workspace: {done:N0} of {total:N0} files…"
             : $"{Files(_files.Count)} · {map.Store.SymbolCount():N0} declarations";
-        var source = _module.Settings.Summaries;
-        var pending = CodeSummarizer.Pending(_files);
-        var summarized = _files.Values.Count(CodeSummarizer.IsSummarized) - pending;
-        SummaryStatus = source == SummarySource.None
-            ? "No summaries: choose who writes them below."
-            : source == SummarySource.Claude && !_module.HasClaude
-                ? "Claude Code is off in Karvon (Tools > Get Tools and Features): it cannot write the summaries."
-                : map.Summarizer?.Problem is { } problem && !map.IsSummarizing
-                    ? $"The summaries stopped: {problem}"
-                    : map.IsSummarizing && map.Summarizer?.Progress is { Total: > 0 } progress
-                        ? $"Writing summaries: {progress.Done:N0} of {progress.Total:N0}…"
-                        : pending > 0
-                            ? $"{Files(summarized)} summarized, {pending:N0} to write."
-                            : $"{Files(summarized)} summarized: up to date.";
     }
 
     [RelayCommand]

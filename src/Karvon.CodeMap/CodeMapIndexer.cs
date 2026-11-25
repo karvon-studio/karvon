@@ -95,7 +95,7 @@ public sealed class CodeMapIndexer(string root, CodeMapStore store, Func<string,
     /// <summary>A server may have started (a file was opened): the files waiting for theirs are asked about at the next scan.</summary>
     public void RetryWaiting() => _retryServers = true;
 
-    /// <summary>A scan changed the map (files read, gone): the window and the summaries follow. Raised on the scan's thread.</summary>
+    /// <summary>A scan changed the map (files read, gone): the window follows. Raised on the scan's thread.</summary>
     public event Action? Changed;
 
     /// <summary>A scan's progress changed. Raised on the scan's thread.</summary>

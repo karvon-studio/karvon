@@ -22,9 +22,9 @@ Each module is a project of its own, referencing `Karvon.Core`. The core referen
 - HTTP Client (`src/Karvon.Http`): .http files sent from the editor (its pane and margin, the `EditorPane` API), the
   Endpoints Explorer, and Claude's HTTP tools;
 - MCP Servers (`src/Karvon.Mcp`);
-- Code Map (`src/Karvon.CodeMap`): the workspace's files, declarations (by the workbench's `OutlineAsync`, from the
-  servers that run) and summaries in a SQLite index with full-text search, kept up to date, its tool window, Claude's
-  `code_map` and `code_search`;
+- Code Map (`src/Karvon.CodeMap`): the workspace's files and declarations (by the workbench's `OutlineAsync`, from the
+  servers that run) in a SQLite index with full-text search, kept up to date, its tool window, Claude's `code_map` and
+  `code_search`;
 - Inline Completions (`src/Karvon.Completions`): the editor's inline completions from Claude (Anthropic's C# SDK) or from a
   local model through Ollama, a status bar item and its settings;
 - Skills (`src/Karvon.Skills`, which uses MCP Servers);
