@@ -71,6 +71,9 @@ public class UiTests
         // Other tests may be building in parallel: never shut down the shared build servers.
         if (vm.Module<Karvon.DotNet.DotNetModule>() is { } dotnet)
             dotnet.ShutdownBuildServers = () => Task.CompletedTask;
+        // The Code Map maps no workspace (it would ask the tests' language servers for every file).
+        if (vm.Module<Karvon.CodeMap.CodeMapModule>() is { } codeMap)
+            codeMap.Indexes = false;
         // Inline completions never reach Anthropic or Ollama from a test, whatever the user's own settings and key.
         if (vm.Module<Karvon.Completions.CompletionsModule>() is { } completions)
         {

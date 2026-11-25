@@ -137,6 +137,13 @@ public interface IWorkbench
     /// <summary>A file in the editor, at a line when one is given.</summary>
     void OpenFile(string path, int line = 0);
 
+    /// <summary>
+    /// A file of the workspace's declarations, as its language server outlines them, once the server is ready; null when no
+    /// server serves the file. With <paramref name="start"/>, a server not running yet starts as Claude's code tools start
+    /// it (downloaded the first time); without, it throws <see cref="Lsp.LanguageServerNotRunningException"/>.
+    /// </summary>
+    Task<IReadOnlyList<Lsp.LspDocumentSymbol>?> OutlineAsync(string file, bool start, CancellationToken cancellationToken);
+
     /// <summary>A file of the editor's was saved.</summary>
     event Action<string>? FileSaved;
 

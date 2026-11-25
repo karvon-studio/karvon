@@ -80,6 +80,13 @@ public sealed record ClaudeShellRule(string Name, Func<string, bool> Matches, st
     }
 
     /// <summary>
+    /// A rule that reads a command whole: the command as written, and its simple commands in order, each with its words
+    /// (quotes kept together, without the assignments and the sudo before it, nor what is redirected).
+    /// </summary>
+    public static ClaudeShellRule Whole(string name, Func<string, IReadOnlyList<IReadOnlyList<string>>, bool> matches, string use) =>
+        new(name, command => matches(command, [.. ShellCommand.Words(command)]), use);
+
+    /// <summary>
     /// A rule for a program run as a command: at a line's start, after ; &amp;&amp; || | ( ` $( or a newline, after a loop's
     /// do or a condition's then and else, after sudo and variables set before it (A=1 dotnet build). <paramref name="pattern"/>
     /// is the program and what follows it.

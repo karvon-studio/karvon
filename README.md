@@ -45,6 +45,8 @@ update as it closes.
 - **Git**, **Terminal** and **NuGet**.
 - **Database Explorer**, **Docker Explorer**, **Servers** (SSH), **Jira**, **Ports** (port forwarding), **Pipelines** (GitHub Actions, GitLab CI), **Pull Requests**, **Kubernetes**, **HTTP Client** (.http files), **MCP Servers** and **Skills**.
 - **Claude Code**, your own `claude` CLI, with Karvon's tools: the build, the tests, the debugger, the databases.
+- **Code Map**: the workspace's folders, files and declarations, kept up to date as the code changes, searched as you type
+  and by Claude instead of listing and reading files.
 - **Documents**: PDF, Word, Excel and PowerPoint files open in Karvon, and Claude reads and changes them, through its own document engines.
 - **Browser**: Karvon's own Chrome, which Claude drives (pages read, clicked, typed into, signed in to without seeing the password).
 - **Karvon Studio Installer** (`karvon --installer`, or Tools > Get Tools and Features) and **updates**.

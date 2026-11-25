@@ -1,0 +1,84 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:v="using:Karvon.Views"
+             xmlns:cvm="using:Karvon.CodeMap.ViewModels"
+             x:Class="Karvon.CodeMap.Views.CodeMapView"
+             x:DataType="cvm:CodeMapViewModel">
+  <UserControl.Styles>
+    <StyleInclude Source="avares://Karvon.Core/Themes/ExplorerStyles.axaml" />
+    <Style Selector="TreeView#Tree TreeViewItem /template/ ContentPresenter#PART_HeaderPresenter">
+      <Setter Property="HorizontalAlignment" Value="Stretch" />
+      <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+    </Style>
+    <!-- A row's children are made when it opens. -->
+    <Style Selector="TreeView#Tree TreeViewItem">
+      <Setter Property="IsExpanded" Value="{ReflectionBinding IsExpanded, Mode=TwoWay}" />
+    </Style>
+    <Style Selector="Grid.node">
+      <Setter Property="Height" Value="22" />
+      <Setter Property="Background" Value="Transparent" />
+    </Style>
+    <Style Selector="TextBlock.detail">
+      <Setter Property="Foreground" Value="#9D9D9D" />
+      <Setter Property="FontSize" Value="11.5" />
+      <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+  </UserControl.Styles>
+
+  <DockPanel>
+    <Border DockPanel.Dock="Top" Background="{StaticResource VsEnvironmentBrush}">
+      <TextBlock Classes="toolTitle" Text="Code Map" />
+    </Border>
+    <Border DockPanel.Dock="Top" Padding="4,2">
+      <StackPanel Orientation="Horizontal" Spacing="2">
+        <Button Name="RefreshButton" Classes="tbi" Command="{Binding RefreshCommand}" ToolTip.Tip="Read what changed in the workspace">
+          <v:VsIcon Kind="Refresh" />
+        </Button>
+        <Button Classes="tbi" Command="{Binding CollapseAllCommand}" ToolTip.Tip="Collapse All">
+          <v:VsIcon Kind="CollapseAll" />
+        </Button>
+      </StackPanel>
+    </Border>
+    <TextBox Name="SearchBox" DockPanel.Dock="Top" Classes="search" Margin="4,0,4,4" Text="{Binding Query}"
+             PlaceholderText="Search the code: names, paths, doc comments" />
+
+    <!-- How far the map is. -->
+    <Border DockPanel.Dock="Bottom" BorderBrush="#3F3F46" BorderThickness="0,1,0,0" Padding="8,6">
+      <TextBlock Name="StatusText" Classes="dkMuted" FontSize="11.5" TextWrapping="Wrap" Text="{Binding Status}" />
+    </Border>
+
+    <Panel>
+      <TreeView Name="Tree" ItemsSource="{Binding Roots}" Background="Transparent" IsVisible="{Binding !IsSearching}"
+                ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+        <TreeView.DataTemplates>
+          <TreeDataTemplate DataType="cvm:CodeMapNode" ItemsSource="{Binding Children}">
+            <Grid Classes="node" ColumnDefinitions="Auto,Auto,*" ToolTip.Tip="{Binding Detail}">
+              <v:VsIcon Kind="{Binding Icon}" Width="14" Height="14" Margin="0,0,6,0" />
+              <TextBlock Grid.Column="1" Text="{Binding Name}" VerticalAlignment="Center" />
+              <TextBlock Grid.Column="2" Classes="detail" Margin="8,0,0,0" Text="{Binding Detail}" TextTrimming="CharacterEllipsis"
+                         IsVisible="{Binding HasDetail}" />
+            </Grid>
+          </TreeDataTemplate>
+        </TreeView.DataTemplates>
+      </TreeView>
+
+      <DockPanel IsVisible="{Binding IsSearching}">
+        <TextBlock DockPanel.Dock="Top" Classes="dkMuted" Margin="10,6" Text="Nothing matches." IsVisible="{Binding HasNoResults}" />
+        <ListBox Name="ResultList" ItemsSource="{Binding Results}" Background="Transparent" ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+          <ListBox.ItemTemplate>
+            <DataTemplate DataType="cvm:CodeMapHitItem">
+              <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto" Margin="0,2" ToolTip.Tip="{Binding Detail}">
+                <v:VsIcon Kind="{Binding Icon}" Width="14" Height="14" Margin="0,0,6,0" VerticalAlignment="Top" />
+                <TextBlock Grid.Column="1" TextTrimming="CharacterEllipsis">
+                  <Run Text="{Binding Title}" /><Run Text="  " /><Run Text="{Binding Location}" Foreground="#9D9D9D" FontSize="11.5" />
+                </TextBlock>
+                <TextBlock Grid.Row="1" Grid.Column="1" Classes="detail" Text="{Binding Detail}" TextTrimming="CharacterEllipsis"
+                           IsVisible="{Binding HasDetail}" />
+              </Grid>
+            </DataTemplate>
+          </ListBox.ItemTemplate>
+        </ListBox>
+      </DockPanel>
+    </Panel>
+  </DockPanel>
+</UserControl>

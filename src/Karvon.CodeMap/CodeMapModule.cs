@@ -1,0 +1,178 @@
+using System.Security.Cryptography;
+using System.Text;
+using Avalonia.Threading;
+using Karvon.Claude;
+using Karvon.CodeMap.ViewModels;
+using Karvon.CodeMap.Views;
+using Karvon.Lsp;
+using Karvon.Modules;
+
+namespace Karvon.CodeMap;
+
+/// <summary>
+/// Code Map: the workspace's structure (its folders, files and declarations, with their doc comments) in an index Karvon
+/// keeps as the workspace is. Claude reads it with code_map and code_search instead of listing and reading files to learn
+/// a project; the user, in its tool window, searches it as they type.
+/// </summary>
+public sealed class CodeMapModule : KarvonModule
+{
+    public const string ToolWindowId = "CodeMap";
+
+    const string Use =
+        "Karvon keeps a map of the workspace, up to date: use mcp__karvon__code_map (its tree, with what each file declares, or a "
+        + "file's declarations) and mcp__karvon__code_search (by name or by what its doc comment says) instead of listing files.";
+
+    CodeMapWorkspace? _map;
+    CodeMapViewModel? _view;
+
+    public override string Id => "codemap";
+
+    public override string Name => "Code Map";
+
+    public override string Icon => "tree";
+
+    public override string Description =>
+        "The workspace's map: its folders, files and declarations, with their doc comments, in an index kept up to date as the code "
+        + "changes. Claude finds its way with code_map and code_search instead of listing and reading files; the Code Map window "
+        + "searches it as you type.";
+
+    public override IReadOnlyList<ToolWindowInfo> ToolWindows =>
+        [new(ToolWindowId, "Code Map", "Code _Map", "Namespace", DockSide.Right, () => new CodeMapView { DataContext = EnsureView() })];
+
+    /// <summary>The map of the workspace open, or null.</summary>
+    public CodeMapWorkspace? Map => _map;
+
+    bool _indexes = true;
+
+    /// <summary>Whether workspaces are mapped (the tests' other windows map none, so no language server is asked by the map).</summary>
+    internal bool Indexes
+    {
+        get => _indexes;
+        set
+        {
+            if (_indexes == value)
+                return;
+            _indexes = value;
+            if (!IsStarted)
+                return;
+            if (value)
+                Open();
+            else
+                _ = Close();
+        }
+    }
+
+    public CodeMapViewModel EnsureView() => _view ??= new CodeMapViewModel(this);
+
+    public override IEnumerable<IClaudeTool> ClaudeTools() => CodeMapTools.Create(() => _map);
+
+    /// <summary>A command that only lists the workspace's files (<see cref="ListingCommand"/>): the map instead, once it is made.</summary>
+    public override IEnumerable<ClaudeShellRule> ClaudeShellRules() =>
+    [
+        ClaudeShellRule.Whole("listing files", (command, commands) => _map is { Indexer.IsComplete: true } map
+            && ListingCommand.Is(command, commands, map.Root, path => Has(map, path)), Use) with { InWorkspace = true },
+    ];
+
+    /// <summary>Whether the map has a path: not when it closes meanwhile, or cannot be read (the command is the shell's then).</summary>
+    static bool Has(CodeMapWorkspace map, string path)
+    {
+        try
+        {
+            return map.Store.Has(path);
+        }
+        catch (Exception ex) when (ex is ObjectDisposedException or Microsoft.Data.Sqlite.SqliteException)
+        {
+            return false;
+        }
+    }
+
+    protected override void Started()
+    {
+        Workbench.FileSaved += OnFileSaved;
+        Workbench.GitChanged += OnGitChanged;
+        Workbench.ActiveDocumentChanged += OnActiveDocumentChanged;
+        Open();
+    }
+
+    /// <summary>A file opened in the editor starts its language's server: the files waiting for it are read.</summary>
+    void OnActiveDocumentChanged(Karvon.ViewModels.DocumentTab? document)
+    {
+        if (_map is not { } map)
+            return;
+        map.Indexer.RetryWaiting();
+        _ = map.Indexer.ScanAsync();
+    }
+
+    void OnFileSaved(string path) => _ = _map?.Indexer.ScanAsync();
+
+    void OnGitChanged() => _ = _map?.Indexer.ScanAsync();
+
+    public override Task WorkspaceChangedAsync()
+    {
+        Open();
+        return Task.CompletedTask;
+    }
+
+    /// <summary>The map closed, its file let go (by a scan that takes longer to stop, when it has).</summary>
+    public override async Task<bool> CloseWorkspaceAsync()
+    {
+        await Task.WhenAny(Close(), Task.Delay(TimeSpan.FromSeconds(2)));
+        return true;
+    }
+
+    /// <summary>The workspace's map, opened from its file in the solution's own folder, and scanned.</summary>
+    void Open()
+    {
+        _ = Close();
+        if (_indexes && Workbench.Workspace is { } root && Directory.Exists(root))
+        {
+            _map = new CodeMapWorkspace(root, CodeMapStore.OpenFirst(DatabaseFiles(root)), OutlineAsync);
+            _map.Start();
+        }
+        _view?.SetMap(_map);
+    }
+
+    Task Close()
+    {
+        var map = _map;
+        _map = null;
+        _view?.SetMap(null);
+        return map?.CloseAsync() ?? Task.CompletedTask;
+    }
+
+    /// <summary>The map's file: in the solution's own folder (.vs/…/Karvon), or when that cannot be written in Karvon's, by the folder's path.</summary>
+    IEnumerable<string> DatabaseFiles(string root)
+    {
+        if (Workbench.WorkspaceStateDirectory is { } state)
+            yield return Path.Combine(state, "codemap.db");
+        yield return Path.Combine(Services.Settings.ConfigDirectory, "codemap", Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(root)), 0, 8) + ".db");
+    }
+
+    /// <summary>
+    /// A file's outline by its language server if that runs (the map starts none: it would download one the first time),
+    /// asked on the window's thread, where the servers are, after what the user does there (the first scan asks thousands).
+    /// </summary>
+    Task<IReadOnlyList<LspDocumentSymbol>?> OutlineAsync(string file, CancellationToken cancellationToken) =>
+        Dispatcher.UIThread.InvokeAsync(() => Workbench.OutlineAsync(file, start: false, cancellationToken), DispatcherPriority.Background);
+
+    /// <summary>A file of the map opened in the editor, at a line.</summary>
+    public void OpenFile(string path, int line)
+    {
+        if (_map is { } map)
+            Workbench.OpenFile(Path.Combine(map.Root, path), line);
+    }
+
+    public bool IsShowing => Workbench.IsToolWindowShowing(ToolWindowId);
+
+    public override void Dispose()
+    {
+        if (IsStarted)
+        {
+            Workbench.FileSaved -= OnFileSaved;
+            Workbench.GitChanged -= OnGitChanged;
+            Workbench.ActiveDocumentChanged -= OnActiveDocumentChanged;
+        }
+        _ = Close();
+        _view?.Dispose();
+    }
+}

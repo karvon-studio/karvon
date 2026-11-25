@@ -22,6 +22,9 @@ Each module is a project of its own, referencing `Karvon.Core`. The core referen
 - HTTP Client (`src/Karvon.Http`): .http files sent from the editor (its pane and margin, the `EditorPane` API), the
   Endpoints Explorer, and Claude's HTTP tools;
 - MCP Servers (`src/Karvon.Mcp`);
+- Code Map (`src/Karvon.CodeMap`): the workspace's files and declarations (by the workbench's `OutlineAsync`, from the
+  servers that run) in a SQLite index with full-text search, kept up to date, its tool window, Claude's `code_map` and
+  `code_search`;
 - Inline Completions (`src/Karvon.Completions`): the editor's inline completions from Claude (Anthropic's C# SDK) or from a
   local model through Ollama, a status bar item and its settings;
 - Skills (`src/Karvon.Skills`, which uses MCP Servers);
@@ -141,7 +144,8 @@ also matches null, so one added to the application would take over every empty p
 - the solution's Git repositories and their branches (`Repositories`), `GitChanged` when Git's state is read again, and
   `GitPushed` after a push of Karvon's; a branch pushed as Git Changes pushes it (`PushAsync`), and a git command of
   its own run as Git Changes runs one (`RunGitAsync`: in Output, the status read again after);
-- Restart Language Server (a linter let into the folder, or no longer);
+- Restart Language Server (a linter let into the folder, or no longer), and a file's declarations as its language
+  server outlines them (`OutlineAsync`: the server started first if asked, else only one that runs);
 - a command of its own run as the tasks run (`RunAsync`), and the Package Manager of one of its projects
   (`ManagePackagesAsync` with its `PackageSource`: the registry's search, a package's versions and details, the
   project's dependencies, and what adds and removes one: the package manager's command, or an edit of the manifest
