@@ -18,9 +18,10 @@ sealed record PostmanSent(PostmanItem Item, PostmanResult Result);
 sealed record PostmanRan(PostmanCollection Collection, PostmanItem? Folder, IReadOnlyList<PostmanResult> Results);
 
 /// <summary>
-/// Claude Code's Postman tools: the collections and environments in files Karvon shows, their requests read, sent with their
-/// scripts and tests, run and changed. A secret's value is never told: it goes into the request, not to Claude. To this
-/// machine requests go at once, anywhere else the user approves; a script cannot take one elsewhere.
+/// Claude Code's Postman tools: the collections in files Karvon shows, their requests read, sent with their scripts and
+/// tests, run and changed. An environment is names alone: its values are told by no tool and to no script of a call, and go
+/// into a request only where the user lets agents send with that environment, to its own hosts. To this machine requests go
+/// at once, anywhere else the user approves; a script cannot take one elsewhere.
 /// </summary>
 static class PostmanClaudeTools
 {
@@ -67,6 +68,8 @@ static class PostmanClaudeTools
 
         protected abstract Task<ClaudeToolOutput> RunAsync(JsonElement input, CancellationToken cancellationToken);
 
+        public virtual string? Refusal(JsonElement input) => null;
+
         protected PostmanCollection CollectionOf(JsonElement input) => Str(input, "collection") is { } name
             ? Library.FindCollection(name) ?? throw new PostmanException($"There is no collection {name}: {Names(Library.Collections.Select(c => c.Name))}.")
             : Library.Collections is [var only] ? only : throw new PostmanException($"Say which collection: {Names(Library.Collections.Select(c => c.Name))}.");
@@ -90,7 +93,7 @@ static class PostmanClaudeTools
         /// <summary>A text Claude gives back as it was told it: a secret's mark, which is not the secret.</summary>
         protected static void NoMasks(string? text, string what)
         {
-            if (text is not null && (text.Contains(Redaction.Mask, StringComparison.Ordinal) || text.Contains("«secret:", StringComparison.Ordinal)))
+            if (text is not null && (text.Contains(Redaction.Mask, StringComparison.Ordinal) || text.Contains("«secret:", StringComparison.Ordinal) || text.Contains("«hidden:", StringComparison.Ordinal)))
                 throw new PostmanException($"{what} has a hidden secret's mark in it: leave it out to keep what is there, or use a variable ({{{{name}}}}).");
         }
     }
@@ -119,7 +122,7 @@ static class PostmanClaudeTools
         Reach Find(JsonElement input)
         {
             var (environment, variables) = (EnvironmentOf(input), VariablesOf(input));
-            var hosts = Items(input).Select(i => PostmanSender.HostOf(i, environment, Library.Globals, variables)).ToList();
+            var hosts = Items(input).Select(i => PostmanSender.HostOf(i, environment, Library.Globals, variables, Module.Agents)).ToList();
             return new([.. hosts.OfType<Uri>().Where(u => !HttpRunner.IsLocal(u.Host)).Select(u => u.Authority).Distinct(StringComparer.OrdinalIgnoreCase)], hosts.Contains(null), DateTime.UtcNow);
         }
 
@@ -150,7 +153,7 @@ static class PostmanClaudeTools
                 var to = string.Join(", ", reach.Outside.Append(reach.Unknown ? "a host set by a variable or a script" : "").Where(h => h.Length > 0));
                 return new(ToolAccess.Write, Title, Subject(input), $"Allow Claude to send {Subject(input)} to {to}{(environment is null ? "" : $" with the environment {environment}")}?")
                 {
-                    Warning = "It goes to a server outside this machine, with the environment's values (a token among them) in it.",
+                    Warning = "It goes to a server outside this machine" + (EnvironmentOf(input) is { AgentsMaySend: true } ? ", with the environment's values it names in it." : "."),
                 };
             }
             // What cannot be found is said when it is called; found by then, it may go to this machine alone.
@@ -160,6 +163,39 @@ static class PostmanClaudeTools
                 return new(ToolAccess.Run, Title, Subject(input), "");
             }
         });
+
+        /// <summary>An environment the user keeps from agents is told at once: no one is asked about a call that could not be sent.</summary>
+        public override string? Refusal(JsonElement input) => OnWindow(() =>
+        {
+            try
+            {
+                Library.ReadNow();
+                var (environment, variables) = (EnvironmentOf(input), VariablesOf(input));
+                if (environment is { AgentsMaySend: true } || Library.Globals is { AgentsMaySend: true })
+                    return null;
+                foreach (var item in Items(input).Where(i => !i.Scripts("prerequest").Any()))
+                {
+                    var scope = new PostmanScope(item.Collection, environment, Library.Globals, variables, agent: Module.Agents);
+                    if (Texts(item).SelectMany(scope.HeldIn).Distinct().ToList() is { Count: > 0 } names)
+                        return PostmanSender.NotLet(names, environment?.Name ?? Library.Globals?.Name ?? "the environment");
+                }
+                return null;
+            }
+            catch (Exception ex) when (ex is PostmanException or IOException or UnauthorizedAccessException)
+            {
+                return null;
+            }
+        });
+
+        /// <summary>What of a request its variables are put in.</summary>
+        static IEnumerable<string> Texts(PostmanItem item)
+        {
+            var request = item.Read();
+            return request.Headers.Where(h => h.Enabled).SelectMany(h => new[] { h.Key, h.Value })
+                .Concat(request.Path.Select(p => p.Value)).Concat((request.Auth ?? PostmanSender.Inherited(item))?.Values.Values ?? [])
+                .Concat(request.Body.Mode == PostmanBody.None ? [] : request.Body.Pairs.Where(p => p.Enabled).SelectMany(p => new[] { p.Key, p.Value }).Append(request.Body.Raw).Append(request.Body.Query).Append(request.Body.Variables).Append(request.Body.File))
+                .Prepend(request.Url);
+        }
 
         /// <summary>The environment, so that a rule can be about one (postman_send@prod).</summary>
         public override string? Target(JsonElement input) => OnWindow(() =>
@@ -189,10 +225,12 @@ static class PostmanClaudeTools
             {
                 Folder = workspace,
                 Local = VariablesOf(input),
+                Agent = Module.Agents,
+                OAuth = Module.OAuth,
             };
         }
 
-        static string? Refused(string file, string? workspace)
+        protected static string? Refused(string file, string? workspace)
         {
             var real = File.Exists(file) && File.ResolveLinkTarget(file, returnFinalTarget: true) is { } target ? target.FullName : file;
             if (workspace is null || !Path.GetFullPath(real).StartsWith(Path.TrimEndingDirectorySeparator(Path.GetFullPath(workspace)) + Path.DirectorySeparatorChar, StringComparison.Ordinal))
@@ -204,7 +242,7 @@ static class PostmanClaudeTools
     /// <summary>A result as Claude reads it.</summary>
     static string Text(PostmanResult result)
     {
-        var text = new StringBuilder(HttpClaudeTools.Text(result.Exchange));
+        var text = new StringBuilder(HttpClaudeTools.Text(result.Shown));
         text.Append(Tests(result, all: true));
         if (result.Console.Count > 0)
             text.Append("\n\nConsole:\n").Append(string.Join('\n', result.Console.Take(60)));
@@ -351,8 +389,8 @@ static class PostmanClaudeTools
         public override string Name => "postman_environments";
 
         public override string Description =>
-            "The Postman environments, and one's variables with their values: the current one (this machine's) where there is one, else the file's. A secret's "
-            + "value is hidden; requests are sent with it all the same.";
+            "The Postman environments, and one's variables by their names ({{name}} in a request). Their values are the user's: no tool tells one, and a request is "
+            + "sent with them only where the user lets agents send with that environment.";
 
         public override JsonObject InputSchema => Schema("""
             {"type":"object","properties":{"environment":{"type":"string","description":"An environment's name (default: the one in use), or \"globals\"."}}}
@@ -367,10 +405,9 @@ static class PostmanClaudeTools
             var environment = Str(input, "environment") == "globals" ? Library.Globals : EnvironmentOf(input);
             if (environment is not null)
             {
-                text.Append(CultureInfo.InvariantCulture, $"\n\n{environment.Name}:\n");
+                text.Append(CultureInfo.InvariantCulture, $"\n\n{environment.Name}{(environment.AgentsMaySend ? " (you may send requests with it)" : " (kept from agents: ask the user to send, or give your own values with variables)")}:\n");
                 foreach (var variable in environment.Variables)
-                    text.Append(CultureInfo.InvariantCulture, $"  {variable.Key} = {(variable.HoldsSecret && variable.Value.Length > 0 ? Redaction.Mask + " (secret)" : Redaction.Text(variable.Value))}")
-                        .Append(variable.Current is not null ? " (current)" : "").Append(variable.Enabled ? "" : " (off)").Append('\n');
+                    text.Append("  ").Append(variable.Key).Append(variable.Value.Length == 0 ? " (no value yet)" : "").Append(variable.Enabled ? "" : " (off)").Append('\n');
             }
             return Task.FromResult(new ClaudeToolOutput(text.ToString().TrimEnd()));
         }
@@ -384,8 +421,9 @@ static class PostmanClaudeTools
 
         public override string Description =>
             "Sends a request of a Postman collection as Postman does (its variables, sign-in, pre-request scripts, body), runs its tests, and returns the "
-            + "response, the tests' results and what its scripts printed. The environment's secrets go into the request without being shown. To this machine "
-            + "it is sent at once; anywhere else the user approves it.";
+            + "response, the tests' results and what its scripts printed. An environment's values go into it only where the user lets agents send with that "
+            + "environment, and are never shown: its scripts get {{name}} for a value, so one that works with it (a signature) does not come out right. What a script "
+            + "sets is kept for your next calls, apart from the user's. To this machine it is sent at once; anywhere else the user approves it.";
 
         public override JsonObject InputSchema => Schema("{\"type\":\"object\",\"properties\":{" + Collection
             + ",\"request\":{\"type\":\"string\",\"description\":\"Its path (Folder/Name), or its name.\"}," + Environment + "," + Variables + "},\"required\":[\"request\"]}");
@@ -420,7 +458,7 @@ static class PostmanClaudeTools
         public override JsonObject InputSchema => Schema("{\"type\":\"object\",\"properties\":{" + Collection
             + ",\"folder\":{\"type\":\"string\",\"description\":\"Only this folder's requests (its path).\"}," + Environment + "," + Variables
             + ",\"iterations\":{\"type\":\"integer\",\"description\":\"Default 1, at most 100.\"},\"delay_ms\":{\"type\":\"integer\",\"description\":\"Between two requests.\"}"
-            + ",\"stop_on_failure\":{\"type\":\"boolean\"}}}");
+            + ",\"stop_on_failure\":{\"type\":\"boolean\"},\"data\":{\"type\":\"string\",\"description\":\"A CSV or JSON file of the folder: an iteration has each of its rows ({{name}}, pm.iterationData), and there are as many unless iterations says.\"}}}");
 
         protected override string Title => "Run Collection";
 
@@ -435,9 +473,18 @@ static class PostmanClaudeTools
             var (collection, folder, items) = (CollectionOf(input), Folder(input), Items(input));
             if (items.Count == 0)
                 throw new PostmanException("There is no request to run.");
+            IReadOnlyList<IReadOnlyDictionary<string, object?>> data = [];
+            if (Str(input, "data") is { Length: > 0 } given)
+            {
+                var file = Path.GetFullPath(given, ((IPostmanHost)Module).Workspace ?? Directory.GetCurrentDirectory());
+                if (Refused(file, ((IPostmanHost)Module).Workspace) is { } refused)
+                    throw new PostmanException(refused);
+                data = await Task.Run(() => PostmanData.Read(file), cancellationToken);
+            }
             var results = await Sender(input).RunAsync(items, new PostmanRunOptions
             {
-                Iterations = Int(input, "iterations", 1, 1, 100),
+                Data = data,
+                Iterations = Int(input, "iterations", Math.Clamp(data.Count, 1, 100), 1, 100),
                 Delay = TimeSpan.FromMilliseconds(Int(input, "delay_ms", 0, 0, 60_000)),
                 StopOnFailure = Bool(input, "stop_on_failure"),
             }, ct: cancellationToken);
@@ -445,7 +492,7 @@ static class PostmanClaudeTools
             var text = new StringBuilder(PostmanRunDocument.Summarize(results)).Append('\n');
             foreach (var result in results)
             {
-                text.Append(CultureInfo.InvariantCulture, $"\n{(result.Succeeded ? "✓" : "✗")} {result.Exchange.Method} {result.Path}: {result.Exchange.Summary}{(result.Tests.Count > 0 ? " · " + result.TestsText : "")}");
+                text.Append(CultureInfo.InvariantCulture, $"\n{(result.Succeeded ? "✓" : "✗")} {result.Shown.Method} {result.Path}{(result.Row > 0 ? $" (row {result.Row})" : "")}: {result.Shown.Summary}{(result.Tests.Count > 0 ? " · " + result.TestsText : "")}");
                 if (!result.Succeeded)
                     text.Append(Tests(result, all: false).Replace("\n\n", "\n  ", StringComparison.Ordinal));
             }
@@ -461,8 +508,8 @@ static class PostmanClaudeTools
 
         public override string Description =>
             "Makes or changes a request, a folder or a collection, in its Postman file (v2.1, which Postman imports). Only what is given changes. Its folders "
-            + "(Folder/Name) are made when they are not there; with create, the collection too. Put secrets in variables ({{token}}), set in the environment "
-            + "(postman_set), not in the request.";
+            + "(Folder/Name) are made when they are not there; with create, the collection too. Put secrets in variables ({{token}}), whose "
+            + "values the user gives the environment, not in the request.";
 
         public override JsonObject InputSchema => Schema("""
             {"type":"object","properties":{
@@ -475,7 +522,7 @@ static class PostmanClaudeTools
               "url":{"type":"string","description":"With its query; :name in the path is a path variable."},
               "path_variables":{"type":"object","additionalProperties":{"type":"string"}},
               "headers":{"type":"object","additionalProperties":{"type":"string"},"description":"All of them: those left out go."},
-              "auth":{"type":"object","description":"type: inherit, noauth, bearer (token), basic (username, password), apikey (key, value, in: header or query), oauth2 (accessToken).","properties":{"type":{"type":"string"}},"additionalProperties":{"type":"string"}},
+              "auth":{"type":"object","description":"type: inherit, noauth, bearer (token), basic (username, password), apikey (key, value, in: header or query), oauth2 (grant_type, authUrl, accessTokenUrl, clientId, clientSecret, scope; or accessToken), awsv4 (accessKey, secretKey, region, service), digest and ntlm (username, password).","properties":{"type":{"type":"string"}},"additionalProperties":{"type":"string"}},
               "body":{"type":"object","description":"mode: none, raw (raw, language: json, text, xml...), urlencoded and formdata (fields), graphql (query, variables), file (file).",
                 "properties":{"mode":{"type":"string","enum":["none","raw","urlencoded","formdata","graphql","file"]},"raw":{"type":"string"},"language":{"type":"string"},
                   "fields":{"type":"object","additionalProperties":{"type":"string"}},"query":{"type":"string"},"variables":{"type":"string"},"file":{"type":"string"}}},
@@ -613,14 +660,13 @@ static class PostmanClaudeTools
         public override string Name => "postman_set";
 
         public override string Description =>
-            "Sets variables of a Postman environment to current values (this machine's, in Karvon's vault; the file stays as it is), takes them away, or "
-            + "chooses the environment requests are sent with. With create, makes the environment when there is none of that name.";
+            "Makes a Postman environment (create), adds variables to one by their names (the user gives them their values in Karvon: no tool sets or tells one), "
+            + "or chooses the environment requests are sent with (use).";
 
         public override JsonObject InputSchema => Schema("""
             {"type":"object","properties":{
               "environment":{"type":"string","description":"The environment's name (default: the one in use)."},
-              "set":{"type":"object","additionalProperties":{"type":"string"}},
-              "unset":{"type":"array","items":{"type":"string"},"description":"Back to the file's values."},
+              "add":{"type":"array","items":{"type":"string"},"description":"Names of variables, without values."},
               "use":{"type":"boolean","description":"Requests are sent with it from now on."},
               "create":{"type":"boolean"}}}
             """);
@@ -629,30 +675,21 @@ static class PostmanClaudeTools
 
         public override ClaudeToolPlan Plan(JsonElement input)
         {
-            var names = input.ValueKind == JsonValueKind.Object && input.TryGetProperty("set", out var set) && set.ValueKind == JsonValueKind.Object ? set.EnumerateObject().Select(p => p.Name).ToList() : [];
             var environment = Str(input, "environment") ?? "the environment in use";
-            return new(ToolAccess.Write, "Postman Environment", environment, names.Count > 0 ? $"Allow Claude to set {string.Join(", ", names)} in {environment}?" : $"Allow Claude to change {environment}?");
+            return new(ToolAccess.Write, "Postman Environment", environment, Names(input) is { Count: > 0 } names ? $"Allow Claude to add {string.Join(", ", names)} (without values) to {environment}?"
+                : Bool(input, "use") ? $"Allow Claude to have requests sent with {environment}?" : $"Allow Claude to change {environment}?");
         }
+
+        static List<string> Names(JsonElement input) => input.ValueKind == JsonValueKind.Object && input.TryGetProperty("add", out var add) && add.ValueKind == JsonValueKind.Array
+            ? [.. add.EnumerateArray().Select(n => n.ValueKind == JsonValueKind.String ? n.GetString()!.Trim() : "").Where(n => n.Length > 0).Distinct()] : [];
 
         protected override async Task<ClaudeToolOutput> RunAsync(JsonElement input, CancellationToken cancellationToken)
         {
+            if (input.TryGetProperty("set", out _) || input.TryGetProperty("unset", out _))
+                throw new PostmanException("An environment's values are the user's: add the names, and ask the user to give them their values in Karvon (Postman).");
             var environment = Bool(input, "create") && Str(input, "environment") is { } name && Library.FindEnvironment(name) is null
                 ? await Library.CreateEnvironmentAsync(name) : EnvironmentOf(input) ?? throw new PostmanException("Say which environment: none is in use.");
-            var done = new List<string>();
-            if (input.TryGetProperty("set", out var set) && set.ValueKind == JsonValueKind.Object)
-                foreach (var value in set.EnumerateObject())
-                {
-                    var text = value.Value.ValueKind == JsonValueKind.String ? value.Value.GetString()! : value.Value.GetRawText();
-                    NoMasks(text, value.Name);
-                    environment.Set(value.Name, text);
-                    done.Add($"set {value.Name}");
-                }
-            if (input.TryGetProperty("unset", out var unset) && unset.ValueKind == JsonValueKind.Array)
-                foreach (var key in unset.EnumerateArray().Select(k => k.GetString()).OfType<string>())
-                {
-                    environment.Unset(key);
-                    done.Add($"unset {key}");
-                }
+            var done = Names(input).Where(n => environment.AddName(n, PostmanCollection.IsSecretName(n))).Select(n => $"added {n}").ToList();
             if (Bool(input, "use"))
             {
                 Library.ActiveId = environment.Id;

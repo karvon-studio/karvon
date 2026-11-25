@@ -22,6 +22,9 @@ public sealed class ClaudeToolServer(IReadOnlyList<IClaudeTool> tools, string in
 
     readonly ConcurrentDictionary<string, CancellationTokenSource> _running = new();
 
+    /// <summary>The open folder, which a tool's paths are in.</summary>
+    public Func<string?>? Workspace { get; set; }
+
     public IReadOnlyList<IClaudeTool> Tools { get; } = tools;
 
     /// <summary>What the server tells the agent of its tools (MCP's instructions).</summary>
@@ -102,7 +105,7 @@ public sealed class ClaudeToolServer(IReadOnlyList<IClaudeTool> tools, string in
         string? refusal;
         try
         {
-            refusal = tool.Refusal(input);
+            refusal = SealedFiles.Refusal(input, Workspace?.Invoke()) ?? tool.Refusal(input);
         }
         catch (Exception ex) when (ex is InvalidOperationException or JsonException or KeyNotFoundException)
         {
@@ -250,7 +253,7 @@ public sealed class ClaudeToolServer(IReadOnlyList<IClaudeTool> tools, string in
         }
         // Whatever a tool says, the secrets Karvon holds and the tokens told by their form do not reach Claude; what others
         // wrote reaches it as data.
-        var text = Redaction.Secrets(result.Text);
+        var text = SealedFiles.Filter(Redaction.Secrets(result.Text));
         var sent = result.Outside is { } outside ? OutsideText.Mark(text, outside) : text;
         if (ran && (caller as IAgentSession)?.Audit is { } audit)
             audit.Ran(Prefix + name, input, started, DateTime.UtcNow - started, result.IsError, result.Text, text, result.Outside,

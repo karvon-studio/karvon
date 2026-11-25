@@ -30,6 +30,7 @@ public static partial class SecretMasks
     {
         if (text.Length == 0)
             return text;
+        text = HideSealed(text);
         foreach (var (value, name) in KnownSecrets.All)
             if (text.Contains(value, StringComparison.Ordinal))
                 text = text.Replace(value, Mark(value, name), StringComparison.Ordinal);
@@ -47,9 +48,25 @@ public static partial class SecretMasks
         return text;
     }
 
-    /// <summary><paramref name="text"/> with the marks it holds given their values again (the marks Karvon did not make stay).</summary>
-    public static string Reveal(string text) =>
-        text.Contains("«secret: ", StringComparison.Ordinal) ? AnyMark().Replace(text, m => ValueOf.TryGetValue(m.Value, out var value) ? value : m.Value) : text;
+    /// <summary><paramref name="text"/> with what is sealed hidden (with no way back), and nothing else.</summary>
+    public static string HideSealed(string text)
+    {
+        foreach (var (value, name) in KnownSecrets.AllSealed)
+            if (text.Contains(value, StringComparison.Ordinal))
+                text = text.Replace(value, KnownSecrets.MarkOf(value, name), StringComparison.Ordinal);
+        return text;
+    }
+
+    /// <summary>Whether <paramref name="text"/> has a sealed value's mark in it: what would write or run it is refused, as nothing takes its place.</summary>
+    public static bool HasSealedMarks(string text) => text.Contains("«hidden: ", StringComparison.Ordinal);
+
+    /// <summary>What an agent is told that writes or runs a sealed value's mark.</summary>
+    public const string SealedReason = "A value hidden as «hidden: …» is never given to an agent, so nothing with its mark in it is written or run: "
+        + "leave that part of the file as it is (Edit what is around it), or ask the user to do it.";
+
+    /// <summary><paramref name="text"/> with the marks it holds given their values again (the marks Karvon did not make stay, and those of what was sealed since).</summary>
+    public static string Reveal(string text) => text.Contains("«secret: ", StringComparison.Ordinal)
+        ? AnyMark().Replace(text, m => ValueOf.TryGetValue(m.Value, out var value) && !KnownSecrets.HoldsSealed(value) ? value : m.Value) : text;
 
     /// <summary>Whether <paramref name="text"/> holds a mark Karvon made.</summary>
     public static bool HasMarks(string text) =>
@@ -57,7 +74,7 @@ public static partial class SecretMasks
 
     /// <summary>What the marks in <paramref name="text"/> stand for ("a password", "karvon-jira/acme"), each once.</summary>
     public static IReadOnlyList<string> Kinds(string text) =>
-        [.. AnyMark().Matches(text).Select(m => KindOf().Replace(m.Value[9..^1], "")).Distinct(StringComparer.Ordinal)];
+        [.. AnyMark().Matches(text).Select(m => KindOf().Replace(m.Value[9..^1], "")).Concat(HiddenMark().Matches(text).Select(m => m.Groups[1].Value)).Distinct(StringComparer.Ordinal)];
 
     /// <summary>Every string of <paramref name="node"/> (a tool's input or output) hidden or given back; null when none changed.</summary>
     public static JsonNode? Map(JsonNode? node, Func<string, string> change)
@@ -103,6 +120,8 @@ public static partial class SecretMasks
         // A mark, or a piece of one, is never a value of its own.
         if (value.Contains('«') || value.Contains('»'))
             return value;
+        if (KnownSecrets.IsSealed(value))
+            return KnownSecrets.MarkOf(value, kind);
         if (MarkOf.TryGetValue(value, out var mark))
             return mark;
         lock (Gate)
@@ -133,6 +152,9 @@ public static partial class SecretMasks
 
     [GeneratedRegex("«secret: [^»\\n]{1,200}»")]
     private static partial Regex AnyMark();
+
+    [GeneratedRegex("«hidden: ([^»\\n]{1,200})»")]
+    private static partial Regex HiddenMark();
 
     [GeneratedRegex(" #\\d+$")]
     private static partial Regex KindOf();

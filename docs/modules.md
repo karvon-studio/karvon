@@ -22,7 +22,8 @@ Each module is a project of its own, referencing `Karvon.Core`. The core referen
 - HTTP Client (`src/Karvon.Http`): .http files sent from the editor (its pane and margin, the `EditorPane` API), the
   Endpoints Explorer, and Claude's HTTP tools;
 - Postman (`src/Karvon.Postman`, which uses the HTTP Client to send): Postman's collections and environments from their
-  JSON files, their scripts in an interpreter of its own (Jint), runs, and Claude's Postman tools;
+  JSON files, their scripts in an interpreter of its own (Jint, with the libraries in its `Sandbox`), runs, and Claude's
+  Postman tools;
 - MCP Servers (`src/Karvon.Mcp`);
 - Code Map (`src/Karvon.CodeMap`): the workspace's files and declarations (by the workbench's `OutlineAsync`, from the
   servers that run) in a SQLite index with full-text search, kept up to date, its tool window, Claude's `code_map` and

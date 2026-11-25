@@ -15,7 +15,8 @@ public sealed partial class PostmanRequestDocument : PostmanDocument
 {
     /// <summary>The sign-ins that can be chosen, by their place; one Karvon does not send is the last, as it is.</summary>
     static readonly (string? Type, string Name)[] AuthChoices =
-        [(null, "Inherit from parent"), (PostmanAuth.NoAuth, "No Auth"), (PostmanAuth.Bearer, "Bearer Token"), (PostmanAuth.Basic, "Basic Auth"), (PostmanAuth.ApiKey, "API Key"), (PostmanAuth.OAuth2, "OAuth 2.0 (access token)")];
+        [(null, "Inherit from parent"), (PostmanAuth.NoAuth, "No Auth"), (PostmanAuth.Bearer, "Bearer Token"), (PostmanAuth.Basic, "Basic Auth"), (PostmanAuth.ApiKey, "API Key"), (PostmanAuth.OAuth2, "OAuth 2.0"),
+         (PostmanAuth.Aws, "AWS Signature"), (PostmanAuth.Digest, "Digest Auth"), (PostmanAuth.Ntlm, "NTLM Authentication")];
 
     readonly List<PostmanResult> _history = [];
     PostmanCollection _collection;
@@ -38,7 +39,14 @@ public sealed partial class PostmanRequestDocument : PostmanDocument
         Headers.Edited += Touched;
         Form.Edited += Touched;
         FormData.Edited += Touched;
+        AuthFields = new PostmanAuthFields(() =>
+        {
+            Touched();
+            Tokened();
+        });
         Host.Library.Changed += OnLibraryChanged;
+        Host.OAuth.Changed += Tokened;
+        Host.Cookies.Changed += OnCookiesChanged;
         Reload();
     }
 
@@ -81,6 +89,7 @@ public sealed partial class PostmanRequestDocument : PostmanDocument
         Named();
         OnPropertyChanged(nameof(EnvironmentText));
         OnPropertyChanged(nameof(InheritedText));
+        Tokened();
     }
 
     void Named()
@@ -112,7 +121,7 @@ public sealed partial class PostmanRequestDocument : PostmanDocument
     public ObservableCollection<string> AuthNames { get; } = [];
 
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(IsInherit), nameof(IsBearer), nameof(IsBasic), nameof(IsApiKey), nameof(IsOAuth), nameof(IsOtherAuth))]
+    [NotifyPropertyChangedFor(nameof(IsInherit), nameof(IsBearer), nameof(IsBasic), nameof(IsApiKey), nameof(HasAuthFields), nameof(IsOtherAuth))]
     public partial int AuthIndex { get; set; }
 
     string? AuthType => AuthIndex >= 0 && AuthIndex < AuthChoices.Length ? AuthChoices[AuthIndex].Type : _otherAuth?.Type;
@@ -125,7 +134,16 @@ public sealed partial class PostmanRequestDocument : PostmanDocument
 
     public bool IsApiKey => AuthType == PostmanAuth.ApiKey;
 
-    public bool IsOAuth => AuthType == PostmanAuth.OAuth2;
+    /// <summary>A sign-in that is rows of fields.</summary>
+    public bool HasAuthFields => AuthFields.All.ContainsKey(AuthType ?? "");
+
+    public PostmanAuthFields AuthFields { get; }
+
+    partial void OnAuthIndexChanged(int value)
+    {
+        AuthFields.Show(AuthType);
+        Tokened();
+    }
 
     public bool IsOtherAuth => AuthIndex >= AuthChoices.Length;
 
@@ -153,11 +171,88 @@ public sealed partial class PostmanRequestDocument : PostmanDocument
     [ObservableProperty]
     public partial int ApiKeyPlace { get; set; }
 
-    [ObservableProperty]
-    public partial string AccessToken { get; set; } = "";
+    // ---- OAuth 2.0's token ------------------------------------------------------------------------------------
+
+    /// <summary>The sign-in it is sent with, its own as it is typed here or the one it inherits.</summary>
+    PostmanAuth? EffectiveAuth => CurrentAuth() ?? (Item is { } item ? PostmanSender.Inherited(item) : null);
+
+    public bool IsOAuth => EffectiveAuth is { Type: PostmanAuth.OAuth2 } auth && auth["accessToken"].Length == 0;
+
+    public bool CanGetToken => IsOAuth && PostmanOAuth.CanAsk(EffectiveAuth!) && !IsGettingToken;
+
+    PostmanToken? KeptToken => IsOAuth && EffectiveAuth is { } auth ? Host.OAuth.Token(auth, Resolving()) : null;
+
+    public bool HasToken => KeptToken is not null;
+
+    public string TokenText => KeptToken switch
+    {
+        null => "No access token yet.",
+        { IsExpired: true, RefreshToken: not null } => "The access token ended: it is refreshed when the request is sent.",
+        { IsExpired: true } => "The access token ended.",
+        { Expires: { } at } => $"There is an access token, until {at.ToLocalTime():t}.",
+        _ => "There is an access token.",
+    };
+
+    Func<string, string> Resolving()
+    {
+        var scope = new PostmanScope(_collection, Host.Library.Active, Host.Library.Globals);
+        return text => scope.Put(text);
+    }
+
+    void Tokened()
+    {
+        if (_loading)
+            return;
+        foreach (var name in new[] { nameof(IsOAuth), nameof(CanGetToken), nameof(HasToken), nameof(TokenText) })
+            OnPropertyChanged(name);
+    }
 
     [ObservableProperty]
-    public partial string HeaderPrefix { get; set; } = "Bearer";
+    [NotifyPropertyChangedFor(nameof(CanGetToken))]
+    public partial bool IsGettingToken { get; private set; }
+
+    /// <summary>Why there is no token.</summary>
+    [ObservableProperty]
+    public partial string? TokenProblem { get; private set; }
+
+    CancellationTokenSource? _gettingToken;
+
+    [RelayCommand]
+    public async Task GetTokenAsync()
+    {
+        if (IsGettingToken || EffectiveAuth is not { Type: PostmanAuth.OAuth2 } auth)
+            return;
+        (IsGettingToken, TokenProblem) = (true, null);
+        _gettingToken = new CancellationTokenSource();
+        try
+        {
+            await Host.Sender().GetTokenAsync(_collection, auth, _gettingToken.Token);
+        }
+        catch (PostmanException ex)
+        {
+            TokenProblem = ex.Message;
+        }
+        catch (OperationCanceledException)
+        {
+        }
+        finally
+        {
+            (IsGettingToken, _gettingToken) = (false, null);
+            Tokened();
+        }
+    }
+
+    [RelayCommand]
+    void StopGettingToken() => _gettingToken?.Cancel();
+
+    [RelayCommand]
+    void ForgetToken()
+    {
+        if (EffectiveAuth is { } auth)
+            Host.OAuth.Forget(auth, Resolving());
+    }
+
+    // ---- The rest ---------------------------------------------------------------------------------------------
 
     public static IReadOnlyList<string> BodyNames { get; } = ["none", "form-data", "x-www-form-urlencoded", "raw", "binary", "GraphQL"];
 
@@ -215,7 +310,7 @@ public sealed partial class PostmanRequestDocument : PostmanDocument
     static readonly HashSet<string> Kept =
     [
         nameof(Method), nameof(Url), nameof(AuthIndex), nameof(Token), nameof(Username), nameof(Password), nameof(ApiKeyName), nameof(ApiKeyValue), nameof(ApiKeyPlace),
-        nameof(AccessToken), nameof(HeaderPrefix), nameof(BodyIndex), nameof(Language), nameof(Raw), nameof(BodyFile), nameof(GraphQuery), nameof(GraphVariables),
+        nameof(BodyIndex), nameof(Language), nameof(Raw), nameof(BodyFile), nameof(GraphQuery), nameof(GraphVariables),
         nameof(PreRequest), nameof(Tests), nameof(Description),
     ];
 
@@ -325,8 +420,8 @@ public sealed partial class PostmanRequestDocument : PostmanDocument
         ApiKeyName = auth?.Type == PostmanAuth.ApiKey ? auth["key"] : "";
         ApiKeyValue = auth?.Type == PostmanAuth.ApiKey ? auth["value"] : "";
         ApiKeyPlace = auth?.Type == PostmanAuth.ApiKey && auth["in"] == "query" ? 1 : 0;
-        AccessToken = auth?.Type == PostmanAuth.OAuth2 ? auth["accessToken"] : "";
-        HeaderPrefix = auth?.Type == PostmanAuth.OAuth2 && auth.Values.TryGetValue("headerPrefix", out var prefix) ? prefix : "Bearer";
+        AuthFields.Load(auth);
+        AuthFields.Show(AuthType);
         _auth = auth;
     }
 
@@ -353,13 +448,11 @@ public sealed partial class PostmanRequestDocument : PostmanDocument
                 if (ApiKeyPlace == 1 || values.ContainsKey("in"))
                     values["in"] = ApiKeyPlace == 1 ? "query" : "header";
                 break;
-            case PostmanAuth.OAuth2:
-                values["accessToken"] = AccessToken;
-                if (HeaderPrefix != "Bearer" || values.ContainsKey("headerPrefix"))
-                    values["headerPrefix"] = HeaderPrefix;
+            case PostmanAuth.OAuth2 or PostmanAuth.Aws or PostmanAuth.Digest or PostmanAuth.Ntlm:
+                AuthFields.Put(type, values);
                 break;
         }
-        return new PostmanAuth(type, values);
+        return new PostmanAuth(type, values) { Lists = _auth?.Type == type ? _auth.Lists : new Dictionary<string, IReadOnlyList<PostmanPair>>() };
     }
 
     /// <summary>The request as it is here.</summary>
@@ -435,8 +528,7 @@ public sealed partial class PostmanRequestDocument : PostmanDocument
         _sending = new CancellationTokenSource();
         try
         {
-            var sender = new PostmanSender(Host.Library.Active, Host.Library.Globals) { Folder = Host.Workspace };
-            Show(await sender.SendAsync(item, Current(), _sending.Token));
+            Show(await Host.Sender().SendAsync(item, Current(), _sending.Token));
         }
         catch (OperationCanceledException)
         {
@@ -479,7 +571,7 @@ public sealed partial class PostmanRequestDocument : PostmanDocument
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasResult), nameof(StatusText), nameof(IsSuccess), nameof(IsFailure), nameof(Summary), nameof(BodyText), nameof(BodyPath), nameof(HeadersText),
-        nameof(RequestText), nameof(ConsoleText), nameof(TestRows), nameof(TestsTitle), nameof(HasFailedTests), nameof(ScriptError), nameof(MissingText))]
+        nameof(RequestText), nameof(CookiesText), nameof(ConsoleText), nameof(TestRows), nameof(TestsTitle), nameof(HasFailedTests), nameof(ScriptError), nameof(MissingText))]
     public partial PostmanResult? Result { get; set; }
 
     public bool HasResult => Result is not null;
@@ -512,6 +604,16 @@ public sealed partial class PostmanRequestDocument : PostmanDocument
     public string RequestText => Exchange is { } e
         ? $"{e.Method} {e.Url}\n" + string.Join('\n', e.RequestHeaders.Select(h => $"{h.Name}: {h.Value}")) + (e.RequestBody is { } b ? $"\n\n{b}" : "")
         : "";
+
+    /// <summary>The cookies its server set, sent with the next request to it.</summary>
+    public string CookiesText => Exchange is { } e && Uri.TryCreate(e.Url, UriKind.Absolute, out var uri) && Host.Cookies.For(uri) is { Count: > 0 } cookies
+        ? string.Join('\n', cookies.Select(c => $"{c.Name}={c.Value}; domain={c.Domain}; path={c.Path}{(c.Expires is { } at ? $"; expires={at.ToLocalTime():g}" : "")}{(c.Secure ? "; secure" : "")}{(c.HttpOnly ? "; httpOnly" : "")}"))
+        : "No cookies.";
+
+    void OnCookiesChanged() => Avalonia.Threading.Dispatcher.UIThread.Post(() => OnPropertyChanged(nameof(CookiesText)));
+
+    [RelayCommand]
+    void ShowCookies() => Host.ShowCookies();
 
     public string ConsoleText => Result is { Console.Count: > 0 } result ? string.Join('\n', result.Console) : "Nothing was printed.";
 
@@ -549,12 +651,14 @@ public sealed partial class PostmanRequestDocument : PostmanDocument
     void ShowTab(string? tab) => Tab = tab ?? "params";
 
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(IsResponseBody), nameof(IsResponseHeaders), nameof(IsResponseTests), nameof(IsResponseConsole), nameof(IsResponseRequest))]
+    [NotifyPropertyChangedFor(nameof(IsResponseBody), nameof(IsResponseHeaders), nameof(IsResponseCookies), nameof(IsResponseTests), nameof(IsResponseConsole), nameof(IsResponseRequest))]
     public partial string ResponseTab { get; set; } = "body";
 
     public bool IsResponseBody => ResponseTab == "body";
 
     public bool IsResponseHeaders => ResponseTab == "headers";
+
+    public bool IsResponseCookies => ResponseTab == "cookies";
 
     public bool IsResponseTests => ResponseTab == "tests";
 
@@ -568,6 +672,9 @@ public sealed partial class PostmanRequestDocument : PostmanDocument
     public override void Dispose()
     {
         _sending?.Cancel();
+        _gettingToken?.Cancel();
         Host.Library.Changed -= OnLibraryChanged;
+        Host.OAuth.Changed -= Tokened;
+        Host.Cookies.Changed -= OnCookiesChanged;
     }
 }

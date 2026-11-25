@@ -57,6 +57,44 @@ public sealed partial class PostmanRunDocument : PostmanDocument
     [ObservableProperty]
     public partial int Delay { get; set; }
 
+    /// <summary>A CSV or JSON file whose rows the iterations are sent with.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasData), nameof(DataText))]
+    public partial string? DataFile { get; private set; }
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(DataText))]
+    public partial string? DataProblem { get; private set; }
+
+    public bool HasData => DataFile is not null;
+
+    int _rows;
+
+    public string DataText => DataProblem ?? (DataFile is null ? "" : $"{Path.GetFileName(DataFile)} ({_rows} {(_rows == 1 ? "row" : "rows")})");
+
+    [RelayCommand]
+    public async Task ChooseDataAsync()
+    {
+        if (await Host.PickFilesAsync("Data File (CSV or JSON)") is [var file, ..])
+            UseData(file);
+    }
+
+    public void UseData(string file)
+    {
+        try
+        {
+            _rows = PostmanData.Read(file).Count;
+            (DataFile, DataProblem, Iterations) = (file, null, _rows);
+        }
+        catch (Exception ex) when (ex is PostmanException or IOException or UnauthorizedAccessException)
+        {
+            (DataFile, DataProblem) = (null, ex.Message);
+        }
+    }
+
+    [RelayCommand]
+    void ForgetData() => (DataFile, DataProblem, Iterations) = (null, null, 1);
+
     [ObservableProperty]
     public partial bool StopOnFailure { get; set; }
 
@@ -95,13 +133,18 @@ public sealed partial class PostmanRunDocument : PostmanDocument
         _running = new CancellationTokenSource();
         try
         {
-            var sender = new PostmanSender(Host.Library.Active, Host.Library.Globals) { Folder = Host.Workspace };
-            var options = new PostmanRunOptions { Iterations = Math.Clamp(Iterations, 1, 1000), Delay = TimeSpan.FromMilliseconds(Math.Clamp(Delay, 0, 600_000)), StopOnFailure = StopOnFailure };
+            var sender = Host.Sender();
+            var data = DataFile is { } file ? await Task.Run(() => PostmanData.Read(file)) : [];
+            var options = new PostmanRunOptions { Data = data, Iterations = Math.Clamp(Iterations, 1, 1000), Delay = TimeSpan.FromMilliseconds(Math.Clamp(Delay, 0, 600_000)), StopOnFailure = StopOnFailure };
             await sender.RunAsync(Requests, options, Add, _running.Token);
         }
         catch (OperationCanceledException)
         {
             Summary += " · stopped";
+        }
+        catch (Exception ex) when (ex is PostmanException or IOException or UnauthorizedAccessException)
+        {
+            DataProblem = ex.Message;
         }
         finally
         {

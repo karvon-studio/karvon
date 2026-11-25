@@ -34,8 +34,17 @@ sealed class PostmanScriptRun
 
     public int Iterations { get; init; } = 1;
 
-    /// <summary>A request of the script's own (pm.sendRequest), sent if it may go there.</summary>
-    public required Func<string, string, IReadOnlyList<(string Name, string Value)>, string?, HttpExchange> Send { get; init; }
+    /// <summary>A request of the script's own (pm.sendRequest), sent if it may go there; its variables are not put in yet.</summary>
+    public required Func<PostmanRequest, HttpExchange> Send { get; init; }
+
+    /// <summary>The cookies a script may read and set.</summary>
+    public PostmanCookies? Jar { get; init; }
+
+    /// <summary>Where its request goes, as it will be.</summary>
+    public Func<Uri?> Address { get; init; } = () => null;
+
+    /// <summary>Whose cookies: its request's host's, or the environment's.</summary>
+    public Func<Uri, bool> MayReadCookies { get; init; } = _ => false;
 
     public List<PostmanTest> Tests { get; } = [];
 
@@ -142,7 +151,8 @@ static class PostmanScripts
         static string At(JsValue[] arguments, int i) => i < arguments.Length ? arguments[i].ToString() : "";
 
         host.Set("state", State(run).ToJsonString());
-        Function("get", a => run.Scope.TryGet(At(a, 0), At(a, 1), out var value) ? JsValue.FromObject(engine, value) : JsValue.Undefined);
+        Function("get", a => !run.Scope.TryGet(At(a, 0), At(a, 1), out var value) ? JsValue.Undefined
+            : value is JsonNode node ? new Jint.Native.Json.JsonParser(engine).Parse(node.ToJsonString()) : JsValue.FromObject(engine, value));
         Function("has", a => run.Scope.TryGet(At(a, 0), At(a, 1), out _) ? JsBoolean.True : JsBoolean.False);
         Function("set", a =>
         {
@@ -187,6 +197,10 @@ static class PostmanScripts
         Function("btoa", a => Convert.ToBase64String(Encoding.Latin1.GetBytes(At(a, 0))));
         Function("atob", a => Convert.TryFromBase64String(At(a, 0), new byte[At(a, 0).Length], out var n) && n >= 0 ? Encoding.Latin1.GetString(Convert.FromBase64String(At(a, 0))) : "");
         Function("send", a => Sent(run, At(a, 0)).ToJsonString());
+        Function("cookies", a => Cookies(run, At(a, 0), At(a, 1), At(a, 2)).ToJsonString());
+        Function("random", a => new JsArray(engine, [.. System.Security.Cryptography.RandomNumberGenerator.GetBytes((int)Math.Clamp(a[0].AsNumber(), 0, 65536)).Select(b => (JsValue)(int)b)]));
+        Function("uuid", _ => Guid.NewGuid().ToString());
+        Function("load", a => PostmanLibraries.Load(engine, At(a, 0)));
         return host;
     }
 
@@ -223,27 +237,56 @@ static class PostmanScripts
     /// <summary>pm.sendRequest's request, sent: the response, or why there is none.</summary>
     static JsonObject Sent(PostmanScriptRun run, string json)
     {
-        var item = new JsonObject { ["request"] = Normal(JsonNode.Parse(json) as JsonObject ?? []) };
-        var request = PostmanRequest.Read(item);
-        var headers = request.Headers.Where(h => h.Enabled).Select(h => (h.Key, run.Scope.Resolve(h.Value))).ToList();
-        string? body = null;
-        switch (request.Body.Mode)
-        {
-            case PostmanBody.RawMode:
-                body = run.Scope.Resolve(request.Body.Raw);
-                break;
-            case PostmanBody.UrlEncoded:
-                body = string.Join('&', request.Body.Pairs.Where(p => p.Enabled).Select(p => $"{Uri.EscapeDataString(run.Scope.Resolve(p.Key))}={Uri.EscapeDataString(run.Scope.Resolve(p.Value))}"));
-                if (!headers.Any(h => h.Key.Equals("Content-Type", StringComparison.OrdinalIgnoreCase)))
-                    headers.Add(("Content-Type", "application/x-www-form-urlencoded"));
-                break;
-            case PostmanBody.None:
-                break;
-            default:
-                return new JsonObject { ["error"] = $"pm.sendRequest does not send a {request.Body.Mode} body in Karvon." };
-        }
-        var exchange = run.Send(request.Method, run.Scope.Resolve(request.Url), headers, body);
+        var exchange = run.Send(PostmanRequest.Read(new JsonObject { ["request"] = Normal(JsonNode.Parse(json) as JsonObject ?? []) }));
         return exchange.Error is { } error ? new JsonObject { ["error"] = error } : Response(exchange);
+    }
+
+    /// <summary>pm.cookies and its jar: a JSON answer, or why not.</summary>
+    static JsonObject Cookies(PostmanScriptRun run, string action, string url, string argument)
+    {
+        if (run.Jar is not { } jar)
+            return new JsonObject { ["cookies"] = new JsonArray() };
+        Uri? uri;
+        if (url.Length == 0)
+            uri = run.Address();
+        else
+        {
+            var at = run.Scope.Resolve(url);
+            uri = Uri.TryCreate(at.Contains("://", StringComparison.Ordinal) ? at : "http://" + at, UriKind.Absolute, out var given) ? given : null;
+        }
+        if (uri is null)
+            return new JsonObject { ["cookies"] = new JsonArray() };
+        if (url.Length > 0 && !run.MayReadCookies(uri))
+            return new JsonObject { ["error"] = $"{uri.Host} is not where this request goes: its cookies are not this script's." };
+        switch (action)
+        {
+            case "set" when JsonNode.Parse(argument) is JsonObject cookie && cookie.Text("name") is { Length: > 0 } name:
+                jar.Set(new PostmanCookie(name, cookie.Text("value") ?? "", uri.Host, cookie.Text("path") is { Length: > 0 } path ? path : "/")
+                {
+                    Secure = cookie.Flag("secure"), HttpOnly = cookie.Flag("httpOnly"),
+                    Expires = DateTimeOffset.TryParse(cookie.Text("expires"), System.Globalization.CultureInfo.InvariantCulture, out var expires) ? expires : null,
+                });
+                break;
+            case "unset":
+                jar.Remove(c => c.Name == argument && c.Matches(uri));
+                break;
+            case "clear":
+                jar.Remove(c => c.Matches(uri));
+                break;
+        }
+        var cookies = jar.For(uri);
+        // What a script read may not go elsewhere without the user's say.
+        if (!run.Scope.IsAgents && action is "all")
+            foreach (var read in cookies)
+                run.Scope.Use("cookie " + read.Name, read.Value);
+        return new JsonObject
+        {
+            ["cookies"] = new JsonArray([.. cookies.Select(c => new JsonObject
+            {
+                ["name"] = c.Name, ["value"] = c.Value, ["domain"] = run.Scope.IsAgents ? null : c.Domain, ["path"] = c.Path, ["secure"] = c.Secure, ["httpOnly"] = c.HttpOnly,
+                ["expires"] = c.Expires?.ToString("O", System.Globalization.CultureInfo.InvariantCulture),
+            })]),
+        };
     }
 
     /// <summary>A request as scripts write it (header an object, body a text), as a collection has it.</summary>

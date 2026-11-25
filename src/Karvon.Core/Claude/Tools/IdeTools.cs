@@ -774,6 +774,8 @@ sealed class EditorSelectionTool(MainViewModel vm) : IdeTool(vm)
     {
         if (Vm.ActiveEditor is not { } doc)
             return Task.FromResult(new ClaudeToolOutput("No text document is open in the editor."));
+        if (SealedFiles.Is(doc.FilePath))
+            return Task.FromResult(ClaudeToolOutput.Error(SealedFiles.Reason));
         var editor = doc.Host.Editor;
         var (line, column) = doc.Host.CaretPosition;
         var text = new StringBuilder($"File: {Relative(doc.FilePath)}{(doc.IsDirty ? " (unsaved changes)" : "")}");
@@ -977,7 +979,7 @@ sealed class FindInFilesTool(MainViewModel vm) : IdeTool(vm)
             foreach (var file in files)
             {
                 cancellationToken.ThrowIfCancellationRequested();
-                if (!IsText(file))
+                if (SealedFiles.Is(file) || !IsText(file))
                     continue;
                 var number = 0;
                 foreach (var line in File.ReadLines(file))

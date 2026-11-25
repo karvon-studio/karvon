@@ -1,11 +1,12 @@
 using System.Text.Json;
 using Avalonia.Controls.Templates;
-using Bengine.Introspection.Servers;
+using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using Karvon.Claude;
 using Karvon.Modules;
 using Karvon.Postman.ViewModels;
 using Karvon.Postman.Views;
+using Karvon.Services;
 using Karvon.ViewModels;
 using static Karvon.Claude.Tools.ToolInput;
 
@@ -32,8 +33,8 @@ public sealed partial class PostmanModule : KarvonModule, IPostmanHost
 
     public override string Description =>
         "Postman's collections and environments, from their JSON files: requests edited and sent with their variables, sign-in, "
-        + "scripts and tests, a collection or a folder run; what is not shared stays in Karvon's vault. Claude Code's Postman "
-        + "tools. No account, and Postman need not be installed.";
+        + "scripts and tests, a collection or a folder run. An environment's values stay in Karvon's vault, and no agent gets "
+        + "them. Claude Code's Postman tools. No account, and Postman need not be installed.";
 
     public override IReadOnlyList<ToolWindowInfo> ToolWindows =>
         [new(ToolWindowId, "Postman", "_Postman", "ToolPostman", DockSide.Right, () => new PostmanExplorerView { DataContext = EnsureExplorer() })];
@@ -43,6 +44,7 @@ public sealed partial class PostmanModule : KarvonModule, IPostmanHost
         Document<PostmanRequestDocument>(document => new PostmanRequestView { DataContext = document }),
         Document<PostmanEnvironmentDocument>(document => new PostmanEnvironmentView { DataContext = document }),
         Document<PostmanRunDocument>(document => new PostmanRunView { DataContext = document }),
+        Document<PostmanCookiesDocument>(document => new PostmanCookiesView { DataContext = document }),
     ];
 
     public override IDataTemplate OverlayTemplate => Template<PostmanExplorerViewModel>(_ => new PostmanOverlay());
@@ -51,15 +53,41 @@ public sealed partial class PostmanModule : KarvonModule, IPostmanHost
     [ObservableProperty]
     public partial PostmanExplorerViewModel? Explorer { get; private set; }
 
-    internal ICredentialStore? Keyring { get; set; } = Karvon.Services.Keyring.System;
+    /// <summary>Where environments' values, cookies and access tokens are (the tests' own).</summary>
+    internal SealedStore Store { get; set; } = SealedStore.Karvons;
 
     /// <summary>Where the list of the files opened is (the tests' own).</summary>
     internal string ListFile { get; set; } = Path.Combine(Services.Settings.ConfigDirectory, "postman.json");
 
-    public PostmanLibrary Library => _library ??= new PostmanLibrary(() => Workbench.Workspace, ListFile, () => Keyring)
+    public PostmanLibrary Library => _library ??= NewLibrary();
+
+    PostmanLibrary NewLibrary()
     {
-        ActiveId = Workbench.WorkspaceState.GetValueOrDefault(ActiveKey),
-    };
+        if (Store.Vault is { } vault)
+            vault.Changed += OnVaultChanged;
+        return new PostmanLibrary(() => Workbench.Workspace, ListFile, Store) { ActiveId = Workbench.WorkspaceState.GetValueOrDefault(ActiveKey) };
+    }
+
+    void OnVaultChanged() => Dispatcher.UIThread.Post(() =>
+    {
+        _library?.Reopen();
+        _cookies?.Reopen();
+    });
+
+    PostmanCookies? _cookies;
+
+    /// <summary>The user's cookies.</summary>
+    public PostmanCookies Cookies => _cookies ??= new PostmanCookies(Store);
+
+    PostmanOAuth? _oauth;
+
+    public PostmanOAuth OAuth => _oauth ??= new PostmanOAuth(Store, OpenBrowser ?? (uri => Workbench.OpenUrl(uri.AbsoluteUri)), (title, label) => EnsureExplorer().AskAsync(title, label));
+
+    /// <summary>Where a sign-in's page opens (the tests' own).</summary>
+    internal Action<Uri>? OpenBrowser { get; set; }
+
+    /// <summary>What agents set this session, theirs alone.</summary>
+    internal PostmanAgentLayer Agents { get; } = new();
 
     public PostmanExplorerViewModel EnsureExplorer()
     {
@@ -75,6 +103,7 @@ public sealed partial class PostmanModule : KarvonModule, IPostmanHost
     {
         Workbench.FileSaved += OnFileSaved;
         Workbench.GitChanged += OnFilesChanged;
+        new PostmanLibrary(() => null, ListFile, Store).SealOpened();
     }
 
     void OnFileSaved(string path)
@@ -124,6 +153,8 @@ public sealed partial class PostmanModule : KarvonModule, IPostmanHost
             Workbench.FileSaved -= OnFileSaved;
             Workbench.GitChanged -= OnFilesChanged;
         }
+        if (_library is not null && Store.Vault is { } vault)
+            vault.Changed -= OnVaultChanged;
         Explorer?.Dispose();
         Overlay = Explorer = null;
     }
@@ -185,6 +216,31 @@ public sealed partial class PostmanModule : KarvonModule, IPostmanHost
         return document;
     }
 
+    public void ShowCookies()
+    {
+        var document = Workbench.Documents.OfType<PostmanCookiesDocument>().FirstOrDefault() ?? new PostmanCookiesDocument(this);
+        Workbench.ShowDocument(document);
+    }
+
+    // ---- Sent by the user -------------------------------------------------------------------------------------
+
+    /// <summary>The sender of the user's own requests: with the environment chosen, their cookies and tokens, asked before their values go to a host that is not the environment's.</summary>
+    public PostmanSender Sender() => new(Library.Active, Library.Globals)
+    {
+        Folder = Workbench.Workspace, Cookies = Cookies, OAuth = OAuth, AskHost = AskHostAsync,
+    };
+
+    Task<bool> AskHostAsync(Uri uri, IReadOnlyCollection<string> names) => Dispatcher.UIThread.InvokeAsync(async () =>
+    {
+        var environment = Library.Active ?? Library.Globals;
+        var shown = string.Join(", ", names.Take(8)) + (names.Count > 8 ? ", …" : "");
+        if (await Workbench.ConfirmAsync("Send to another host", $"{uri.Authority} is not one of {environment?.Name ?? "the environment"}'s hosts. The request takes these of its values there:\n\n{shown}\n\nSend it, and add the host to the environment's?") != true)
+            return false;
+        environment?.AddHost(uri.Authority);
+        Library.RaiseChanged();
+        return true;
+    });
+
     // ---- IPostmanHost -----------------------------------------------------------------------------------------
 
     string? IPostmanHost.Workspace => Workbench.Workspace;
@@ -204,4 +260,6 @@ public sealed partial class PostmanModule : KarvonModule, IPostmanHost
     void IPostmanHost.OpenFile(string path) => Workbench.OpenFile(path);
 
     void IPostmanHost.Status(string text) => Workbench.Status(text);
+
+    Task<bool> IPostmanHost.OpenSealedAsync() => Workbench.OpenSealedAsync();
 }

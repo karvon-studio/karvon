@@ -1,6 +1,7 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
-using Bengine.Introspection.Servers;
+using Karvon.Claude;
+using Karvon.Services;
 
 namespace Karvon.Postman;
 
@@ -8,7 +9,7 @@ namespace Karvon.Postman;
 /// The collections and environments Karvon shows: those in the open folder (*.postman_collection.json and the like, as Postman
 /// names what it exports), and the files opened from elsewhere, kept in postman.json beside Karvon's settings.
 /// </summary>
-public sealed class PostmanLibrary(Func<string?> workspace, string listFile, Func<ICredentialStore?> keyring)
+public sealed class PostmanLibrary(Func<string?> workspace, string listFile, SealedStore store)
 {
     /// <summary>Folders that hold no one's collections: dependencies, build output, tools' own.</summary>
     static readonly HashSet<string> Skipped = new(StringComparer.OrdinalIgnoreCase)
@@ -54,6 +55,28 @@ public sealed class PostmanLibrary(Func<string?> workspace, string listFile, Fun
     /// <summary>The environment chosen; null for none.</summary>
     public PostmanEnvironment? Active => _environments.FirstOrDefault(e => !e.IsGlobals && e.Id == _activeId);
 
+    /// <summary>The vault was opened, or its passphrase set or taken away: what it keeps is read, what is here is kept.</summary>
+    public void Reopen()
+    {
+        foreach (var environment in _environments)
+            environment.Reopen();
+        Changed?.Invoke();
+    }
+
+    /// <summary>The environments opened under names that do not say so, kept from agents before anything here is read.</summary>
+    public void SealOpened()
+    {
+        foreach (var file in Opened().Where(f => !IsCollectionFile(f)))
+            try
+            {
+                if (IsEnvironmentFile(file))
+                    SealedFiles.Add(file);
+            }
+            catch (Exception ex) when (ex is PostmanException or IOException or UnauthorizedAccessException)
+            {
+            }
+    }
+
     public PostmanEnvironment? FindEnvironment(string name) => Environments.FirstOrDefault(e => e.Name.Equals(name, StringComparison.OrdinalIgnoreCase) || e.Id == name);
 
     public PostmanCollection? FindCollection(string name) => _collections.FirstOrDefault(c => c.Name.Equals(name, StringComparison.OrdinalIgnoreCase))
@@ -93,20 +116,20 @@ public sealed class PostmanLibrary(Func<string?> workspace, string listFile, Fun
     {
         if (_loaded && !all && !_collections.Any(c => c.IsStale) && !_environments.Any(e => e.IsStale))
             return;
-        Put(Read(workspace(), _collections.ToDictionary(c => c.File), _environments.ToDictionary(e => e.File), keyring()));
+        Put(Read(workspace(), _collections.ToDictionary(c => c.File), _environments.ToDictionary(e => e.File)));
         Changed?.Invoke();
     }
 
     async Task ReadAsync()
     {
         var root = workspace();
-        var (collections, environments, store) = (_collections.ToDictionary(c => c.File), _environments.ToDictionary(e => e.File), keyring());
-        Put(await Task.Run(() => Read(root, collections, environments, store)));
+        var (collections, environments) = (_collections.ToDictionary(c => c.File), _environments.ToDictionary(e => e.File));
+        Put(await Task.Run(() => Read(root, collections, environments)));
     }
 
     sealed record Found(List<PostmanCollection> Collections, List<PostmanEnvironment> Environments, List<(string, string)> Problems);
 
-    Found Read(string? root, Dictionary<string, PostmanCollection> knownCollections, Dictionary<string, PostmanEnvironment> knownEnvironments, ICredentialStore? store)
+    Found Read(string? root, Dictionary<string, PostmanCollection> knownCollections, Dictionary<string, PostmanEnvironment> knownEnvironments)
     {
         var collections = new List<PostmanCollection>();
         var environments = new List<PostmanEnvironment>();
@@ -220,7 +243,7 @@ public sealed class PostmanLibrary(Func<string?> workspace, string listFile, Fun
             {
                 var root = PostmanJson.Read(file);
                 if (PostmanEnvironment.Is(root))
-                    _ = PostmanEnvironment.Load(file, null);
+                    _ = PostmanEnvironment.Load(file, store);
                 else
                     _ = PostmanCollection.Load(file);
                 if (!(InWorkspace(file) && IsPostmanFile(file)))
@@ -264,7 +287,7 @@ public sealed class PostmanLibrary(Func<string?> workspace, string listFile, Fun
 
     public async Task<PostmanEnvironment> CreateEnvironmentAsync(string name)
     {
-        var file = PostmanEnvironment.Create(NewFile(name, PostmanEnvironment.Extension), name.Trim(), keyring()).File;
+        var file = PostmanEnvironment.Create(NewFile(name, PostmanEnvironment.Extension), name.Trim(), store).File;
         await ListAsync(file);
         return _environments.First(e => e.File == file);
     }

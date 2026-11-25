@@ -354,7 +354,7 @@ public sealed class ModelSession : IAgentSession
                     var (output, isError) = await CallAsync(call, cancellationToken);
                     Event?.Invoke(new ClaudeToolResults([new ClaudeToolResult(call.Id, output, isError)], null));
                     lock (_messages)
-                        _messages.Add(new JsonObject { ["role"] = "tool", ["tool_call_id"] = call.Id, ["content"] = Redaction.Secrets(output) });
+                        _messages.Add(new JsonObject { ["role"] = "tool", ["tool_call_id"] = call.Id, ["content"] = SealedFiles.Filter(Redaction.Secrets(output)) });
                     answered++;
                 }
                 // Prompts that came while the calls ran go after their results.
@@ -551,7 +551,7 @@ public sealed class ModelSession : IAgentSession
         if (!ModelTools.Definitions().Any(d => d["function"]?["name"]?.GetValue<string>() == call.Name))
             return ($"There is no tool named {call.Name}.", true);
         // Karvon's secret guard reads the call as it reads Claude Code's (the shell's as the shell it is: Bash's, or PowerShell's).
-        if (_options.GuardSecrets && SecretGuard.Check(call.Name, input, _options.WorkingDirectory) is { } refusal)
+        if (SecretGuard.Check(call.Name, input, _options.WorkingDirectory, !_options.GuardSecrets) is { } refusal)
         {
             Audit?.Decided(null, call.Name, "deny", "Karvon's secret guard", refusal);
             return (refusal, true);

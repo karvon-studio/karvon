@@ -42,6 +42,12 @@ public interface IWorkbench
     Task<bool?> ConfirmAsync(string title, string message);
 
     /// <summary>
+    /// The vault made ready for what no agent may get (<see cref="Services.SealedStore"/>): the user is asked for its
+    /// passphrase, or to set one; whether it is.
+    /// </summary>
+    Task<bool> OpenSealedAsync() => Task.FromResult(false);
+
+    /// <summary>
     /// Visual Studio's Reference Manager for a project: the solution's other projects, those it references checked; the
     /// ones checked when it closes with OK, or null when it was cancelled.
     /// </summary>

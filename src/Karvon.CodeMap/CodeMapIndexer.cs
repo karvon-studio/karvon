@@ -40,7 +40,7 @@ public sealed class CodeMapIndexer(string root, CodeMapStore store, Func<string,
     static bool IsSkippedFile(string name) =>
         name is "package-lock.json" or "yarn.lock" or "pnpm-lock.yaml" or "Cargo.lock" or "poetry.lock" or "packages.lock.json" or "go.sum"
         || name.EndsWith(".min.js", StringComparison.Ordinal) || name.EndsWith(".min.css", StringComparison.Ordinal)
-        || name.EndsWith(".map", StringComparison.Ordinal);
+        || name.EndsWith(".map", StringComparison.Ordinal) || Karvon.Claude.SealedFiles.IsName(name);
 
     /// <summary>How long a file whose outline did not come (its server busy or failing) waits before it is asked again.</summary>
     static readonly TimeSpan RetryAfter = TimeSpan.FromMinutes(2);

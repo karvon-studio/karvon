@@ -60,6 +60,14 @@ static class PostmanJson
 
     public static IEnumerable<JsonObject> Objects(this JsonNode? node, string name) => ((node as JsonObject)?[name] as JsonArray)?.OfType<JsonObject>() ?? [];
 
+    /// <summary>An array of a member, made when there is none.</summary>
+    public static JsonArray List(this JsonObject node, string name)
+    {
+        if (node[name] is not JsonArray list)
+            node[name] = list = [];
+        return list;
+    }
+
     /// <summary>A member set, or gone when there is nothing to keep; one with the same text stays as it was written.</summary>
     public static void Put(this JsonObject node, string name, string? value)
     {

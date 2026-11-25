@@ -166,13 +166,13 @@ public sealed class CompletionsModule : KarvonModule
     protected override void Started() => UpdateStatus();
 
     /// <summary>
-    /// Files whose text holds secrets (.env, appsettings, keys, certificates, credentials): no suggestion is asked for in them, so
+    /// Files whose text holds secrets (.env, appsettings, keys, certificates, credentials, Postman's environments): no suggestion is asked for in them, so
     /// nothing of them leaves the machine.
     /// </summary>
     internal static bool HoldsSecrets(string path)
     {
         var name = Path.GetFileName(path).ToLowerInvariant();
-        return name == ".env" || name.StartsWith(".env.", StringComparison.Ordinal) || name.EndsWith(".env", StringComparison.Ordinal)
+        return Karvon.Claude.SealedFiles.Is(path) || name == ".env" || name.StartsWith(".env.", StringComparison.Ordinal) || name.EndsWith(".env", StringComparison.Ordinal)
             || name is ".npmrc" or ".netrc" or ".pgpass" or "credentials" or "credentials.json" || name.StartsWith("id_rsa", StringComparison.Ordinal)
             || name.StartsWith("id_ed25519", StringComparison.Ordinal) || name.Contains("secret", StringComparison.Ordinal)
             // Connection strings and their passwords.

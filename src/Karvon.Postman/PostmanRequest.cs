@@ -38,9 +38,12 @@ public sealed record PostmanBody(string Mode)
 /// <summary>How a request signs in: its type (noauth, bearer, basic, apikey, oauth2, or one Karvon does not send) and its values.</summary>
 public sealed record PostmanAuth(string Type, IReadOnlyDictionary<string, string> Values)
 {
-    public const string NoAuth = "noauth", Bearer = "bearer", Basic = "basic", ApiKey = "apikey", OAuth2 = "oauth2";
+    public const string NoAuth = "noauth", Bearer = "bearer", Basic = "basic", ApiKey = "apikey", OAuth2 = "oauth2", Aws = "awsv4", Digest = "digest", Ntlm = "ntlm";
 
     public string this[string name] => Values.GetValueOrDefault(name, "");
+
+    /// <summary>Its values that are lists (OAuth 2.0's extra parameters), each row's place (send_as) as its description.</summary>
+    public IReadOnlyDictionary<string, IReadOnlyList<PostmanPair>> Lists { get; init; } = new Dictionary<string, IReadOnlyList<PostmanPair>>();
 
     /// <summary>An auth of a request, a folder or a collection (v2.1's rows, v2.0's object); null when it has none of its own (it inherits).</summary>
     public static PostmanAuth? Read(JsonNode? node)
@@ -48,23 +51,37 @@ public sealed record PostmanAuth(string Type, IReadOnlyDictionary<string, string
         if (node is not JsonObject auth || auth.Text("type") is not { } type)
             return null;
         var values = new Dictionary<string, string>(StringComparer.Ordinal);
+        var lists = new Dictionary<string, IReadOnlyList<PostmanPair>>(StringComparer.Ordinal);
         if (auth[type] is JsonArray rows)
         {
             foreach (var row in rows.OfType<JsonObject>())
                 if (row.Text("key") is { } key)
+                {
                     values[key] = row.Text("value") ?? "";
+                    if (row["value"] is JsonArray)
+                        lists[key] = [.. row.Objects("value").Select(r => new PostmanPair(r.Text("key") ?? "", r.Text("value") ?? "")
+                            { Enabled = r["enabled"] is null || r.Flag("enabled"), Description = r.Text("send_as") ?? "" })];
+                }
         }
         else if (auth[type] is JsonObject fields)
             foreach (var (key, value) in fields)
                 values[key] = value.Text() ?? "";
-        return new PostmanAuth(type, values);
+        return new PostmanAuth(type, values) { Lists = lists };
     }
 
-    public JsonObject ToJson() => Type == NoAuth ? new JsonObject { ["type"] = Type } : new JsonObject
+    /// <summary>As a collection keeps it; what is not a text (a list of parameters) and what did not change stays as it was <paramref name="before"/>.</summary>
+    public JsonObject ToJson(JsonObject? before = null)
     {
-        ["type"] = Type,
-        [Type] = new JsonArray([.. Values.Select(v => new JsonObject { ["key"] = v.Key, ["value"] = v.Value, ["type"] = "string" })]),
-    };
+        if (Type == NoAuth)
+            return new JsonObject { ["type"] = Type };
+        var rows = before.Text("type") == Type ? before.Objects(Type).Where(r => r.Text("key") is not null).GroupBy(r => r.Text("key")!).ToDictionary(g => g.Key, g => g.Last()) : [];
+        return new JsonObject
+        {
+            ["type"] = Type,
+            [Type] = new JsonArray([.. Values.Select(v => rows.TryGetValue(v.Key, out var row) && (row["value"] is JsonArray or JsonObject || row.Text("value") == v.Value)
+                ? row.DeepClone() : new JsonObject { ["key"] = v.Key, ["value"] = v.Value, ["type"] = "string" })]),
+        };
+    }
 }
 
 /// <summary>A request as a collection has it, its variables unresolved: read from its item, changed, and put back.</summary>
@@ -154,7 +171,7 @@ public sealed partial record PostmanRequest
         if (auth is null)
             owner.Remove("auth");
         else if (PostmanAuth.Read(owner["auth"]) is not { } before || before.Type != auth.Type || !before.Values.OrderBy(v => v.Key).SequenceEqual(auth.Values.OrderBy(v => v.Key)))
-            owner["auth"] = auth.ToJson();
+            owner["auth"] = auth.ToJson(owner["auth"] as JsonObject);
     }
 
     // ---- Rows -------------------------------------------------------------------------------------------------

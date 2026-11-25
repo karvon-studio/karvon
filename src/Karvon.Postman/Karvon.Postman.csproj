@@ -7,6 +7,9 @@
   <ItemGroup>
     <InternalsVisibleTo Include="Karvon.Tests" />
     <EmbeddedResource Include="pm.js" LogicalName="Karvon.Postman.pm.js" />
+    <!-- What a script's require gives (Sandbox/NOTICE.md). -->
+    <EmbeddedResource Include="Sandbox\**\*.js;Sandbox\**\*.json" LogicalName="Karvon.Postman.Sandbox/%(RecursiveDir)%(Filename)%(Extension)" />
+    <None Include="Sandbox\**\LICENSE*;Sandbox\NOTICE.md" />
   </ItemGroup>
 
   <ItemGroup>

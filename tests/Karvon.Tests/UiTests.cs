@@ -77,7 +77,7 @@ public class UiTests
         // Postman's current values never go to the user's keyring from a test, nor its list to the user's.
         if (vm.Module<Karvon.Postman.PostmanModule>() is { } postman)
         {
-            postman.Keyring = null;
+            postman.Store = new Karvon.Services.SealedStore(() => null);
             postman.ListFile = Path.Combine(Path.GetTempPath(), "karvon-postman-" + Guid.NewGuid().ToString("N"), "postman.json");
         }
         // Inline completions never reach Anthropic or Ollama from a test, whatever the user's own settings and key.

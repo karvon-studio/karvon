@@ -151,10 +151,15 @@
       return this._(ok, 'to throw' + (what === undefined ? '' : ' ' + show(what)));
     }
     throws(what) { return this.throw(what); }
-    jsonSchema() { throw new Error("jsonSchema is not available in Karvon's scripts."); }
+    jsonSchema(schema, options) { const errors = schemaErrors(schema, this._v, options); return this._(!errors, 'to satisfy the schema' + (errors || ''), 'to not satisfy the schema'); }
   }
   for (const word of ['to', 'be', 'been', 'is', 'that', 'which', 'and', 'has', 'have', 'with', 'at', 'of', 'same', 'but', 'does', 'still', 'also'])
     Object.defineProperty(Assertion.prototype, word, { get() { return this; } });
+
+  function schemaErrors(schema, value, options) {
+    const Ajv = global.require('ajv'), ajv = new Ajv(Object.assign({ allErrors: true, logger: false }, options));
+    return ajv.validate(schema, value) ? null : ' but found the errors: ' + ajv.errors.map(e => 'data' + e.dataPath + ' ' + e.message).join(', ');
+  }
 
   const expect = (value, message) => new Assertion(value, message);
   expect.fail = message => { throw new AssertionError(message || 'expect.fail()'); };
@@ -241,6 +246,7 @@
           const found = isJson() ? at(json(), path) : { found: false };
           fail(found.found && (value === undefined || eql(found.value, value)), not, 'have ' + show(path) + ' in its JSON body' + (value === undefined ? '' : ' of ' + show(value)));
         },
+        jsonSchema: (schema, options) => { const errors = isJson() ? schemaErrors(schema, json(), options) : ' but it is not JSON'; fail(!errors, not, 'satisfy the schema' + (errors || '')); },
         responseTime: { below: n => fail(data.time < n, not, 'take less than ' + n + ' ms but took ' + data.time), above: n => fail(data.time > n, not, 'take more than ' + n + ' ms but took ' + data.time) },
       };
       const to = { be, have };
@@ -289,6 +295,34 @@
     addHeader: h => request.headers.add(h), removeHeader: n => request.headers.remove(n), upsertHeader: h => request.headers.upsert(h),
   };
 
+  function cookies() {
+    const ask = (action, url, argument) => { const r = JSON.parse(host.cookies(action, url === undefined ? '' : String(url), argument === undefined ? '' : argument)); if (r.error) throw new Error(r.error); return r.cookies; };
+    const own = () => ask('all');
+    // The jar's methods give their answer to a callback, or to a promise.
+    const give = (callback, body) => {
+      let value, error = null;
+      try { value = body(); } catch (e) { error = e; }
+      if (typeof callback === 'function') { callback(error, value); return undefined; }
+      return error ? Promise.reject(error) : Promise.resolve(value);
+    };
+    return {
+      get: name => { const c = own().find(x => x.name === name); return c && c.value; },
+      has: name => own().some(x => x.name === name),
+      one: name => own().find(x => x.name === name), all: own, count: () => own().length, each: f => own().forEach(f), map: f => own().map(f), filter: f => own().filter(f),
+      toObject: () => Object.fromEntries(own().map(c => [c.name, c.value])),
+      jar: () => ({
+        get: (url, name, callback) => give(callback, () => { const c = ask('all', url).find(x => x.name === name); return c ? c.value : null; }),
+        getAll: (url, callback) => give(callback, () => ask('all', url)),
+        set: (url, name, value, callback) => {
+          const given = name !== null && typeof name === 'object' ? name : { name, value: value === undefined || typeof value === 'function' ? '' : String(value) };
+          return give(typeof value === 'function' ? value : callback, () => { ask('set', url, JSON.stringify(given)); return given; });
+        },
+        unset: (url, name, callback) => give(callback, () => { ask('unset', url, String(name)); }),
+        clear: (url, callback) => give(callback, () => { ask('clear', url); }),
+      }),
+    };
+  }
+
   const setNext = name => host.next(name === null || name === undefined ? null : String(name));
   const pm = {
     variables: scope('variables'), environment: scope('environment'), collectionVariables: scope('collectionVariables'), globals: scope('globals'), iterationData: scope('iterationData'),
@@ -296,7 +330,7 @@
     info: { eventName: state.event, iteration: state.iteration, iterationCount: state.iterations, requestName: state.name, requestId: '' },
     test, expect, sendRequest,
     execution: { setNextRequest: setNext, skipRequest: () => host.skipRequest(), location: { current: state.name } },
-    cookies: { get: () => undefined, has: () => false, toObject: () => ({}) },
+    cookies: cookies(),
     require: name => global.require(name),
   };
   pm.environment.name = state.environment;
@@ -310,10 +344,63 @@
   global.clearTimeout = id => { if (timers[id - 1]) timers[id - 1] = () => {}; };
   global.btoa = text => host.btoa(String(text));
   global.atob = text => host.atob(String(text));
-  global.require = name => {
-    if (name === 'chai') return { expect };
-    throw new Error("'" + name + "' is not available in Karvon's scripts.");
+  global.crypto = {
+    getRandomValues: a => { new Uint8Array(a.buffer, a.byteOffset, a.byteLength).set(host.random(a.byteLength)); return a; },
+    randomUUID: () => host.uuid(),
   };
+
+  // What require gives: libraries, and what there is of Node's own modules.
+  const places = {
+    'crypto-js': 'crypto-js/crypto-js.js', lodash: 'lodash/lodash.min.js', moment: 'moment/moment.min.js', ajv: 'ajv/ajv.min.js', tv4: 'tv4/tv4.js', cheerio: 'cheerio/index.js',
+    'css-select': 'css-select/index.js', 'css-what': 'css-what/index.js', domutils: 'domutils/index.js', 'nth-check': 'nth-check/index.js', boolbase: 'boolbase/index.js', 'dom-serializer': 'dom-serializer/index.js',
+    domelementtype: 'domelementtype/index.js', domhandler: 'domhandler/index.js', entities: 'entities/index.js', htmlparser2: 'htmlparser2/lib/index.js',
+    uuid: 'karvon/uuid.js', xml2js: 'karvon/xml2js.js', 'csv-parse/lib/sync': 'karvon/csv-parse.js', 'csv-parse/sync': 'karvon/csv-parse.js', buffer: 'karvon/buffer.js', util: 'karvon/util.js', assert: 'karvon/assert.js',
+    querystring: 'karvon/querystring.js', url: 'karvon/url.js', path: 'karvon/path.js', events: 'karvon/events.js', string_decoder: 'karvon/string_decoder.js', punycode: 'karvon/punycode.js',
+  };
+  const given = {
+    chai: () => ({ expect, AssertionError }), atob: () => global.atob, btoa: () => global.btoa, inherits: () => global.require('util').inherits,
+    timers: () => ({ setTimeout: global.setTimeout, setImmediate: global.setImmediate, setInterval: global.setInterval, clearTimeout: global.clearTimeout, clearInterval: global.clearTimeout }),
+  };
+  const loaded = {}, process = { env: {}, argv: [], platform: 'karvon', version: 'v20.0.0', versions: { node: '20.0.0' }, nextTick: (f, ...args) => global.setTimeout(f, 0, ...args), cwd: () => '/' };
+  let loading = 0;
+  function load(path) {
+    if (loaded[path]) return loaded[path].exports;
+    const body = host.load(path);
+    if (body === null) return undefined;
+    const module = loaded[path] = { exports: {}, id: path };
+    if (typeof body !== 'function') { module.exports = body; return body; }
+    loading++;
+    try { body.call(module.exports, module.exports, name => from(path, name), module, global, process); } finally { loading--; }
+    return module.exports;
+  }
+  function from(path, name) {
+    if (name[0] !== '.') return global.require(name);
+    const at = path.split('/').slice(0, -1);
+    for (const part of name.split('/')) if (part === '..') at.pop(); else if (part && part !== '.') at.push(part);
+    for (const tail of ['', '.js', '.json', '/index.js']) { const found = load(at.join('/') + tail); if (found !== undefined) return found; }
+    throw new Error("Cannot find module '" + name + "'");
+  }
+  global.require = name => {
+    name = String(name).replace(/^node:/, '');
+    if (own(given, name)) return given[name]();
+    if (own(places, name)) return load(places[name]);
+    // A part of one (entities/lib/decode_codepoint.js).
+    if (/^[a-z][\w.-]*(\/[\w-][\w.-]*)+$/.test(name)) for (const tail of ['', '.js', '.json', '/index.js']) { const found = load(name + tail); if (found !== undefined) return found; }
+    // lodash.merge and the like: lodash's own.
+    if (/^lodash[.\/]/.test(name)) { const _ = load(places.lodash), key = Object.keys(_).find(k => k.toLowerCase() === name.slice(7).toLowerCase()); if (key) return _[key]; }
+    throw new Error("'" + name + "' is not available in Karvon's scripts. There are: " + Object.keys(given).concat(Object.keys(places)).filter(n => n !== 'inherits').join(', ') + '.');
+  };
+  // Postman's scripts have these without require; each is read when it is first used (not by a library that looks whether it is there, as lodash does for _).
+  const lazy = (name, get) => Object.defineProperty(global, name, { configurable: true, enumerable: false, get() { if (loading) return undefined; const value = get(); global[name] = value; return value; }, set(value) { Object.defineProperty(global, name, { value, writable: true, configurable: true }); } });
+  lazy('CryptoJS', () => global.require('crypto-js'));
+  lazy('_', () => global.require('lodash'));
+  lazy('moment', () => global.require('moment'));
+  lazy('cheerio', () => global.require('cheerio'));
+  lazy('tv4', () => global.require('tv4'));
+  lazy('Buffer', () => global.require('buffer').Buffer);
+  lazy('URL', () => global.require('url').URL);
+  lazy('URLSearchParams', () => global.require('url').URLSearchParams);
+  lazy('xml2Json', () => text => global.require('xml2js').parseString(text, { explicitArray: false, trim: true, mergeAttrs: false }));
 
   // The older API (postman.*, tests[...], responseBody).
   global.tests = {};
@@ -322,8 +409,8 @@
     setGlobalVariable: pm.globals.set, getGlobalVariable: pm.globals.get, clearGlobalVariable: pm.globals.unset, clearGlobalVariables: pm.globals.clear,
     setNextRequest: setNext, getResponseHeader: name => pm.response && pm.response.headers.get(name),
   };
-  global.environment = pm.environment.toObject();
-  global.globals = pm.globals.toObject();
+  lazy('environment', () => pm.environment.toObject());
+  lazy('globals', () => pm.globals.toObject());
   global.request = { method: state.request.method, url: state.request.url, headers: request.headers.toObject(), data: state.request.body };
   if (state.response) {
     global.responseBody = state.response.body;

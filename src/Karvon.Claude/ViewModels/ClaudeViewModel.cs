@@ -416,7 +416,8 @@ public sealed partial class ClaudeViewModel : ObservableObject, IAsyncDisposable
             if (isCommand)
                 await session.SendCommandAsync(text);
             else
-                await session.SendUserMessageAsync(text, context is null ? null : [ContextBlock(context)], images.Select(i => i.ToImage()));
+                // A Postman environment mentioned (@file) stays a name: the CLI would put its text in by itself.
+                await session.SendUserMessageAsync(SealedFiles.Unmention(text, _workingDirectory()), context is null ? null : [ContextBlock(context)], images.Select(i => i.ToImage()));
         }
         catch (Exception ex)
         {

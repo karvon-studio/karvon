@@ -272,16 +272,17 @@ public static class HttpRunner
 {
     internal static TimeSpan Timeout { get; set; } = TimeSpan.FromSeconds(100);
 
-    static readonly HttpClient Client = new(new SocketsHttpHandler
+    /// <summary>A development server's own certificate (https://localhost) is taken; any other must be valid.</summary>
+    public static SslClientAuthenticationOptions Tls() => new()
     {
-        AutomaticDecompression = System.Net.DecompressionMethods.All,
-        // A development server's own certificate (https://localhost) is taken; any other must be valid.
-        SslOptions = new SslClientAuthenticationOptions
-        {
-            RemoteCertificateValidationCallback = (sender, _, _, errors) =>
-                errors == SslPolicyErrors.None || sender is SslStream { TargetHostName: var host } && IsLocal(host),
-        },
-    }) { Timeout = System.Threading.Timeout.InfiniteTimeSpan };
+        RemoteCertificateValidationCallback = (sender, _, _, errors) =>
+            errors == SslPolicyErrors.None || sender is SslStream { TargetHostName: var host } && IsLocal(host),
+    };
+
+    static readonly HttpClient Client = new(new SocketsHttpHandler { AutomaticDecompression = System.Net.DecompressionMethods.All, SslOptions = Tls() })
+    {
+        Timeout = System.Threading.Timeout.InfiniteTimeSpan,
+    };
 
     public static bool IsLocal(string? host) =>
         host is not null && (host.Equals("localhost", StringComparison.OrdinalIgnoreCase) || host == "127.0.0.1" || host == "::1" || host == "[::1]"
@@ -313,7 +314,11 @@ public static class HttpRunner
         SendAsync(method, url, headers, body is null ? null : new StringContent(body, Encoding.UTF8), body, ct);
 
     /// <summary>The same with a body that is not only text (a form's files), <paramref name="body"/> what it shows as.</summary>
-    public static async Task<HttpExchange> SendAsync(string method, string url, IReadOnlyList<(string Name, string Value)> headers, HttpContent? content, string? body, CancellationToken ct = default)
+    public static Task<HttpExchange> SendAsync(string method, string url, IReadOnlyList<(string Name, string Value)> headers, HttpContent? content, string? body, CancellationToken ct = default) =>
+        SendAsync(Client, method, url, headers, content, body, ct);
+
+    /// <summary>The same with a client of the caller's (its own redirects, cookies and connections).</summary>
+    public static async Task<HttpExchange> SendAsync(HttpClient client, string method, string url, IReadOnlyList<(string Name, string Value)> headers, HttpContent? content, string? body, CancellationToken ct = default)
     {
         var exchange = new HttpExchange(method, url, headers, body);
         if (!Uri.TryCreate(url, UriKind.Absolute, out var uri) || uri.Scheme is not ("http" or "https"))
@@ -334,7 +339,7 @@ public static class HttpRunner
         limit.CancelAfter(Timeout);
         try
         {
-            using var response = await Client.SendAsync(request, HttpCompletionOption.ResponseContentRead, limit.Token);
+            using var response = await client.SendAsync(request, HttpCompletionOption.ResponseContentRead, limit.Token);
             var bytes = await response.Content.ReadAsByteArrayAsync(limit.Token);
             watch.Stop();
             var contentType = response.Content.Headers.ContentType;
@@ -346,7 +351,7 @@ public static class HttpRunner
                 Headers = [.. response.Headers.Concat(response.Content.Headers).SelectMany(h => h.Value.Select(v => (h.Key, v)))],
                 ContentType = contentType?.MediaType,
                 RawBody = raw,
-                Body = IsText(contentType) || bytes.Length == 0 ? Pretty(raw, contentType) : $"({bytes.Length} bytes of {contentType?.MediaType ?? "binary"})",
+                Body = IsText(contentType) || bytes.Length == 0 ? Pretty(raw, contentType?.MediaType) : $"({bytes.Length} bytes of {contentType?.MediaType ?? "binary"})",
                 Size = bytes.Length,
                 Elapsed = watch.Elapsed,
             };
@@ -380,9 +385,9 @@ public static class HttpRunner
     }
 
     /// <summary>JSON indented, as Visual Studio shows a response; the rest as it is.</summary>
-    static string Pretty(string text, MediaTypeHeaderValue? type)
+    public static string Pretty(string text, string? type)
     {
-        if (type?.MediaType?.Contains("json", StringComparison.OrdinalIgnoreCase) != true && !(text.TrimStart().StartsWith('{') || text.TrimStart().StartsWith('[')))
+        if (type?.Contains("json", StringComparison.OrdinalIgnoreCase) != true && !(text.TrimStart().StartsWith('{') || text.TrimStart().StartsWith('[')))
             return text;
         try
         {

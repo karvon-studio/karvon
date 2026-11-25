@@ -35,7 +35,7 @@ public static class ClaudeSandbox
             autoAllowBashIfSandboxed = false,
             filesystem = new
             {
-                denyRead = project.Hidden.Concat(SecretFiles.UserPlaces(project.Home)).Distinct().ToArray(),
+                denyRead = project.Hidden.Concat(SecretFiles.UserPlaces(project.Home)).Concat(project.Sealed).Distinct().ToArray(),
                 allowRead = project.Readable.ToArray(),
                 allowWrite = project.Writable.ToArray(),
                 denyWrite = project.Protected.ToArray(),
@@ -49,7 +49,7 @@ public static class ClaudeSandbox
     public static IEnumerable<string> ShellSnapshots(string configDirectory) => [Path.Combine(configDirectory, "shell-snapshots")];
 
     /// <summary>The settings Claude Code is given with --settings.</summary>
-    public static string Settings() => JsonSerializer.Serialize(new
+    public static string Settings(string? workspace = null) => JsonSerializer.Serialize(new
     {
         sandbox = new
         {
@@ -58,7 +58,7 @@ public static class ClaudeSandbox
             failIfUnavailable = false,
             allowUnsandboxedCommands = false,
             autoAllowBashIfSandboxed = false,
-            filesystem = new { denyRead = SecretFiles.UserPlaces().ToArray() },
+            filesystem = new { denyRead = SecretFiles.UserPlaces().Concat(workspace is null ? [] : SealedFiles.In(workspace)).ToArray() },
             network = new { allowedDomains = Domains },
         },
     });

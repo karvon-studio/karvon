@@ -52,6 +52,12 @@ public sealed class ClaudeSession : IAgentSession
     /// <summary>Karvon's strict sandbox the session's file tools are kept to; null when it is off.</summary>
     ProjectSandbox? _confine;
 
+    /// <summary>The guard of the secrets is on; off, only what no agent gets is kept (<see cref="SealedFiles"/>).</summary>
+    bool _guardSecrets = true;
+
+    /// <summary>A tool's output as the model gets it.</summary>
+    string Hidden(string text) => SealedFiles.Filter(_guardSecrets ? SecretMasks.Hide(text) : SecretMasks.HideSealed(text));
+
     /// <summary>The folder it was started in.</summary>
     public string? WorkingDirectory => _workingDirectory;
 
@@ -142,25 +148,24 @@ public sealed class ClaudeSession : IAgentSession
 
     /// <summary>
     /// The hooks Karvon answers (as the Agent SDK's callbacks), before a call of Claude Code's own tools: whether it reaches
-    /// a secret (unless that is off), and a secret's marks given their values again; for Bash whether one of Karvon's tools
+    /// a secret (with that off, what no agent gets), and a secret's marks given their values again; for Bash whether one of Karvon's tools
     /// does it (when there are shell rules); after a call, its output's secrets marked.
     /// </summary>
-    static object? Hooks(ClaudeToolServer? tools, bool guardSecrets, bool confine = false)
+    static object Hooks(ClaudeToolServer? tools, bool confine = false)
     {
         List<object> preToolUse = [];
         if (confine)
             preToolUse.Add(new { matcher = ProjectSandbox.FileTools, hookCallbackIds = new[] { ConfineHook } });
-        if (guardSecrets)
-            preToolUse.Add(new { matcher = SecretGuard.Tools, hookCallbackIds = new[] { SecretsHook } });
+        // Asked with the guard off too: what no agent gets is kept whatever the settings (SealedFiles).
+        preToolUse.Add(new { matcher = SecretGuard.Tools, hookCallbackIds = new[] { SecretsHook } });
         if (tools is { ShellRules.Count: > 0 })
             preToolUse.Add(new { matcher = "Bash|PowerShell", hookCallbackIds = new[] { ShellHook } });
-        if (preToolUse.Count == 0)
-            return null;
-        var hooks = new Dictionary<string, object> { ["PreToolUse"] = preToolUse };
-        // What every tool gives the model, its secrets marked (Karvon's own tools hide theirs already).
-        if (guardSecrets)
-            hooks["PostToolUse"] = new[] { new { matcher = ".*", hookCallbackIds = new[] { MasksHook } } };
-        return hooks;
+        return new Dictionary<string, object>
+        {
+            ["PreToolUse"] = preToolUse,
+            // What every tool gives the model, its secrets marked (Karvon's own tools hide theirs already).
+            ["PostToolUse"] = new[] { new { matcher = ".*", hookCallbackIds = new[] { MasksHook } } },
+        };
     }
 
     /// <summary>The command-line arguments for <paramref name="options"/> (the SDK's streaming invocation).</summary>
@@ -187,7 +192,7 @@ public sealed class ClaudeSession : IAgentSession
         if (options.Confine is { } project)
             args.AddRange(["--settings", ClaudeSandbox.Settings(project)]);
         else if (options.Sandbox)
-            args.AddRange(["--settings", ClaudeSandbox.Settings()]);
+            args.AddRange(["--settings", ClaudeSandbox.Settings(options.WorkingDirectory)]);
         // A folder not trusted yet: its .claude settings (hooks that run at once, allow rules, its .mcp.json approved) and its
         // .mcp.json servers are not read; the user's own are.
         if (!options.Trusted)
@@ -250,7 +255,7 @@ public sealed class ClaudeSession : IAgentSession
         {
             Gateway = gateway,
             GatewayProblem = gatewayProblem,
-            SessionId = options.Resume, _tools = options.Tools, _workingDirectory = options.WorkingDirectory, _confine = options.Confine, HiddenVariables = hidden,
+            SessionId = options.Resume, _tools = options.Tools, _workingDirectory = options.WorkingDirectory, _confine = options.Confine, _guardSecrets = options.GuardSecrets, HiddenVariables = hidden,
             Audit = options.AuditDirectory is { } audit ? ClaudeAudit.Start(audit) : null,
         };
         session.Audit?.SessionId = options.Resume;
@@ -259,7 +264,7 @@ public sealed class ClaudeSession : IAgentSession
         {
             using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
             timeout.CancelAfter(TimeSpan.FromSeconds(60));
-            session.Initialization = await session.RequestAsync(new { subtype = "initialize", hooks = Hooks(options.Tools, options.GuardSecrets, options.Confine is not null) }, timeout.Token);
+            session.Initialization = await session.RequestAsync(new { subtype = "initialize", hooks = Hooks(options.Tools, options.Confine is not null) }, timeout.Token);
         }
         catch (Exception ex)
         {
@@ -547,7 +552,7 @@ public sealed class ClaudeSession : IAgentSession
         else if (ClaudeProtocol.Str(request, "callback_id") == MasksHook && request.TryGetProperty("input", out var done)
             && ClaudeProtocol.Str(done, "tool_name") is { } doneTool && !doneTool.StartsWith(ClaudeToolServer.Prefix, StringComparison.Ordinal)
             && done.TryGetProperty("tool_response", out var response)
-            && SecretMasks.Map(System.Text.Json.Nodes.JsonNode.Parse(response.GetRawText()), SecretMasks.Hide) is { } masked)
+            && SecretMasks.Map(System.Text.Json.Nodes.JsonNode.Parse(response.GetRawText()), Hidden) is { } masked)
         {
             // The same shape as the tool's own output, every string of it with its secrets marked.
             Audit?.Scanned(SecretMasks.Kinds(masked.ToJsonString(Unescaped)));
@@ -555,12 +560,12 @@ public sealed class ClaudeSession : IAgentSession
         }
         else if (ClaudeProtocol.Str(request, "callback_id") == SecretsHook && request.TryGetProperty("input", out var called)
             && ClaudeProtocol.Str(called, "tool_name") is { } tool && called.TryGetProperty("tool_input", out var calledInput)
-            && SecretGuard.Check(tool, calledInput, _workingDirectory) is { } reason)
+            && SecretGuard.Check(tool, calledInput, _workingDirectory, !_guardSecrets) is { } reason)
         {
             Audit?.Decided(ClaudeProtocol.Str(called, "tool_use_id") ?? ClaudeProtocol.Str(request, "tool_use_id"), tool, "deny", "Karvon's guard of the secrets", reason);
             answer = new { hookSpecificOutput = new { hookEventName = "PreToolUse", permissionDecision = "deny", permissionDecisionReason = reason } };
         }
-        else if (ClaudeProtocol.Str(request, "callback_id") == SecretsHook && request.TryGetProperty("input", out var writing)
+        else if (_guardSecrets && ClaudeProtocol.Str(request, "callback_id") == SecretsHook && request.TryGetProperty("input", out var writing)
             && ClaudeProtocol.Str(writing, "tool_name") is { } writer && Revealed.Contains(writer) && writing.TryGetProperty("tool_input", out var written)
             && SecretMasks.Map(System.Text.Json.Nodes.JsonNode.Parse(written.GetRawText()), SecretMasks.Reveal) is { } revealed)
         {

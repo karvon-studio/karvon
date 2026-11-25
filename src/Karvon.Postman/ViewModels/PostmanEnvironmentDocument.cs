@@ -4,7 +4,7 @@ using CommunityToolkit.Mvvm.Input;
 
 namespace Karvon.Postman.ViewModels;
 
-/// <summary>A variable of an environment, as its row: the file's value, and this machine's over it.</summary>
+/// <summary>A variable of an environment, as its row: its name, and its value (Karvon's, or the file's where it came with one), hidden until it is shown.</summary>
 public sealed partial class PostmanVariableRow : ObservableObject
 {
     readonly Action<PostmanVariableRow> _edited;
@@ -36,14 +36,25 @@ public sealed partial class PostmanVariableRow : ObservableObject
     public partial string Current { get; set; }
 
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(Mask))]
     public partial bool IsSecret { get; set; }
 
-    /// <summary>It has a value of this machine's (an empty one is one too, once typed).</summary>
+    /// <summary>It has a value Karvon keeps (an empty one is one too, once typed).</summary>
     public bool HasCurrent { get; private set; }
 
-    /// <summary>A secret's values are not shown as they are typed.</summary>
-    public char Mask => IsSecret ? '•' : '\0';
+    /// <summary>Its value is hidden until its eye is clicked.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(Mask), nameof(Eye))]
+    public partial bool IsShown { get; set; }
+
+    public char Mask => IsShown ? '\0' : '•';
+
+    public string Eye => IsShown ? "EyeOff" : "Eye";
+
+    /// <summary>What stands in place of a value Karvon does not have.</summary>
+    public string Hint => Initial.Length > 0 ? "In the file" : "Value";
+
+    [RelayCommand]
+    void Show() => IsShown = !IsShown;
 
     public bool IsEmpty => Key.Length == 0 && Initial.Length == 0 && Current.Length == 0;
 
@@ -58,14 +69,14 @@ public sealed partial class PostmanVariableRow : ObservableObject
     protected override void OnPropertyChanged(System.ComponentModel.PropertyChangedEventArgs e)
     {
         base.OnPropertyChanged(e);
-        if (e.PropertyName is not (nameof(Mask) or nameof(IsEmpty)))
+        if (e.PropertyName is nameof(Enabled) or nameof(Key) or nameof(Initial) or nameof(Current) or nameof(IsSecret))
             _edited?.Invoke(this);
     }
 }
 
 /// <summary>
-/// An environment's document: its variables, with the value its file has (shared with whoever has the file) and the current
-/// one (this machine's: what is typed here or set by a script; in Karvon's vault, never in the file).
+/// An environment's document: its variables' names (the file's) and values (Karvon's, in the vault, never in the file), and
+/// whether agents may send requests with it, to which hosts. They get its values in no way.
 /// </summary>
 public sealed partial class PostmanEnvironmentDocument : PostmanDocument
 {
@@ -111,6 +122,86 @@ public sealed partial class PostmanEnvironmentDocument : PostmanDocument
         }
         OnPropertyChanged(nameof(IsActive));
         OnPropertyChanged(nameof(CanBeActive));
+        Kept();
+    }
+
+    // ---- Where it is kept, and who may send with it -----------------------------------------------------------
+
+    /// <summary>Its file came with values, where any program reads them.</summary>
+    public bool HasFileValues => _environment.HasFileValues;
+
+    public bool IsLocked => _environment.IsLocked;
+
+    /// <summary>What is typed here goes when Karvon closes: the vault has no passphrase.</summary>
+    public bool IsForSession => !_environment.IsKept && !IsLocked;
+
+    public bool AgentsMaySend
+    {
+        get => _environment.AgentsMaySend;
+        set
+        {
+            if (value == _environment.AgentsMaySend || (value && HasFileValues))
+                return;
+            _environment.AgentsMaySend = value;
+            Kept();
+        }
+    }
+
+    public bool CanLetAgents => !HasFileValues;
+
+    public string HostsText => _environment.Hosts.Except(_environment.AddedHosts, StringComparer.OrdinalIgnoreCase).ToList() is { Count: > 0 } hosts
+        ? "Its own hosts: " + string.Join(", ", hosts) : "It has no host of its own yet (a variable with an address, as baseUrl).";
+
+    /// <summary>The hosts added to its own, as they are typed.</summary>
+    public string AddedHosts
+    {
+        get => string.Join(", ", _environment.AddedHosts);
+        set
+        {
+            var hosts = value.Split([',', ' ', ';'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                .Select(h => Uri.TryCreate(h, UriKind.Absolute, out var uri) && uri.Host.Length > 0 ? uri.Authority : h).ToList();
+            if (hosts.ToHashSet(StringComparer.OrdinalIgnoreCase).SetEquals(_environment.AddedHosts))
+                return;
+            _environment.AddedHosts = hosts;
+            Kept();
+        }
+    }
+
+    /// <summary>One of its hosts is this machine, where an agent's own program may answer.</summary>
+    public bool ReachesThisMachine => _environment.Hosts.Any(h => Karvon.Http.HttpRunner.IsLocal(h.Split(':')[0]) || h.StartsWith("127.", StringComparison.Ordinal) || h.StartsWith("0.0.0.0", StringComparison.Ordinal) || h.StartsWith('['));
+
+    public bool WarnsOfThisMachine => AgentsMaySend && ReachesThisMachine;
+
+    void Kept()
+    {
+        foreach (var name in new[] { nameof(HasFileValues), nameof(IsLocked), nameof(IsForSession), nameof(AgentsMaySend), nameof(CanLetAgents), nameof(HostsText), nameof(AddedHosts), nameof(WarnsOfThisMachine) })
+            OnPropertyChanged(name);
+    }
+
+    /// <summary>The vault opened, or given a passphrase, so that values are kept.</summary>
+    [RelayCommand]
+    async Task OpenVaultAsync()
+    {
+        await Host.OpenSealedAsync();
+        Kept();
+    }
+
+    /// <summary>The file's values moved to the vault; the file keeps the names.</summary>
+    [RelayCommand]
+    public async Task MoveToVaultAsync()
+    {
+        if (!_environment.IsKept && !await Host.OpenSealedAsync())
+            return;
+        try
+        {
+            await _environment.MoveToVaultAsync();
+            Host.Status($"{Name}'s values are in Karvon's vault; its file keeps the names.");
+        }
+        catch (Exception ex) when (ex is PostmanException or IOException or UnauthorizedAccessException)
+        {
+            Host.Status($"{Name}'s values were not moved: {ex.Message}");
+        }
+        Host.Library.RaiseChanged();
     }
 
     void Load()
@@ -176,6 +267,7 @@ public sealed partial class PostmanEnvironmentDocument : PostmanDocument
             _saved = Text();
             Host.Library.RaiseChanged();
             Touched();
+            Kept();
             return true;
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)

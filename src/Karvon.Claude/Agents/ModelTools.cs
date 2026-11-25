@@ -219,7 +219,7 @@ public static class ModelTools
             string[] lines;
             try
             {
-                if (new FileInfo(file).Length > 2_000_000)
+                if (new FileInfo(file).Length > 2_000_000 || SealedFiles.Is(file))
                     continue;
                 lines = File.ReadAllLines(file);
             }

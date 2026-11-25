@@ -35,7 +35,7 @@ public static partial class Redaction
             return text;
         foreach (var (value, name) in KnownSecrets.All)
             if (text.Contains(value, StringComparison.Ordinal))
-                text = text.Replace(value, $"«secret: {name}»", StringComparison.Ordinal);
+                text = text.Replace(value, KnownSecrets.MarkOf(value, name), StringComparison.Ordinal);
         foreach (var (name, pattern) in Tokens)
             text = pattern.Replace(text, $"«secret: {name}»");
         return text;

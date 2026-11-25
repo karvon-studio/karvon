@@ -29,11 +29,42 @@
       <TextBox Name="NameBox" Text="{Binding Name}" FontSize="16" FontWeight="SemiBold" BorderThickness="0" Background="Transparent" MaxWidth="460" HorizontalAlignment="Left" MinWidth="240" />
     </DockPanel>
     <TextBlock DockPanel.Dock="Top" Classes="dkMuted" TextWrapping="Wrap" Margin="0,0,0,10" MaxWidth="820" HorizontalAlignment="Left"
-               Text="The initial value is in the file, shared with whoever has it. The current value is used instead where there is one: it stays on this machine, in Karvon's vault (this session only without one), and scripts set it. Claude is told a secret's name, never its value." />
-    <Grid DockPanel.Dock="Top" ColumnDefinitions="30,2*,3*,3*,70,28" Margin="1,0,1,2">
+               Text="The file keeps the names; the values stay in Karvon's vault. Claude and other agents get them from no tool, script or file, whatever the settings." />
+
+    <StackPanel DockPanel.Dock="Top" Spacing="6" Margin="0,0,0,10">
+      <Border Classes="dkCard" Padding="12,8" Background="#3A2A1E" IsVisible="{Binding HasFileValues}" HorizontalAlignment="Left" MaxWidth="820">
+        <DockPanel>
+          <Button Name="MoveButton" DockPanel.Dock="Right" Classes="dkPrimary" Margin="12,0,0,0" VerticalAlignment="Center" Command="{Binding MoveToVaultCommand}" Content="Move to the Vault" />
+          <TextBlock TextWrapping="Wrap" Text="This file came with values in it, where any program on this machine reads them, an agent's too. Move them to the vault: the file keeps the names (what git has of it before stays there)." />
+        </DockPanel>
+      </Border>
+      <Border Classes="dkCard" Padding="12,8" IsVisible="{Binding IsForSession}" HorizontalAlignment="Left" MaxWidth="820">
+        <DockPanel>
+          <Button Name="PassphraseButton" DockPanel.Dock="Right" Classes="dkOutline" Margin="12,0,0,0" VerticalAlignment="Center" Command="{Binding OpenVaultCommand}" Content="Set a Passphrase…" />
+          <TextBlock TextWrapping="Wrap" Classes="dkMuted" Text="Values are kept until Karvon closes. With a passphrase the vault keeps them: without one its key is in the system keyring, which any program you run can ask." />
+        </DockPanel>
+      </Border>
+      <Border Classes="dkCard" Padding="12,8" IsVisible="{Binding IsLocked}" HorizontalAlignment="Left" MaxWidth="820">
+        <DockPanel>
+          <Button DockPanel.Dock="Right" Classes="dkOutline" Margin="12,0,0,0" VerticalAlignment="Center" Command="{Binding OpenVaultCommand}" Content="Unlock…" />
+          <TextBlock TextWrapping="Wrap" Classes="dkMuted" Text="The vault is locked: this environment's values are not here until it is opened." />
+        </DockPanel>
+      </Border>
+    </StackPanel>
+
+    <StackPanel DockPanel.Dock="Bottom" Spacing="6" Margin="0,12,0,0" MaxWidth="820" HorizontalAlignment="Left">
+      <CheckBox Name="AgentsBox" IsChecked="{Binding AgentsMaySend}" IsEnabled="{Binding CanLetAgents}" Content="Agents may send requests with it (its values go into the request, never to them)" />
+      <TextBlock Text="{Binding HostsText}" Classes="dkMuted" TextWrapping="Wrap" />
+      <StackPanel Orientation="Horizontal" Spacing="8">
+        <TextBlock Text="Other hosts its values may go to" Classes="dkMuted" VerticalAlignment="Center" />
+        <TextBox Name="HostsBox" Classes="dkField" Width="360" Text="{Binding AddedHosts, UpdateSourceTrigger=LostFocus}" PlaceholderText="api.example.com, id.example.com" />
+      </StackPanel>
+      <TextBlock Text="One of its hosts is this machine: a program an agent starts or changes may answer there, and gets what a request takes." Foreground="#E2C08D" TextWrapping="Wrap" IsVisible="{Binding WarnsOfThisMachine}" />
+    </StackPanel>
+
+    <Grid DockPanel.Dock="Top" ColumnDefinitions="30,2*,4*,28,70,28" Margin="1,0,1,2">
       <TextBlock Grid.Column="1" Text="Variable" Classes="dkHeader" Margin="8,0" />
-      <TextBlock Grid.Column="2" Text="Initial value" Classes="dkHeader" Margin="8,0" />
-      <TextBlock Grid.Column="3" Text="Current value" Classes="dkHeader" Margin="8,0" />
+      <TextBlock Grid.Column="2" Text="Value" Classes="dkHeader" Margin="8,0" />
       <TextBlock Grid.Column="4" Text="Secret" Classes="dkHeader" HorizontalAlignment="Center" />
     </Grid>
     <ScrollViewer>
@@ -42,12 +73,14 @@
           <ItemsControl.ItemTemplate>
             <DataTemplate x:DataType="pvm:PostmanVariableRow">
               <Border BorderBrush="#333337" BorderThickness="0,0,0,1">
-                <Grid ColumnDefinitions="30,2*,3*,3*,70,28">
+                <Grid ColumnDefinitions="30,2*,4*,28,70,28">
                   <CheckBox IsChecked="{Binding Enabled}" MinWidth="0" HorizontalAlignment="Center" VerticalAlignment="Center" IsVisible="{Binding !IsEmpty}" />
                   <TextBox Grid.Column="1" Classes="cell" Text="{Binding Key}" PlaceholderText="Variable" />
-                  <TextBox Grid.Column="2" Classes="cell" Text="{Binding Initial}" PasswordChar="{Binding Mask}" PlaceholderText="Shared" />
-                  <TextBox Grid.Column="3" Classes="cell" Text="{Binding Current}" PasswordChar="{Binding Mask}" PlaceholderText="As the initial value" />
-                  <CheckBox Grid.Column="4" IsChecked="{Binding IsSecret}" MinWidth="0" HorizontalAlignment="Center" VerticalAlignment="Center" IsVisible="{Binding !IsEmpty}" ToolTip.Tip="A secret: not shown, and never told to Claude" />
+                  <TextBox Grid.Column="2" Classes="cell" Text="{Binding Current}" PasswordChar="{Binding Mask}" PlaceholderText="{Binding Hint}" />
+                  <Button Grid.Column="3" Classes="tbi" Command="{Binding ShowCommand}" IsVisible="{Binding !IsEmpty}" ToolTip.Tip="Show the value">
+                    <v:VsIcon Kind="{Binding Eye}" Width="13" Height="13" />
+                  </Button>
+                  <CheckBox Grid.Column="4" IsChecked="{Binding IsSecret}" MinWidth="0" HorizontalAlignment="Center" VerticalAlignment="Center" IsVisible="{Binding !IsEmpty}" ToolTip.Tip="A secret, as Postman marks it" />
                   <Button Grid.Column="5" Classes="tbi" Command="{Binding $parent[UserControl].((pvm:PostmanEnvironmentDocument)DataContext).RemoveCommand}" CommandParameter="{Binding}" IsVisible="{Binding !IsEmpty}" ToolTip.Tip="Remove">
                     <v:VsIcon Kind="Close" Width="11" Height="11" />
                   </Button>

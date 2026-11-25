@@ -49,6 +49,7 @@ public sealed class ProjectSandbox
     static readonly string[] SystemHidden = ["/root", "/run/user", "/mnt", "/media", "/srv", "/var/log", "/var/mail", "/var/spool"];
 
     readonly List<string> _secrets;
+    readonly IReadOnlyList<string> _sealed;
 
     /// <param name="workspace">The project's folder: read and written.</param>
     /// <param name="readFolders">Folders of the user's the agents may read besides (MCP Servers > karvon).</param>
@@ -62,6 +63,7 @@ public sealed class ProjectSandbox
         Home = Full(home ?? Environment.GetFolderPath(Environment.SpecialFolder.UserProfile));
         Workspace = Full(workspace);
         _secrets = [.. SecretFiles.UserPlaces(Home), .. SecretsInside.Select(p => Full(Path.Combine(Home, p)))];
+        _sealed = SealedFiles.In(Workspace);
         var refused = new List<string>();
 
         IEnumerable<string> FromHome(IEnumerable<string> relative) => relative.Select(p => Full(Path.Combine(Home, p))).Where(Exists);
@@ -103,11 +105,14 @@ public sealed class ProjectSandbox
     /// <summary>The project's controls (<see cref="ProjectControls"/>), there or not: read only.</summary>
     public IReadOnlyList<string> Protected => [.. ProjectControls.Select(c => Path.Combine(Workspace, c))];
 
+    /// <summary>The project's files no agent gets (<see cref="SealedFiles"/>).</summary>
+    public IReadOnlyList<string> Sealed => _sealed;
+
     /// <summary>Whether a command or a file tool may read <paramref name="path"/>.</summary>
     public bool CanRead(string path)
     {
         var full = Full(path);
-        if (_secrets.Any(s => Under(full, s)))
+        if (_secrets.Any(s => Under(full, s)) || SealedFiles.Is(full))
             return false;
         if (Readable.Any(r => Under(full, r)))
             return true;
@@ -118,7 +123,7 @@ public sealed class ProjectSandbox
     public bool CanWrite(string path)
     {
         var full = Full(path);
-        return !_secrets.Any(s => Under(full, s)) && !Protected.Any(p => Under(full, p)) && Writable.Any(w => Under(full, w));
+        return !_secrets.Any(s => Under(full, s)) && !SealedFiles.Is(full) && !Protected.Any(p => Under(full, p)) && Writable.Any(w => Under(full, w));
     }
 
     /// <summary>The tools whose paths are kept to the project (Claude Code's own, and the Agents panel's).</summary>
@@ -199,6 +204,9 @@ public sealed class ProjectSandbox
         // The project's controls read only again, inside what is written.
         foreach (var path in Protected.Where(Exists))
             args.AddRange(["--ro-bind", path, path]);
+        // What no agent gets (the project's Postman environments): nothing is in it here.
+        foreach (var path in Sealed.Where(Exists))
+            args.AddRange(["--ro-bind", "/dev/null", path]);
         args.AddRange(["--chdir", Workspace]);
         return args;
     }

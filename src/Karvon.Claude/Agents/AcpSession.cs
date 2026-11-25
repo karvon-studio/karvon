@@ -284,7 +284,7 @@ public sealed class AcpSession : IAgentSession
         var (name, input) = Describe(call, _calls.TryGetValue(callId, out var known) ? known : null);
         var options = parameters.TryGetProperty("options", out var o) ? o.Clone() : default;
         // The secret guard, then the panel's mode, answer before the user is asked.
-        if (_options.GuardSecrets && SecretGuard.Check(name, input, _options.WorkingDirectory) is { } refusal)
+        if (SecretGuard.Check(name, input, _options.WorkingDirectory, !_options.GuardSecrets) is { } refusal)
         {
             Audit?.Decided(null, name, "deny", "Karvon's secret guard", refusal);
             Event?.Invoke(new ClaudeNotice(refusal, IsError: true));
@@ -323,7 +323,7 @@ public sealed class AcpSession : IAgentSession
     {
         var path = ClaudeJson.Str(parameters, "path") ?? "";
         var input = JsonSerializer.SerializeToElement(new { file_path = path });
-        if (_options.GuardSecrets && SecretGuard.Check("Read", input, _options.WorkingDirectory) is { } refusal)
+        if (SecretGuard.Check("Read", input, _options.WorkingDirectory, !_options.GuardSecrets) is { } refusal)
         {
             await _rpc.RespondErrorAsync(id, -32000, refusal);
             return;
@@ -352,7 +352,7 @@ public sealed class AcpSession : IAgentSession
         var path = ClaudeJson.Str(parameters, "path") ?? "";
         var content = ClaudeJson.Str(parameters, "content") ?? "";
         var input = JsonSerializer.SerializeToElement(new { file_path = path, content });
-        if (_options.GuardSecrets && SecretGuard.Check("Write", input, _options.WorkingDirectory) is { } refusal)
+        if (SecretGuard.Check("Write", input, _options.WorkingDirectory, !_options.GuardSecrets) is { } refusal)
         {
             await _rpc.RespondErrorAsync(id, -32000, refusal);
             return;

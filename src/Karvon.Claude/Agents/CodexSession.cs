@@ -379,7 +379,7 @@ public sealed class CodexSession : IAgentSession
             ["description"] = ClaudeJson.Str(parameters, "reason"),
         }.ToJsonString()).RootElement.Clone();
         // A command that would show a secret does not run, whoever allows it.
-        if (_options.GuardSecrets && SecretGuard.Check("Bash", input, _options.WorkingDirectory) is { } refusal)
+        if (SecretGuard.Check("Bash", input, _options.WorkingDirectory, !_options.GuardSecrets) is { } refusal)
         {
             Audit?.Decided(null, "Bash", "deny", "Karvon's secret guard", refusal);
             _ = _rpc.RespondAsync(id, new JsonObject { ["decision"] = "decline" });
@@ -397,7 +397,7 @@ public sealed class CodexSession : IAgentSession
     {
         var itemId = ClaudeJson.Str(parameters, "itemId") ?? "";
         var changes = _changes.TryGetValue(itemId, out var known) ? known : JsonDocument.Parse("{\"changes\":[]}").RootElement.Clone();
-        if (_options.GuardSecrets && PatchPaths(changes).Select(path => SecretGuard.Check("Write", Json(new JsonObject { ["file_path"] = path }), _options.WorkingDirectory))
+        if (PatchPaths(changes).Select(path => SecretGuard.Check("Write", Json(new JsonObject { ["file_path"] = path }), _options.WorkingDirectory, !_options.GuardSecrets))
             .FirstOrDefault(r => r is not null) is { } refusal)
         {
             Audit?.Decided(null, "Patch", "deny", "Karvon's secret guard", refusal);

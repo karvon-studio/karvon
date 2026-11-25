@@ -103,13 +103,27 @@
               <ComboBox ItemsSource="{x:Static pvm:PostmanRequestDocument.ApiKeyPlaces}" SelectedIndex="{Binding ApiKeyPlace}" MinWidth="160" />
             </StackPanel>
             <StackPanel Classes="auth" IsVisible="{Binding IsOAuth}">
-              <TextBlock Text="Access token" Classes="dkMuted" />
-              <TextBox Classes="dkField" Text="{Binding AccessToken}" PlaceholderText="{}{{accessToken}}" />
-              <TextBlock Text="Header prefix" Classes="dkMuted" />
-              <TextBox Classes="dkField" Text="{Binding HeaderPrefix}" />
+              <StackPanel Orientation="Horizontal" Spacing="8">
+                <Button Name="GetTokenButton" Classes="dkPrimary" Command="{Binding GetTokenCommand}" IsVisible="{Binding !IsGettingToken}" IsEnabled="{Binding CanGetToken}" Content="Get New Access Token" />
+                <Button Classes="dkOutline" Command="{Binding StopGettingTokenCommand}" IsVisible="{Binding IsGettingToken}" Content="Cancel" />
+                <Button Classes="dkOutline" Command="{Binding ForgetTokenCommand}" IsVisible="{Binding HasToken}" Content="Forget" />
+                <TextBlock Name="TokenState" Text="{Binding TokenText}" Classes="dkMuted" VerticalAlignment="Center" />
+              </StackPanel>
+              <TextBlock Text="{Binding TokenProblem}" Foreground="#F48771" TextWrapping="Wrap" IsVisible="{Binding TokenProblem, Converter={x:Static ObjectConverters.IsNotNull}}" />
             </StackPanel>
+            <ItemsControl Name="AuthFieldList" ItemsSource="{Binding AuthFields.Shown}" IsVisible="{Binding HasAuthFields}" MaxWidth="560" MinWidth="360" HorizontalAlignment="Left">
+              <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="pvm:PostmanAuthField">
+                  <StackPanel Spacing="4" Margin="0,0,0,6" IsVisible="{Binding IsShown}">
+                    <TextBlock Text="{Binding Label}" Classes="dkMuted" />
+                    <TextBox Classes="dkField" Text="{Binding Text}" PlaceholderText="{Binding Hint}" IsVisible="{Binding !IsChoice}" />
+                    <ComboBox ItemsSource="{Binding Choices}" SelectedIndex="{Binding Index}" MinWidth="240" IsVisible="{Binding IsChoice}" />
+                  </StackPanel>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
             <TextBlock Classes="dkMuted" FontSize="11.5" TextWrapping="Wrap" MaxWidth="620" HorizontalAlignment="Left" IsVisible="{Binding !IsInherit}"
-                       Text="What is typed here is written to the collection's file. Put a variable ({{token}}) here, and its value in the environment's current value, which stays on this machine." />
+                       Text="What is typed here is written to the collection's file. Put a variable ({{token}}) here and its value in the environment, which keeps it in Karvon's vault." />
           </StackPanel>
         </ScrollViewer>
 
@@ -171,6 +185,7 @@
         <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,4,0,0">
           <Button Classes="dkTab" Classes.selected="{Binding IsResponseBody}" Command="{Binding ShowResponseTabCommand}" CommandParameter="body" Content="Body" />
           <Button Classes="dkTab" Classes.selected="{Binding IsResponseHeaders}" Command="{Binding ShowResponseTabCommand}" CommandParameter="headers" Content="Headers" />
+          <Button Classes="dkTab" Classes.selected="{Binding IsResponseCookies}" Command="{Binding ShowResponseTabCommand}" CommandParameter="cookies" Content="Cookies" />
           <Button Classes="dkTab" Classes.selected="{Binding IsResponseTests}" Command="{Binding ShowResponseTabCommand}" CommandParameter="tests">
             <StackPanel Orientation="Horizontal" Spacing="5">
               <TextBlock Text="{Binding TestsTitle}" />
@@ -185,6 +200,10 @@
         <Panel Margin="0,6,0,0">
           <ae:TextEditor Name="BodyEditor" IsVisible="{Binding IsResponseBody}" WordWrap="True" />
           <ae:TextEditor Name="HeadersEditor" IsVisible="{Binding IsResponseHeaders}" />
+          <DockPanel IsVisible="{Binding IsResponseCookies}">
+            <Button DockPanel.Dock="Bottom" Classes="dkOutline" HorizontalAlignment="Left" Margin="0,6,0,0" Command="{Binding ShowCookiesCommand}" Content="All Cookies" />
+            <ae:TextEditor Name="CookiesEditor" WordWrap="True" />
+          </DockPanel>
           <ae:TextEditor Name="ConsoleEditor" IsVisible="{Binding IsResponseConsole}" WordWrap="True" />
           <ae:TextEditor Name="RequestEditor" IsVisible="{Binding IsResponseRequest}" WordWrap="True" />
           <ScrollViewer IsVisible="{Binding IsResponseTests}">

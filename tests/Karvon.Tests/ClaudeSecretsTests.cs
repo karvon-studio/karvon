@@ -190,12 +190,20 @@ public class ClaudeSecretsTests
         Assert.All(refused, e => Assert.Equal("deny", (string?)e["decision"]));
         Assert.Contains(".env holds secrets", (string?)refused[0]["reason"]);
 
-        // Turned off, no hook is registered.
+        // Turned off, the files go; what no agent gets is kept all the same: the keyring (Karvon's vault's key), Postman's environments.
         var (other, otherLog) = FakeClaude.Workspace();
         await using var off = await ClaudeSession.StartAsync(new ClaudeStartOptions(FakeClaude.Executable, other, GuardSecrets: false), TestContext.Current.CancellationToken);
-        var init = FakeClaude.Log(otherLog).Where(e => e.Kind == "in" && e.Data.GetProperty("type").GetString() == "control_request")
-            .Select(e => e.Data.GetProperty("request")).First(r => r.GetProperty("subtype").GetString() == "initialize");
-        Assert.False(init.TryGetProperty("hooks", out var none) && none.ValueKind != JsonValueKind.Null);
+        var over = new TaskCompletionSource();
+        off.Event += e =>
+        {
+            if (e is ClaudeResult)
+                over.TrySetResult();
+        };
+        await off.SendUserMessageAsync("secretfile, please");
+        await over.Task.WaitAsync(TimeSpan.FromSeconds(20), TestContext.Current.CancellationToken);
+        Assert.Equal([false, false, true, false], FakeClaude.Log(otherLog).Where(e => e.Kind == "hook").Select(e => e.Data.TryGetProperty("hookSpecificOutput", out _)));
+        Assert.NotNull(SecretGuard.Check("Read", Input(new { file_path = "api/dev.postman_environment.json" }), other, sealedOnly: true));
+        Assert.Null(SecretGuard.Check("Read", Input(new { file_path = ".env" }), other, sealedOnly: true));
     }
 
     static string Unique(string prefix) => prefix + Guid.NewGuid().ToString("N");

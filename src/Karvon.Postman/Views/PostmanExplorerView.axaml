@@ -29,6 +29,7 @@
         <Button Name="NewCollectionButton" Classes="tbi" Command="{Binding NewCollectionCommand}" ToolTip.Tip="New Collection…"><v:VsIcon Kind="Plus" /></Button>
         <Button Classes="tbi" Command="{Binding NewEnvironmentCommand}" ToolTip.Tip="New Environment…"><v:VsIcon Kind="Globe" /></Button>
         <Button Classes="tbi" Command="{Binding OpenFilesCommand}" ToolTip.Tip="Open Collections and Environments…"><v:VsIcon Kind="Open" /></Button>
+        <Button Classes="tbi" Command="{Binding CookiesCommand}" ToolTip.Tip="Cookies"><v:VsIcon Kind="History" /></Button>
         <Button Classes="tbi" Command="{Binding RefreshCommand}" ToolTip.Tip="Refresh"><v:VsIcon Kind="Refresh" /></Button>
       </StackPanel>
     </Border>

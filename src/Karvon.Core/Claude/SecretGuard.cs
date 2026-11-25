@@ -17,8 +17,13 @@ public static partial class SecretGuard
     const string Advice = "Ask the user for what you need from it (never the secret itself), or use Karvon's tools, which sign in for you.";
 
     /// <summary>Why the call may not run, or null when it may.</summary>
-    public static string? Check(string tool, JsonElement input, string? workspace)
+    /// <param name="sealedOnly">The user turned the guard off: only what no agent gets whatever the settings (<see cref="SealedFiles"/>) is kept.</param>
+    public static string? Check(string tool, JsonElement input, string? workspace, bool sealedOnly = false)
     {
+        if (CheckSealed(tool, input, workspace) is { } kept)
+            return kept;
+        if (sealedOnly)
+            return null;
         if (tool == "Bash")
             return Str(input, "command") is { } command ? CheckCommand(command, workspace) : null;
         if (tool == "PowerShell")
@@ -27,6 +32,123 @@ public static partial class SecretGuard
         return path is not null && Full(path, workspace) is { } full && SecretFiles.IsSecret(full)
             ? $"Karvon keeps secrets out of Claude's reach: {path} holds secrets, so Claude may not read or change it. {Advice}"
             : null;
+    }
+
+    // ---- What no agent gets -----------------------------------------------------------------------------------
+
+    /// <summary>A file that is sealed, or the store its key could be asked of, whatever the settings say.</summary>
+    static string? CheckSealed(string tool, JsonElement input, string? workspace)
+    {
+        // A hidden value's mark, written to a file or run: nothing takes its place. (What an edit replaces may have one: it is not found.)
+        if (Written(tool, input).Any(Karvon.Claude.Tools.SecretMasks.HasSealedMarks))
+            return Karvon.Claude.Tools.SecretMasks.SealedReason;
+        if (tool is "Bash" or "PowerShell")
+            return Str(input, "command") is { } command ? CheckSealed(command, workspace, tool == "PowerShell") : null;
+        var path = Str(input, "file_path") ?? Str(input, "notebook_path") ?? (tool is "Grep" or "Glob" ? Str(input, "path") : null);
+        return path is not null && Full(path, workspace) is { } full && SealedFiles.Is(full) ? $"Karvon keeps secrets out of Claude's reach: {path} is not read or changed. {SealedFiles.Reason}" : null;
+    }
+
+    /// <summary>What a call would write or run.</summary>
+    static IEnumerable<string> Written(string tool, JsonElement input)
+    {
+        foreach (var name in tool switch { "Bash" or "PowerShell" => ["command"], "Write" => ["content"], "Edit" => ["new_string"], "NotebookEdit" => ["new_source"], _ => Array.Empty<string>() })
+            if (Str(input, name) is { } text)
+                yield return text;
+        if (tool == "MultiEdit" && input.ValueKind == JsonValueKind.Object && input.TryGetProperty("edits", out var edits) && edits.ValueKind == JsonValueKind.Array)
+            foreach (var edit in edits.EnumerateArray())
+                if (Str(edit, "new_string") is { } text)
+                    yield return text;
+    }
+
+    static string? CheckSealed(string command, string? workspace, bool powerShell)
+    {
+        foreach (var words in powerShell ? ShellCommand.PowerShellWords(command) : ShellCommand.Words(command))
+        {
+            var program = ProgramOf(words[0]);
+            if (AsksKeyring(program.ToLowerInvariant(), words))
+                return $"Karvon keeps secrets out of Claude's reach: this command asks the system keyring for what it keeps, so it does not run. {Advice}";
+            if (OpensKarvon(program, words))
+                return "Karvon keeps secrets out of Claude's reach: this command opens Karvon's own process (a debugger, a dump, a trace), so it does not run.";
+            if (Harmless(program, words))
+                continue;
+            if (words.Skip(1).Append(program).FirstOrDefault(w => NamesSealed(w, workspace, powerShell)) is { } word)
+                return $"Karvon keeps secrets out of Claude's reach: this command reads {word}. {SealedFiles.Reason}";
+        }
+        foreach (Match m in InputRedirection().Matches(command))
+            if (NamesSealed(m.Groups[1].Value, workspace, powerShell))
+                return $"Karvon keeps secrets out of Claude's reach: this command reads {m.Groups[1].Value}. {SealedFiles.Reason}";
+        // Names listed, then handed to what reads them.
+        return HandsOn().IsMatch(command) && SealedText().IsMatch(command) ? $"Karvon keeps secrets out of Claude's reach: this command reads a Postman environment. {SealedFiles.Reason}" : null;
+    }
+
+    [GeneratedRegex(@"\b(?:xargs|parallel|ForEach-Object)\b|-exec(?:dir)?\b|\bwhile\s+read\b|\bfor\s+\w+\s+in\b|%\s*\{")]
+    private static partial Regex HandsOn();
+
+    [GeneratedRegex(@"postman_(?:environment|globals)", RegexOptions.IgnoreCase)]
+    private static partial Regex SealedText();
+
+    /// <summary>What only names files, or moves them into git's index: nothing of what they hold is shown.</summary>
+    static bool Harmless(string program, List<string> words) => program switch
+    {
+        "ls" or "stat" or "test" or "[" or "echo" or "printf" or "rm" or "touch" or "mkdir" or "find" => !words.Any(w => w is "-exec" or "-execdir" or "-ok" or "-fprint"),
+        "git" => words.Skip(1).FirstOrDefault(w => !w.StartsWith('-')) is "add" or "rm" or "status" or "ls-files" or "check-ignore" or "update-index",
+        _ => false,
+    };
+
+    static bool NamesSealed(string word, string? workspace, bool powerShell)
+    {
+        // The word itself, what follows an option's = or a colon (HEAD:file, -Path:file, source:target), curl's @file.
+        foreach (var part in word.Split('=', ':').Prepend(word).Select(w => w.Trim('"', '\'', '@', '<')).Where(w => w.Length > 1))
+        {
+            if (SealedFiles.IsName(part))
+                return true;
+            var path = powerShell ? ShellCommand.PowerShellPathOf(part, workspace) : ShellCommand.PathOf(part, workspace);
+            if (path is null)
+                continue;
+            if (part.IndexOfAny(['*', '?', '[']) < 0)
+            {
+                if (SealedFiles.Is(path))
+                    return true;
+                continue;
+            }
+            // A glob: whether it takes one in.
+            try
+            {
+                var (folder, pattern) = (Path.GetDirectoryName(path), Path.GetFileName(path));
+                if (folder is not null && folder.IndexOfAny(['*', '?']) < 0 && Directory.Exists(folder)
+                    && Directory.EnumerateFiles(folder).Any(f => System.IO.Enumeration.FileSystemName.MatchesSimpleExpression(pattern, Path.GetFileName(f)) && SealedFiles.Is(f)))
+                    return true;
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException)
+            {
+            }
+        }
+        return false;
+    }
+
+    /// <summary>Asked over the bus, by the desktop's own programs, or by a script's library.</summary>
+    static bool AsksKeyring(string program, List<string> words) => program switch
+    {
+        "secret-tool" => words.Any(w => w is "lookup" or "search"),
+        "kwallet-query" or "kwalletcli" or "gnome-keyring" or "gnome-keyring-daemon" or "seahorse" => true,
+        "keyring" => words.Contains("get"),
+        "gdbus" or "busctl" or "dbus-send" or "dbus-monitor" or "qdbus" or "qdbus6" or "qdbus-qt5" or "qdbus-qt6" =>
+            words.Any(w => w.Contains("org.freedesktop.secrets", StringComparison.OrdinalIgnoreCase) || w.Contains("org.freedesktop.Secret", StringComparison.OrdinalIgnoreCase) || w.Contains("kwallet", StringComparison.OrdinalIgnoreCase)),
+        "security" => words.Any(w => w.StartsWith("find-", StringComparison.Ordinal) || w is "dump-keychain" or "export"),
+        _ when program.StartsWith("python", StringComparison.Ordinal) || program is "node" or "perl" or "ruby" or "php" or "pwsh" or "powershell" or "bun" or "deno" =>
+            words.Skip(1).Any(w => w.Contains("secretstorage", StringComparison.OrdinalIgnoreCase) || w.Contains("org.freedesktop.secrets", StringComparison.OrdinalIgnoreCase)
+                || w.Contains("import keyring", StringComparison.Ordinal) || w.Contains("from keyring", StringComparison.Ordinal) || w.Contains(".postman_environment", StringComparison.OrdinalIgnoreCase)),
+        _ => false,
+    };
+
+    /// <summary>A debugger, a dump or a trace of Karvon's own process, or its memory.</summary>
+    static bool OpensKarvon(string program, List<string> words)
+    {
+        var id = Environment.ProcessId.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        if (words.Any(w => w.StartsWith($"/proc/{id}/", StringComparison.Ordinal) && (w.EndsWith("/mem", StringComparison.Ordinal) || w.EndsWith("/environ", StringComparison.Ordinal) || w.EndsWith("/maps", StringComparison.Ordinal))))
+            return true;
+        return program.ToLowerInvariant() is "gdb" or "lldb" or "gcore" or "strace" or "ltrace" or "perf" or "netcoredbg" or "createdump" or "dotnet-dump" or "dotnet-gcdump" or "dotnet-trace" or "dotnet-counters" or "dotnet-stack" or "procdump"
+            or "dotnet" && words.Skip(1).Any(w => w == id || w.EndsWith("=" + id, StringComparison.Ordinal) || w.Equals("karvon", StringComparison.OrdinalIgnoreCase) || w.Contains("pgrep", StringComparison.Ordinal) || w.Contains("pidof", StringComparison.Ordinal));
     }
 
     static string? CheckCommand(string command, string? workspace)
@@ -219,7 +341,7 @@ public static class SecretFiles
         // Another Claude Code account's sign-in (CLAUDE_CONFIG_DIR, ~/.claude-NAME).
         if (Path.GetFileName(full) == ".credentials.json" && Path.GetFileName(Path.GetDirectoryName(full) ?? "").StartsWith(".claude", Comparison))
             return true;
-        return IsSecretName(Path.GetFileName(full));
+        return SealedFiles.Is(full) || IsSecretName(Path.GetFileName(full));
     }
 
     static bool IsPublicSshFile(string name) => name.EndsWith(".pub", StringComparison.Ordinal) || name.StartsWith("known_hosts", StringComparison.Ordinal)
@@ -238,6 +360,8 @@ public static class SecretFiles
                 || name.EndsWith(".template", StringComparison.Ordinal) || name.EndsWith(".dist", StringComparison.Ordinal));
         if (name is ".npmrc" or ".netrc" or ".pgpass" or ".pypirc" or ".git-credentials" or "credentials" or "credentials.json"
             or "secrets.json" or "secrets.yaml" or "secrets.yml" or "secrets.toml" or ".htpasswd")
+            return true;
+        if (SealedFiles.IsName(name))
             return true;
         if (name.StartsWith("client_secret", StringComparison.Ordinal) && extension == ".json")
             return true;

@@ -31,7 +31,7 @@ public abstract class AgentPanelModule : KarvonModule
     protected string WorkingDirectory() => Workbench.Workspace ?? Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
 
     protected ClaudeEditorContext? EditorContext() =>
-        Workbench.ActiveEditorSelection() is { } selection ? new ClaudeEditorContext(selection.FilePath, selection.StartLine, selection.EndLine, selection.Text) : null;
+        Workbench.ActiveEditorSelection() is { } selection && !SealedFiles.Is(selection.FilePath) ? new ClaudeEditorContext(selection.FilePath, selection.StartLine, selection.EndLine, selection.Text) : null;
 
     /// <summary>The files are listed again when next asked for (another folder, the agent changed some).</summary>
     protected void ForgetFiles() => _files = null;
@@ -77,6 +77,7 @@ public abstract class AgentPanelModule : KarvonModule
             () => settings.ClaudeKarvonToolsFirst);
         // The user's rules for them, as they are at each call.
         server.Rules = () => settings.ClaudeToolRules;
+        server.Workspace = () => Workbench.Workspace;
         return server;
     }
 

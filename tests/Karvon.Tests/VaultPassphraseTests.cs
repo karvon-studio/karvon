@@ -68,7 +68,7 @@ public class VaultPassphraseTests
         Assert.False(keyring.Entries.ContainsKey(SecretVault.KeyName));
         // Open still for this session; the passphrase never reaches Claude.
         Assert.Equal("jira-secret-1", vault.Get("karvon-jira/acme"));
-        Assert.Equal("«secret: karvon-vault/passphrase»", Redaction.Secrets("correct horse battery"));
+        Assert.Equal("«hidden: karvon-vault/passphrase»", Redaction.Secrets("correct horse battery"));
 
         // Karvon started again: locked until the passphrase, nothing read or kept.
         var again = SecretVault.Open(keyring, path)!;

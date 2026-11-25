@@ -1,4 +1,5 @@
 using CommunityToolkit.Mvvm.Input;
+using Karvon.Modules;
 using Karvon.Services;
 
 namespace Karvon.ViewModels;
@@ -51,7 +52,10 @@ public partial class MainViewModel
     {
         if (Dialogs is null || Vault() is not { IsLocked: false, HasPassphrase: true } vault)
             return;
-        if (await Dialogs.ConfirmAsync("Remove the Vault's Passphrase", "The vault's key goes back to the system keyring, which opens it as you sign in to the computer.") != true)
+        var lost = vault.SealedCount > 0
+            ? "\n\nWhat only the passphrase opens goes with it: the values of Postman's environments, its cookies and access tokens."
+            : "";
+        if (await Dialogs.ConfirmAsync("Remove the Vault's Passphrase", "The vault's key goes back to the system keyring, which opens it as you sign in to the computer." + lost) != true)
             return;
         SetStatus(vault.RemovePassphrase()
             ? "Karvon's vault has no passphrase: the system keyring keeps its key."
@@ -70,6 +74,16 @@ public partial class MainViewModel
             ? "Karvon's vault is unlocked: what asks for a sign-in now finds it."
             : "That is not the vault's passphrase.");
         VaultChanged();
+    }
+
+    /// <summary>The vault open with a passphrase: unlocked, or one set, as the user is asked; false when they do not.</summary>
+    async Task<bool> IWorkbench.OpenSealedAsync()
+    {
+        if (IsVaultLocked)
+            await UnlockVault();
+        else if (CanSetVaultPassphrase)
+            await SetVaultPassphrase();
+        return Vault() is { CanSeal: true };
     }
 
     void VaultChanged()

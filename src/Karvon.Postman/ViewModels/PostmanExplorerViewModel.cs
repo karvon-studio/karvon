@@ -248,7 +248,13 @@ public sealed partial class PostmanExplorerViewModel : ObservableObject, IDispos
     async Task<string?> AskNameAsync(string title, string confirm, string initial = "") =>
         await ShowAsync(new InputDialog(title, "Name", "", confirm) { Text = initial }) is { } named ? named.Text.Trim() : null;
 
+    /// <summary>A text asked of the user, over the window; null when they cancel.</summary>
+    public async Task<string?> AskAsync(string title, string label) => await ShowAsync(new InputDialog(title, label, "", "OK")) is { } given ? given.Text.Trim() : null;
+
     // ---- What can be done -------------------------------------------------------------------------------------
+
+    [RelayCommand]
+    void Cookies() => _host.ShowCookies();
 
     [RelayCommand]
     Task RefreshAsync() => Library.RefreshAsync();

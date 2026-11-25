@@ -40,7 +40,7 @@ public partial class PostmanRequestView : UserControl
                     set(vm, editor.Text);
             };
         }
-        foreach (var editor in new[] { BodyEditor, HeadersEditor, ConsoleEditor, RequestEditor })
+        foreach (var editor in new[] { BodyEditor, HeadersEditor, CookiesEditor, ConsoleEditor, RequestEditor })
             ExplorerViews.SetUpReadOnly(editor);
         BodyEditor.ShowLineNumbers = true;
         Grammar(PreRequestEditor, "script.js");
@@ -87,6 +87,8 @@ public partial class PostmanRequestView : UserControl
     {
         if (e.PropertyName == nameof(PostmanRequestDocument.Result))
             ShowResult();
+        else if (e.PropertyName == nameof(PostmanRequestDocument.CookiesText) && _vm is { HasResult: true } shown)
+            CookiesEditor.Text = shown.CookiesText;
         else if (e.PropertyName == nameof(PostmanRequestDocument.Language))
             Grammar(RawEditor, RawPath);
     }
@@ -112,6 +114,7 @@ public partial class PostmanRequestView : UserControl
         Grammar(BodyEditor, vm.BodyPath);
         BodyEditor.Text = vm.BodyText;
         HeadersEditor.Text = vm.HeadersText;
+        CookiesEditor.Text = vm.CookiesText;
         ConsoleEditor.Text = vm.ConsoleText;
         RequestEditor.Text = vm.RequestText;
     }

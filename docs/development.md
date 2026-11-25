@@ -54,7 +54,7 @@ src/Karvon.Pipelines/   module: Pipelines (GitHub Actions and GitLab CI runs, jo
 src/Karvon.PullRequests/ module: Pull Requests (GitHub's, GitLab's merge requests; uses Karvon.Pipelines), Claude's pull request tools
 src/Karvon.Kubernetes/  module: Kubernetes (kubeconfig's clusters through kubectl), Claude's Kubernetes tools
 src/Karvon.Http/        module: HTTP Client (.http files, Endpoints Explorer), Claude's HTTP tools
-src/Karvon.Postman/     module: Postman's collections and environments (uses Karvon.Http to send; their scripts run in Jint), Claude's Postman tools
+src/Karvon.Postman/     module: Postman's collections and environments (uses Karvon.Http to send; their scripts run in Jint, with the libraries in Sandbox), Claude's Postman tools
 src/Karvon.Mcp/         module: MCP Servers
 src/Karvon.Skills/      module: Skills (uses Karvon.Mcp)
 src/Karvon.Completions/ module: Inline Completions (Claude through Anthropic's C# SDK, or a local model through Ollama)

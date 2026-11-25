@@ -1,0 +1,47 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:v="using:Karvon.Views"
+             xmlns:p="using:Karvon.Postman"
+             xmlns:pvm="using:Karvon.Postman.ViewModels"
+             x:Class="Karvon.Postman.Views.PostmanCookiesView"
+             x:DataType="pvm:PostmanCookiesDocument"
+             Background="#1E1E1E">
+  <UserControl.Styles>
+    <StyleInclude Source="avares://Karvon.Core/Themes/ExplorerStyles.axaml" />
+  </UserControl.Styles>
+
+  <DockPanel Margin="16,12">
+    <DockPanel DockPanel.Dock="Top" Margin="0,0,0,8">
+      <Button DockPanel.Dock="Right" Classes="dkOutline" Command="{Binding ClearCommand}" Content="Remove All" IsVisible="{Binding !IsEmpty}" />
+      <TextBlock Text="Cookies" FontSize="16" FontWeight="SemiBold" />
+    </DockPanel>
+    <TextBlock DockPanel.Dock="Top" Classes="dkMuted" TextWrapping="Wrap" Margin="0,0,0,10" MaxWidth="820" HorizontalAlignment="Left"
+               Text="What servers set, sent back to them with your requests. They are kept as an environment's values are; agents have their own, and never get these." />
+    <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Spacing="6" Margin="0,0,0,10">
+      <TextBox Classes="dkField" Width="200" Text="{Binding NewDomain}" PlaceholderText="api.example.com" />
+      <TextBox Classes="dkField" Width="160" Text="{Binding NewName}" PlaceholderText="Name" />
+      <TextBox Classes="dkField" Width="240" Text="{Binding NewValue}" PlaceholderText="Value" PasswordChar="•" />
+      <Button Classes="dkOutline" Command="{Binding AddCommand}" IsEnabled="{Binding CanAdd}" Content="Add" />
+    </StackPanel>
+    <TextBlock DockPanel.Dock="Top" Text="No cookies yet." Classes="dkMuted" IsVisible="{Binding IsEmpty}" />
+    <ScrollViewer>
+      <ItemsControl Name="CookieList" ItemsSource="{Binding Cookies}">
+        <ItemsControl.ItemTemplate>
+          <DataTemplate x:DataType="p:PostmanCookie">
+            <Border BorderBrush="#333337" BorderThickness="0,0,0,1" Padding="4,3">
+              <Grid ColumnDefinitions="2*,2*,3*,Auto,Auto">
+                <TextBlock Text="{Binding Domain}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                <TextBlock Grid.Column="1" Text="{Binding Name}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                <TextBox Grid.Column="2" Text="{Binding Value, Mode=OneTime}" IsReadOnly="True" PasswordChar="•" Classes="revealPasswordButton" BorderThickness="0" Background="Transparent" MinHeight="0" Padding="4,1" />
+                <TextBlock Grid.Column="3" Text="{Binding Path}" Classes="dkMuted" VerticalAlignment="Center" Margin="8,0" />
+                <Button Grid.Column="4" Classes="tbi" Command="{Binding $parent[UserControl].((pvm:PostmanCookiesDocument)DataContext).RemoveCommand}" CommandParameter="{Binding}" ToolTip.Tip="Remove">
+                  <v:VsIcon Kind="Close" Width="11" Height="11" />
+                </Button>
+              </Grid>
+            </Border>
+          </DataTemplate>
+        </ItemsControl.ItemTemplate>
+      </ItemsControl>
+    </ScrollViewer>
+  </DockPanel>
+</UserControl>

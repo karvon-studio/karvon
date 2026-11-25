@@ -25,6 +25,18 @@ public interface IPostmanHost
 
     Task<bool?> ConfirmAsync(string title, string message);
 
+    /// <summary>The vault made ready for environments' values: the user is asked for its passphrase, or to set one.</summary>
+    Task<bool> OpenSealedAsync();
+
+    /// <summary>The sender of the user's own requests.</summary>
+    PostmanSender Sender();
+
+    PostmanCookies Cookies { get; }
+
+    PostmanOAuth OAuth { get; }
+
+    void ShowCookies();
+
     Task<IReadOnlyList<string>> PickFilesAsync(string title);
 
     void OpenFile(string path);

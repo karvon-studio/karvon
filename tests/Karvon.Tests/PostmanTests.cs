@@ -9,6 +9,7 @@ using Karvon.Claude;
 using Karvon.Claude.Tools;
 using Karvon.Postman;
 using Karvon.Postman.ViewModels;
+using Karvon.Services;
 using Karvon.Views;
 using static Karvon.Tests.UiTests;
 
@@ -34,9 +35,21 @@ public class PostmanTests
         public void Delete(string key) => Entries.Remove(key);
     }
 
-    static string Folder() => Directory.CreateTempSubdirectory("karvon-postman-").FullName;
+    /// <summary>Values kept for the session alone (no vault).</summary>
+    internal static SealedStore Session() => new(() => null);
 
-    static string Write(string folder, string name, string json)
+    /// <summary>A vault with a passphrase, open.</summary>
+    internal static SealedStore Sealed(out SecretVault vault)
+    {
+        var own = SecretVault.Open(new MemoryKeyring(), Path.Combine(Folder(), "vault.db"))!;
+        own.SetPassphrase("correct horse battery");
+        vault = own;
+        return new SealedStore(() => own);
+    }
+
+    internal static string Folder() => Directory.CreateTempSubdirectory("karvon-postman-").FullName;
+
+    internal static string Write(string folder, string name, string json)
     {
         var file = Path.Combine(folder, name);
         Directory.CreateDirectory(Path.GetDirectoryName(file)!);
@@ -45,7 +58,7 @@ public class PostmanTests
     }
 
     /// <summary>A shop's collection: a sign-in whose token its test keeps, then orders with it.</summary>
-    static string Shop(string folder, string name = "shop") => Write(folder, $"api/{name}.postman_collection.json", """
+    internal static string Shop(string folder, string name = "shop") => Write(folder, $"api/{name}.postman_collection.json", """
         {
         	"info": {
         		"_postman_id": "11111111-2222-3333-4444-555555555555",
@@ -94,7 +107,7 @@ public class PostmanTests
         }
         """);
 
-    static string Local(string folder, string baseUrl, string extra = "") => Write(folder, "api/local.postman_environment.json", $$"""
+    internal static string Local(string folder, string baseUrl, string extra = "") => Write(folder, "api/local.postman_environment.json", $$"""
         {
         	"id": "env-1",
         	"name": "Local",
@@ -209,34 +222,54 @@ public class PostmanTests
     }
 
     [Fact]
-    public async Task An_environments_current_values_go_to_the_keyring_never_to_its_file()
+    public async Task An_environments_values_go_to_the_vaults_sealed_part_never_to_its_file()
     {
-        var keyring = new MemoryKeyring();
+        var store = Sealed(out var vault);
         var file = Local(Folder(), "http://localhost:1");
         var before = File.ReadAllText(file);
-        var environment = PostmanEnvironment.Load(file, keyring);
+        var environment = PostmanEnvironment.Load(file, store);
         Assert.Equal(["baseUrl", "apiSecret"], environment.Variables.Select(v => v.Key));
         Assert.True(environment.Variables[1].HoldsSecret);
-        environment.Set("token", "tok-0123456789");
+        environment.Set("token", "tok-0123456789-ABC");
         environment.Set("baseUrl", "http://localhost:2");
-        await environment.Kept;
+        await store.Written;
         Assert.Equal(before, File.ReadAllText(file));
-        Assert.Equal("""{"token":"tok-0123456789","baseUrl":"http://localhost:2"}""", keyring.Entries["karvon-postman/env-1"]);
-        // Read again (another session): the current ones come from the keyring.
-        var again = PostmanEnvironment.Load(file, keyring);
-        Assert.Equal([("baseUrl", "http://localhost:2"), ("apiSecret", "s3cr3t-value-in-file"), ("token", "tok-0123456789")], again.Variables.Select(v => (v.Key, v.Value)));
-        // Its secrets are told by their values in what goes to Claude.
-        Assert.Equal("a «secret: karvon-postman/Local/apiSecret» b «secret: karvon-postman/Local/token»", Redaction.Secrets("a s3cr3t-value-in-file b tok-0123456789"));
+        Assert.Contains("tok-0123456789-ABC", vault.GetSealed("postman/environment/env-1"));
+        // Read again (another session): the vault's, over the file's.
+        var again = PostmanEnvironment.Load(file, store);
+        Assert.Equal([("baseUrl", "http://localhost:2"), ("apiSecret", "s3cr3t-value-in-file"), ("token", "tok-0123456789-ABC")], again.Variables.Select(v => (v.Key, v.Value)));
+        // Its secrets are hidden in what goes to an agent, with no way back.
+        Assert.Equal("a «hidden: Postman Local/apiSecret» b «hidden: Postman Local/token»", Redaction.Secrets("a s3cr3t-value-in-file b tok-0123456789-ABC"));
         again.Unset("token");
         again.Unset("baseUrl");
-        await again.Kept;
-        Assert.Empty(keyring.Entries);
-        // Edited: the file's part is written, and only when it changed.
-        again.Put("Here", [new("baseUrl", "http://localhost:3"), new("apiSecret", "s3cr3t-value-in-file") { IsSecret = true, Current = "mine-9876543" }]);
-        await again.Kept;
-        Assert.Contains("\"name\": \"Here\"", File.ReadAllText(file));
-        Assert.DoesNotContain("mine-9876543", File.ReadAllText(file));
-        Assert.Contains("mine-9876543", keyring.Entries["karvon-postman/env-1"]);
+        await store.Written;
+        Assert.Null(vault.GetSealed("postman/environment/env-1"));
+
+        // Edited: the file gets names, never a value; a value it came with stays until it is moved.
+        again.Put("Here", [new("baseUrl", "") { Current = "http://localhost:3" }, new("apiSecret", "") { IsSecret = true, Current = "mine-9876543-XYZ" }, new("new", "") { Current = "n" }]);
+        await store.Written;
+        var written = File.ReadAllText(file);
+        Assert.Contains("\"name\": \"Here\"", written);
+        Assert.Contains("\"key\": \"new\"", written);
+        Assert.DoesNotContain("mine-9876543-XYZ", written);
+        Assert.DoesNotContain("localhost:3", written);
+        Assert.Contains("mine-9876543-XYZ", vault.GetSealed("postman/environment/env-1"));
+        Assert.True(again.HasFileValues);
+        await again.MoveToVaultAsync();
+        Assert.False(again.HasFileValues);
+        Assert.DoesNotContain("s3cr3t-value-in-file", File.ReadAllText(file));
+        Assert.DoesNotContain("localhost:1", File.ReadAllText(file));
+        Assert.Equal("mine-9876543-XYZ", PostmanEnvironment.Load(file, store).Variables.Single(v => v.Key == "apiSecret").Value);
+
+        // Without a passphrase: this session's, and the file's values are not moved (they would be lost).
+        var other = Local(Folder(), "http://localhost:1");
+        var loose = Session();
+        var kept = PostmanEnvironment.Load(other, loose);
+        kept.Set("token", "t");
+        Assert.Equal("t", PostmanEnvironment.Load(other, loose).Variables.Single(v => v.Key == "token").Value);
+        Assert.DoesNotContain(PostmanEnvironment.Load(other, Session()).Variables, v => v.Key == "token");
+        await Assert.ThrowsAsync<PostmanException>(kept.MoveToVaultAsync);
+        Assert.True(kept.HasFileValues);
     }
 
     // ---- Variables and scripts --------------------------------------------------------------------------------
@@ -246,8 +279,8 @@ public class PostmanTests
     {
         var folder = Folder();
         var collection = PostmanCollection.Load(Write(folder, "c.postman_collection.json", """{"info":{"name":"C"},"item":[],"variable":[{"key":"a","value":"collection"},{"key":"b","value":"{{a}}-{{c}}"},{"key":"loop","value":"{{loop}}"}]}"""));
-        var environment = PostmanEnvironment.Load(Write(folder, "e.postman_environment.json", """{"id":"e","name":"E","values":[{"key":"c","value":"env"},{"key":"off","value":"x","enabled":false}]}"""), null);
-        var globals = PostmanEnvironment.Load(Write(folder, "g.postman_globals.json", """{"id":"g","name":"Globals","values":[{"key":"a","value":"global"},{"key":"g","value":"1"}],"_postman_variable_scope":"globals"}"""), null);
+        var environment = PostmanEnvironment.Load(Write(folder, "e.postman_environment.json", """{"id":"e","name":"E","values":[{"key":"c","value":"env"},{"key":"off","value":"x","enabled":false}]}"""), Session());
+        var globals = PostmanEnvironment.Load(Write(folder, "g.postman_globals.json", """{"id":"g","name":"Globals","values":[{"key":"a","value":"global"},{"key":"g","value":"1"}],"_postman_variable_scope":"globals"}"""), Session());
         var scope = new PostmanScope(collection, environment, globals);
         var missing = new List<string>();
         Assert.Equal("collection collection-env 1 {{off}} {{nope}}", scope.Resolve("{{a}} {{ b }} {{g}} {{off}} {{nope}}", missing));
@@ -267,7 +300,7 @@ public class PostmanTests
     }
 
     /// <summary>A script run on a response, its tests and what it printed.</summary>
-    static (IReadOnlyList<PostmanTest> Tests, IReadOnlyList<string> Console, string? Error, PostmanScope Scope) Script(string script, string body = """{"id":7,"tags":["a","b"],"user":{"name":"ada"},"ok":true,"none":null}""")
+    internal static (IReadOnlyList<PostmanTest> Tests, IReadOnlyList<string> Console, string? Error, PostmanScope Scope) Script(string script, string body = """{"id":7,"tags":["a","b"],"user":{"name":"ada"},"ok":true,"none":null}""")
     {
         var collection = PostmanCollection.Load(Write(Folder(), "c.postman_collection.json", """{"info":{"name":"C"},"item":[]}"""));
         var scope = new PostmanScope(collection, null, null);
@@ -278,7 +311,7 @@ public class PostmanTests
             {
                 Status = 200, Reason = "OK", RawBody = body, Body = body, Headers = [("Content-Type", "application/json")], Elapsed = TimeSpan.FromMilliseconds(12), Size = body.Length,
             },
-            Send = (_, url, _, _) => url.EndsWith("/bad", StringComparison.Ordinal) ? new("GET", url, [], null) { Error = "refused" } : new("GET", url, [], null) { Status = 201, Reason = "Created", RawBody = """{"sent":true}""" },
+            Send = r => r.Url.EndsWith("/bad", StringComparison.Ordinal) ? new("GET", r.Url, [], null) { Error = "refused" } : new("GET", r.Url, [], null) { Status = 201, Reason = "Created", RawBody = """{"sent":true}""" },
         };
         var error = PostmanScripts.Run([script], run, CancellationToken.None);
         return (run.Tests, run.Console, error, scope);
@@ -359,7 +392,7 @@ public class PostmanTests
         using var server = new EchoServer();
         var folder = Folder();
         var collection = PostmanCollection.Load(Shop(folder));
-        var environment = PostmanEnvironment.Load(Local(folder, server.Url), null);
+        var environment = PostmanEnvironment.Load(Local(folder, server.Url), Session());
         var sender = new PostmanSender(environment, null) { Folder = folder };
 
         // The sign-in's test keeps its token; the orders, of a folder that signs in with it, go with it.
@@ -391,7 +424,8 @@ public class PostmanTests
         var skipped = await sender.SendAsync(item, edited with { PreRequest = "pm.execution.skipRequest();" });
         Assert.True(skipped is { IsSkipped: true, Succeeded: true });
         Assert.Contains("stopped", (await sender.SendAsync(item, edited with { PreRequest = "throw new Error('no');" })).Exchange.Error);
-        Assert.Contains("awsv4", (await sender.SendAsync(item, edited with { Auth = new PostmanAuth("awsv4", new Dictionary<string, string>()) })).Exchange.Error);
+        Assert.Contains("hawk", (await sender.SendAsync(item, edited with { Auth = new PostmanAuth("hawk", new Dictionary<string, string>()) })).Exchange.Error);
+        Assert.Contains("no access key", (await sender.SendAsync(item, edited with { Auth = new PostmanAuth("awsv4", new Dictionary<string, string>()) })).Exchange.Error);
         // A test's failure is not a request's: it came back.
         var failing = await sender.SendAsync(item, edited with { Tests = "pm.test('no', () => pm.expect(1).to.equal(2));" });
         Assert.True(failing is { Succeeded: false, Failed: 1, Exchange.Succeeded: true });
@@ -442,7 +476,7 @@ public class PostmanTests
               {{Request("Four", "4", "postman.setNextRequest(null);")}},
               {{Request("Five", "5", "")}}]}
             """));
-        var sender = new PostmanSender(PostmanEnvironment.Load(Local(folder, server.Url), null), null);
+        var sender = new PostmanSender(PostmanEnvironment.Load(Local(folder, server.Url), Session()), null);
         var seen = new List<string>();
         var results = await sender.RunAsync([.. collection.Requests], new PostmanRunOptions(), r => seen.Add(r.Path));
         Assert.Equal(["One", "Two", "One", "Two", "Three", "Four"], seen);
@@ -455,15 +489,16 @@ public class PostmanTests
     // ---- Claude's tools ---------------------------------------------------------------------------------------
 
     [AvaloniaFact]
-    public async Task Claudes_tools_send_where_they_were_to_and_never_tell_a_secret()
+    public async Task Claudes_tools_send_where_they_were_to_and_an_environment_is_names_to_them()
     {
         using var server = new EchoServer();
         var folder = Folder();
         Shop(folder);
-        var environment = Local(folder, server.Url);
+        var file = Local(folder, server.Url);
         var vm = NewViewModel();
         await vm.OpenSolutionAsync(folder);
         var module = vm.Module<PostmanModule>()!;
+        module.Store = Sealed(out _);
         var tools = KarvonTools.Create(module.ClaudeTools());
         static JsonElement Input(object value) => JsonSerializer.SerializeToElement(value);
         async Task<ClaudeToolOutput> Call(string name, object input)
@@ -473,6 +508,7 @@ public class PostmanTests
             return await tools.Tools.Single(t => t.Name == name).CallAsync(json, default);
         }
         ClaudeToolPlan Plan(string name, object input) => tools.Plan(ClaudeToolServer.Prefix + name, Input(input))!;
+        string? Refusal(string name, object input) => tools.Tools.Single(t => t.Name == name).Refusal(Input(input));
 
         var listed = (await Call("postman_collections", new { })).Text;
         Assert.Equal("""
@@ -490,40 +526,54 @@ public class PostmanTests
         Assert.Equal(ToolAccess.Run, Plan("postman_send", new { request = "Sign in", environment = "Local" }).Access);
         Assert.Equal("Local", tools.Tools.Single(t => t.Name == "postman_send").Target(Input(new { request = "Sign in", environment = "Local" })));
         Assert.Equal(ToolAccess.Write, Plan("postman_set", new { environment = "Local", use = true }).Access);
-        Assert.Contains("in use", (await Call("postman_set", new { environment = "Local", use = true, set = new { apiSecret = "current-secret-1" } })).Text);
+        Assert.Contains("in use", (await Call("postman_set", new { environment = "Local", use = true })).Text);
         Assert.Equal("Local", module.Library.Active!.Name);
+        // Names, no value: neither told nor set.
         var shown = (await Call("postman_environments", new { })).Text;
-        Assert.Contains("apiSecret = *** (secret) (current)", shown);
-        Assert.Contains($"baseUrl = {server.Url}", shown);
+        Assert.Equal($"Environments: Local (in use)\n\nLocal (kept from agents: ask the user to send, or give your own values with variables):\n  baseUrl\n  apiSecret", shown);
+        Assert.Contains("values are the user's", (await Call("postman_set", new { set = new { baseUrl = "http://evil.example" } })).Text);
+        Assert.Contains("added token", (await Call("postman_set", new { add = new[] { "token" } })).Text);
 
-        var sent = await Call("postman_send", new { request = "Sign in" });
+        // Kept from agents until the user says otherwise: refused before anyone is asked, and when it runs.
+        Assert.Contains("which the user keeps from agents", Refusal("postman_send", new { request = "Sign in" }));
+        Assert.Contains("{{baseUrl}}", (await Call("postman_send", new { request = "Sign in" })).Text);
+        // With values of its own, no environment is needed; its script's own go apart from the user's.
+        Assert.Null(Refusal("postman_send", new { request = "Sign in", variables = new { baseUrl = server.Url } }));
+        var sent = await Call("postman_send", new { request = "Sign in", variables = new { baseUrl = server.Url } });
         Assert.StartsWith("200 OK", sent.Text);
         Assert.Contains("Tests: 1/1 passed\n  ✓ signed in", sent.Text);
-        var run = await Call("postman_run", new { });
+        var run = await Call("postman_run", new { variables = new { baseUrl = server.Url } });
         Assert.StartsWith("2 sent · 3/3 tests passed", run.Text);
         Assert.Contains("✓ GET Orders/List: 200 OK", run.Text);
-        // A secret goes into the request and not to Claude, even when the server says it back.
+        Assert.Equal("", module.Library.Active!.Variables.Single(v => v.Key == "token").Value);
+
+        // Let by the user, which takes the file's values out of it first: the values go, and are not shown.
+        module.Library.Active!.AgentsMaySend = true;
+        Assert.False(module.Library.Active.AgentsMaySend);
+        await module.Library.Active.MoveToVaultAsync();
+        Assert.True(module.Library.Active.AgentsMaySend);
+        Assert.DoesNotContain(server.Url, File.ReadAllText(file));
         var echoed = await Call("postman_send", new { request = "Orders/List", variables = new { token = "{{apiSecret}}" } });
-        Assert.DoesNotContain("current-secret-1", echoed.Text);
+        Assert.StartsWith("200 OK", echoed.Text);
+        Assert.Contains("\"auth\": \"«hidden: its sign-in»\"", echoed.Text);
+        Assert.DoesNotContain("s3cr3t-value-in-file", echoed.Text);
+        Assert.Equal("Bearer s3cr3t-value-in-file", JsonNode.Parse(((PostmanSent)echoed.Detail!).Result.Exchange.RawBody)!["auth"]!.GetValue<string>());
 
         // Elsewhere asks, with where; a script or a file changed since cannot take it anywhere else.
         var outside = Plan("postman_send", new { request = "Sign in", variables = new { baseUrl = "https://shop.example" } });
         Assert.Equal((ToolAccess.Write, "Allow Claude to send Sign in to shop.example with the environment Local?"), (outside.Access, outside.Question));
         var asked = Input(new { request = "Orders/List", environment = "Local" });
         Assert.Equal(ToolAccess.Run, tools.Plan(ClaudeToolServer.Prefix + "postman_send", asked)!.Access);
-        File.WriteAllText(environment, File.ReadAllText(environment).Replace(server.Url, "http://evil.example", StringComparison.Ordinal));
-        File.SetLastWriteTimeUtc(environment, DateTime.UtcNow.AddSeconds(5));
+        module.Library.Active.Set("baseUrl", "http://evil.example");
         var refused = await tools.Tools.Single(t => t.Name == "postman_send").CallAsync(asked, default);
         Assert.True(refused.IsError);
-        Assert.Contains("Not sent: evil.example is not where this call was to go", refused.Text);
+        Assert.Contains("is not where this call was to go", refused.Text);
         // Planned twice (asked, then changed): only where both plans said.
         Assert.Equal(ToolAccess.Write, tools.Plan(ClaudeToolServer.Prefix + "postman_send", asked)!.Access);
-        Local(folder, "http://other.example");
-        File.SetLastWriteTimeUtc(environment, DateTime.UtcNow.AddSeconds(10));
+        module.Library.Active.Set("baseUrl", "http://other.example");
         Assert.Contains("other.example", tools.Plan(ClaudeToolServer.Prefix + "postman_send", asked)!.Question);
-        Assert.Contains("Not sent: other.example", (await tools.Tools.Single(t => t.Name == "postman_send").CallAsync(asked, default)).Text);
-        Local(folder, server.Url);
-        File.SetLastWriteTimeUtc(environment, DateTime.UtcNow.AddSeconds(15));
+        Assert.Contains("is not where this call was to go", (await tools.Tools.Single(t => t.Name == "postman_send").CallAsync(asked, default)).Text);
+        module.Library.Active.Set("baseUrl", server.Url);
         // Not asked for (no plan): this machine alone.
         Assert.Contains("Not sent", (await tools.Tools.Single(t => t.Name == "postman_send").CallAsync(Input(new { request = "Sign in", variables = new { baseUrl = "http://shop.example" } }), default)).Text);
 
@@ -568,7 +618,7 @@ public class PostmanTests
         // A collection and an environment of its own: in the folder, as Postman's files.
         Assert.StartsWith("Made Ping", (await Call("postman_save", new { collection = "Pings", create = true, path = "Ping", url = "http://localhost:1/ping" })).Text);
         Assert.True(File.Exists(Path.Combine(folder, "postman", "Pings.postman_collection.json")));
-        Assert.Contains("set a", (await Call("postman_set", new { environment = "Mine", create = true, set = new { a = "1" } })).Text);
+        Assert.Contains("added a", (await Call("postman_set", new { environment = "Mine", create = true, add = new[] { "a" } })).Text);
         Assert.True(File.Exists(Path.Combine(folder, "postman", "Mine.postman_environment.json")));
         // With two, which one is to be said.
         Assert.Contains("Say which collection", (await Call("postman_send", new { request = "Ping" })).Text);
@@ -601,8 +651,7 @@ public class PostmanTests
         Local(folder, server.Url);
         var vm = NewViewModel();
         var module = vm.Module<PostmanModule>()!;
-        var keyring = new MemoryKeyring();
-        module.Keyring = keyring;
+        module.Store = Sealed(out var vault);
         var window = new MainWindow { DataContext = vm, Width = 1500, Height = 1000 };
         window.Show();
         await vm.OpenSolutionAsync(folder);
@@ -614,6 +663,15 @@ public class PostmanTests
         Assert.Equal(["No environment", "Local"], explorer.Environments.Select(e => e.Name));
         explorer.Environment = explorer.Environments[1];
         Assert.Equal("Local", module.Library.Active!.Name);
+        // Its file came with values: moved to the vault, as its document's button does.
+        var environment = module.Open(module.Library.Active!);
+        Assert.True(environment.HasFileValues);
+        Dispatcher.UIThread.RunJobs();
+        Snapshot(window, "postman-environment-file");
+        await environment.MoveToVaultCommand.ExecuteAsync(null);
+        Assert.False(environment.HasFileValues);
+        Assert.DoesNotContain(server.Url, File.ReadAllText(environment.File));
+        Assert.Contains(server.Url, environment.HostsText.Replace("127.0.0.1", "http://127.0.0.1", StringComparison.Ordinal));
         explorer.Filter = "orders get";
         Assert.Equal(["List"], explorer.Roots.Single().Children.Single().Children.Select(c => c.Title));
         explorer.Filter = "";
@@ -670,19 +728,71 @@ public class PostmanTests
         Snapshot(window, "postman-run");
 
         // The environment: the token its script kept is its current value, not in the file.
-        var environment = module.Open(module.Library.Environments[0]);
+        Assert.Same(environment, module.Open(module.Library.Environments[0]));
         Assert.Equal(["baseUrl", "apiSecret", "token", ""], environment.Rows.Select(r => r.Key));
         Assert.Equal("abc123", environment.Rows[2].Current);
-        Assert.Equal('•', environment.Rows[1].Mask);
+        // Every value is hidden until its eye is clicked.
+        Assert.All(environment.Rows, r => Assert.Equal('•', r.Mask));
+        environment.Rows[2].ShowCommand.Execute(null);
+        Assert.Equal('\0', environment.Rows[2].Mask);
+        environment.Rows[2].ShowCommand.Execute(null);
+        Assert.False(environment.IsDirty);
         environment.Rows[1].Current = "mine-12345678";
         Assert.True(environment.IsDirty);
         vm.SaveCommand.Execute(null);
         Assert.False(environment.IsDirty);
-        await module.Library.Environments[0].Kept;
-        Assert.Contains("mine-12345678", keyring.Entries.Values.Single());
+        await module.Store.Written;
+        Assert.Contains("mine-12345678", vault.GetSealed("postman/environment/env-1"));
         Assert.DoesNotContain("mine-12345678", File.ReadAllText(module.Library.Environments[0].File));
+        // Agents: off until the user turns it on; what it warns of.
+        Assert.False(environment.AgentsMaySend);
+        Assert.False(environment.WarnsOfThisMachine);
+        environment.AgentsMaySend = true;
+        environment.AddedHosts = "https://id.example.com/x, api.example.com:8443";
+        Assert.Equal((true, "id.example.com, api.example.com:8443"), (environment.WarnsOfThisMachine, environment.AddedHosts));
+        Assert.True(module.Library.Environments[0].Reaches(new Uri("https://id.example.com/token")));
+        Assert.False(module.Library.Environments[0].Reaches(new Uri("https://id.example.com.evil.example/token")));
         Dispatcher.UIThread.RunJobs();
         Snapshot(window, "postman-environment");
+
+        // A run with a data file; the cookies; a sign-in's rows.
+        var data = Write(folder, "rows.csv", "day\nmon\ntue\n");
+        run.UseData(data);
+        Assert.Equal(("rows.csv (2 rows)", 2), (run.DataText, run.Iterations));
+        await run.RunCommand.ExecuteAsync(null);
+        Assert.StartsWith("4 sent", run.Summary);
+        Assert.Equal([1, 1, 2, 2], run.Results.Select(r => r.Row));
+        run.UseData(Write(folder, "bad.json", "{}"));
+        Assert.Contains("not an array", run.DataText);
+        module.Cookies.Set(new PostmanCookie("sid", "cookie-value", "127.0.0.1", "/"));
+        Assert.Contains("sid=cookie-value", list.CookiesText);
+        module.ShowCookies();
+        var cookies = Assert.IsType<PostmanCookiesDocument>(vm.ActiveDocument);
+        Dispatcher.UIThread.RunJobs();
+        Assert.Equal(["sid"], cookies.Cookies.Select(c => c.Name));
+        Snapshot(window, "postman-cookies");
+        cookies.RemoveCommand.Execute(cookies.Cookies[0]);
+        Dispatcher.UIThread.RunJobs();
+        Assert.True(cookies.IsEmpty);
+        module.Open(module.Library.Collections[0].Find("Orders/List")!);
+        list.ShowTabCommand.Execute("auth");
+        list.AuthIndex = list.AuthNames.IndexOf("OAuth 2.0");
+        Assert.True(list is { IsOAuth: true, CanGetToken: false, TokenText: "No access token yet." });
+        list.AuthFields.Shown.Single(f => f.Key == "accessTokenUrl").Text = server.Url + "/token";
+        list.AuthFields.Shown.Single(f => f.Key == "grant_type").Index = 4;
+        list.AuthFields.Shown.Single(f => f.Key == "clientId").Text = "app";
+        Assert.True(list.CanGetToken);
+        await list.GetTokenCommand.ExecuteAsync(null);
+        Assert.Contains("gave no access token", list.TokenProblem);
+        Dispatcher.UIThread.RunJobs();
+        Snapshot(window, "postman-oauth");
+        Assert.True(list.Save());
+        Assert.Equal("client_credentials", PostmanCollection.Load(file).Find("Orders/List")!.Read().Auth!["grant_type"]);
+        list.AuthIndex = list.AuthNames.IndexOf("AWS Signature");
+        Assert.Equal(["accessKey", "secretKey", "region", "service", "sessionToken", "addAuthDataToQuery"], list.AuthFields.Shown.Select(f => f.Key));
+        Assert.False(list.IsOAuth);
+        list.AuthIndex = 0;
+        Assert.True(list.Save());
 
         // Made, renamed, copied, removed, in the file.
         var naming = explorer.NewRequestCommand.ExecuteAsync(explorer.Roots[0].Children[1]);
@@ -709,7 +819,7 @@ public class PostmanTests
         var elsewhere = Folder();
         var file = Shop(elsewhere, "other");
         var list = Path.Combine(Folder(), "postman.json");
-        var library = new PostmanLibrary(() => null, list, () => null);
+        var library = new PostmanLibrary(() => null, list, Session());
         await library.RefreshAsync();
         Assert.Empty(library.Collections);
         Assert.Null(await library.OpenAsync([file]));
