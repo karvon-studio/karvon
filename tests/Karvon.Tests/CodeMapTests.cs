@@ -4,6 +4,7 @@ using System.Text.Json;
 using Avalonia.Controls;
 using Avalonia.Headless.XUnit;
 using Avalonia.Threading;
+using Karvon.Claude;
 using Karvon.CodeMap;
 using Karvon.Lsp;
 using Karvon.Modules;
@@ -157,7 +158,8 @@ public class CodeMapTests
         var indexer = new CodeMapIndexer(root, store, outline.OutlineAsync);
 
         await indexer.ScanAsync();
-        Assert.Equal(["shop/README.md", "shop/orders.py"], store.Files().Keys.Order(StringComparer.Ordinal));
+        Assert.Equal(["logo.png", "shop/README.md", "shop/orders.py"], store.Files().Keys.Order(StringComparer.Ordinal));
+        Assert.Equal(["logo.png", "shop/README.md", "shop/orders.py"], store.Search("logo shop", kind: "file").Select(h => h.Path).Order(StringComparer.Ordinal));
         Assert.Equal(["orders.py"], outline.Asked);
         Assert.Equal(["Orders", "total"], store.Symbols("shop/orders.py").Select(s => s.Name));
         Assert.Equal("Orders", store.Symbols("shop/orders.py")[1].Container);
@@ -183,6 +185,158 @@ public class CodeMapTests
         Assert.Equal([".gitignore", "app.py"], repoStore.Files().Keys.Order(StringComparer.Ordinal));
     }
 
+    /// <summary>A wait for a condition off the window's thread (a test without a window has none).</summary>
+    static async Task Until(Func<bool> condition)
+    {
+        for (var i = 0; i < 200 && !condition(); i++)
+            await Task.Delay(50, TestContext.Current.CancellationToken);
+        Assert.True(condition());
+    }
+
+    static async Task Git(string folder, params string[] arguments)
+    {
+        var psi = new System.Diagnostics.ProcessStartInfo("git",
+            ["-c", "user.name=test", "-c", "user.email=test@localhost", "-c", "protocol.file.allow=always", .. arguments])
+        {
+            WorkingDirectory = folder,
+            UseShellExecute = false,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+        };
+        using var git = System.Diagnostics.Process.Start(psi)!;
+        var (output, error) = (git.StandardOutput.ReadToEndAsync(), git.StandardError.ReadToEndAsync());
+        await git.WaitForExitAsync(TestContext.Current.CancellationToken);
+        Assert.True(git.ExitCode == 0, await output + await error);
+    }
+
+    [Fact]
+    public async Task In_a_repository_the_map_has_what_git_tracks_wherever_it_is_and_the_submodules_files()
+    {
+        var library = Workspace(("core.py", "def shared(): pass\n"));
+        await Git(library, "init", "-q");
+        await Git(library, "add", "-A");
+        await Git(library, "commit", "-q", "-m", "x");
+        var root = Workspace((".gitignore", "*.log\n"), ("bin/cli.py", "def main(): pass\n"), ("src/target/plan.py", "def plan(): pass\n"), ("dist/app.py", "def app(): pass\n"),
+            ("node_modules/lib/index.py", "def dependency(): pass\n"), ("assets/logo.png", "\0PNG"));
+        await Git(root, "init", "-q");
+        await Git(root, "add", "-A", "-f");
+        await Git(root, "commit", "-q", "-m", "x");
+        await Git(root, "submodule", "add", "-q", library, "external/lib");
+        // New and not tracked: build output is left out, and what is ignored.
+        Write(root, "src/new.py", "def fresh(): pass\n");
+        Write(root, "build/target/out.py", "def built(): pass\n");
+        Write(root, "debug.log", "x");
+        Write(root, "external/lib/draft.py", "def draft(): pass\n");
+        using var store = new CodeMapStore(Path.Combine(root, ".vs", "codemap.db"));
+        await new CodeMapIndexer(root, store, new FakeOutline().OutlineAsync).ScanAsync();
+        Assert.Equal([".gitignore", ".gitmodules", "assets/logo.png", "bin/cli.py", "dist/app.py", "external/lib/core.py", "external/lib/draft.py", "src/new.py", "src/target/plan.py"],
+            store.Files().Keys.Order(StringComparer.Ordinal));
+        Assert.Equal("external/lib/core.py", Assert.Single(store.Search("shared")).Path);
+        // Not text: listed, not read.
+        Assert.False(store.Files()["assets/logo.png"].IsRead);
+        Assert.True(Assert.Single(store.Search("logo")).IsFile);
+        Assert.DoesNotContain("assets/logo.png", store.Files().Values.Where(CodeSummarizer.IsSummarized).Select(f => f.Path));
+    }
+
+    [Fact]
+    public void A_damaged_map_is_made_anew_and_one_that_cannot_be_written_is_kept_elsewhere()
+    {
+        MapFile File(int i) => new($"src/file{i}.py", 1, 1, "h", "Python", 1, true);
+        MapSymbol[] symbols = [new("class", "Orders", null, null, 1, 2, "What a customer ordered, and when.", 0)];
+        // Not a database at all.
+        var root = Workspace((".vs/codemap.db", new string('x', 5000)));
+        var file = Path.Combine(root, ".vs", "codemap.db");
+        using (var store = new CodeMapStore(file))
+        {
+            Assert.Empty(store.Files());
+            for (var i = 0; i < 200; i++)
+                store.Put(File(i), symbols);
+            Assert.Equal(200, store.Files().Count);
+        }
+        // A database with a part of it lost: opened, or read later, it is made anew.
+        using (var stream = System.IO.File.OpenWrite(file))
+        {
+            stream.Position = 4096;
+            stream.Write([.. Enumerable.Repeat((byte)0xAB, (int)stream.Length - 4096)]);
+        }
+        using (var store = new CodeMapStore(file))
+        {
+            store.Put(File(1), symbols);
+            Assert.Equal(["src/file1.py"], store.Files().Keys);
+            Assert.NotEmpty(store.Search("orders"));
+        }
+        // Not writable (here its folder is a file): the next one, or the memory.
+        var blocked = Path.Combine(Workspace((".vs", "a file")), ".vs", "codemap.db");
+        var other = Path.Combine(Workspace(), "codemap", "x.db");
+        using (var store = CodeMapStore.OpenFirst(blocked, other))
+            Assert.True(store.IsKept && System.IO.File.Exists(other));
+        using (var store = CodeMapStore.OpenFirst(blocked))
+        {
+            Assert.False(store.IsKept);
+            store.Put(File(1), symbols);
+            Assert.Single(store.Search("customer"));
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task A_solution_opens_whatever_its_maps_file_is()
+    {
+        var root = Workspace(("App.csproj", "<Project Sdk=\"Microsoft.NET.Sdk\"><PropertyGroup><TargetFramework>net10.0</TargetFramework></PropertyGroup></Project>"), ("a.cs", "class A {}"));
+        var state = Path.GetDirectoryName(Karvon.Services.SolutionState.FileFor(Path.Combine(root, "App.csproj")))!;
+        Write(root, Path.GetRelativePath(root, Path.Combine(state, "codemap.db")), new string('x', 5000));
+        var vm = NewViewModel();
+        vm.Module<CodeMapModule>()!.Indexes = true;
+        await vm.OpenSolutionAsync(Path.Combine(root, "App.csproj"));
+        var map = vm.Module<CodeMapModule>()!.Map!;
+        Assert.True(map.Store.IsKept);
+        await WaitUntil(() => map.Store.Files().Count == 2, TimeSpan.FromSeconds(20));
+        await vm.CloseSolutionCoreAsync();
+    }
+
+    [AvaloniaFact]
+    public async Task Closing_a_map_that_is_being_made_does_not_wait_on_the_window_s_thread()
+    {
+        var root = Workspace([.. Enumerable.Range(0, 50).Select(i => ($"f{i}.py", "x"))]);
+        // As the module asks: on the window's thread, where the servers are.
+        async Task<IReadOnlyList<LspDocumentSymbol>?> Slow(CancellationToken cancellationToken)
+        {
+            await Task.Delay(60_000, cancellationToken);
+            return null;
+        }
+        var map = new CodeMapWorkspace(root, Path.Combine(root, ".vs", "codemap.db"), (_, ct) => Dispatcher.UIThread.InvokeAsync(() => Slow(ct), DispatcherPriority.Background));
+        map.Start();
+        await Task.Delay(500, TestContext.Current.CancellationToken);
+        Assert.True(map.Indexer.IsScanning);
+        var clock = System.Diagnostics.Stopwatch.StartNew();
+        var closed = map.CloseAsync();
+        Assert.True(clock.ElapsedMilliseconds < 500, $"{clock.ElapsedMilliseconds} ms");
+        await closed.WaitAsync(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken);
+        Assert.Equal(TaskStatus.RanToCompletion, map.Indexer.Idle.Status);
+        Assert.True(map.Indexer.ScanAsync(TestContext.Current.CancellationToken).IsCompletedSuccessfully);
+    }
+
+    [Fact]
+    public async Task The_calls_made_while_the_map_is_being_made_wait_two_seconds_in_all()
+    {
+        var root = Workspace([.. Enumerable.Range(0, 400).Select(i => ($"f{i}.py", "x"))]);
+        async Task<IReadOnlyList<LspDocumentSymbol>?> Slow(string file, CancellationToken cancellationToken)
+        {
+            await Task.Delay(50, cancellationToken);
+            return [];
+        }
+        using var map = new CodeMapWorkspace(root, Path.Combine(root, ".vs", "codemap.db"), Slow);
+        map.Start();
+        var tool = CodeMapTools.Create(() => map).Single(t => t.Name == "code_search");
+        using var input = JsonDocument.Parse("""{"query":"f1"}""");
+        var clock = System.Diagnostics.Stopwatch.StartNew();
+        for (var i = 0; i < 4; i++)
+        {
+            var output = await tool.CallAsync(input.RootElement, TestContext.Current.CancellationToken);
+            Assert.StartsWith("(The Code Map is still being made:", output.Text);
+        }
+        Assert.InRange(clock.Elapsed, TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(5));
+    }
+
     [Fact]
     public async Task A_language_server_that_is_not_running_is_asked_again_once_it_runs()
     {
@@ -197,16 +351,23 @@ public class CodeMapTests
         }
         using var store = new CodeMapStore(Path.Combine(root, ".vs", "codemap.db"));
         var indexer = new CodeMapIndexer(root, store, Outline);
+        var changed = 0;
+        indexer.Changed += () => changed++;
         await indexer.ScanAsync();
         Assert.All(store.Files().Values, f => Assert.False(f.Outlined));
         // The server not running: the next scans ask nothing for a while, and not for each file.
         Assert.Equal(1, asked);
         await indexer.ScanAsync();
         Assert.Equal(1, asked);
+        // Asked again and still not running: the map has what it had, and nothing is told it changed.
+        indexer.RetryWaiting();
+        await indexer.ScanAsync();
+        Assert.Equal((2, 1), (asked, changed));
         // A file of its language opened: its server runs, and the map reads them all.
         running = true;
         indexer.RetryWaiting();
         await indexer.ScanAsync();
+        Assert.Equal(2, changed);
         Assert.All(store.Files().Values, f => Assert.True(f.Outlined));
         Assert.Single(store.Search("beta"));
     }
@@ -262,6 +423,97 @@ public class CodeMapTests
     }
 
     [Fact]
+    public async Task An_answer_without_summaries_stops_the_run_and_summarizes_nothing_and_what_one_left_out_is_asked_once_more()
+    {
+        var root = Workspace(("a.py", "def a(): pass\n"), ("b.py", "def b(): pass\n"));
+        using var store = new CodeMapStore(Path.Combine(root, ".vs", "codemap.db"));
+        await new CodeMapIndexer(root, store, new FakeOutline().OutlineAsync).ScanAsync();
+        var limit = new CodeSummarizer(store, (_, _) => Task.FromResult("You've hit your limit, it resets at 5pm."));
+        await limit.RunAsync(root, TestContext.Current.CancellationToken);
+        Assert.Equal("the model answered: You've hit your limit, it resets at 5pm.", limit.Problem);
+        Assert.Equal(2, CodeSummarizer.Pending(store.Files()));
+        Assert.All(store.Files().Values, f => Assert.Null(f.Summary));
+        Assert.Empty(store.Folders());
+
+        // b.py is left out of the first answer: it is asked about again, alone.
+        var prompts = new List<string>();
+        var leftOut = new HashSet<string>();
+        var forgets = true;
+        Task<string> Ask(string prompt)
+        {
+            prompts.Add(prompt);
+            return Task.FromResult(forgets && prompt.Contains("<file path=\"a.py\"", StringComparison.Ordinal) ? "a.py\tAbout a.py." : Answer(prompt));
+        }
+        await new CodeSummarizer(store, (prompt, _) => Ask(prompt), leftOut).RunAsync(root, TestContext.Current.CancellationToken);
+        Assert.DoesNotContain("<file path=\"a.py\"", prompts[1]);
+        Assert.Equal(["About a.py.", "About b.py."], store.Files().Values.OrderBy(f => f.Path).Select(f => f.Summary));
+        Assert.Empty(leftOut);
+
+        // Left out twice: not asked about again in this workspace's runs, not taken as summarized either.
+        store.Put(store.Files()["b.py"] with { Hash = "changed" }, []);
+        prompts.Clear();
+        Task<string> Never(string prompt)
+        {
+            prompts.Add(prompt);
+            return Task.FromResult(prompt.Contains("<folder", StringComparison.Ordinal) ? Answer(prompt) : prompts.Count == 1 ? "a.py\tAbout a.py." : "No.");
+        }
+        store.Put(store.Files()["a.py"] with { Hash = "changed" }, []);
+        await new CodeSummarizer(store, (prompt, _) => Never(prompt), leftOut).RunAsync(root, TestContext.Current.CancellationToken);
+        Assert.Equal(1, CodeSummarizer.Pending(store.Files()));
+        prompts.Clear();
+        await new CodeSummarizer(store, (prompt, _) => Never(prompt), leftOut).RunAsync(root, TestContext.Current.CancellationToken);
+        Assert.Empty(prompts);
+    }
+
+    [Fact]
+    public async Task Another_writer_chosen_while_one_writes_starts_at_once_and_the_first_s_answer_is_not_used()
+    {
+        var root = Workspace(("a.py", "def a(): pass\n"));
+        using var map = new CodeMapWorkspace(root, Path.Combine(root, ".vs", "codemap.db"), new FakeOutline().OutlineAsync);
+        await map.Indexer.ScanAsync(TestContext.Current.CancellationToken);
+        var asked = new TaskCompletionSource();
+        var slow = new TaskCompletionSource<string>();
+        map.SetWriter((_, _) =>
+        {
+            asked.TrySetResult();
+            return slow.Task;
+        });
+        await asked.Task.WaitAsync(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken);
+        map.SetWriter((prompt, _) => Task.FromResult(Answer(prompt).Replace("About", "The second's about")));
+        await Until(() => map.Store.Files()["a.py"].Summary is not null);
+        slow.SetResult("a.py\tThe first's.");
+        await Until(() => !map.IsSummarizing);
+        Assert.Equal("The second's about a.py.", map.Store.Files()["a.py"].Summary);
+        // No one chosen: the run stops, and no other starts.
+        map.SetWriter((_, _) => new TaskCompletionSource<string>().Task);
+        map.SetWriter(null);
+        await Until(() => !map.IsSummarizing);
+    }
+
+    [Fact]
+    public void Names_and_comments_in_any_script_are_found()
+    {
+        Assert.Equal("платёж заказа платёжзаказа", CodeText.Words("ПлатёжЗаказа"));
+        Assert.Equal("straße", CodeText.Words("Straße"));
+        Assert.Equal("注文", CodeText.Words("注文"));
+        var root = Workspace();
+        using var store = new CodeMapStore(Path.Combine(root, "codemap.db"));
+        store.Put(new MapFile("a.cs", 1, 1, "h", "C#", 9, true),
+        [
+            new MapSymbol("method", "ПлатёжЗаказа", "Касса", null, 1, 2, "Считает налог заказа.", 0),
+            new MapSymbol("class", "Платёж", null, null, 3, 4, null, 0),
+            new MapSymbol("class", "Café", null, null, 5, 6, null, 0),
+            new MapSymbol("function", "注文", null, null, 7, 8, null, 0),
+        ]);
+        Assert.Equal("ПлатёжЗаказа", Assert.Single(store.Search("налог")).Name);
+        // The name itself first, whatever its case.
+        Assert.Equal(["Платёж", "ПлатёжЗаказа"], store.Search("платёж").Select(h => h.Name));
+        Assert.Equal("ПлатёжЗаказа", Assert.Single(store.Search("зак плат")).Name);
+        Assert.Single(store.Search("café"));
+        Assert.Single(store.Search("注文"));
+    }
+
+    [Fact]
     public void A_models_lines_are_read_by_the_paths_asked_about()
     {
         var lines = CodeSummarizer.Lines("""
@@ -312,6 +564,74 @@ public class CodeMapTests
         Assert.Contains("Nothing in the Code Map matches", await Call("code_search", """{"query":"zzz"}"""));
         using var missing = JsonDocument.Parse("""{"path":"nowhere"}""");
         Assert.True((await tools["code_map"].CallAsync(missing.RootElement, TestContext.Current.CancellationToken)).IsError);
+    }
+
+    [Fact]
+    public async Task Claudes_tools_take_a_path_as_it_gives_it()
+    {
+        var root = Workspace((".github/workflows/ci.yml", "on: push\n"), ("src/app.py", "def app(): pass\n"), ("docs/app.md", "# App\n"),
+            ("art/a.png", "\0"), ("art/b.png", "\0"), ("art/c.png", "\0"), ("art/d.ico", "\0"), ("art/draw.py", "def draw(): pass\n"));
+        using var map = new CodeMapWorkspace(root, Path.Combine(root, ".vs", "codemap.db"), new FakeOutline().OutlineAsync);
+        var tools = CodeMapTools.Create(() => map).ToDictionary(t => t.Name);
+        async Task<ClaudeToolOutput> Call(string tool, object input)
+        {
+            using var json = JsonDocument.Parse(JsonSerializer.Serialize(input));
+            return await tools[tool].CallAsync(json.RootElement, TestContext.Current.CancellationToken);
+        }
+
+        foreach (var path in new[] { ".github", "./.github", ".github/", "/.github", root + "/.github" })
+            Assert.StartsWith(".github/ (1 file)", (await Call("code_map", new { path })).Text);
+        foreach (var path in new[] { "", ".", "./", "/", root, root + "/", "src/.." })
+            Assert.StartsWith(Path.GetFileName(root) + "/ (8 files)", (await Call("code_map", new { path })).Text);
+        foreach (var path in new[] { "src", "./src", "src/", @".\src", "/src", root + "/src", "docs/../src" })
+            Assert.Equal("src/app.py\nsrc/app.py:1: function app", (await Call("code_search", new { query = "app", path })).Text.ReplaceLineEndings("\n"));
+        Assert.Equal("src/app.py\nsrc/app.py:1: function app", (await Call("code_search", new { query = "app", path = "./src/app.py" })).Text);
+        // A path the map does not have is said so, not answered as if nothing matched.
+        foreach (var path in new[] { "nowhere", "../" + Path.GetFileName(root) + "x", "/etc/passwd" })
+            Assert.Contains("is not a folder or a file of the map", (await Call("code_search", new { query = "app", path })) is { IsError: true } error ? error.Text : "");
+        // What is not read: by its name alone, counted when there are many.
+        Assert.Equal("art/ (5 files)\n  draw.py: function draw\n  also 3 .png, 1 .ico", (await Call("code_map", new { path = "art" })).Text);
+        Assert.Contains("not read", (await Call("code_map", new { path = "art/a.png" })).Text);
+        // What the tools' descriptions show is no one's project's.
+        Assert.All(tools.Values, t => Assert.DoesNotContain("Secrets", t.Description));
+    }
+
+    [AvaloniaFact]
+    public async Task Only_a_command_that_lists_what_the_map_has_is_sent_to_it()
+    {
+        var root = Workspace(("src/app.py", "def app(): pass\n"), ("src/shop/orders.py", "def order(): pass\n"), ("README.md", "# App\n"));
+        var vm = NewViewModel();
+        var module = vm.Module<CodeMapModule>()!;
+        var rule = module.ClaudeShellRules().Single();
+        Assert.False(rule.Applies("find . -type f", root));
+        module.Indexes = true;
+        await vm.OpenSolutionAsync(root);
+        await WaitUntil(() => module.Map!.Indexer.IsComplete, TimeSpan.FromSeconds(20));
+        string[] listings =
+        [
+            "find . -type f", "find . -name '*.py'", "find src -type f -name '*.py' -not -path '*/bin/*' | head -50", "tree", "tree -L 2 src", "ls -R", "ls -aR src",
+            "cd src && find . -type d", $"cd {root}; ls -R src 2>/dev/null | head", $"find {root}/src -iname 'order*'", "find . -type f | grep -v test | sort",
+            @"find . \( -name bin -o -name obj \) -prune -o -type f -name '*.py' -print", "pwd; tree -d",
+        ];
+        foreach (var command in listings)
+            Assert.True(rule.Applies(command, root), command);
+        string[] shells =
+        [
+            // Something else is done with the files.
+            "find . -name '*.py' -delete", "find . -type f -name '*.py' -exec grep -l TODO {} +", "find . -name '*.py' | xargs cat", "find . -type f | wc -l",
+            "find . -type f > files.txt", "for f in $(find . -name '*.py'); do head -3 $f; done", "cat $(find . -name orders.py)", "find . -type f | grep -rn order src",
+            // With other work in the same command, which would not run either.
+            "cd src; grep -n order *.py | head; find . -name 'app*'", "git ls-files; cat README.md; find . -name '*.py' -not -path './bin/*' | xargs cat", "ls -R; git log --oneline | head",
+            // What the map does not have: sizes and times, other folders, files that are not code.
+            "find . -type f -size +1M", "find . -name '*.py' -newer README.md", "find . -maxdepth 1 -mmin -5", "ls -lRt src", "tree -s", "find . -name '*.png'", "find bin -name '*.dll'",
+            "find node_modules -name package.json", "find . -name node_modules", "find obj -type d -empty", "find logs -type f", "find /usr/lib -name '*.py'", "find ~/.cache -type f",
+            "find $HOME -name x", "ls -R ..",
+            // Not a listing.
+            "git commit -m 'x\nfind files with -name'", "ls", "grep -rn order .", "echo 'find . -type f'", "cd src",
+        ];
+        foreach (var command in shells)
+            Assert.False(rule.Applies(command, root), command);
+        await vm.CloseSolutionCoreAsync();
     }
 
     /// <summary>A language whose server outlines the open .hint files' "def" lines.</summary>

@@ -6,7 +6,8 @@ namespace Karvon.CodeMap;
 
 /// <summary>
 /// Keeps a workspace's map as the workspace is: a scan lists its files (git's, without the ignored ones; else the folder's,
-/// without build output and dependencies), compares each with the map by its size and time (then by its hash), and reads
+/// without build output and dependencies; files that are not text by their names), compares each with the map by its size
+/// and time (then by its hash), and reads
 /// again only the files that changed: their declarations from their language server's outline, with their doc comments.
 /// A scan is cheap (a few milliseconds for a thousand files that did not change), so it runs whenever the map is about to be
 /// read, after a save or a git change, and while the window shows; scans asked for while one runs make one more after it.
@@ -22,11 +23,17 @@ public sealed class CodeMapIndexer(string root, CodeMapStore store, Func<string,
     /// <summary>How long one file's outline is waited for.</summary>
     static readonly TimeSpan OutlineTimeout = TimeSpan.FromSeconds(30);
 
-    /// <summary>Folders never listed (when git does not say which are ignored): build output, dependencies, tools' own.</summary>
-    public static readonly IReadOnlySet<string> SkippedFolders = new HashSet<string>(StringComparer.Ordinal)
+    /// <summary>Folders never listed, whether git tracks what is in them or not: dependencies, tools' own.</summary>
+    static readonly HashSet<string> NeverListed = new(StringComparer.Ordinal)
     {
-        ".git", ".hg", ".svn", ".vs", ".idea", ".vscode-test", "bin", "obj", "node_modules", "__pycache__", ".venv", "venv", "target", "dist",
-        ".next", ".nuxt", ".gradle", ".pytest_cache", ".mypy_cache", "coverage",
+        ".git", ".hg", ".svn", ".vs", ".vscode-test", "obj", "node_modules", "__pycache__", ".venv", "venv",
+        ".next", ".nuxt", ".gradle", ".pytest_cache", ".mypy_cache",
+    };
+
+    /// <summary>Folders not listed unless git tracks what is in them: those, and build output and tools' own by their usual names.</summary>
+    public static readonly IReadOnlySet<string> SkippedFolders = new HashSet<string>(NeverListed, StringComparer.Ordinal)
+    {
+        ".idea", "bin", "target", "dist", "coverage",
     };
 
     /// <summary>Files listed but never read: lock files, minified and generated ones.</summary>
@@ -126,7 +133,8 @@ public sealed class CodeMapIndexer(string root, CodeMapStore store, Func<string,
             {
                 await ScanOnceAsync();
             }
-            catch (Exception ex) when (ex is ObjectDisposedException or OperationCanceledException or Microsoft.Data.Sqlite.SqliteException)
+            catch (Exception ex) when (_stopping.IsCancellationRequested
+                || ex is ObjectDisposedException or OperationCanceledException or Microsoft.Data.Sqlite.SqliteException)
             {
                 // Stopped (the workspace closed), or the map's file could not be written: the next scan tries again.
                 return;
@@ -200,21 +208,15 @@ public sealed class CodeMapIndexer(string root, CodeMapStore store, Func<string,
         && (!_failed.TryGetValue(file.Path, out var at) || DateTime.UtcNow > at)
         && (!_waiting.TryGetValue(file.Path, out var server) || DateTime.UtcNow > _serverRetry.GetValueOrDefault(server));
 
-    /// <summary>A file read into the map (or listed only, when it is too large or binary): whether the map changed.</summary>
+    /// <summary>A file read into the map (or listed only, when it is too large or not text): whether the map changed.</summary>
     async Task<bool> ReadAsync(string path, FileInfo info, MapFile? before)
     {
         var language = CodeText.Language(path);
-        if (info.Length > MaxFileSize || IsSkippedFile(Path.GetFileName(path)))
+        var bytes = info.Length > MaxFileSize || IsSkippedFile(Path.GetFileName(path)) ? null : await File.ReadAllBytesAsync(info.FullName);
+        if (bytes is null || Array.IndexOf(bytes, (byte)0, 0, Math.Min(bytes.Length, 8000)) >= 0)
         {
             store.Put(new MapFile(path, info.Length, info.LastWriteTimeUtc.Ticks, "", language, 0, false), []);
-            return true;
-        }
-        var bytes = await File.ReadAllBytesAsync(info.FullName);
-        if (Array.IndexOf(bytes, (byte)0, 0, Math.Min(bytes.Length, 8000)) >= 0)
-        {
-            if (before is not null)
-                store.Remove(path);
-            return before is not null;
+            return before is null || before.IsRead;
         }
         var hash = Convert.ToHexString(SHA256.HashData(bytes), 0, 12);
         if (before is not null && before.Hash != hash)
@@ -264,6 +266,13 @@ public sealed class CodeMapIndexer(string root, CodeMapStore store, Func<string,
                 _failed[path] = DateTime.UtcNow + RetryAfter;
                 _failuresInRow++;
             }
+        }
+        // Asked again for its outline, which did not come: the map has what it had.
+        if (before is not null && before.Hash == hash && !outlined)
+        {
+            if (before.Size != info.Length || before.Modified != info.LastWriteTimeUtc.Ticks)
+                store.Put(before with { Size = info.Length, Modified = info.LastWriteTimeUtc.Ticks }, store.Symbols(path));
+            return false;
         }
         store.Put(new MapFile(path, info.Length, info.LastWriteTimeUtc.Ticks, hash, language, lines.Length, outlined), symbols);
         return true;
@@ -327,25 +336,54 @@ public sealed class CodeMapIndexer(string root, CodeMapStore store, Func<string,
     /// <summary>The workspace's files, relative with /: git's (tracked, and new ones not ignored) in a repository, else the folder's.</summary>
     HashSet<string> ListFiles()
     {
-        var files = GitFiles() ?? WalkFiles();
-        files.RemoveWhere(p => p.Split('/').SkipLast(1).Any(SkippedFolders.Contains));
-        return files;
+        var files = new HashSet<string>(StringComparer.Ordinal);
+        return AddGitFiles(Root, "", files) ? files : WalkFiles();
     }
 
-    HashSet<string>? GitFiles()
+    /// <summary>
+    /// git's files of a folder, its submodules' too: the tracked ones wherever they are (a project's own dist or bin), and
+    /// new ones that are not ignored, without build output. False when git does not say (no git, not a repository).
+    /// </summary>
+    bool AddGitFiles(string folder, string prefix, HashSet<string> files)
+    {
+        if (Git(folder, "ls-files", "-z", "--stage") is not { } tracked || Git(folder, "ls-files", "-z", "--others", "--exclude-standard") is not { } others)
+            return false;
+        void Add(string path, IReadOnlySet<string> skipped)
+        {
+            if (!InFolder(prefix + path, skipped) && File.Exists(Path.Combine(folder, path)))
+                files.Add(prefix + path);
+        }
+        foreach (var entry in tracked)
+        {
+            // The mode, the object, the stage, a tab and the path; a submodule's mode is 160000, and its files are its repository's.
+            var path = entry[(entry.IndexOf('\t') + 1)..];
+            if (!entry.StartsWith("160000 ", StringComparison.Ordinal))
+                Add(path, NeverListed);
+            else if (Path.Exists(Path.Combine(folder, path, ".git")))
+                AddGitFiles(Path.Combine(folder, path), prefix + path + "/", files);
+        }
+        foreach (var path in others)
+            Add(path, SkippedFolders);
+        return true;
+    }
+
+    static bool InFolder(string path, IReadOnlySet<string> folders) => path.Split('/').SkipLast(1).Any(folders.Contains);
+
+    /// <summary>What git prints in a folder, at each NUL; null when it cannot.</summary>
+    static string[]? Git(string folder, params string[] arguments)
     {
         try
         {
             var psi = new ProcessStartInfo("git")
             {
-                WorkingDirectory = Root,
+                WorkingDirectory = folder,
                 RedirectStandardOutput = true,
                 RedirectStandardError = true,
                 UseShellExecute = false,
                 CreateNoWindow = true,
             };
-            foreach (var arg in new[] { "-c", "core.quotepath=off", "ls-files", "-z", "--cached", "--others", "--exclude-standard" })
-                psi.ArgumentList.Add(arg);
+            foreach (var argument in (string[])["-c", "core.quotepath=off", .. arguments])
+                psi.ArgumentList.Add(argument);
             using var process = Process.Start(psi);
             if (process is null)
                 return null;
@@ -356,9 +394,7 @@ public sealed class CodeMapIndexer(string root, CodeMapStore store, Func<string,
                 process.Kill(entireProcessTree: true);
                 return null;
             }
-            if (process.ExitCode != 0)
-                return null;
-            return [.. output.Result.Split('\0', StringSplitOptions.RemoveEmptyEntries).Where(p => File.Exists(Path.Combine(Root, p)))];
+            return process.ExitCode == 0 ? output.Result.Split('\0', StringSplitOptions.RemoveEmptyEntries) : null;
         }
         catch (Exception ex) when (ex is System.ComponentModel.Win32Exception or IOException or InvalidOperationException)
         {

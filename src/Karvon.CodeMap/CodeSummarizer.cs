@@ -56,11 +56,16 @@ public sealed class CodeMapSettings
 /// Writes the map's summaries: a sentence for each file of code, then one for each folder from its files' and folders'
 /// (the workspace's own last). Each is written for what it was written from (a file's hash, a folder's children), so only
 /// what changed is written again. Files go to the model a batch at a time (their declarations and their start), folders
-/// a level at a time; the model answers a line for each, its path, a tab and the sentence.
+/// a level at a time; the model answers a line for each, its path, a tab and the sentence. What an answer leaves out is
+/// asked about once more; an answer without any of them is not one (a limit reached, an error told as text): the run stops
+/// with it, and nothing is taken as summarized.
 /// </summary>
 /// <param name="ask">The model: a prompt's answer.</param>
-public sealed class CodeSummarizer(CodeMapStore store, Func<string, CancellationToken, Task<string>> ask)
+/// <param name="leftOut">What the model left out twice (a path and what it was), in this run and those before it.</param>
+public sealed class CodeSummarizer(CodeMapStore store, Func<string, CancellationToken, Task<string>> ask, HashSet<string>? leftOut = null)
 {
+    readonly HashSet<string> _leftOut = leftOut ?? new(StringComparer.Ordinal);
+
     /// <summary>A batch's files at most, and the characters of the prompt at most.</summary>
     const int BatchFiles = 20, BatchChars = 30_000;
 
@@ -87,7 +92,7 @@ public sealed class CodeSummarizer(CodeMapStore store, Func<string, Cancellation
 
     /// <summary>Files that get a summary: code (of a language the map knows, or one a server outlined), and a README.</summary>
     public static bool IsSummarized(MapFile file) =>
-        file.Hash.Length > 0 && (CodeText.IsCode(file.Language) || file.Outlined
+        file.IsRead && (CodeText.IsCode(file.Language) || file.Outlined
             || Path.GetFileNameWithoutExtension(file.Path).Equals("README", StringComparison.OrdinalIgnoreCase));
 
     /// <summary>The summaries still to write: files whose summary is for another version of them.</summary>
@@ -100,17 +105,18 @@ public sealed class CodeSummarizer(CodeMapStore store, Func<string, Cancellation
         try
         {
             var files = store.Files();
-            var todo = files.Values.Where(f => IsSummarized(f) && f.SummaryHash != f.Hash).OrderBy(f => f.Path, StringComparer.Ordinal).ToList();
+            var todo = files.Values.Where(f => IsSummarized(f) && f.SummaryHash != f.Hash && !_leftOut.Contains(Key(f.Path, f.Hash)))
+                .OrderBy(f => f.Path, StringComparer.Ordinal).ToList();
             Progress = (0, todo.Count);
             ProgressChanged?.Invoke();
             foreach (var batch in Batches(todo, f => FilePrompt(root, f)))
             {
-                cancellationToken.ThrowIfCancellationRequested();
-                var answer = await ask(FileInstructions + "\n\n" + string.Join("\n\n", batch.Select(b => b.Prompt)), cancellationToken);
-                var sentences = Lines(answer, batch.Select(b => b.Item.Path));
+                var sentences = await AskAsync(FileInstructions, [.. batch.Select(b => (b.Item.Path, b.Prompt))], cancellationToken);
                 foreach (var (file, _) in batch)
-                    // A file the model left out gets its name, so it is not asked again until it changes.
-                    store.SetSummary(file.Path, file.Hash, sentences.GetValueOrDefault(file.Path) ?? "");
+                    if (sentences.TryGetValue(file.Path, out var sentence))
+                        store.SetSummary(file.Path, file.Hash, sentence);
+                    else
+                        _leftOut.Add(Key(file.Path, file.Hash));
                 Progress = (Progress.Done + batch.Count, Progress.Total);
                 ProgressChanged?.Invoke();
             }
@@ -157,26 +163,58 @@ public sealed class CodeSummarizer(CodeMapStore store, Func<string, Cancellation
                 var entries = string.Join("\n", children[folder].Take(60).Select(e =>
                     e.Key.EndsWith('/') ? $"{e.Key} — {written.GetValueOrDefault(Join(folder, e.Key.TrimEnd('/')), "")}" : $"{e.Key} — {e.Value}"));
                 var hash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(entries)), 0, 12);
-                if (folders.GetValueOrDefault(folder)?.SummaryHash != hash)
+                if (folders.GetValueOrDefault(folder)?.SummaryHash != hash && !_leftOut.Contains(Key(folder + "/", hash)))
                     todo.Add((folder, hash, entries));
             }
             Progress = (Progress.Done, Progress.Total + todo.Count);
-            foreach (var batch in Batches(todo, t => $"<folder path=\"{(t.Folder.Length == 0 ? "/" : t.Folder)}\">\n{t.Entries}\n</folder>"))
+            foreach (var batch in Batches(todo, t => $"<folder path=\"{Shown(t.Folder)}\">\n{t.Entries}\n</folder>"))
             {
-                cancellationToken.ThrowIfCancellationRequested();
-                var answer = await ask(FolderInstructions + "\n\n" + string.Join("\n\n", batch.Select(b => b.Prompt)), cancellationToken);
-                var sentences = Lines(answer, batch.Select(b => b.Item.Folder.Length == 0 ? "/" : b.Item.Folder));
+                var sentences = await AskAsync(FolderInstructions, [.. batch.Select(b => (Shown(b.Item.Folder), b.Prompt))], cancellationToken);
                 foreach (var (item, _) in batch)
-                {
-                    var summary = sentences.GetValueOrDefault(item.Folder.Length == 0 ? "/" : item.Folder) ?? "";
-                    store.SetFolderSummary(item.Folder, item.Hash, summary);
-                    written[item.Folder] = summary;
-                }
+                    if (sentences.TryGetValue(Shown(item.Folder), out var summary))
+                    {
+                        store.SetFolderSummary(item.Folder, item.Hash, summary);
+                        written[item.Folder] = summary;
+                    }
+                    else
+                        _leftOut.Add(Key(item.Folder + "/", item.Hash));
                 Progress = (Progress.Done + batch.Count, Progress.Total);
                 ProgressChanged?.Invoke();
             }
         }
     }
+
+    /// <summary>
+    /// The model's sentences for a batch, by its paths. What it left out is asked about once more, by itself; an answer that
+    /// has none of them is the model's problem (its text says it), not theirs.
+    /// </summary>
+    async Task<Dictionary<string, string>> AskAsync(string instructions, IReadOnlyList<(string Path, string Prompt)> batch, CancellationToken cancellationToken)
+    {
+        // What stops the run stops the wait too, when the model does not listen (its answer is not used then).
+        Task<string> Ask(IEnumerable<(string Path, string Prompt)> items) =>
+            ask(instructions + "\n\n" + string.Join("\n\n", items.Select(i => i.Prompt)), cancellationToken).WaitAsync(cancellationToken);
+        cancellationToken.ThrowIfCancellationRequested();
+        var answer = await Ask(batch);
+        var found = Lines(answer, batch.Select(b => b.Path));
+        if (found.Count == 0)
+            throw new InvalidOperationException(NoSummary(answer));
+        var rest = batch.Where(b => !found.ContainsKey(b.Path)).ToList();
+        if (rest.Count > 0)
+            foreach (var (path, sentence) in Lines(await Ask(rest), rest.Select(r => r.Path)))
+                found[path] = sentence;
+        return found;
+    }
+
+    static string NoSummary(string answer)
+    {
+        var line = answer.Split('\n').Select(l => l.Trim()).FirstOrDefault(l => l.Length > 0);
+        return line is null ? "the model's answer was empty." : "the model answered: " + (line.Length > 200 ? line[..199] + "…" : line);
+    }
+
+    static string Key(string path, string hash) => path + "\0" + hash;
+
+    /// <summary>A folder as the model and Claude are shown it: the workspace's own is /.</summary>
+    static string Shown(string folder) => folder.Length == 0 ? "/" : folder;
 
     static string Parent(string path) => path.LastIndexOf('/') is var slash and > 0 ? path[..slash] : "";
 

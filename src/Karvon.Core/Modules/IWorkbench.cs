@@ -243,9 +243,9 @@ public interface IClaudeService
 
     /// <summary>
     /// One prompt answered without tools by a fast model (<c>claude -p</c>) in a folder: the answer. Throws
-    /// InvalidOperationException, saying why, when there is none (no CLI, an error).
+    /// InvalidOperationException, saying why, when there is none (no CLI, an error). Canceled, it stops.
     /// </summary>
-    Task<string> PrintAsync(string directory, string prompt);
+    Task<string> PrintAsync(string directory, string prompt, CancellationToken cancellationToken = default);
 
     /// <summary>Claude Code signs in to one of its MCP servers; what it said. <paramref name="finished"/> runs when the end is known: null when it is signed in, else why it is not.</summary>
     Task<string> AuthenticateMcpAsync(string name, Action<string?>? finished = null);

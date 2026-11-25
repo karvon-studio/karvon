@@ -68,7 +68,7 @@ public sealed class CodeMapModule : KarvonModule
             if (value)
                 Open();
             else
-                Close();
+                _ = Close();
         }
     }
 
@@ -78,11 +78,25 @@ public sealed class CodeMapModule : KarvonModule
 
     public override IEnumerable<IClaudeTool> ClaudeTools() => CodeMapTools.Create(() => _map);
 
-    /// <summary>Listing the workspace's files (find with a test, tree, ls -R): the map instead.</summary>
+    /// <summary>A command that only lists the workspace's files (<see cref="ListingCommand"/>): the map instead, once it is made.</summary>
     public override IEnumerable<ClaudeShellRule> ClaudeShellRules() =>
     [
-        ClaudeShellRule.Command("listing files", @"tree\b|find\b[^;&|\n]*\s-(i?name|i?path|type)\b|ls\s+-[A-Za-z]*R", Use) with { InWorkspace = true },
+        ClaudeShellRule.Whole("listing files", (command, commands) => _map is { Indexer.IsComplete: true } map
+            && ListingCommand.Is(command, commands, map.Root, path => Has(map, path)), Use) with { InWorkspace = true },
     ];
+
+    /// <summary>Whether the map has a path: not when it closes meanwhile, or cannot be read (the command is the shell's then).</summary>
+    static bool Has(CodeMapWorkspace map, string path)
+    {
+        try
+        {
+            return map.Store.Has(path);
+        }
+        catch (Exception ex) when (ex is ObjectDisposedException or Microsoft.Data.Sqlite.SqliteException)
+        {
+            return false;
+        }
+    }
 
     protected override void Started()
     {
@@ -111,38 +125,41 @@ public sealed class CodeMapModule : KarvonModule
         return Task.CompletedTask;
     }
 
-    public override Task<bool> CloseWorkspaceAsync()
+    /// <summary>The map closed, its file let go (by a scan that takes longer to stop, when it has).</summary>
+    public override async Task<bool> CloseWorkspaceAsync()
     {
-        Close();
-        return Task.FromResult(true);
+        await Task.WhenAny(Close(), Task.Delay(TimeSpan.FromSeconds(2)));
+        return true;
     }
 
     /// <summary>The workspace's map, opened from its file in the solution's own folder, and scanned.</summary>
     void Open()
     {
-        Close();
+        _ = Close();
         if (_indexes && Workbench.Workspace is { } root && Directory.Exists(root))
         {
-            _map = new CodeMapWorkspace(root, DatabaseFile(root), OutlineAsync);
+            _map = new CodeMapWorkspace(root, CodeMapStore.OpenFirst(DatabaseFiles(root)), OutlineAsync);
             _map.SetWriter(Writer(root));
             _map.Start();
         }
         _view?.SetMap(_map);
     }
 
-    void Close()
+    Task Close()
     {
         var map = _map;
         _map = null;
         _view?.SetMap(null);
-        map?.Dispose();
+        return map?.CloseAsync() ?? Task.CompletedTask;
     }
 
-    /// <summary>The map's file: in the solution's own folder (.vs/…/Karvon), else in Karvon's, by the folder's path.</summary>
-    string DatabaseFile(string root) =>
-        Workbench.WorkspaceStateDirectory is { } state
-            ? Path.Combine(state, "codemap.db")
-            : Path.Combine(Services.Settings.ConfigDirectory, "codemap", Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(root)), 0, 8) + ".db");
+    /// <summary>The map's file: in the solution's own folder (.vs/…/Karvon), or when that cannot be written in Karvon's, by the folder's path.</summary>
+    IEnumerable<string> DatabaseFiles(string root)
+    {
+        if (Workbench.WorkspaceStateDirectory is { } state)
+            yield return Path.Combine(state, "codemap.db");
+        yield return Path.Combine(Services.Settings.ConfigDirectory, "codemap", Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(root)), 0, 8) + ".db");
+    }
 
     /// <summary>
     /// A file's outline by its language server if that runs (the map starts none: it would download one the first time),
@@ -155,7 +172,7 @@ public sealed class CodeMapModule : KarvonModule
     Func<string, CancellationToken, Task<string>>? Writer(string root) => Settings.Summaries switch
     {
         SummarySource.Claude when Workbench.Service<IClaudeService>() is { } claude =>
-            (prompt, _) => Dispatcher.UIThread.InvokeAsync(() => claude.PrintAsync(root, prompt)),
+            (prompt, cancellationToken) => Dispatcher.UIThread.InvokeAsync(() => claude.PrintAsync(root, prompt, cancellationToken)),
         SummarySource.Ollama => OllamaAsync,
         _ => null,
     };
@@ -222,7 +239,7 @@ public sealed class CodeMapModule : KarvonModule
             Workbench.GitChanged -= OnGitChanged;
             Workbench.ActiveDocumentChanged -= OnActiveDocumentChanged;
         }
-        Close();
+        _ = Close();
         _view?.Dispose();
         Http.Dispose();
     }

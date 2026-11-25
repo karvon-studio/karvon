@@ -7,8 +7,8 @@ namespace Karvon.CodeMap;
 public static partial class CodeText
 {
     /// <summary>
-    /// A name's words in lower case, as a search finds them: PortsSecrets is "ports secrets", HTTPClient "http client",
-    /// get_user_id "get user id"; the whole name too, so its start finds it ("portssec").
+    /// A name's words in lower case, as a search finds them: OrderTotals is "order totals", HTTPClient "http client",
+    /// get_user_id "get user id"; the whole name too, so its start finds it ("orderto"). Letters of any script.
     /// </summary>
     public static string Words(string name)
     {
@@ -21,8 +21,8 @@ public static partial class CodeText
         return string.Join(' ', words);
     }
 
-    /// <summary>The parts of a name: an acronym, a capitalised word, a lower-case word, digits.</summary>
-    [GeneratedRegex(@"[A-Z]+(?![a-z])|[A-Z]?[a-z]+|\d+")]
+    /// <summary>The parts of a name: an acronym, a capitalised word, a lower-case word, a word of a script without cases, digits.</summary>
+    [GeneratedRegex(@"(?:[\p{Lu}\p{Lt}]\p{M}*)+(?!\p{Ll})|(?:[\p{Lu}\p{Lt}]\p{M}*)?(?:\p{Ll}\p{M}*)+|(?:[\p{Lo}\p{Lm}]\p{M}*)+|\d+")]
     private static partial Regex Parts();
 
     /// <summary>
