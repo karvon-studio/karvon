@@ -175,7 +175,7 @@ public class ActivityBarTests
 
         // Reset Window Layout: every tab back in its place, in the first order.
         window.ResetWindowLayout();
-        Assert.Equal([ToolWindows.SolutionExplorer, ToolWindows.Testing, ToolWindows.Git, ToolWindows.DiagnosticTools, Karvon.Database.DatabaseModule.ToolWindowId, Karvon.Docker.DockerModule.ToolWindowId, Karvon.Servers.ServersModule.ToolWindowId, Karvon.Jira.JiraModule.ToolWindowId, Karvon.Kubernetes.KubernetesModule.ToolWindowId, Karvon.Http.HttpModule.ToolWindowId, Karvon.Mcp.McpModule.ToolWindowId, Karvon.Skills.SkillsModule.ToolWindowId, Karvon.CodeMap.CodeMapModule.ToolWindowId, Karvon.Claude.ClaudeModule.ToolWindowId, Karvon.Claude.AgentsModule.ToolWindowId],
+        Assert.Equal([ToolWindows.SolutionExplorer, ToolWindows.Testing, ToolWindows.Git, ToolWindows.DiagnosticTools, Karvon.Database.DatabaseModule.ToolWindowId, Karvon.Docker.DockerModule.ToolWindowId, Karvon.Servers.ServersModule.ToolWindowId, Karvon.Jira.JiraModule.ToolWindowId, Karvon.Kubernetes.KubernetesModule.ToolWindowId, Karvon.Http.HttpModule.ToolWindowId, Karvon.Postman.PostmanModule.ToolWindowId, Karvon.Mcp.McpModule.ToolWindowId, Karvon.Skills.SkillsModule.ToolWindowId, Karvon.CodeMap.CodeMapModule.ToolWindowId, Karvon.Claude.ClaudeModule.ToolWindowId, Karvon.Claude.AgentsModule.ToolWindowId],
             Order(rightTabs));
         Assert.Empty(vm.Settings.Layout.ToolOrder);
         window.Close();
@@ -192,7 +192,7 @@ public class ActivityBarTests
         const string pullRequests = Karvon.PullRequests.PullRequestsModule.ToolWindowId, pipelines = Karvon.Pipelines.PipelinesModule.ToolWindowId;
 
         // One icon each, where the first of their tool windows was; in each, its tool windows as named tabs at the bottom.
-        Assert.Equal([ToolWindows.SolutionExplorer, ToolWindows.Testing, ToolWindows.Git, ToolWindows.DiagnosticTools, Karvon.Database.DatabaseModule.ToolWindowId, Karvon.Docker.DockerModule.ToolWindowId, Karvon.Servers.ServersModule.ToolWindowId, Karvon.Jira.JiraModule.ToolWindowId, Karvon.Kubernetes.KubernetesModule.ToolWindowId, Karvon.Http.HttpModule.ToolWindowId, Karvon.Mcp.McpModule.ToolWindowId, Karvon.Skills.SkillsModule.ToolWindowId, Karvon.CodeMap.CodeMapModule.ToolWindowId, Karvon.Claude.ClaudeModule.ToolWindowId, Karvon.Claude.AgentsModule.ToolWindowId],
+        Assert.Equal([ToolWindows.SolutionExplorer, ToolWindows.Testing, ToolWindows.Git, ToolWindows.DiagnosticTools, Karvon.Database.DatabaseModule.ToolWindowId, Karvon.Docker.DockerModule.ToolWindowId, Karvon.Servers.ServersModule.ToolWindowId, Karvon.Jira.JiraModule.ToolWindowId, Karvon.Kubernetes.KubernetesModule.ToolWindowId, Karvon.Http.HttpModule.ToolWindowId, Karvon.Postman.PostmanModule.ToolWindowId, Karvon.Mcp.McpModule.ToolWindowId, Karvon.Skills.SkillsModule.ToolWindowId, Karvon.CodeMap.CodeMapModule.ToolWindowId, Karvon.Claude.ClaudeModule.ToolWindowId, Karvon.Claude.AgentsModule.ToolWindowId],
             Order(rightTabs));
         var git = Tab(window, ToolWindows.Git);
         var gitTabs = (TabControl)git.Content!;

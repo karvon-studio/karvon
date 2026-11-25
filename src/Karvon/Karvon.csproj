@@ -31,6 +31,7 @@
     <ProjectReference Include="..\Karvon.Browser\Karvon.Browser.csproj" />
     <ProjectReference Include="..\Karvon.Completions\Karvon.Completions.csproj" />
     <ProjectReference Include="..\Karvon.CodeMap\Karvon.CodeMap.csproj" />
+    <ProjectReference Include="..\Karvon.Postman\Karvon.Postman.csproj" />
     <ProjectReference Include="..\Karvon.DotNet\Karvon.DotNet.csproj" />
     <ProjectReference Include="..\Karvon.TypeScript\Karvon.TypeScript.csproj" />
     <ProjectReference Include="..\Karvon.Python\Karvon.Python.csproj" />

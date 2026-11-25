@@ -21,6 +21,8 @@ Each module is a project of its own, referencing `Karvon.Core`. The core referen
   logs, YAML and a shell, and Claude's Kubernetes tools;
 - HTTP Client (`src/Karvon.Http`): .http files sent from the editor (its pane and margin, the `EditorPane` API), the
   Endpoints Explorer, and Claude's HTTP tools;
+- Postman (`src/Karvon.Postman`, which uses the HTTP Client to send): Postman's collections and environments from their
+  JSON files, their scripts in an interpreter of its own (Jint), runs, and Claude's Postman tools;
 - MCP Servers (`src/Karvon.Mcp`);
 - Code Map (`src/Karvon.CodeMap`): the workspace's files and declarations (by the workbench's `OutlineAsync`, from the
   servers that run) in a SQLite index with full-text search, kept up to date, its tool window, Claude's `code_map` and
@@ -122,7 +124,7 @@ application's project references.
 
 A tool window can have a `Gesture` that shows it from anywhere ("Ctrl+Alt+S"). A control that implements
 `IKeymapOwner` gets its keys before the window's while the focus is in it. A document whose owner closes it overrides
-`DocumentTab.CloseByOwner`.
+`DocumentTab.CloseByOwner`; one that Ctrl+S saves overrides `DocumentTab.Save`.
 
 Use `Template<T>` (or `Document<T>`) for templates, never `FuncDataTemplate<T>`. Avalonia's `FuncDataTemplate<T>`
 also matches null, so one added to the application would take over every empty presenter.

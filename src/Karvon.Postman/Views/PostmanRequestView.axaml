@@ -1,0 +1,212 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:v="using:Karvon.Views"
+             xmlns:ae="https://github.com/avaloniaui/avaloniaedit"
+             xmlns:hvm="using:Karvon.Http.ViewModels"
+             xmlns:p="using:Karvon.Postman"
+             xmlns:pv="using:Karvon.Postman.Views"
+             xmlns:pvm="using:Karvon.Postman.ViewModels"
+             x:Class="Karvon.Postman.Views.PostmanRequestView"
+             x:DataType="pvm:PostmanRequestDocument"
+             Background="#1E1E1E">
+  <UserControl.Styles>
+    <StyleInclude Source="avares://Karvon.Core/Themes/ExplorerStyles.axaml" />
+    <Style Selector="ae|TextEditor">
+      <Setter Property="FontFamily" Value="{StaticResource VsCodeFont}" />
+      <Setter Property="FontSize" Value="12" />
+      <Setter Property="Background" Value="#1E1E1E" />
+      <Setter Property="Foreground" Value="#DCDCDC" />
+      <Setter Property="HorizontalScrollBarVisibility" Value="Auto" />
+      <Setter Property="VerticalScrollBarVisibility" Value="Auto" />
+    </Style>
+    <Style Selector="StackPanel.auth">
+      <Setter Property="Spacing" Value="4" />
+      <Setter Property="MaxWidth" Value="560" />
+      <Setter Property="HorizontalAlignment" Value="Left" />
+      <Setter Property="MinWidth" Value="360" />
+    </Style>
+  </UserControl.Styles>
+
+  <Grid RowDefinitions="Auto,Auto,*,4,*" Margin="12,8,12,8">
+    <!-- Where it is, the environment, saved -->
+    <DockPanel>
+      <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="8">
+        <StackPanel Orientation="Horizontal" Spacing="5" VerticalAlignment="Center" ToolTip.Tip="The environment it is sent with (chosen in the Postman window)">
+          <v:VsIcon Kind="Globe" Width="13" Height="13" />
+          <TextBlock Text="{Binding EnvironmentText}" Classes="dkMuted" VerticalAlignment="Center" />
+        </StackPanel>
+        <Button Name="SaveButton" Classes="dkOutline" Padding="10,2" Command="{Binding SaveRequestCommand}" IsEnabled="{Binding IsDirty}" Content="Save" ToolTip.Tip="Save to the collection (Ctrl+S)" />
+      </StackPanel>
+      <TextBlock Text="{Binding Place}" Classes="dkMuted" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+    </DockPanel>
+
+    <!-- The method, the URL, Send -->
+    <Grid Grid.Row="1" ColumnDefinitions="Auto,*,Auto" Margin="0,8,0,0">
+      <ComboBox Name="MethodBox" ItemsSource="{x:Static pvm:PostmanRequestDocument.Methods}" SelectedItem="{Binding Method}" MinWidth="104" FontWeight="SemiBold"
+                Foreground="{Binding Method, Converter={x:Static hvm:HttpConverters.MethodBrush}}" VerticalAlignment="Stretch" />
+      <TextBox Grid.Column="1" Name="UrlBox" Text="{Binding Url}" FontFamily="{StaticResource VsCodeFont}" FontSize="12.5" Margin="4,0" PlaceholderText="https://api.example.com/orders or {{baseUrl}}/orders"
+               VerticalContentAlignment="Center" KeyDown="OnUrlKeyDown" />
+      <Panel Grid.Column="2">
+        <Button Name="SendButton" Classes="dkPrimary" Padding="18,6" Command="{Binding SendCommand}" IsVisible="{Binding !IsSending}" ToolTip.Tip="Send (Ctrl+Enter)" Content="Send" />
+        <Button Classes="dkOutline" Padding="14,6" Command="{Binding CancelCommand}" IsVisible="{Binding IsSending}" Content="Cancel" />
+      </Panel>
+    </Grid>
+
+    <!-- The request -->
+    <DockPanel Grid.Row="2" Margin="0,8,0,4">
+      <StackPanel DockPanel.Dock="Top" Orientation="Horizontal">
+        <Button Classes="dkTab" Classes.selected="{Binding IsParams}" Command="{Binding ShowTabCommand}" CommandParameter="params">
+          <TextBlock><Run Text="Params" /><Run Text=" " /><Run Text="{Binding Params.Count, Converter={x:Static pvm:PostmanConverters.Count}}" Foreground="#73C991" /></TextBlock>
+        </Button>
+        <Button Classes="dkTab" Classes.selected="{Binding IsAuth}" Command="{Binding ShowTabCommand}" CommandParameter="auth" Content="Authorization" />
+        <Button Classes="dkTab" Classes.selected="{Binding IsHeaders}" Command="{Binding ShowTabCommand}" CommandParameter="headers">
+          <TextBlock><Run Text="Headers" /><Run Text=" " /><Run Text="{Binding Headers.Count, Converter={x:Static pvm:PostmanConverters.Count}}" Foreground="#73C991" /></TextBlock>
+        </Button>
+        <Button Classes="dkTab" Classes.selected="{Binding IsBody}" Command="{Binding ShowTabCommand}" CommandParameter="body" Content="Body" />
+        <Button Classes="dkTab" Classes.selected="{Binding IsPreRequest}" Command="{Binding ShowTabCommand}" CommandParameter="prerequest" Content="Pre-request Script" />
+        <Button Classes="dkTab" Classes.selected="{Binding IsTests}" Command="{Binding ShowTabCommand}" CommandParameter="tests" Content="Tests" />
+        <Button Classes="dkTab" Classes.selected="{Binding IsDocs}" Command="{Binding ShowTabCommand}" CommandParameter="docs" Content="Description" />
+      </StackPanel>
+
+      <Panel Margin="0,6,0,0">
+        <ScrollViewer IsVisible="{Binding IsParams}">
+          <StackPanel Spacing="8">
+            <pv:PostmanRowsView DataContext="{Binding Params}" />
+            <StackPanel Spacing="4" IsVisible="{Binding HasPathVariables}">
+              <TextBlock Text="Path Variables" Classes="dkMuted" />
+              <pv:PostmanRowsView DataContext="{Binding PathVariables}" />
+            </StackPanel>
+          </StackPanel>
+        </ScrollViewer>
+
+        <ScrollViewer IsVisible="{Binding IsAuth}">
+          <StackPanel Spacing="10">
+            <ComboBox Name="AuthBox" ItemsSource="{Binding AuthNames}" SelectedIndex="{Binding AuthIndex}" MinWidth="240" HorizontalAlignment="Left" />
+            <TextBlock Text="{Binding InheritedText}" Classes="dkMuted" IsVisible="{Binding IsInherit}" TextWrapping="Wrap" />
+            <TextBlock Text="Karvon does not send this sign-in: it is kept as it is." Classes="dkMuted" IsVisible="{Binding IsOtherAuth}" />
+            <StackPanel Classes="auth" IsVisible="{Binding IsBearer}">
+              <TextBlock Text="Token" Classes="dkMuted" />
+              <TextBox Classes="dkField" Text="{Binding Token}" PlaceholderText="{}{{token}}" />
+            </StackPanel>
+            <StackPanel Classes="auth" IsVisible="{Binding IsBasic}">
+              <TextBlock Text="Username" Classes="dkMuted" />
+              <TextBox Classes="dkField" Text="{Binding Username}" />
+              <TextBlock Text="Password" Classes="dkMuted" />
+              <TextBox Classes="dkField" Text="{Binding Password}" PlaceholderText="{}{{password}}" />
+            </StackPanel>
+            <StackPanel Classes="auth" IsVisible="{Binding IsApiKey}">
+              <TextBlock Text="Key" Classes="dkMuted" />
+              <TextBox Classes="dkField" Text="{Binding ApiKeyName}" PlaceholderText="X-Api-Key" />
+              <TextBlock Text="Value" Classes="dkMuted" />
+              <TextBox Classes="dkField" Text="{Binding ApiKeyValue}" PlaceholderText="{}{{apiKey}}" />
+              <TextBlock Text="Add to" Classes="dkMuted" />
+              <ComboBox ItemsSource="{x:Static pvm:PostmanRequestDocument.ApiKeyPlaces}" SelectedIndex="{Binding ApiKeyPlace}" MinWidth="160" />
+            </StackPanel>
+            <StackPanel Classes="auth" IsVisible="{Binding IsOAuth}">
+              <TextBlock Text="Access token" Classes="dkMuted" />
+              <TextBox Classes="dkField" Text="{Binding AccessToken}" PlaceholderText="{}{{accessToken}}" />
+              <TextBlock Text="Header prefix" Classes="dkMuted" />
+              <TextBox Classes="dkField" Text="{Binding HeaderPrefix}" />
+            </StackPanel>
+            <TextBlock Classes="dkMuted" FontSize="11.5" TextWrapping="Wrap" MaxWidth="620" HorizontalAlignment="Left" IsVisible="{Binding !IsInherit}"
+                       Text="What is typed here is written to the collection's file. Put a variable ({{token}}) here, and its value in the environment's current value, which stays on this machine." />
+          </StackPanel>
+        </ScrollViewer>
+
+        <ScrollViewer IsVisible="{Binding IsHeaders}">
+          <pv:PostmanRowsView DataContext="{Binding Headers}" />
+        </ScrollViewer>
+
+        <DockPanel IsVisible="{Binding IsBody}">
+          <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Spacing="8" Margin="0,0,0,6">
+            <ComboBox Name="BodyBox" ItemsSource="{x:Static pvm:PostmanRequestDocument.BodyNames}" SelectedIndex="{Binding BodyIndex}" MinWidth="190" />
+            <ComboBox ItemsSource="{x:Static pvm:PostmanRequestDocument.Languages}" SelectedItem="{Binding Language}" MinWidth="110" IsVisible="{Binding IsRaw}" />
+          </StackPanel>
+          <Panel>
+            <TextBlock Text="This request has no body." Classes="dkMuted" IsVisible="{Binding IsNoBody}" />
+            <ScrollViewer IsVisible="{Binding IsFormData}"><pv:PostmanRowsView DataContext="{Binding FormData}" /></ScrollViewer>
+            <ScrollViewer IsVisible="{Binding IsUrlEncoded}"><pv:PostmanRowsView DataContext="{Binding Form}" /></ScrollViewer>
+            <Border BorderBrush="#333337" BorderThickness="1" IsVisible="{Binding IsRaw}"><ae:TextEditor Name="RawEditor" ShowLineNumbers="True" /></Border>
+            <StackPanel IsVisible="{Binding IsBinary}" Spacing="4">
+              <TextBlock Text="The file's path (from the open folder, or a full one)" Classes="dkMuted" />
+              <TextBox Classes="dkField" Text="{Binding BodyFile}" />
+            </StackPanel>
+            <Grid ColumnDefinitions="3*,8,2*" RowDefinitions="Auto,*" IsVisible="{Binding IsGraphQl}">
+              <TextBlock Text="Query" Classes="dkMuted" />
+              <TextBlock Grid.Column="2" Text="Variables" Classes="dkMuted" />
+              <Border Grid.Row="1" BorderBrush="#333337" BorderThickness="1"><ae:TextEditor Name="QueryEditor" ShowLineNumbers="True" /></Border>
+              <Border Grid.Row="1" Grid.Column="2" BorderBrush="#333337" BorderThickness="1"><ae:TextEditor Name="VariablesEditor" /></Border>
+            </Grid>
+          </Panel>
+        </DockPanel>
+
+        <DockPanel IsVisible="{Binding IsPreRequest}">
+          <TextBlock DockPanel.Dock="Bottom" Classes="dkMuted" FontSize="11.5" Margin="0,4,0,0" Text="Runs before the request is sent: pm.environment.set(&quot;name&quot;, value), pm.request.headers.add({ key, value }), pm.sendRequest(…)." TextWrapping="Wrap" />
+          <Border BorderBrush="#333337" BorderThickness="1"><ae:TextEditor Name="PreRequestEditor" ShowLineNumbers="True" /></Border>
+        </DockPanel>
+        <DockPanel IsVisible="{Binding IsTests}">
+          <TextBlock DockPanel.Dock="Bottom" Classes="dkMuted" FontSize="11.5" Margin="0,4,0,0" Text="Runs on what came back: pm.test(&quot;it is OK&quot;, () => pm.response.to.have.status(200)); pm.expect(pm.response.json().id).to.be.above(0)." TextWrapping="Wrap" />
+          <Border BorderBrush="#333337" BorderThickness="1"><ae:TextEditor Name="TestsEditor" ShowLineNumbers="True" /></Border>
+        </DockPanel>
+        <TextBox IsVisible="{Binding IsDocs}" Text="{Binding Description}" AcceptsReturn="True" TextWrapping="Wrap" VerticalContentAlignment="Top" />
+      </Panel>
+    </DockPanel>
+
+    <GridSplitter Grid.Row="3" ResizeDirection="Rows" Background="#2D2D30" />
+
+    <!-- What came back -->
+    <Panel Grid.Row="4">
+      <StackPanel IsVisible="{Binding !HasResult}" VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="6">
+        <ProgressBar IsIndeterminate="True" IsVisible="{Binding IsSending}" Width="120" Height="3" />
+        <TextBlock Text="Send the request to see what comes back." Classes="dkMuted" IsVisible="{Binding !IsSending}" />
+      </StackPanel>
+      <DockPanel IsVisible="{Binding HasResult}" Margin="0,4,0,0">
+        <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Spacing="8">
+          <Border Classes="pill" Classes.green="{Binding IsSuccess}" Classes.red="{Binding IsFailure}">
+            <TextBlock Name="Status" Text="{Binding StatusText}" MaxWidth="700" TextTrimming="CharacterEllipsis" />
+          </Border>
+          <TextBlock Text="{Binding Summary}" Classes="dkMuted" VerticalAlignment="Center" />
+          <ProgressBar IsIndeterminate="True" IsVisible="{Binding IsSending}" Width="60" Height="3" MinWidth="0" VerticalAlignment="Center" />
+        </StackPanel>
+        <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,4,0,0">
+          <Button Classes="dkTab" Classes.selected="{Binding IsResponseBody}" Command="{Binding ShowResponseTabCommand}" CommandParameter="body" Content="Body" />
+          <Button Classes="dkTab" Classes.selected="{Binding IsResponseHeaders}" Command="{Binding ShowResponseTabCommand}" CommandParameter="headers" Content="Headers" />
+          <Button Classes="dkTab" Classes.selected="{Binding IsResponseTests}" Command="{Binding ShowResponseTabCommand}" CommandParameter="tests">
+            <StackPanel Orientation="Horizontal" Spacing="5">
+              <TextBlock Text="{Binding TestsTitle}" />
+              <v:VsIcon Kind="Error" Width="12" Height="12" IsVisible="{Binding HasFailedTests}" />
+            </StackPanel>
+          </Button>
+          <Button Classes="dkTab" Classes.selected="{Binding IsResponseConsole}" Command="{Binding ShowResponseTabCommand}" CommandParameter="console" Content="Console" />
+          <Button Classes="dkTab" Classes.selected="{Binding IsResponseRequest}" Command="{Binding ShowResponseTabCommand}" CommandParameter="request" Content="Request" />
+        </StackPanel>
+        <TextBlock DockPanel.Dock="Top" Text="{Binding ScriptError}" Foreground="#F48771" TextWrapping="Wrap" Margin="0,6,0,0" IsVisible="{Binding ScriptError, Converter={x:Static ObjectConverters.IsNotNull}}" />
+        <TextBlock DockPanel.Dock="Top" Text="{Binding MissingText}" Foreground="#E2C08D" TextWrapping="Wrap" Margin="0,6,0,0" IsVisible="{Binding MissingText, Converter={x:Static ObjectConverters.IsNotNull}}" />
+        <Panel Margin="0,6,0,0">
+          <ae:TextEditor Name="BodyEditor" IsVisible="{Binding IsResponseBody}" WordWrap="True" />
+          <ae:TextEditor Name="HeadersEditor" IsVisible="{Binding IsResponseHeaders}" />
+          <ae:TextEditor Name="ConsoleEditor" IsVisible="{Binding IsResponseConsole}" WordWrap="True" />
+          <ae:TextEditor Name="RequestEditor" IsVisible="{Binding IsResponseRequest}" WordWrap="True" />
+          <ScrollViewer IsVisible="{Binding IsResponseTests}">
+            <StackPanel Spacing="4">
+              <TextBlock Text="No tests ran." Classes="dkMuted" IsVisible="{Binding !TestRows.Count}" />
+              <ItemsControl Name="TestList" ItemsSource="{Binding TestRows}">
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate x:DataType="p:PostmanTest">
+                    <Grid ColumnDefinitions="Auto,*" Margin="0,2">
+                      <v:VsIcon Kind="{Binding Converter={x:Static pvm:PostmanConverters.TestIcon}}" Width="14" Height="14" VerticalAlignment="Top" Margin="0,2,8,0" />
+                      <StackPanel Grid.Column="1">
+                        <TextBlock Text="{Binding Name}" TextWrapping="Wrap" />
+                        <TextBlock Text="{Binding Error}" Foreground="#F48771" FontSize="12" TextWrapping="Wrap" IsVisible="{Binding Error, Converter={x:Static ObjectConverters.IsNotNull}}" />
+                      </StackPanel>
+                    </Grid>
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+            </StackPanel>
+          </ScrollViewer>
+        </Panel>
+      </DockPanel>
+    </Panel>
+  </Grid>
+</UserControl>

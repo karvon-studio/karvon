@@ -282,6 +282,33 @@ it is written or, with **Generate Request**, goes into its project's `.http` fil
 `launchSettings.json`). Claude gets `http_endpoints` and `http_send` (a file's request with its environment, or one of
 its own; to localhost at once, elsewhere asking you).
 
+## Postman (View > Postman)
+
+Postman's collections (v2.0, v2.1) and environments, without Postman or an account: those in the open folder
+(`*.postman_collection.json`, `*.postman_environment.json`, `*.postman_globals.json`, as Postman exports them), and files
+opened from anywhere. A new one goes in the folder's `postman` folder, as a v2.1 file Postman imports. What Karvon does not
+show (examples, ids, protocol options) stays in the file as it was, and the file keeps its indentation.
+**A request** opens as a document: method and URL, its query and path variables (`/orders/:id`) as tables in step with the
+URL, Authorization (inherited, bearer, basic, API key, an OAuth 2.0 access token), headers, body (form-data with files,
+x-www-form-urlencoded, raw, binary, GraphQL), pre-request script, tests, description. **Send** (Ctrl+Enter) sends it as it is
+typed, saved or not; Ctrl+S puts it in its collection. What came back: the body highlighted, headers, the tests, what scripts
+printed, the request as it went out. A file changed meanwhile (a checkout) is read again.
+**Scripts** run in an interpreter inside Karvon, as in Postman: `pm.test`, `pm.expect` (chai's), `pm.response` (and its
+`to.have`, `to.be`), `pm.environment`, `pm.collectionVariables`, `pm.globals`, `pm.variables`, `pm.request`, `pm.sendRequest`,
+`pm.execution.setNextRequest` and `skipRequest`, `pm.info`, the older `tests[...]` and `postman.*`; the collection's, the
+folders' and the request's, in that order. They have no file, no .NET and no network but `pm.sendRequest`, and 30 seconds.
+Not there: `require` (but chai), CryptoJS, cookies, the visualizer.
+**Variables** (`{{name}}`): a script's, the environment's, the collection's, the globals', and the dynamic ones (`{{$guid}}`,
+`{{$timestamp}}`, `{{$randomEmail}}`...). An environment's initial values are in its file; its **current values** are this
+machine's, in Karvon's vault, and what scripts set goes there, never into the file. The environment in use is chosen above the
+tree and kept with the solution.
+**Run…** on a collection or a folder runs its requests in their order (or as `setNextRequest` says): iterations, a delay,
+stop at a failure, each with its status and tests.
+Claude gets `postman_collections`, `postman_request`, `postman_environments`, `postman_send` and `postman_run` (to localhost at
+once, elsewhere asking you, with where), `postman_save`, `postman_delete` and `postman_set`. A secret goes into the request
+and not to Claude; a call goes only where it was said to go, whatever a script, a variable or a file changed since; a body's
+file is the folder's, and none that holds secrets. `newman run` is sent to `postman_run`.
+
 ## Kubernetes (View > Kubernetes)
 
 Your clusters through your own `kubectl` and kubeconfig (its auth plugins and all); Karvon names the context in every

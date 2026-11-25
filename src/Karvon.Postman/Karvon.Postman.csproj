@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- The Postman module: Postman's collections and environments (their JSON files), requests sent with their scripts and tests, collections run, Claude Code's Postman tools. -->
+  <PropertyGroup>
+    <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
+    <RootNamespace>Karvon.Postman</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="Karvon.Tests" />
+    <EmbeddedResource Include="pm.js" LogicalName="Karvon.Postman.pm.js" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- The collections' pre-request and test scripts: an interpreter in Karvon, without the machine's files, network or .NET. -->
+    <PackageReference Include="Jint" Version="4.17.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Karvon.Core\Karvon.Core.csproj" />
+    <ProjectReference Include="..\Karvon.Http\Karvon.Http.csproj" />
+  </ItemGroup>
+</Project>

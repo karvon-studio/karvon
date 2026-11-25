@@ -699,7 +699,11 @@ public partial class MainViewModel : ObservableObject
     void Save()
     {
         if (ActiveEditor is not { } doc)
+        {
+            if (ActiveDocument?.Save() == true)
+                SetStatus("Item(s) Saved");
             return;
+        }
         try
         {
             doc.Host.Save();

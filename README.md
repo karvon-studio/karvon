@@ -43,7 +43,7 @@ update as it closes.
   `package.json` scripts.
 - **Build, run, debug and test** each language, with the Error List and Test Explorer.
 - **Git**, **Terminal** and **NuGet**.
-- **Database Explorer**, **Docker Explorer**, **Servers** (SSH), **Jira**, **Ports** (port forwarding), **Pipelines** (GitHub Actions, GitLab CI), **Pull Requests**, **Kubernetes**, **HTTP Client** (.http files), **MCP Servers** and **Skills**.
+- **Database Explorer**, **Docker Explorer**, **Servers** (SSH), **Jira**, **Ports** (port forwarding), **Pipelines** (GitHub Actions, GitLab CI), **Pull Requests**, **Kubernetes**, **HTTP Client** (.http files), **Postman** (its collections), **MCP Servers** and **Skills**.
 - **Claude Code**, your own `claude` CLI, with Karvon's tools: the build, the tests, the debugger, the databases.
 - **Code Map**: the workspace's folders, files and declarations, kept up to date as the code changes, searched as you type
   and by Claude instead of listing and reading files.

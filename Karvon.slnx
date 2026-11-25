@@ -14,6 +14,7 @@
     <Project Path="src/Karvon.PullRequests/Karvon.PullRequests.csproj" />
     <Project Path="src/Karvon.Kubernetes/Karvon.Kubernetes.csproj" />
     <Project Path="src/Karvon.Http/Karvon.Http.csproj" />
+    <Project Path="src/Karvon.Postman/Karvon.Postman.csproj" />
     <Project Path="src/Karvon.Skills/Karvon.Skills.csproj" />
     <Project Path="src/Karvon.Documents/Karvon.Documents.csproj" />
     <Project Path="src/Karvon.Browser/Karvon.Browser.csproj" />

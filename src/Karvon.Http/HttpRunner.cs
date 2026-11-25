@@ -309,23 +309,25 @@ public static class HttpRunner
         return await SendAsync(block.Method, url, headers, body, ct) with { Name = block.Name };
     }
 
-    public static async Task<HttpExchange> SendAsync(string method, string url, IReadOnlyList<(string Name, string Value)> headers, string? body, CancellationToken ct = default)
+    public static Task<HttpExchange> SendAsync(string method, string url, IReadOnlyList<(string Name, string Value)> headers, string? body, CancellationToken ct = default) =>
+        SendAsync(method, url, headers, body is null ? null : new StringContent(body, Encoding.UTF8), body, ct);
+
+    /// <summary>The same with a body that is not only text (a form's files), <paramref name="body"/> what it shows as.</summary>
+    public static async Task<HttpExchange> SendAsync(string method, string url, IReadOnlyList<(string Name, string Value)> headers, HttpContent? content, string? body, CancellationToken ct = default)
     {
         var exchange = new HttpExchange(method, url, headers, body);
         if (!Uri.TryCreate(url, UriKind.Absolute, out var uri) || uri.Scheme is not ("http" or "https"))
             return exchange with { Error = $"The URL is not an absolute http(s) one: {url}" };
-        using var request = new HttpRequestMessage(new HttpMethod(method), uri);
-        if (body is not null)
-            request.Content = new StringContent(body, Encoding.UTF8);
+        using var request = new HttpRequestMessage(new HttpMethod(method), uri) { Content = content };
         foreach (var (name, value) in headers)
         {
-            if (!request.Headers.TryAddWithoutValidation(name, value) && request.Content is { } content)
+            if (!request.Headers.TryAddWithoutValidation(name, value) && content is not null)
             {
                 content.Headers.Remove(name);
                 content.Headers.TryAddWithoutValidation(name, value);
             }
         }
-        if (request.Content is { Headers.ContentType: { } type } && !headers.Any(h => h.Name.Equals("Content-Type", StringComparison.OrdinalIgnoreCase)))
+        if (content is StringContent { Headers.ContentType: { } type } && !headers.Any(h => h.Name.Equals("Content-Type", StringComparison.OrdinalIgnoreCase)))
             type.CharSet = "utf-8";
         var watch = Stopwatch.StartNew();
         using var limit = CancellationTokenSource.CreateLinkedTokenSource(ct);

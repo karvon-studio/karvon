@@ -15,6 +15,9 @@ public abstract partial class DocumentTab : ObservableObject, IDisposable
 
     public virtual bool IsDirty => false;
 
+    /// <summary>Save (Ctrl+S) of a document that is not an editor: whether it kept something.</summary>
+    public virtual bool Save() => false;
+
     /// <summary>
     /// Closing the tab: a document whose owner closes it (a Database Explorer document) asks the owner, which removes the
     /// tab, and says true. The others are closed by the document well.

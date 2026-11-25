@@ -1,0 +1,48 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:v="using:Karvon.Views"
+             xmlns:pvm="using:Karvon.Postman.ViewModels"
+             x:Class="Karvon.Postman.Views.PostmanRowsView"
+             x:DataType="pvm:PostmanRows">
+  <UserControl.Styles>
+    <StyleInclude Source="avares://Karvon.Core/Themes/ExplorerStyles.axaml" />
+    <Style Selector="TextBox.cell">
+      <Setter Property="BorderThickness" Value="0,0,1,0" />
+      <Setter Property="BorderBrush" Value="#333337" />
+      <Setter Property="CornerRadius" Value="0" />
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="MinHeight" Value="26" />
+      <Setter Property="Padding" Value="8,3" />
+      <Setter Property="FontSize" Value="12" />
+      <Setter Property="FontFamily" Value="{StaticResource VsCodeFont}" />
+    </Style>
+  </UserControl.Styles>
+
+  <!-- Rows of keys and values, as Postman's tables: the last one is for the next. -->
+  <Border BorderBrush="#333337" BorderThickness="1">
+    <ItemsControl ItemsSource="{Binding Rows}">
+      <ItemsControl.ItemTemplate>
+        <DataTemplate x:DataType="pvm:PostmanRow">
+          <Border BorderBrush="#333337" BorderThickness="0,0,0,1">
+            <Grid ColumnDefinitions="30,2*,Auto,3*,2*,28">
+              <CheckBox IsChecked="{Binding Enabled}" MinWidth="0" HorizontalAlignment="Center" VerticalAlignment="Center" IsVisible="{Binding !IsEmpty}" />
+              <TextBox Grid.Column="1" Classes="cell" Text="{Binding Key}" PlaceholderText="Key"
+                       IsReadOnly="{Binding $parent[ItemsControl].((pvm:PostmanRows)DataContext).HasFixedKeys}" />
+              <ComboBox Grid.Column="2" Width="66" MinHeight="24" Padding="6,0" FontSize="11" BorderThickness="0" SelectedIndex="{Binding IsFile, Converter={x:Static pvm:PostmanRowConverters.FileIndex}}"
+                        IsVisible="{Binding $parent[ItemsControl].((pvm:PostmanRows)DataContext).CanBeFiles}">
+                <ComboBoxItem Content="Text" />
+                <ComboBoxItem Content="File" />
+              </ComboBox>
+              <TextBox Grid.Column="3" Classes="cell" Text="{Binding Value}" PlaceholderText="{Binding IsFile, Converter={x:Static pvm:PostmanRowConverters.ValueHint}}" />
+              <TextBox Grid.Column="4" Classes="cell" Text="{Binding Description}" PlaceholderText="Description" />
+              <Button Grid.Column="5" Classes="tbi" Command="{Binding $parent[ItemsControl].((pvm:PostmanRows)DataContext).RemoveCommand}" CommandParameter="{Binding}" ToolTip.Tip="Remove"
+                      IsVisible="{Binding CanRemove}">
+                <v:VsIcon Kind="Close" Width="11" Height="11" />
+              </Button>
+            </Grid>
+          </Border>
+        </DataTemplate>
+      </ItemsControl.ItemTemplate>
+    </ItemsControl>
+  </Border>
+</UserControl>

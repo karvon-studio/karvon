@@ -1,0 +1,62 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:v="using:Karvon.Views"
+             xmlns:pvm="using:Karvon.Postman.ViewModels"
+             x:Class="Karvon.Postman.Views.PostmanEnvironmentView"
+             x:DataType="pvm:PostmanEnvironmentDocument"
+             Background="#1E1E1E">
+  <UserControl.Styles>
+    <StyleInclude Source="avares://Karvon.Core/Themes/ExplorerStyles.axaml" />
+    <Style Selector="TextBox.cell">
+      <Setter Property="BorderThickness" Value="0,0,1,0" />
+      <Setter Property="BorderBrush" Value="#333337" />
+      <Setter Property="CornerRadius" Value="0" />
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="MinHeight" Value="26" />
+      <Setter Property="Padding" Value="8,3" />
+      <Setter Property="FontSize" Value="12" />
+      <Setter Property="FontFamily" Value="{StaticResource VsCodeFont}" />
+    </Style>
+  </UserControl.Styles>
+
+  <DockPanel Margin="16,12">
+    <DockPanel DockPanel.Dock="Top" Margin="0,0,0,8">
+      <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="8">
+        <Border Classes="pill green" IsVisible="{Binding IsActive}"><TextBlock Text="in use" /></Border>
+        <Button Classes="dkOutline" Command="{Binding UseCommand}" IsVisible="{Binding CanBeActive}" Content="Use This Environment" />
+        <Button Name="SaveButton" Classes="dkPrimary" Command="{Binding SaveEnvironmentCommand}" IsEnabled="{Binding IsDirty}" Content="Save" ToolTip.Tip="Save (Ctrl+S)" />
+      </StackPanel>
+      <TextBox Name="NameBox" Text="{Binding Name}" FontSize="16" FontWeight="SemiBold" BorderThickness="0" Background="Transparent" MaxWidth="460" HorizontalAlignment="Left" MinWidth="240" />
+    </DockPanel>
+    <TextBlock DockPanel.Dock="Top" Classes="dkMuted" TextWrapping="Wrap" Margin="0,0,0,10" MaxWidth="820" HorizontalAlignment="Left"
+               Text="The initial value is in the file, shared with whoever has it. The current value is used instead where there is one: it stays on this machine, in Karvon's vault (this session only without one), and scripts set it. Claude is told a secret's name, never its value." />
+    <Grid DockPanel.Dock="Top" ColumnDefinitions="30,2*,3*,3*,70,28" Margin="1,0,1,2">
+      <TextBlock Grid.Column="1" Text="Variable" Classes="dkHeader" Margin="8,0" />
+      <TextBlock Grid.Column="2" Text="Initial value" Classes="dkHeader" Margin="8,0" />
+      <TextBlock Grid.Column="3" Text="Current value" Classes="dkHeader" Margin="8,0" />
+      <TextBlock Grid.Column="4" Text="Secret" Classes="dkHeader" HorizontalAlignment="Center" />
+    </Grid>
+    <ScrollViewer>
+      <Border BorderBrush="#333337" BorderThickness="1" VerticalAlignment="Top">
+        <ItemsControl Name="Rows" ItemsSource="{Binding Rows}">
+          <ItemsControl.ItemTemplate>
+            <DataTemplate x:DataType="pvm:PostmanVariableRow">
+              <Border BorderBrush="#333337" BorderThickness="0,0,0,1">
+                <Grid ColumnDefinitions="30,2*,3*,3*,70,28">
+                  <CheckBox IsChecked="{Binding Enabled}" MinWidth="0" HorizontalAlignment="Center" VerticalAlignment="Center" IsVisible="{Binding !IsEmpty}" />
+                  <TextBox Grid.Column="1" Classes="cell" Text="{Binding Key}" PlaceholderText="Variable" />
+                  <TextBox Grid.Column="2" Classes="cell" Text="{Binding Initial}" PasswordChar="{Binding Mask}" PlaceholderText="Shared" />
+                  <TextBox Grid.Column="3" Classes="cell" Text="{Binding Current}" PasswordChar="{Binding Mask}" PlaceholderText="As the initial value" />
+                  <CheckBox Grid.Column="4" IsChecked="{Binding IsSecret}" MinWidth="0" HorizontalAlignment="Center" VerticalAlignment="Center" IsVisible="{Binding !IsEmpty}" ToolTip.Tip="A secret: not shown, and never told to Claude" />
+                  <Button Grid.Column="5" Classes="tbi" Command="{Binding $parent[UserControl].((pvm:PostmanEnvironmentDocument)DataContext).RemoveCommand}" CommandParameter="{Binding}" IsVisible="{Binding !IsEmpty}" ToolTip.Tip="Remove">
+                    <v:VsIcon Kind="Close" Width="11" Height="11" />
+                  </Button>
+                </Grid>
+              </Border>
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+      </Border>
+    </ScrollViewer>
+  </DockPanel>
+</UserControl>

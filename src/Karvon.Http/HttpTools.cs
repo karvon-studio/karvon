@@ -18,7 +18,8 @@ public static class HttpClaudeTools
 
     public static IEnumerable<IClaudeTool> Create(HttpModule module) => [new HttpEndpointsTool(module), new HttpSendTool(module)];
 
-    internal static string Text(HttpExchange e)
+    /// <summary>What came back, as Claude reads it: its secrets hidden, a long body cut.</summary>
+    public static string Text(HttpExchange e)
     {
         if (e.Error is not null)
             return e.Error;

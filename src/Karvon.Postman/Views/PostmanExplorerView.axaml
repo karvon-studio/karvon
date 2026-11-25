@@ -1,0 +1,79 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:v="using:Karvon.Views"
+             xmlns:hvm="using:Karvon.Http.ViewModels"
+             xmlns:pvm="using:Karvon.Postman.ViewModels"
+             x:Class="Karvon.Postman.Views.PostmanExplorerView"
+             x:DataType="pvm:PostmanExplorerViewModel">
+  <UserControl.Styles>
+    <StyleInclude Source="avares://Karvon.Core/Themes/ExplorerStyles.axaml" />
+    <Style Selector="TreeView#Tree TreeViewItem /template/ ContentPresenter#PART_HeaderPresenter">
+      <Setter Property="HorizontalAlignment" Value="Stretch" />
+      <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+    </Style>
+    <Style Selector="TreeView#Tree TreeViewItem">
+      <Setter Property="IsExpanded" Value="{ReflectionBinding IsExpanded, Mode=TwoWay}" />
+    </Style>
+    <Style Selector="Grid.node">
+      <Setter Property="Height" Value="24" />
+      <Setter Property="Background" Value="Transparent" />
+    </Style>
+  </UserControl.Styles>
+
+  <DockPanel>
+    <Border DockPanel.Dock="Top" Background="{StaticResource VsEnvironmentBrush}">
+      <TextBlock Classes="toolTitle" Text="Postman" />
+    </Border>
+    <Border DockPanel.Dock="Top" Padding="4,2">
+      <StackPanel Orientation="Horizontal" Spacing="2">
+        <Button Name="NewCollectionButton" Classes="tbi" Command="{Binding NewCollectionCommand}" ToolTip.Tip="New Collection…"><v:VsIcon Kind="Plus" /></Button>
+        <Button Classes="tbi" Command="{Binding NewEnvironmentCommand}" ToolTip.Tip="New Environment…"><v:VsIcon Kind="Globe" /></Button>
+        <Button Classes="tbi" Command="{Binding OpenFilesCommand}" ToolTip.Tip="Open Collections and Environments…"><v:VsIcon Kind="Open" /></Button>
+        <Button Classes="tbi" Command="{Binding RefreshCommand}" ToolTip.Tip="Refresh"><v:VsIcon Kind="Refresh" /></Button>
+      </StackPanel>
+    </Border>
+    <ComboBox Name="EnvironmentBox" DockPanel.Dock="Top" Margin="4,0,4,4" HorizontalAlignment="Stretch" ItemsSource="{Binding Environments}" SelectedItem="{Binding Environment}"
+              ToolTip.Tip="The environment requests are sent with" IsVisible="{Binding !IsEmpty}" />
+    <TextBox Name="FilterBox" DockPanel.Dock="Top" Classes="search" Margin="4,0,4,4" Text="{Binding Filter}" PlaceholderText="Search requests" IsVisible="{Binding !IsEmpty}" />
+
+    <Panel>
+      <StackPanel IsVisible="{Binding IsEmpty}" Margin="12,10" Spacing="8">
+        <TextBlock Text="No Postman collections here" FontWeight="SemiBold" />
+        <TextBlock Classes="dkMuted" TextWrapping="Wrap"
+                   Text="Collections and environments are found in the open folder (*.postman_collection.json, *.postman_environment.json, as Postman exports them). Open others, or make a new one: it is a Postman v2.1 file, which Postman imports." />
+        <Button Classes="dkPrimary" HorizontalAlignment="Left" Command="{Binding NewCollectionCommand}" Content="New Collection…" />
+        <Button Classes="dkOutline" HorizontalAlignment="Left" Command="{Binding OpenFilesCommand}" Content="Open Files…" />
+      </StackPanel>
+
+      <TreeView Name="Tree" ItemsSource="{Binding Roots}" SelectedItem="{Binding Selected}" Background="Transparent" ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                IsVisible="{Binding !IsEmpty}">
+        <TreeView.DataTemplates>
+          <TreeDataTemplate DataType="pvm:PostmanNode" ItemsSource="{Binding Children}">
+            <Grid Classes="node" ColumnDefinitions="Auto,*" ToolTip.Tip="{Binding Detail}">
+              <Grid.ContextMenu>
+                <ContextMenu>
+                  <MenuItem Header="Open" Command="{Binding $parent[TreeView].((pvm:PostmanExplorerViewModel)DataContext).OpenCommand}" CommandParameter="{Binding}" IsVisible="{Binding CanOpen}" />
+                  <MenuItem Header="Run…" Command="{Binding $parent[TreeView].((pvm:PostmanExplorerViewModel)DataContext).RunCommand}" CommandParameter="{Binding}" IsVisible="{Binding IsContainer}" />
+                  <MenuItem Header="Use This Environment" Command="{Binding $parent[TreeView].((pvm:PostmanExplorerViewModel)DataContext).UseCommand}" CommandParameter="{Binding}" IsVisible="{Binding CanUse}" />
+                  <MenuItem Header="New Request…" Command="{Binding $parent[TreeView].((pvm:PostmanExplorerViewModel)DataContext).NewRequestCommand}" CommandParameter="{Binding}" IsVisible="{Binding IsContainer}" />
+                  <MenuItem Header="New Folder…" Command="{Binding $parent[TreeView].((pvm:PostmanExplorerViewModel)DataContext).NewFolderCommand}" CommandParameter="{Binding}" IsVisible="{Binding IsContainer}" />
+                  <MenuItem Header="Rename…" Command="{Binding $parent[TreeView].((pvm:PostmanExplorerViewModel)DataContext).RenameCommand}" CommandParameter="{Binding}" IsVisible="{Binding CanRename}" />
+                  <MenuItem Header="Duplicate" Command="{Binding $parent[TreeView].((pvm:PostmanExplorerViewModel)DataContext).DuplicateCommand}" CommandParameter="{Binding}" IsVisible="{Binding IsItem}" />
+                  <MenuItem Header="Open JSON" Command="{Binding $parent[TreeView].((pvm:PostmanExplorerViewModel)DataContext).OpenFileCommand}" CommandParameter="{Binding}" IsVisible="{Binding HasFile}" />
+                  <MenuItem Header="Remove from the List" Command="{Binding $parent[TreeView].((pvm:PostmanExplorerViewModel)DataContext).DeleteCommand}" CommandParameter="{Binding}" IsVisible="{Binding IsOpened}" />
+                  <MenuItem Header="Delete…" Command="{Binding $parent[TreeView].((pvm:PostmanExplorerViewModel)DataContext).DeleteCommand}" CommandParameter="{Binding}" IsVisible="{Binding CanDelete}" />
+                </ContextMenu>
+              </Grid.ContextMenu>
+              <Panel VerticalAlignment="Center">
+                <v:VsIcon Kind="{Binding Icon}" Width="15" Height="15" IsVisible="{Binding HasIcon}" Margin="0,0,6,0" />
+                <TextBlock Text="{Binding MethodText}" IsVisible="{Binding IsRequest}" Width="42" FontSize="10" FontWeight="Bold" VerticalAlignment="Center"
+                           Foreground="{Binding Method, Converter={x:Static hvm:HttpConverters.MethodBrush}}" />
+              </Panel>
+              <TextBlock Grid.Column="1" Text="{Binding Title}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" FontWeight="{Binding IsCollection, Converter={x:Static pvm:PostmanConverters.Bold}}" />
+            </Grid>
+          </TreeDataTemplate>
+        </TreeView.DataTemplates>
+      </TreeView>
+    </Panel>
+  </DockPanel>
+</UserControl>

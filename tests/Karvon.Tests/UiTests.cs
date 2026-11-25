@@ -74,6 +74,12 @@ public class UiTests
         // The Code Map maps no workspace (it would ask the tests' language servers for every file).
         if (vm.Module<Karvon.CodeMap.CodeMapModule>() is { } codeMap)
             codeMap.Indexes = false;
+        // Postman's current values never go to the user's keyring from a test, nor its list to the user's.
+        if (vm.Module<Karvon.Postman.PostmanModule>() is { } postman)
+        {
+            postman.Keyring = null;
+            postman.ListFile = Path.Combine(Path.GetTempPath(), "karvon-postman-" + Guid.NewGuid().ToString("N"), "postman.json");
+        }
         // Inline completions never reach Anthropic or Ollama from a test, whatever the user's own settings and key.
         if (vm.Module<Karvon.Completions.CompletionsModule>() is { } completions)
         {
