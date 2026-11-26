@@ -22,6 +22,15 @@
   <DockPanel Margin="16,12">
     <DockPanel DockPanel.Dock="Top" Margin="0,0,0,8">
       <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="8">
+        <!-- Whether agents may send with it: by the name and Save, where it is seen. -->
+        <Border Name="AgentsToggle" Background="Transparent" Padding="2,0" ToolTip.Tip="{Binding AgentsTip}" ToolTip.ShowOnDisabled="True">
+          <StackPanel Orientation="Horizontal" Spacing="6">
+            <v:VsIcon Kind="Claude" Width="14" Height="14" />
+            <TextBlock Text="Agents may send" VerticalAlignment="Center" />
+            <ToggleSwitch Name="AgentsSwitch" Classes="dkSwitch" IsChecked="{Binding AgentsMaySend}" IsEnabled="{Binding CanLetAgents}" />
+          </StackPanel>
+        </Border>
+        <Border Width="1" Height="18" Background="#3F3F46" VerticalAlignment="Center" Margin="4,0" />
         <Border Classes="pill green" IsVisible="{Binding IsActive}"><TextBlock Text="in use" /></Border>
         <Button Classes="dkOutline" Command="{Binding UseCommand}" IsVisible="{Binding CanBeActive}" Content="Use This Environment" />
         <Button Name="SaveButton" Classes="dkPrimary" Command="{Binding SaveEnvironmentCommand}" IsEnabled="{Binding IsDirty}" Content="Save" ToolTip.Tip="Save (Ctrl+S)" />
@@ -44,6 +53,9 @@
           <TextBlock TextWrapping="Wrap" Classes="dkMuted" Text="Values are kept until Karvon closes. With a passphrase the vault keeps them: without one its key is in the system keyring, which any program you run can ask." />
         </DockPanel>
       </Border>
+      <Border Classes="dkCard" Padding="12,8" Background="#3A2A1E" IsVisible="{Binding WarnsOfThisMachine}" HorizontalAlignment="Left" MaxWidth="820">
+        <TextBlock TextWrapping="Wrap" Text="Agents may send with it, and one of its hosts is this machine: a program an agent starts or changes may answer there, and gets what a request takes." />
+      </Border>
       <Border Classes="dkCard" Padding="12,8" IsVisible="{Binding IsLocked}" HorizontalAlignment="Left" MaxWidth="820">
         <DockPanel>
           <Button DockPanel.Dock="Right" Classes="dkOutline" Margin="12,0,0,0" VerticalAlignment="Center" Command="{Binding OpenVaultCommand}" Content="Unlock…" />
@@ -53,13 +65,11 @@
     </StackPanel>
 
     <StackPanel DockPanel.Dock="Bottom" Spacing="6" Margin="0,12,0,0" MaxWidth="820" HorizontalAlignment="Left">
-      <CheckBox Name="AgentsBox" IsChecked="{Binding AgentsMaySend}" IsEnabled="{Binding CanLetAgents}" Content="Agents may send requests with it (its values go into the request, never to them)" />
       <TextBlock Text="{Binding HostsText}" Classes="dkMuted" TextWrapping="Wrap" />
       <StackPanel Orientation="Horizontal" Spacing="8">
         <TextBlock Text="Other hosts its values may go to" Classes="dkMuted" VerticalAlignment="Center" />
         <TextBox Name="HostsBox" Classes="dkField" Width="360" Text="{Binding AddedHosts, UpdateSourceTrigger=LostFocus}" PlaceholderText="api.example.com, id.example.com" />
       </StackPanel>
-      <TextBlock Text="One of its hosts is this machine: a program an agent starts or changes may answer there, and gets what a request takes." Foreground="#E2C08D" TextWrapping="Wrap" IsVisible="{Binding WarnsOfThisMachine}" />
     </StackPanel>
 
     <Grid DockPanel.Dock="Top" ColumnDefinitions="30,2*,4*,28,70,28" Margin="1,0,1,2">

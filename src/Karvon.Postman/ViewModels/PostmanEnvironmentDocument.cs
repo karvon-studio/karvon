@@ -152,6 +152,12 @@ public sealed partial class PostmanEnvironmentDocument : PostmanDocument
 
     public bool CanLetAgents => !HasFileValues;
 
+    /// <summary>What letting agents send with it does, by its switch.</summary>
+    public string AgentsTip => CanLetAgents
+        ? "Claude and the other agents may send requests with this environment. Its values go into the request inside Karvon, "
+            + "never to them, and only to its own hosts; a value that comes back in a response is hidden from them. Off, they only see its names."
+        : "Its file still has values in it: Move to the Vault first.";
+
     public string HostsText => _environment.Hosts.Except(_environment.AddedHosts, StringComparer.OrdinalIgnoreCase).ToList() is { Count: > 0 } hosts
         ? "Its own hosts: " + string.Join(", ", hosts) : "It has no host of its own yet (a variable with an address, as baseUrl).";
 
@@ -177,7 +183,7 @@ public sealed partial class PostmanEnvironmentDocument : PostmanDocument
 
     void Kept()
     {
-        foreach (var name in new[] { nameof(HasFileValues), nameof(IsLocked), nameof(IsForSession), nameof(AgentsMaySend), nameof(CanLetAgents), nameof(HostsText), nameof(AddedHosts), nameof(WarnsOfThisMachine) })
+        foreach (var name in new[] { nameof(HasFileValues), nameof(IsLocked), nameof(IsForSession), nameof(AgentsMaySend), nameof(CanLetAgents), nameof(AgentsTip), nameof(HostsText), nameof(AddedHosts), nameof(WarnsOfThisMachine) })
             OnPropertyChanged(name);
     }
 
