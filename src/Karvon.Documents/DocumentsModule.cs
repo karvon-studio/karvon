@@ -17,10 +17,14 @@ public sealed class DocumentsModule : KarvonModule
     /// <summary>How documents are opened (the tests' fake engines); the library's otherwise.</summary>
     internal Func<CancellationToken, Task<IDocumentEngines>>? Engines { get; set; }
 
-    internal DocumentSessions Sessions => _sessions ??= new(ct => Engines is { } engines ? engines(ct) : LoadAsync(ct));
+    internal DocumentSessions Sessions => _sessions ??= new(ct => Engines is { } engines ? engines(ct) : LoadAsync(ct)) { AskPassword = AskPasswordAsync };
 
     /// <summary>The previews' documents, apart from Claude's.</summary>
-    DocumentSessions Previews => _previews ??= new(ct => Engines is { } engines ? engines(ct) : LoadAsync(ct));
+    DocumentSessions Previews => _previews ??= new(ct => Engines is { } engines ? engines(ct) : LoadAsync(ct)) { AskPassword = AskPasswordAsync };
+
+    /// <summary>A password-protected file's password, asked of the user in Karvon's window (whoever opens it: Claude, a preview).</summary>
+    Task<string?> AskPasswordAsync(string path, string? problem, CancellationToken ct) =>
+        Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(() => Workbench.AskFilePasswordAsync(path, problem));
 
     DocumentSessions? _previews;
 

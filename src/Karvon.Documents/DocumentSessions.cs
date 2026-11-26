@@ -54,6 +54,12 @@ public sealed class DocumentSessions(Func<CancellationToken, Task<IDocumentEngin
 
     static readonly JsonSerializerOptions Compact = new() { WriteIndented = false, Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping };
 
+    /// <summary>
+    /// The user asked for a password-protected file's password (the file, why the last one did not open it): null when they
+    /// did not give one. Without it, such a file does not open.
+    /// </summary>
+    public Func<string, string?, CancellationToken, Task<string?>>? AskPassword { get; set; }
+
     public IReadOnlyList<OpenDocument> Open
     {
         get
@@ -102,6 +108,8 @@ public sealed class DocumentSessions(Func<CancellationToken, Task<IDocumentEngin
             var opened = path is not null
                 ? await CallAsync(document, kind.OpenTool, new JsonObject { ["path"] = path }, ct, own: true)
                 : await CallAsync(document, kind.NewTool!, newArguments ?? new JsonObject(), ct, own: true);
+            if (opened.IsError && path is not null && kind.Password is { } protection && opened.Text.Contains(protection.Needed, StringComparison.OrdinalIgnoreCase))
+                opened = await OpenWithPasswordAsync(document, path, protection, ct);
             if (opened.IsError)
                 throw new InvalidOperationException(opened.Text);
             if (kind == DocumentKind.Pdf && TryParse(opened.Text)?["doc"] is JsonValue doc && doc.TryGetValue<int>(out var engineDocument))
@@ -125,6 +133,29 @@ public sealed class DocumentSessions(Func<CancellationToken, Task<IDocumentEngin
         {
             server.Dispose();
             throw;
+        }
+    }
+
+    /// <summary>
+    /// A password-protected file opened with the password the user gives (asked again while it is wrong): straight to the
+    /// engine, never in what is answered.
+    /// </summary>
+    async Task<EngineResult> OpenWithPasswordAsync(OpenDocument document, string path, PasswordOpening protection, CancellationToken ct)
+    {
+        var name = Path.GetFileName(path);
+        string? problem = null;
+        while (true)
+        {
+            if (AskPassword is not { } ask || await ask(path, problem, ct) is not { Length: > 0 } password)
+                throw new InvalidOperationException($"{name} is password-protected, and the user did not give its password (they are asked for it in Karvon's window, and closed it).");
+            var opened = await CallAsync(document, protection.CommandTool, new JsonObject
+            {
+                ["command"] = "file.open",
+                ["params"] = new JsonObject { ["path"] = path, ["password"] = password },
+            }, ct, own: true);
+            if (!opened.IsError || !opened.Text.Contains(protection.Wrong, StringComparison.OrdinalIgnoreCase))
+                return opened;
+            problem = "The password is incorrect. Check that Caps Lock is off and try again.";
         }
     }
 

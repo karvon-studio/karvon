@@ -18,11 +18,20 @@ public sealed record DocumentKind(string Id, string Name, IReadOnlyList<string> 
 
     public static readonly DocumentKind Word = new("word", "Word", [".docx", ".doc", ".odt", ".rtf"],
         [".docx", ".pdf", ".odt", ".rtf", ".html", ".md", ".tex", ".txt", ".png"], "open_document", "save_document", "new_document", "template", null,
-        new HashSet<string>(["open_document", "save_document", "new_document", "screenshot", "click", "key", "ui_inspect", "parity"]));
+        new HashSet<string>(["open_document", "save_document", "new_document", "screenshot", "click", "key", "ui_inspect", "parity"]))
+    {
+        Password = new("execute", "this document is protected with a password", "the password is incorrect"),
+    };
 
     public static readonly DocumentKind Excel = new("excel", "Excel", [".xlsx", ".xlsm", ".xls", ".xlsb", ".ods", ".csv", ".tsv"],
         [".xlsx", ".csv", ".tsv", ".json", ".html"], "open_workbook", "save_workbook", "new_workbook", "sample", null,
-        new HashSet<string>(["open_workbook", "save_workbook", "new_workbook", "screenshot"]));
+        new HashSet<string>(["open_workbook", "save_workbook", "new_workbook", "screenshot"]))
+    {
+        Password = new("execute_command", "is password-protected", "The password is incorrect"),
+    };
+
+    /// <summary>How its engine opens a password-protected file; null when it opens none.</summary>
+    public PasswordOpening? Password { get; init; }
 
     public static readonly DocumentKind Slides = new("slides", "PowerPoint", [".pptx"], [".pptx", ".pdf"],
         "open_presentation", "save_presentation", "new_presentation", "theme", "export",
@@ -44,3 +53,9 @@ public sealed record DocumentKind(string Id, string Name, IReadOnlyList<string> 
         _ => null,
     };
 }
+
+/// <summary>
+/// How an engine opens a password-protected file: its tool that runs one of its commands (file.open, given the password),
+/// and what its errors say when a password is needed and when the one given is wrong.
+/// </summary>
+public sealed record PasswordOpening(string CommandTool, string Needed, string Wrong);

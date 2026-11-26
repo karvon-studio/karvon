@@ -58,6 +58,8 @@ public interface IDialogService
     Task<string?> PromptAsync(string title, string label, string initial, bool secret) => PromptAsync(title, label, initial);
     /// <summary>A new passphrase for Karvon's vault (set, or <paramref name="change"/>d), typed twice; null when cancelled.</summary>
     Task<string?> VaultPassphraseAsync(bool change) => Task.FromResult<string?>(null);
+    /// <summary>The password of a password-protected file to open (<paramref name="problem"/>: why the last one did not); null when cancelled.</summary>
+    Task<string?> FilePasswordAsync(string path, string? problem) => Task.FromResult<string?>(null);
     /// <summary>One of <paramref name="options"/> (<paramref name="initial"/> chosen first); null when cancelled.</summary>
     Task<string?> PickAsync(string title, string label, IReadOnlyList<string> options, string? initial) => Task.FromResult<string?>(null);
     /// <summary>Returns true = save, false = discard, null = cancel.</summary>

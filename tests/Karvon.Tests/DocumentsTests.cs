@@ -1,6 +1,10 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using Avalonia.Controls;
 using Avalonia.Headless.XUnit;
+using Avalonia.Interactivity;
+using Avalonia.Threading;
+using Avalonia.VisualTree;
 using Karvon.Claude;
 using Karvon.Documents;
 using Karvon.Views;
@@ -33,16 +37,34 @@ public class DocumentsTests
                     var name = request["params"]!["name"]!.GetValue<string>();
                     var arguments = request["params"]!["arguments"]!.AsObject();
                     Calls.Add((name, arguments.DeepClone().AsObject()));
-                    var content = new JsonArray(new JsonObject { ["type"] = "text", ["text"] = Answer(name, arguments) });
+                    var (text, failed) = Reply(name, arguments);
+                    var content = new JsonArray(new JsonObject { ["type"] = "text", ["text"] = text });
                     if (name is "render_page")
                         content.Add(new JsonObject { ["type"] = "image", ["data"] = "iVBORw0KGgo=", ["mimeType"] = "image/png" });
-                    result = new JsonObject { ["content"] = content, ["isError"] = name == "fail" };
+                    result = new JsonObject { ["content"] = content, ["isError"] = failed };
                     break;
                 default:
                     result = new JsonObject { ["protocolVersion"] = "2025-06-18" };
                     break;
             }
             return Task.FromResult<string?>(new JsonObject { ["jsonrpc"] = "2.0", ["id"] = request["id"]!.DeepClone(), ["result"] = result }.ToJsonString());
+        }
+
+        /// <summary>A file named "Locked..." is password-protected, as the engines say it: opened with the password "right" alone.</summary>
+        (string Text, bool Failed) Reply(string name, JsonObject arguments)
+        {
+            var path = arguments["path"]?.GetValue<string>() ?? arguments["params"]?["path"]?.GetValue<string>() ?? "";
+            if (!Path.GetFileName(path).StartsWith("Locked", StringComparison.Ordinal))
+                return (Answer(name, arguments), name == "fail");
+            return (kind, name, arguments["params"]?["password"]?.GetValue<string>()) switch
+            {
+                ("excel", "open_workbook", _) => ($"open_workbook: '{Path.GetFileName(path)}' is password-protected. Enter its password to open it.", true),
+                ("word", "open_document", _) => ("file.open: this document is protected with a password", true),
+                ("excel", "execute_command", "right") or ("word", "execute", "right") => ("""{"index": 0}""", false),
+                ("excel", "execute_command", _) => ("execute_command: The password is incorrect. Check that Caps Lock is off and try again.", true),
+                ("word", "execute", _) => ("file.open: the password is incorrect", true),
+                _ => ("Not so.", true),
+            };
         }
 
         string Answer(string name, JsonObject arguments) => (kind, name) switch
@@ -227,6 +249,86 @@ public class DocumentsTests
     }
 
     [Fact]
+    public async Task A_password_protected_workbook_or_document_opens_with_the_password_the_user_gives_which_Claude_never_sees()
+    {
+        var (tools, engines, sessions, folder) = Setup();
+        File.WriteAllText(Path.Combine(folder, "Locked.xlsx"), "");
+        File.WriteAllText(Path.Combine(folder, "Locked.docx"), "");
+        List<(string Path, string? Problem)> asked = [];
+        var answers = new Queue<string?>(["wrong", "right", null, "right"]);
+        sessions.AskPassword = (path, problem, _) =>
+        {
+            asked.Add((path, problem));
+            return Task.FromResult(answers.Dequeue());
+        };
+        try
+        {
+            // Asked again while the password is wrong; given to the engine's file.open, never in what Claude gets.
+            var opened = await tools["document_open"].CallAsync(Input(new { path = "Locked.xlsx" }), default);
+            Assert.False(opened.IsError, opened.Text);
+            Assert.StartsWith($"Document 1: {Path.Combine(folder, "Locked.xlsx")} (Excel).", opened.Text);
+            Assert.DoesNotContain("right", opened.Text);
+            var wrongAgain = "The password is incorrect. Check that Caps Lock is off and try again.";
+            Assert.Equal([(Path.Combine(folder, "Locked.xlsx"), null), (Path.Combine(folder, "Locked.xlsx"), wrongAgain)], asked);
+            var calls = engines.Servers.Single().Calls;
+            Assert.Equal(["open_workbook", "execute_command", "execute_command"], calls.Select(c => c.Tool));
+            Assert.Equal("""{"command":"file.open","params":{"path":"PATH","password":"right"}}""",
+                calls[2].Arguments.ToJsonString().Replace(Path.Combine(folder, "Locked.xlsx").Replace("\\", "\\\\"), "PATH"));
+
+            // Not given (the window closed): it does not open, and Claude is told why.
+            var refused = await tools["document_open"].CallAsync(Input(new { path = "Locked.docx" }), default);
+            Assert.True(refused.IsError);
+            Assert.Equal("Locked.docx is password-protected, and the user did not give its password (they are asked for it in Karvon's window, and closed it).", refused.Text);
+            Assert.True(engines.Servers[1].Disposed);
+            // Word's engine runs its command with "execute".
+            Assert.False((await tools["document_open"].CallAsync(Input(new { path = "Locked.docx" }), default)).IsError);
+            Assert.Equal(["open_document", "execute"], engines.Servers[2].Calls.Select(c => c.Tool));
+
+            // Nobody to ask: it does not open.
+            sessions.AskPassword = null;
+            Assert.True((await tools["document_open"].CallAsync(Input(new { path = "Locked.xlsx" }), default)).IsError);
+        }
+        finally
+        {
+            Directory.Delete(folder, recursive: true);
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task Its_password_window_says_why_the_last_one_did_not_open_it_and_gives_the_one_typed()
+    {
+        var owner = new Window { Width = 800, Height = 600 };
+        owner.Show();
+        var window = new FilePasswordWindow("/home/me/Reports/Budget 2026.xlsx", "The password is incorrect. Check that Caps Lock is off and try again.");
+        var result = window.ShowDialog<string?>(owner);
+        Dispatcher.UIThread.RunJobs();
+        T Find<T>(string name) where T : Control => window.GetVisualDescendants().OfType<T>().Single(c => c.Name == name);
+        var open = Find<Button>("Open");
+        Assert.False(open.IsEnabled);
+        Assert.Equal("The password is incorrect. Check that Caps Lock is off and try again.", Find<TextBlock>("Problem").Text);
+        Find<TextBox>("Password").Text = "s3cret pass";
+        Dispatcher.UIThread.RunJobs();
+        Assert.True(open.IsEnabled);
+        Assert.Equal('•', Find<TextBox>("Password").PasswordChar);
+        Find<Button>("Show").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        Assert.Equal('\0', Find<TextBox>("Password").PasswordChar);
+        Find<Button>("Show").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        Dispatcher.UIThread.RunJobs();
+        Snapshot(window, "file-password");
+        open.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        Assert.Equal("s3cret pass", await result);
+
+        // Cancelled: none.
+        var again = new FilePasswordWindow("/home/me/Reports/Budget 2026.xlsx", null);
+        var none = again.ShowDialog<string?>(owner);
+        Dispatcher.UIThread.RunJobs();
+        Assert.False(again.GetVisualDescendants().OfType<TextBlock>().Single(t => t.Name == "Problem").IsVisible);
+        again.GetVisualDescendants().OfType<Button>().Single(b => b.Name == "Cancel").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        Assert.Null(await none);
+        owner.Close();
+    }
+
+    [Fact]
     public void Scripts_that_read_or_write_documents_are_sent_to_the_document_tools()
     {
         var rule = new DocumentsModule().ClaudeShellRules().Single();
@@ -321,6 +423,23 @@ public class DocumentsTests
             await Call("document_open", new { path = "Deck.pptx" });
             Assert.Contains("Quarterly review", await Call("document_call", new { document = 7, tool = "inspect_slide", arguments = new { index = 0 } }));
             Assert.True(new FileInfo(Path.Combine(folder, "Deck.pdf")).Length > 0);
+
+            // A Word document saved with a password: opened again with the one the user gives (asked again when wrong).
+            await Call("document_call", new { document = 1, tool = "execute", arguments = new { command = "file.saveAs", @params = new { path = Path.Combine(folder, "Locked.docx"), password = "karvon-secret" } } });
+            List<string?> asked = [];
+            var answers = new Queue<string>(["not it", "karvon-secret"]);
+            sessions.AskPassword = (_, problem, _) =>
+            {
+                asked.Add(problem);
+                return Task.FromResult<string?>(answers.Dequeue());
+            };
+            var locked = await Call("document_open", new { path = "Locked.docx" });
+            Assert.DoesNotContain("karvon-secret", locked);
+            Assert.Equal([null, "The password is incorrect. Check that Caps Lock is off and try again."], asked);
+            var lockedId = int.Parse(locked["Document ".Length..locked.IndexOf(':')]);
+            Assert.Contains("Karvon reads this report.", await Call("document_call", new { document = lockedId, tool = "get_text" }));
+            sessions.AskPassword = null;
+            await tools["document_close"].CallAsync(Input(new { document = lockedId }), default);
         }
         finally
         {

@@ -401,6 +401,8 @@ zoomed (Ctrl+wheel), drawn again when the file changes; Open Externally hands it
 stays in the editor.
 
 - `document_open` opens a file, or starts a new Word, Excel or PowerPoint document, in memory, and lists its engine's tools.
+  A password-protected workbook or Word document (Claude's or a preview's) has Karvon ask you for its password in a
+  window of its own (again when it is wrong): it goes to the engine alone, and Claude learns only whether it opened.
 - `document_call` runs one of them on it: its text or structure, cells read and written, a page drawn (Claude sees the
   picture), any of the engine's commands. `document_tools` gives one's arguments only when they are needed, so few
   tokens go to tools a session does not use.

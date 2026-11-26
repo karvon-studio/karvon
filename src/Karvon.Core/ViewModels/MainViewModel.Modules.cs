@@ -160,6 +160,8 @@ public partial class MainViewModel : IWorkbench
 
     Task<bool?> IWorkbench.ConfirmAsync(string title, string message) => Dialogs?.ConfirmAsync(title, message) ?? Task.FromResult<bool?>(null);
 
+    Task<string?> IWorkbench.AskFilePasswordAsync(string path, string? problem) => Dialogs?.FilePasswordAsync(path, problem) ?? Task.FromResult<string?>(null);
+
     Task<IReadOnlyList<string>?> IWorkbench.ChooseProjectReferencesAsync(string project, IReadOnlyList<ProjectReferenceChoice> projects) =>
         Dialogs?.ChooseProjectReferencesAsync(project, projects) ?? Task.FromResult<IReadOnlyList<string>?>(null);
 

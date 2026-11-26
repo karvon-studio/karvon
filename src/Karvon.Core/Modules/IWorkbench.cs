@@ -48,6 +48,12 @@ public interface IWorkbench
     Task<bool> OpenSealedAsync() => Task.FromResult(false);
 
     /// <summary>
+    /// The password of a password-protected file a module opens, asked of the user in a window of Karvon's (why the last one
+    /// did not open it: <paramref name="problem"/>); null when cancelled. It is never an agent's to give or to see.
+    /// </summary>
+    Task<string?> AskFilePasswordAsync(string path, string? problem) => Task.FromResult<string?>(null);
+
+    /// <summary>
     /// Visual Studio's Reference Manager for a project: the solution's other projects, those it references checked; the
     /// ones checked when it closes with OK, or null when it was cancelled.
     /// </summary>
