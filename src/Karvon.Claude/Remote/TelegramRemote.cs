@@ -74,6 +74,7 @@ public sealed partial class TelegramRemote : IAsyncDisposable
     const string PairingKey = "karvon-telegram/pairing";
     const string TopicsKey = "karvon-telegram/topics";
     const string CodeKey = "karvon-telegram/pairing-code";
+    const string PausedKey = "karvon-telegram/paused";
 
     static TelegramRemote? _shared;
 
@@ -101,6 +102,7 @@ public sealed partial class TelegramRemote : IAsyncDisposable
         LockFile = lockFile;
         _http = handler is null ? new HttpClient { Timeout = Timeout.InfiniteTimeSpan } : new HttpClient(handler) { Timeout = Timeout.InfiniteTimeSpan };
         _api = api;
+        IsOn = () => !IsPaused;
         if (Token is { } token)
             KnownSecrets.Seal(TokenKey, token);
     }
@@ -108,8 +110,8 @@ public sealed partial class TelegramRemote : IAsyncDisposable
     /// <summary>The file a Karvon window holds while it polls the bot: the others leave it to that one.</summary>
     public string LockFile { get; }
 
-    /// <summary>Whether it may be used at all (Settings); read as it is needed.</summary>
-    public Func<bool> IsOn { get; set; } = () => true;
+    /// <summary>Whether it is used now: not turned off (<see cref="IsPaused"/>).</summary>
+    public Func<bool> IsOn { get; set; }
 
     /// <summary>Whether a question may be answered from Telegram (Settings).</summary>
     public Func<bool> Approves { get; set; } = () => true;
@@ -146,6 +148,59 @@ public sealed partial class TelegramRemote : IAsyncDisposable
 
     /// <summary>A Karvon window polls the bot: this one.</summary>
     public bool IsPolling => _owner is not null && _polling is { IsCancellationRequested: false };
+
+    /// <summary>
+    /// Turned off, in every Karvon window (it is kept sealed, where they all read it): nothing is told in Telegram, what is
+    /// there of the turns that run goes, and what is written there is answered that it is off. The bot stays set up.
+    /// </summary>
+    public bool IsPaused
+    {
+        get => _store.Get(PausedKey) is not null;
+        set
+        {
+            if (value == IsPaused)
+                return;
+            if (value)
+            {
+                _store.Set(PausedKey, "Telegram turned off", "1");
+                Hush();
+            }
+            else
+            {
+                _store.Delete(PausedKey);
+                Start();
+            }
+            Changed?.Invoke();
+        }
+    }
+
+    /// <summary>What Telegram shows of the turns that run (their status, their questions) taken away: it is off.</summary>
+    void Hush()
+    {
+        foreach (var (key, ask) in _asks.ToList())
+        {
+            ask.Done = true;
+            _asks.TryRemove(key, out _);
+            var id = ask.MessageId;
+            ask.MessageId = null;
+            if (id is { } message)
+                Enqueue(ask.Chat, (bot, pairing) => bot.DeleteMessageAsync(pairing.ChatId, message));
+        }
+        lock (_lock)
+            foreach (var chat in _chats)
+            {
+                chat.Waiting = 0;
+                chat.Running = false;
+                if (chat.StatusId is { } id)
+                {
+                    chat.StatusId = null;
+                    Enqueue(chat, (bot, pairing) => bot.DeleteMessageAsync(pairing.ChatId, id));
+                }
+            }
+        Announce();
+    }
+
+    DateTime _toldOff;
 
     /// <summary>Conversations are shown in Telegram now: it is set up, paired, on, and this window polls (or another hands it its own).</summary>
     public bool IsActive => (IsPolling || IsLinked) && Pairing is not null && IsOn();
@@ -379,9 +434,18 @@ public sealed partial class TelegramRemote : IAsyncDisposable
             return;
         }
         // Only the one who paired it, in that group.
-        if (message.Chat.Id != pairing.ChatId || message.From?.Id != pairing.UserId || !IsOn())
+        if (message.Chat.Id != pairing.ChatId || message.From?.Id != pairing.UserId)
             return;
         int? where = message.IsTopicMessage ? message.ThreadId : null;
+        if (!IsOn())
+        {
+            if (DateTime.UtcNow - _toldOff > TimeSpan.FromMinutes(1))
+            {
+                _toldOff = DateTime.UtcNow;
+                await bot.SendMessageAsync(pairing.ChatId, where, "Karvon's remote control is off: turn it on with the Telegram button in Karvon (by Settings).", silent: true);
+            }
+            return;
+        }
         // Sent while no Karvon window was there to take it: not done now, unasked, hours later.
         if (message.Date > 0 && DateTimeOffset.UtcNow.ToUnixTimeSeconds() - message.Date > StaleAfter.TotalSeconds)
         {

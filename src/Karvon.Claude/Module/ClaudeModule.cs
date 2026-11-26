@@ -55,12 +55,30 @@ public sealed class ClaudeModule : AgentPanelModule, IClaudeService
     }
 
     /// <summary>Telegram's button in the toolbar, before Settings: its window, and how it is.</summary>
-    public override ModuleToolbarButton ToolbarButton { get; } = new("Telegram") { Click = ShowTelegramSetupAsync };
+    public override ModuleToolbarButton ToolbarButton => _toolbarButton ??= new("Telegram")
+    {
+        Menu =
+        [
+            new ModuleToolbarMenuItem("Telegram On", () =>
+            {
+                Remote.IsPaused = !Remote.IsPaused;
+                return Task.CompletedTask;
+            }) { IsCheckable = true },
+            new ModuleToolbarMenuItem("Set Up...", ShowTelegramSetupAsync),
+        ],
+    };
 
+    ModuleToolbarButton? _toolbarButton;
+
+    /// <summary>The button as Telegram is now: its dot while it is used, dimmed while it is off, its menu's tick.</summary>
     void ShowTelegramState()
     {
-        ToolbarButton.IsOn = Remote.IsActive;
-        ToolbarButton.ToolTip = "Telegram remote control: " + Remote.State;
+        var button = ToolbarButton;
+        button.IsOn = Remote.IsActive;
+        button.IsDimmed = Remote.Token is null || Remote.IsPaused;
+        button.ToolTip = "Telegram remote control: " + Remote.State;
+        button.Menu![0].IsChecked = !Remote.IsPaused;
+        button.Menu[0].IsVisible = Remote.Token is not null;
     }
 
     /// <summary>In Settings' Claude page: Telegram's remote control, set up in its window, and how it works.</summary>
@@ -80,15 +98,9 @@ public sealed class ClaudeModule : AgentPanelModule, IClaudeService
                         () => Remote.State,
                         new SettingAction("Set Up...", ShowTelegramSetupAsync),
                         new SettingAction("Forget", ForgetTelegramAsync) { ShownWhen = SetUp }) { Keywords = "remote phone mobile bot" },
-                    new SwitchSetting("Use Telegram", "Off, nothing is told or taken there; the bot stays set up.", () => settings.TelegramOn, on =>
-                    {
-                        settings.TelegramOn = on;
-                        settings.Save();
-                        if (on)
-                            Remote.Start();
-                        else
-                            _ = Remote.StopAsync();
-                    }) { ShownWhen = SetUp, Keywords = nameof(settings.TelegramOn) },
+                    new SwitchSetting("Use Telegram", "Off (in every Karvon window), nothing is told there and what it shows of the turns that run goes; "
+                        + "the bot stays set up. The Telegram button by Settings turns it on and off too.", () => !Remote.IsPaused, on => Remote.IsPaused = !on)
+                    { ShownWhen = SetUp },
                     new SwitchSetting("Answer questions from Telegram",
                         "Allow and Deny on an agent's questions there. Karvon's own about a destructive call (a DROP, a pod deleted) are answered at the computer alone.",
                         () => settings.TelegramApproves, on =>

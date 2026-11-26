@@ -67,9 +67,6 @@ public sealed class Settings
     /// <summary>Remote Control was left on: each conversation's CLI turns it on as it starts.</summary>
     public bool ClaudeRemoteControl { get; set; }
 
-    /// <summary>Telegram's remote control is used (its bot set up in Settings); off, nothing is told or taken there.</summary>
-    public bool TelegramOn { get; set; } = true;
-
     /// <summary>An agent's questions may be answered from Telegram (Karvon's own about a destructive call never are).</summary>
     public bool TelegramApproves { get; set; } = true;
 

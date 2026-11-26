@@ -570,6 +570,62 @@ public class TelegramTests
         owner.Close();
     }
 
+    [AvaloniaFact]
+    public async Task Turned_off_it_takes_away_what_it_shows_tells_nothing_and_says_so_once_when_written_to()
+    {
+        using var telegram = new FakeTelegram();
+        await using var remote = await PairedAsync(telegram);
+        var (dir, _) = FakeClaude.Workspace();
+        var vm = new ClaudeViewModel(new Karvon.Services.Settings(), () => dir, () => null, () => [], () => FakeClaude.Executable) { Remote = remote };
+        var session = new QuietSession();
+        remote.Observe(vm, session, "claude", new ClaudeAssistant("m1", [new ClaudeTextBlock("Looking.")], null));
+        remote.Asked(vm, session, "claude", new RemoteAsk("req-9", "Allow Claude to run this command?", "ls", null, false, false));
+        await Until(() => telegram.CallsOf("sendMessage").Any(m => m["reply_markup"] is not null)
+            && telegram.CallsOf("sendMessage").Any(m => m["text"]!.GetValue<string>().Contains("Waiting for you") || m["text"]!.GetValue<string>().Contains("Working")), Wait);
+        var ask = telegram.CallsOf("sendMessage").Single(m => m["reply_markup"] is not null);
+        var status = telegram.CallsOf("sendMessage").First(m => m["disable_notification"]!.GetValue<bool>());
+
+        remote.IsPaused = true;
+        await Until(() => Deleted(telegram, ask) && Deleted(telegram, status), Wait);
+        Assert.False(remote.IsActive);
+        Assert.Equal("Off", remote.State);
+        var sent = telegram.CallsOf("sendMessage").Count();
+        remote.Observe(vm, session, "claude", new ClaudeResult("success", false, 1000, null, "Done.", "quiet"));
+        remote.Asked(vm, session, "claude", new RemoteAsk("req-10", "Allow Claude to run it again?", "ls", null, false, false));
+        await Task.Delay(500, TestContext.Current.CancellationToken);
+        Assert.Equal(sent, telegram.CallsOf("sendMessage").Count());
+
+        // Written to while it is off: said so, once (not to each message).
+        telegram.Message(FakeTelegram.Group, FakeTelegram.Me, "are you there?");
+        await Until(() => telegram.CallsOf("sendMessage").Any(m => m["text"]!.GetValue<string>().StartsWith("Karvon's remote control is off")), Wait);
+        telegram.Message(FakeTelegram.Group, FakeTelegram.Me, "hello?");
+        await Task.Delay(500, TestContext.Current.CancellationToken);
+        Assert.Single(telegram.CallsOf("sendMessage"), m => m["text"]!.GetValue<string>().StartsWith("Karvon's remote control is off"));
+        Assert.Empty(vm.Items);
+
+        remote.IsPaused = false;
+        Assert.True(remote.IsActive);
+        Assert.StartsWith("On:", remote.State);
+    }
+
+    [AvaloniaFact]
+    public void Its_toolbar_button_by_Settings_opens_a_menu_that_turns_it_on_and_off()
+    {
+        var vm = NewViewModel();
+        var window = new Karvon.Views.MainWindow { DataContext = vm, Width = 1400, Height = 900 };
+        window.Show();
+        Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+        var button = vm.ToolbarButtons.Single(b => b.Icon == "Telegram");
+        Assert.True(button.HasMenu);
+        Assert.Equal(["Telegram On", "Set Up..."], button.Menu!.Select(m => m.Header));
+        // Not set up: no switch yet, the icon dimmed, no dot.
+        Assert.False(button.Menu[0].IsVisible);
+        Assert.True(button.IsDimmed);
+        Assert.False(button.IsOn);
+        Assert.Contains(Avalonia.VisualTree.VisualExtensions.GetVisualDescendants(window).OfType<Avalonia.Controls.Button>(), b => b.Name == "ModuleMenuButton" && b.IsEffectivelyVisible);
+        window.Close();
+    }
+
     /// <summary>A conversation that does nothing: for what Telegram is told about one.</summary>
     sealed class QuietSession : IAgentSession
     {

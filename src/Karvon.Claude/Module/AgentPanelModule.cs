@@ -35,7 +35,6 @@ public abstract class AgentPanelModule : KarvonModule
     protected void UseTelegram(string kind, Func<ClaudeViewModel> panel)
     {
         var settings = Workbench.Settings;
-        Remote.IsOn = () => settings.TelegramOn;
         Remote.Approves = () => settings.TelegramApproves;
         Remote.ShowsProgress = () => settings.TelegramProgress;
         Remote.AddHost(kind, panel, WorkingDirectory);
