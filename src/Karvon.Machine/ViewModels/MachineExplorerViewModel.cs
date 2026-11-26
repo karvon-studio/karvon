@@ -70,6 +70,8 @@ public sealed partial class MachineExplorerViewModel : ObservableObject, IDispos
     readonly ProcessSampler _processes = new();
     readonly ResourceSampler _resources = new();
     bool _refreshing;
+    IReadOnlyList<Volume> _volumes = [];
+    DateTime _volumesAt;
 
     public MachineExplorerViewModel(IMachineHost host)
     {
@@ -116,6 +118,15 @@ public sealed partial class MachineExplorerViewModel : ObservableObject, IDispos
 
     internal Func<IReadOnlyList<ProcessInfo>, ResourceUsage> SampleResources { get; set; }
 
+    /// <summary>The disks' file systems (lsblk): read again every few refreshes, they change seldom.</summary>
+    internal Func<IReadOnlyList<Volume>> ListVolumes { get; set; } = Volumes.Read;
+
+    /// <summary>A disk not mounted, mounted (udisks); why not, when it was not.</summary>
+    internal Func<string, CancellationToken, Task<string?>> MountVolume { get; set; } = Volumes.MountAsync;
+
+    /// <summary>The disks' file systems read again at the next refresh (one was mounted).</summary>
+    internal void ForgetVolumes() => _volumesAt = default;
+
     /// <summary>The explorer's foot: what the machine uses now.</summary>
     [ObservableProperty]
     public partial string CpuText { get; set; } = "";
@@ -134,16 +145,19 @@ public sealed partial class MachineExplorerViewModel : ObservableObject, IDispos
         _refreshing = true;
         try
         {
-            var (ports, processes, resources) = await Task.Run(() =>
+            var readVolumes = DateTime.UtcNow - _volumesAt > TimeSpan.FromSeconds(10);
+            var (ports, processes, resources, volumes) = await Task.Run(() =>
             {
                 var ports = ListPorts();
                 var processes = SampleProcesses();
-                return (ports, processes, SampleResources(processes));
+                return (ports, processes, SampleResources(processes), readVolumes ? ListVolumes() : null);
             });
+            if (volumes is not null)
+                (_volumes, _volumesAt) = (volumes, DateTime.UtcNow);
             Ports.Update(ports);
             Processes.Update(processes, ports, resources);
             Resources.Update(resources);
-            Disks.Update(resources.Disks);
+            Disks.Update(resources.Disks, _volumes);
             Sections[0].Detail = ports.Select(p => (p.Protocol, p.Port, p.Pid)).Distinct().Count().ToString(System.Globalization.CultureInfo.InvariantCulture);
             Sections[1].Detail = processes.Count.ToString(System.Globalization.CultureInfo.InvariantCulture);
             Sections[2].Detail = $"{resources.Cpu.Total:0}% CPU";

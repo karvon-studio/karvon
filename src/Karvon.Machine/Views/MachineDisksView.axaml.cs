@@ -5,12 +5,13 @@ using Karvon.Machine.ViewModels;
 
 namespace Karvon.Machine.Views;
 
-/// <summary>The Disks page (see <see cref="DisksPage"/>): a row double-clicked (or Enter) is opened.</summary>
+/// <summary>The Disks page (see <see cref="DisksPage"/>): a row double-clicked (or Enter) is opened, a ring's folder clicked gone into.</summary>
 public partial class MachineDisksView : UserControl
 {
     public MachineDisksView()
     {
         InitializeComponent();
+        Rings.Chosen += folder => (DataContext as DisksPage)?.Choose(folder);
         Table.AddHandler(DoubleTappedEvent, (_, e) => Open(e.Source as Control), RoutingStrategies.Bubble, handledEventsToo: true);
         Table.KeyDown += (_, e) =>
         {

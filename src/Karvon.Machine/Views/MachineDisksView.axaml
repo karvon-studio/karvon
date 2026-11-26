@@ -2,6 +2,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:v="using:Karvon.Views"
              xmlns:mvm="using:Karvon.Machine.ViewModels"
+             xmlns:mv="using:Karvon.Machine.Views"
              x:Class="Karvon.Machine.Views.MachineDisksView"
              x:DataType="mvm:DisksPage">
   <UserControl.Styles>
@@ -27,10 +28,19 @@
       <Setter Property="Padding" Value="14,10" />
       <Setter Property="Width" Value="250" />
       <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+      <Setter Property="VerticalAlignment" Value="Stretch" />
+      <Setter Property="VerticalContentAlignment" Value="Top" />
       <Setter Property="Margin" Value="0,0,12,12" />
     </Style>
     <Style Selector="Button.disk.current">
       <Setter Property="BorderBrush" Value="#4DAAFC" />
+    </Style>
+    <Style Selector="Button.disk v|VsIcon.diskIcon">
+      <Setter Property="Foreground" Value="#4DAAFC" />
+    </Style>
+    <!-- Not mounted: there to be mounted, not yet in use -->
+    <Style Selector="Button.disk.unmounted v|VsIcon.diskIcon">
+      <Setter Property="Foreground" Value="#9D9D9D" />
     </Style>
     <Style Selector="ListBox#Table ListBoxItem">
       <Setter Property="Padding" Value="0" />
@@ -74,13 +84,16 @@
         </ItemsControl.ItemsPanel>
         <ItemsControl.ItemTemplate>
           <DataTemplate x:DataType="mvm:DiskCard">
-            <Button Classes="disk" Classes.current="{Binding IsCurrent}" Command="{Binding BrowseCommand}" ToolTip.Tip="{Binding Mount, StringFormat=Browse {0}}">
+            <Button Classes="disk" Classes.current="{Binding IsCurrent}" Classes.unmounted="{Binding !IsMounted}" Command="{Binding BrowseCommand}" ToolTip.Tip="{Binding Tip}">
               <StackPanel Spacing="5">
-                <StackPanel Orientation="Horizontal" Spacing="8">
-                  <v:VsIcon Kind="Disk" Width="16" Height="16" Foreground="#4DAAFC" />
-                  <TextBlock Text="{Binding Mount}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
-                </StackPanel>
-                <ProgressBar Classes="usage" Classes.high="{Binding IsHigh}" Value="{Binding Share}" />
+                <Grid ColumnDefinitions="Auto,*">
+                  <v:VsIcon Classes="diskIcon" Kind="Disk" Width="16" Height="16" Margin="0,2,8,0" VerticalAlignment="Top" />
+                  <StackPanel Grid.Column="1">
+                    <TextBlock Text="{Binding Name}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                    <TextBlock Text="{Binding Where}" Classes="dkMuted" FontSize="11" TextTrimming="CharacterEllipsis" />
+                  </StackPanel>
+                </Grid>
+                <ProgressBar Classes="usage" Classes.high="{Binding IsHigh}" Value="{Binding Share}" IsVisible="{Binding IsMounted}" />
                 <TextBlock Text="{Binding Text}" FontSize="12" />
                 <TextBlock Text="{Binding Detail}" Classes="dkMuted" FontSize="11" />
               </StackPanel>
@@ -135,7 +148,8 @@
       <TextBlock Text="{Binding Problem}" IsVisible="{Binding HasProblem}" Foreground="#F14C4C" TextWrapping="Wrap" />
     </StackPanel>
 
-    <Grid RowDefinitions="Auto,*" Margin="0,10,0,0">
+    <Grid ColumnDefinitions="*,Auto" Margin="0,10,0,0">
+    <Grid RowDefinitions="Auto,*">
       <Border Classes="dkTableHeader">
         <Grid ColumnDefinitions="*,220,150,130,40" VerticalAlignment="Center" Margin="8,0">
           <Button Classes="dkSort" Command="{Binding SortCommand}" CommandParameter="name">
@@ -172,6 +186,17 @@
           </DataTemplate>
         </ListBox.ItemTemplate>
       </ListBox>
+    </Grid>
+
+    <!-- The folder measured, as rings: what its space went to -->
+    <Border Name="RingsPanel" Grid.Column="1" Width="340" Margin="20,0,0,12" Padding="14" CornerRadius="6" Background="#252526"
+            BorderBrush="#3F3F46" BorderThickness="1" VerticalAlignment="Top" IsVisible="{Binding HasChart}">
+      <StackPanel Spacing="10">
+        <TextBlock Text="Where the space went" FontWeight="SemiBold" />
+        <mv:UsageRings Name="Rings" Height="310" Root="{Binding Chart}" Revision="{Binding ChartRevision}" />
+        <TextBlock Classes="dkMuted" FontSize="11" TextWrapping="Wrap" Text="Each ring is a level of folders. Click a folder to go into it, the middle to go up." />
+      </StackPanel>
+    </Border>
     </Grid>
   </DockPanel>
 </UserControl>

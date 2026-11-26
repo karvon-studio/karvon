@@ -251,9 +251,14 @@ browser, its process stopped (asked first). **Processes**: what runs, by its CPU
 name or pid, each with the ports it listens on, the machine's CPU and memory above; searched, or yours alone; a process
 stopped (asked first). **Resources**: the CPU in all and each core's, memory and swap, the last five minutes of both as a
 line, each disk's space and each network interface's traffic (a container's virtual cable left out), the uptime.
-**Disks**: each disk (where it is mounted, how full) and its files browsed: a folder's files and folders (hidden ones when
-asked), searched, by name, size or date; its folders measured, the largest first, to see what took the space (other
-disks and /proc's kind not entered); a folder opened, a **picture** in a page of its own (fitted or at its size, the
+**Disks**: each disk (its name as the file manager gives it: its label, the computer's name for its root, else its
+size; where it is mounted, how full), and on Linux those not mounted (a Windows partition, a second disk; not the
+system's own boot and recovery ones), mounted by udisks when chosen (the system asks for the password it wants) and
+browsed; its files browsed: a folder's files and folders (hidden ones when asked), searched, by name, size or date; its
+folders measured, the largest first, to see what took the space (other disks and /proc's kind not entered), and drawn
+as **rings** beside them (as the Disk Usage Analyzer's: each ring a level of folders, four deep, each as much of it as
+its share; the one pointed at told in the middle, one clicked gone into, the middle back up; a folder gone into within
+the one measured is known at once); a folder opened, a **picture** in a page of its own (fitted or at its size, the
 folder's others with ← and →), a **video or a sound played in Karvon** by the system's GStreamer (play and pause with
 Space, its line to seek, ← and → five seconds, its volume; a video's pictures drawn on the page; a video's **mini
 player**, a small window over every other at the screen's corner that plays on while you work, its page closed or not:

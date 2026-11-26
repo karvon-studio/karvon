@@ -9,8 +9,8 @@ public sealed record CpuUsage(double Total, IReadOnlyList<double> Cores);
 /// <summary>Memory and swap, in bytes: "used" is what is not free to be taken (Linux's MemAvailable left out).</summary>
 public sealed record MemoryUsage(long Total, long Used, long SwapTotal, long SwapUsed);
 
-/// <summary>A file system's space, where it is mounted.</summary>
-public sealed record DiskUsage(string Mount, string Format, long Total, long Free)
+/// <summary>A file system's space, where it is mounted; its label where the system gives it (Windows).</summary>
+public sealed record DiskUsage(string Mount, string Format, long Total, long Free, string? Label = null)
 {
     public long Used => Total - Free;
 
@@ -110,7 +110,8 @@ public sealed class ResourceSampler
                     || drive.Name.StartsWith("/run/", StringComparison.Ordinal) || drive.Name.StartsWith("/sys/", StringComparison.Ordinal)
                     || drive.Name.StartsWith("/proc/", StringComparison.Ordinal) || drive.Name.StartsWith("/dev/", StringComparison.Ordinal))
                     continue;
-                disks.Add(new DiskUsage(drive.Name, drive.DriveFormat, drive.TotalSize, drive.AvailableFreeSpace));
+                disks.Add(new DiskUsage(drive.Name, drive.DriveFormat, drive.TotalSize, drive.AvailableFreeSpace,
+                    OperatingSystem.IsWindows() && drive.VolumeLabel is { Length: > 0 } label ? label : null));
             }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
             {

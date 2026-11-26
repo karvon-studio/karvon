@@ -2,7 +2,11 @@ using System.Diagnostics;
 using System.Net;
 using System.Net.Sockets;
 using System.Text.Json;
+using Avalonia;
+using Avalonia.Headless;
 using Avalonia.Headless.XUnit;
+using Avalonia.Input;
+using Avalonia.VisualTree;
 using Avalonia.Threading;
 using Karvon.Machine;
 using Karvon.Machine.ViewModels;
@@ -335,11 +339,24 @@ public class MachineTests
         Assert.Equal((300_000L, 1_000L), (disks.Rows[0].Size!.Value, disks.Rows[1].Size!.Value));
         Assert.Equal(100, disks.Rows[0].Share, 1);
 
+        // Its rings: its files and folders' size, each folder's folders within it (measured once, known when gone into).
+        var chart = disks.Chart!;
+        Assert.Equal((root, 301_151L), (chart.Path, chart.Size));
+        Assert.Equal(["big", "small"], chart.Folders.Select(f => f.Name));
+        Assert.Equal(["deeper"], chart.Folders[1].Folders.Select(f => f.Name));
+
         // A folder browsed into, and back up; a text file in the editor, a picture in a page of its own.
         disks.Open(disks.Rows.Single(r => r.Name == "small"));
         Assert.Equal(["deeper"], disks.Rows.Select(r => r.Name));
+        Assert.Same(chart.Folders[1], disks.Chart);
+        Assert.Equal((1_000L, "size"), (disks.Rows[0].Size!.Value, disks.SortBy));
         disks.UpCommand.Execute(null);
         Assert.Equal(root, disks.Folder);
+        Assert.Same(chart, disks.Chart);
+        disks.Browse(Path.GetDirectoryName(root)!);
+        Assert.Equal((null, "name"), (disks.Chart, disks.SortBy));
+        disks.Browse(root);
+        Assert.Same(chart, disks.Chart);
         disks.Open(disks.Rows.Single(r => r.Name == "notes.txt"));
         Assert.Equal([Path.Combine(root, "notes.txt")], host.Edited);
         disks.Open(disks.Rows.Single(r => r.Name == "a.png"));
@@ -354,8 +371,176 @@ public class MachineTests
         window.Show();
         Dispatcher.UIThread.RunJobs();
         Snapshot(window, "machine-disks");
+
+        // The middle is the folder; its first ring's top, its largest folder: clicked, gone into; its middle, back up.
+        var rings = window.GetVisualDescendants().OfType<UsageRings>().Single();
+        var center = new Point(rings.Bounds.Width / 2, rings.Bounds.Height / 2);
+        var radius = Math.Min(rings.Bounds.Width, rings.Bounds.Height) / 2 - 2;
+        var top = new Point(center.X + 3, center.Y - radius / (UsageRings.Rings + 1.6) * 2.1);
+        Assert.Same(chart, rings.FolderAt(center));
+        Assert.Same(chart.Folders[0], rings.FolderAt(top));
+        Assert.Null(rings.FolderAt(new Point(1, 1)));
+        void Click(Point point)
+        {
+            var at = rings.TranslatePoint(point, window)!.Value;
+            window.MouseDown(at, MouseButton.Left);
+            window.MouseUp(at, MouseButton.Left);
+            Dispatcher.UIThread.RunJobs();
+        }
+        Click(top);
+        Assert.Equal((Path.Combine(root, "big"), chart.Folders[0]), (disks.Folder, disks.Chart));
+        Click(center);
+        Assert.Equal(root, disks.Folder);
         window.Close();
         picture.Dispose();
+    }
+
+    [AvaloniaFact]
+    public void A_folder_is_measured_with_its_folders_to_a_depth_the_largest_first_and_deeper_ones_in_their_sizes()
+    {
+        var root = Directory.CreateTempSubdirectory("karvon-measure-").FullName;
+        Directory.CreateDirectory(Path.Combine(root, "a", "b", "c"));
+        Directory.CreateDirectory(Path.Combine(root, "z"));
+        File.WriteAllBytes(Path.Combine(root, "a", "b", "c", "deep.bin"), new byte[4_000]);
+        File.WriteAllBytes(Path.Combine(root, "a", "one.bin"), new byte[1_000]);
+        File.WriteAllBytes(Path.Combine(root, "z", "big.bin"), new byte[9_000]);
+        File.WriteAllBytes(Path.Combine(root, "top.bin"), new byte[10]);
+
+        var measured = Files.Measure(root, [], 2, TestContext.Current.CancellationToken);
+        Assert.Equal((Path.GetFileName(root), 14_010L, true), (measured.Name, measured.Size, measured.IsListed));
+        Assert.Equal([("z", 9_000L), ("a", 5_000L)], measured.Folders.Select(f => (f.Name, f.Size)));
+        var b = measured.Folders[1].Folders.Single();
+        Assert.Equal(("b", 4_000L, false, 0), (b.Name, b.Size, b.IsListed, b.Folders.Count));
+        Assert.Same(measured, b.Parent!.Parent);
+        Assert.Same(b, measured.Find(Path.Combine(root, "a", "b")));
+        Assert.Null(measured.Find(Path.Combine(root, "a", "b", "c")));
+        Assert.Null(measured.Find(Path.Combine(root, "nothing")));
+        Assert.Null(measured.Find(Path.GetDirectoryName(root)!));
+        Directory.Delete(root, true);
+
+        // Folders of folders, as their rings draw them.
+        var tree = Directory.CreateTempSubdirectory("karvon-rings-").FullName;
+        var random = new Random(7);
+        void Fill(string folder, int level)
+        {
+            for (var i = 0; i < 5 - level; i++)
+            {
+                var sub = Path.Combine(folder, $"folder{level}{i}");
+                Directory.CreateDirectory(sub);
+                File.WriteAllBytes(Path.Combine(sub, "data.bin"), new byte[random.Next(1, 40) * 1_000]);
+                if (level < 3)
+                    Fill(sub, level + 1);
+            }
+        }
+        Fill(tree, 0);
+        var rings = new UsageRings { Root = Files.Measure(tree, [], 5, TestContext.Current.CancellationToken), Width = 320, Height = 320 };
+        var window = new Avalonia.Controls.Window { Width = 340, Height = 340, Background = Avalonia.Media.Brushes.Black, Content = rings };
+        window.Show();
+        Dispatcher.UIThread.RunJobs();
+        Snapshot(window, "machine-disks-rings");
+        window.Close();
+        Directory.Delete(tree, true);
+    }
+
+    /// <summary>lsblk's JSON of a disk with Windows and Linux on it, a snap's loop and a USB stick (an older lsblk's sizes as strings).</summary>
+    const string Lsblk = """
+        {"blockdevices": [
+          {"path": "/dev/loop0", "label": null, "size": 4096, "fstype": "squashfs", "mountpoints": ["/snap/bare/5"], "type": "loop", "parttypename": null},
+          {"path": "/dev/nvme0n1", "label": null, "size": 2048408248320, "fstype": null, "mountpoints": [null], "type": "disk", "parttypename": null,
+           "children": [
+              {"path": "/dev/nvme0n1p1", "label": null, "size": 134217728, "fstype": null, "mountpoints": [null], "type": "part", "parttypename": "Microsoft reserved"},
+              {"path": "/dev/nvme0n1p2", "label": null, "size": 104857600, "fstype": "vfat", "mountpoints": ["/boot/efi"], "type": "part", "parttypename": "EFI System"},
+              {"path": "/dev/nvme0n1p3", "label": null, "size": 1099511627776, "fstype": "ntfs", "mountpoints": [null], "type": "part", "parttypename": "Microsoft basic data"},
+              {"path": "/dev/nvme0n1p4", "label": null, "size": 882900992, "fstype": "ntfs", "mountpoints": [null], "type": "part", "parttypename": "Windows recovery environment"},
+              {"path": "/dev/nvme0n1p5", "label": "linux", "size": 820875280384, "fstype": "ext4", "mountpoints": ["/"], "type": "part", "parttypename": "Linux filesystem"},
+              {"path": "/dev/nvme0n1p6", "label": "New Volume", "size": 108015255552, "fstype": "ntfs", "mountpoints": [null], "type": "part", "parttypename": "Microsoft basic data"},
+              {"path": "/dev/nvme0n1p7", "label": null, "size": 8589934592, "fstype": "swap", "mountpoints": ["[SWAP]"], "type": "part", "parttypename": "Linux swap"}
+           ]
+          },
+          {"path": "/dev/sda", "label": null, "size": "31457280000", "fstype": null, "mountpoint": null, "type": "disk",
+           "children": [{"path": "/dev/sda1", "label": "STICK", "size": "31456231424", "fstype": "exfat", "mountpoint": "/media/me/STICK", "type": "part"}]
+          }
+        ]}
+        """;
+
+    [Fact]
+    public void Disks_are_named_by_their_file_system_and_those_not_mounted_are_offered_but_the_system_s_own()
+    {
+        var volumes = Volumes.Parse(Lsblk);
+        Assert.Equal(["/dev/nvme0n1p2", "/dev/nvme0n1p3", "/dev/nvme0n1p4", "/dev/nvme0n1p5", "/dev/nvme0n1p6", "/dev/nvme0n1p7", "/dev/sda1"], volumes.Select(v => v.Device));
+        Assert.Equal(["/media/me/STICK"], volumes[^1].Mounts);
+        Assert.Equal(31456231424, volumes[^1].Size);
+        Assert.Equal(["1.0 TB Volume", "New Volume"], Volumes.Unmounted(volumes).Select(v => v.Name));
+
+        Assert.Equal("linux", Volumes.NameOf(new DiskUsage("/", "ext4", 1, 0), volumes));
+        Assert.Equal(Environment.MachineName, Volumes.NameOf(new DiskUsage("/", "ext4", 1, 0), []));
+        Assert.Equal("STICK", Volumes.NameOf(new DiskUsage("/media/me/STICK", "exfat", 1, 0), volumes));
+        Assert.Equal("Data", Volumes.NameOf(new DiskUsage("D:\\", "NTFS", 1, 0, "Data"), volumes));
+        Assert.Equal("100 MB Volume", Volumes.NameOf(new DiskUsage("/boot/efi", "vfat", 104857600, 0), volumes));
+        Assert.Empty(Volumes.Parse("not json"));
+        Assert.Equal("Error mounting /dev/nvme0n1p3: Not authorized to perform operation",
+            Volumes.Why("Error mounting /dev/nvme0n1p3: GDBus.Error:org.freedesktop.UDisks2.Error.NotAuthorizedDismissed: Not authorized to perform operation\n", ""));
+        if (OperatingSystem.IsLinux())
+            Assert.All(Volumes.Read(), v => Assert.StartsWith("/dev/", v.Device));
+    }
+
+    [AvaloniaFact]
+    public async Task A_disk_not_mounted_is_mounted_when_its_card_is_chosen_and_then_browsed()
+    {
+        var mounted = Directory.CreateTempSubdirectory("karvon-mounted-").FullName;
+        File.WriteAllText(Path.Combine(mounted, "from-windows.txt"), "hello");
+        var host = new Host();
+        using var explorer = new MachineExplorerViewModel(host);
+        var volumes = Volumes.Parse(Lsblk);
+        List<DiskUsage> disks = [new("/", "ext4", 820875280384, 300_000_000_000), new("/media/me/STICK", "exfat", 31456231424, 30_000_000_000)];
+        List<string> asked = [];
+        string? refusal = "Not authorized to perform operation";
+        explorer.ListPorts = () => [];
+        explorer.SampleProcesses = () => [];
+        explorer.SampleResources = _ => ResourceUsage.None with { Disks = [.. disks] };
+        explorer.ListVolumes = () => volumes;
+        explorer.MountVolume = (device, _) =>
+        {
+            asked.Add(device);
+            if (refusal is null)
+            {
+                volumes = [.. volumes.Select(v => v.Device == device ? v with { Mounts = [mounted] } : v)];
+                disks.Add(new DiskUsage(mounted, "fuseblk", 1099511627776, 600_000_000_000));
+            }
+            return Task.FromResult(refusal);
+        };
+        await explorer.RefreshAsync();
+        var page = explorer.Disks;
+        Assert.Equal([("linux", "/"), ("STICK", "/media/me/STICK"), ("1.0 TB Volume", "/dev/nvme0n1p3"), ("New Volume", "/dev/nvme0n1p6")],
+            page.Disks.Select(d => (d.Name, d.Where)));
+        Assert.Equal([true, true, false, false], page.Disks.Select(d => d.IsMounted));
+        Assert.Equal(("Not mounted", "ntfs · 1.0 TB"), (page.Disks[2].Text, page.Disks[2].Detail));
+
+        explorer.Sections[3].Open();
+        var window = new Avalonia.Controls.Window { Width = 1300, Height = 500, Content = new MachineDocumentView { DataContext = host.Shown.Last() } };
+        window.Show();
+        Dispatcher.UIThread.RunJobs();
+        Snapshot(window, "machine-disks-volumes");
+
+        // Refused (the password window closed): why, and still there to be mounted.
+        await page.Disks[2].BrowseCommand.ExecuteAsync(null);
+        Assert.Equal(["/dev/nvme0n1p3"], asked);
+        Assert.Equal("1.0 TB Volume could not be mounted: Not authorized to perform operation", page.Problem);
+        Assert.Equal("Not mounted", page.Disks[2].Text);
+
+        // Mounted: browsed, and its card is a mounted disk's.
+        refusal = null;
+        await page.Disks[2].BrowseCommand.ExecuteAsync(null);
+        Assert.Null(page.Problem);
+        Assert.Equal(mounted, page.Folder);
+        Assert.Equal(["from-windows.txt"], page.Rows.Select(r => r.Name));
+        // Read again after the refresh the mount began.
+        await WaitUntil(() => page.Disks.Count > 2 && page.Disks[2].IsMounted, TimeSpan.FromSeconds(10));
+        Assert.Equal([("linux", "/"), ("STICK", "/media/me/STICK"), ("1.0 TB Volume", mounted), ("New Volume", "/dev/nvme0n1p6")],
+            page.Disks.Select(d => (d.Name, d.Where)));
+        Assert.True(page.Disks[2].IsCurrent);
+        window.Close();
+        Directory.Delete(mounted, true);
     }
 
     [AvaloniaFact]
