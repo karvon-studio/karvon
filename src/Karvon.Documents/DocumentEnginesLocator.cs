@@ -12,7 +12,7 @@ namespace Karvon.Documents;
 /// </summary>
 public static class DocumentEnginesLocator
 {
-    public const string Version = "0.1.1";
+    public const string Version = "0.1.2";
 
     /// <summary>Each platform's zip and its SHA-256.</summary>
     internal static readonly IReadOnlyDictionary<string, string> AllBuilds = new Dictionary<string, string>

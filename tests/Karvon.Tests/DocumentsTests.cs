@@ -380,7 +380,7 @@ public class DocumentsTests
     {
         Assert.SkipUnless(BuiltLibrary() is not null, "Build native/documents (cargo build --release) or set KARVON_DOCUMENTS_LIBRARY to try the engines.");
         using var library = new DocumentLibrary(BuiltLibrary()!);
-        Assert.Equal("0.1.1", library.Version);
+        Assert.Equal(DocumentEnginesLocator.Version, library.Version);
         var folder = Directory.CreateTempSubdirectory("karvon-documents-live-").FullName;
         using var sessions = new DocumentSessions(_ => Task.FromResult<IDocumentEngines>(library));
         var tools = DocumentClaudeTools.Create(sessions, () => folder).ToDictionary(t => t.Name);

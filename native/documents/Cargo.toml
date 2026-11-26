@@ -1,6 +1,6 @@
 [package]
 name = "karvon-documents"
-version = "0.1.1"
+version = "0.1.2"
 edition = "2024"
 rust-version = "1.95"
 license = "MIT"
@@ -12,21 +12,28 @@ crate-type = ["cdylib"]
 
 # The engines as their open-source repositories have them, each at the commit Karvon pins (Apache-2.0 or MIT).
 [dependencies]
-pdfcraft-automation = { git = "https://github.com/storytold/pdfcraft", rev = "7437bde378f43856eada40af25b983812e615e8a" }
-wordcraft-mcp = { git = "https://github.com/storytold/wordcraft", rev = "159b84f54c74e9e82fb3109b758ae7dd6f4e3ab0" }
-gridcraft-mcp = { git = "https://github.com/storytold/gridcraft", rev = "84acf6293b1dc1fc09837524e035d674eb4d6741" }
-deckcraft-mcp = { git = "https://github.com/storytold/deckcraft", rev = "d5e30557eb9a846cd3eda43aa1552d88e25339b3" }
+pdfcraft-automation = { git = "https://github.com/storytold/pdfcraft", rev = "6e910675c68dd5092e889065cfe8d0274c1b2742" }
+wordcraft-mcp = { git = "https://github.com/storytold/wordcraft", rev = "6c6ac698cacabbb41ec71afec47f10dba55bb08c" }
+gridcraft-mcp = { git = "https://github.com/storytold/gridcraft", rev = "fde057f8c21eea16e1ec7a8dd20d262f840db02c" }
+deckcraft-mcp = { git = "https://github.com/storytold/deckcraft", rev = "4f5607f7642e6d3e796f986ac31717d8a6f5c619" }
 serde_json = "1"
 
-# PdfCraft's own patched copies of these (its vendor/ folder), as its workspace builds with them.
+# The engines' own patched copies of these, as their workspaces build with them: storytold's craft-libs (the newest of
+# the commits the engines pin), and the ones PdfCraft keeps in its vendor/ folder.
 [patch.crates-io]
-hayro = { git = "https://github.com/storytold/pdfcraft", rev = "7437bde378f43856eada40af25b983812e615e8a" }
-hayro-interpret = { git = "https://github.com/storytold/pdfcraft", rev = "7437bde378f43856eada40af25b983812e615e8a" }
-hayro-syntax = { git = "https://github.com/storytold/pdfcraft", rev = "7437bde378f43856eada40af25b983812e615e8a" }
-hayro-jbig2 = { git = "https://github.com/storytold/pdfcraft", rev = "7437bde378f43856eada40af25b983812e615e8a" }
-lopdf = { git = "https://github.com/storytold/pdfcraft", rev = "7437bde378f43856eada40af25b983812e615e8a" }
+krilla = { git = "https://github.com/storytold/craft-libs", rev = "0b8bbaf4c842da2d47de7b3fddd7170ba6115541" }
+hayro = { git = "https://github.com/storytold/craft-libs", rev = "0b8bbaf4c842da2d47de7b3fddd7170ba6115541" }
+hayro-interpret = { git = "https://github.com/storytold/craft-libs", rev = "0b8bbaf4c842da2d47de7b3fddd7170ba6115541" }
+hayro-syntax = { git = "https://github.com/storytold/craft-libs", rev = "0b8bbaf4c842da2d47de7b3fddd7170ba6115541" }
+hayro-jbig2 = { git = "https://github.com/storytold/craft-libs", rev = "0b8bbaf4c842da2d47de7b3fddd7170ba6115541" }
+hayro-cmap = { git = "https://github.com/storytold/craft-libs", rev = "0b8bbaf4c842da2d47de7b3fddd7170ba6115541" }
+hayro-postscript = { git = "https://github.com/storytold/craft-libs", rev = "0b8bbaf4c842da2d47de7b3fddd7170ba6115541" }
+lopdf = { git = "https://github.com/storytold/pdfcraft", rev = "6e910675c68dd5092e889065cfe8d0274c1b2742" }
+vello_common = { git = "https://github.com/storytold/pdfcraft", rev = "6e910675c68dd5092e889065cfe8d0274c1b2742" }
+vello_cpu = { git = "https://github.com/storytold/pdfcraft", rev = "6e910675c68dd5092e889065cfe8d0274c1b2742" }
 
-# GridCraft's PDF writer, with embedded fonts: its own draws Cyrillic as "?" (storytold/gridcraft#446). See its README.
+# GridCraft's PDF writer, with embedded fonts: its own draws Uzbek's Cyrillic as "?" or wrongly (storytold/gridcraft#446). See
+# its README.
 [patch."https://github.com/storytold/gridcraft"]
 gridcraft-pdf = { path = "vendor/gridcraft-pdf" }
 

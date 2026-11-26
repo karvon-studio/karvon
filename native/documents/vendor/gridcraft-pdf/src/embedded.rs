@@ -150,6 +150,11 @@ pub(crate) fn face(index: usize) -> Option<&'static Face> {
 }
 
 impl Face {
+    /// Whether the face has a glyph for `c` (Latin, Greek and Cyrillic; not Arabic, Thai or CJK).
+    pub(crate) fn has(&self, c: char) -> bool {
+        self.glyphs.get(&(c as u32)).is_some_and(|g| *g != 0)
+    }
+
     /// A character's glyph; one the face does not have is a `?`, as the standard fonts draw it.
     pub(crate) fn glyph(&self, c: char) -> u16 {
         self.glyphs.get(&(c as u32)).or_else(|| self.glyphs.get(&('?' as u32))).copied().unwrap_or(0)
@@ -171,31 +176,27 @@ impl Face {
     }
 
     /// The face's five PDF objects, numbered from `first` (the font itself), for the glyphs drawn with it.
-    pub(crate) fn objects(&self, first: u32, used: &BTreeMap<u16, char>) -> Vec<(u32, Vec<u8>)> {
+    pub(crate) fn write(&self, first: u32, used: &BTreeMap<u16, char>, out: &mut craft_pdf::classic::Writer) -> Result<(), crate::Error> {
         let (cid, descriptor, file, unicode) = (first + 1, first + 2, first + 3, first + 4);
         let name = self.name;
         let mut widths = String::new();
         for glyph in used.keys() {
             let _ = write!(widths, "{glyph} [{}] ", self.glyph_width(*glyph));
         }
-        let mut stream = format!("<< /Length {0} /Length1 {0} >>\nstream\n", self.data.len()).into_bytes();
-        stream.extend_from_slice(self.data);
-        stream.extend_from_slice(b"\nendstream");
-        vec![
-            (first, format!("<< /Type /Font /Subtype /Type0 /BaseFont /{name} /Encoding /Identity-H /DescendantFonts [{cid} 0 R] /ToUnicode {unicode} 0 R >>").into_bytes()),
-            (cid, format!("<< /Type /Font /Subtype /CIDFontType2 /BaseFont /{name} /CIDSystemInfo << /Registry (Adobe) /Ordering (Identity) /Supplement 0 >> /FontDescriptor {descriptor} 0 R /CIDToGIDMap /Identity /DW 1000 /W [{widths}] >>").into_bytes()),
-            (descriptor, format!(
-                "<< /Type /FontDescriptor /FontName /{name} /Flags 4 /FontBBox [{} {} {} {}] /ItalicAngle {} /Ascent {} /Descent {} /CapHeight {} /StemV 80 /FontFile2 {file} 0 R >>",
-                self.scaled(self.bbox[0]), self.scaled(self.bbox[1]), self.scaled(self.bbox[2]), self.scaled(self.bbox[3]),
-                self.italic_angle, self.scaled(self.ascent), self.scaled(self.descent), self.scaled(self.cap_height)).into_bytes()),
-            (file, stream),
-            (unicode, to_unicode(used)),
-        ]
+        out.object(first, &format!("<< /Type /Font /Subtype /Type0 /BaseFont /{name} /Encoding /Identity-H /DescendantFonts [{cid} 0 R] /ToUnicode {unicode} 0 R >>"))?;
+        out.object(cid, &format!("<< /Type /Font /Subtype /CIDFontType2 /BaseFont /{name} /CIDSystemInfo << /Registry (Adobe) /Ordering (Identity) /Supplement 0 >> /FontDescriptor {descriptor} 0 R /CIDToGIDMap /Identity /DW 1000 /W [{widths}] >>"))?;
+        out.object(descriptor, &format!(
+            "<< /Type /FontDescriptor /FontName /{name} /Flags 4 /FontBBox [{} {} {} {}] /ItalicAngle {} /Ascent {} /Descent {} /CapHeight {} /StemV 80 /FontFile2 {file} 0 R >>",
+            self.scaled(self.bbox[0]), self.scaled(self.bbox[1]), self.scaled(self.bbox[2]), self.scaled(self.bbox[3]),
+            self.italic_angle, self.scaled(self.ascent), self.scaled(self.descent), self.scaled(self.cap_height)))?;
+        out.stream(file, &format!("/Length1 {}", self.data.len()), self.data)?;
+        out.stream(unicode, "", to_unicode(used).as_bytes())?;
+        Ok(())
     }
 }
 
 /// The map from glyphs back to the text, so a PDF reader can copy and search it.
-fn to_unicode(used: &BTreeMap<u16, char>) -> Vec<u8> {
+fn to_unicode(used: &BTreeMap<u16, char>) -> String {
     let mut map = String::from(
         "/CIDInit /ProcSet findresource begin\n12 dict begin\nbegincmap\n/CIDSystemInfo << /Registry (Adobe) /Ordering (UCS) /Supplement 0 >> def\n/CMapName /Adobe-Identity-UCS def\n/CMapType 2 def\n1 begincodespacerange\n<0000> <FFFF>\nendcodespacerange\n",
     );
@@ -210,8 +211,5 @@ fn to_unicode(used: &BTreeMap<u16, char>) -> Vec<u8> {
         map.push_str("endbfchar\n");
     }
     map.push_str("endcmap\nCMapName currentdict /CMap defineresource pop\nend\nend\n");
-    let mut stream = format!("<< /Length {} >>\nstream\n", map.len()).into_bytes();
-    stream.extend_from_slice(map.as_bytes());
-    stream.extend_from_slice(b"endstream");
-    stream
+    map
 }

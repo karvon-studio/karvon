@@ -1,9 +1,19 @@
 [package]
 name = "gridcraft-pdf"
-version = "0.6.1"
+version = "0.19.1"
 edition = "2024"
 license = "MIT OR Apache-2.0"
 publish = false
 description = "GridCraft's PDF writer at the commit Karvon pins, with embedded fonts for what the standard ones cannot encode"
 
+# As GridCraft's workspace has them at that commit.
 [dependencies]
+craft-pdf = { git = "https://github.com/storytold/craft-libs", rev = "8fa4db64a9bb943520259ea95331a303ba788f21", version = "0.1.0", default-features = false }
+craft-stream-codecs = { git = "https://github.com/storytold/craft-libs", rev = "8fa4db64a9bb943520259ea95331a303ba788f21", version = "0.1.0" }
+harfrust = "=0.12.0"
+skrifa = { version = "0.44", default-features = false, features = ["std"] }
+unicode-bidi = "=0.3.18"
+
+[build-dependencies]
+sha2 = { version = "0.11", default-features = false }
+skrifa = { version = "0.44", default-features = false, features = ["std"] }
