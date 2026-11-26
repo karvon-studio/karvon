@@ -379,6 +379,25 @@
     <Border DockPanel.Dock="Top" Background="{StaticResource VsEnvironmentBrush}" BorderBrush="{StaticResource VsBorderBrush}" BorderThickness="0,0,0,1" Padding="6,3">
       <DockPanel>
       <Button Name="SettingsButton" DockPanel.Dock="Right" Classes="tbi" Command="{Binding ShowSettingsCommand}" ToolTip.Tip="Settings (Ctrl+,)"><v:VsIcon Kind="Settings" /></Button>
+      <!-- The modules' buttons, before Settings (Telegram's remote control) -->
+      <ItemsControl Name="ModuleToolbarButtons" DockPanel.Dock="Right" ItemsSource="{Binding ToolbarButtons}" Margin="0,0,2,0">
+        <ItemsControl.ItemsPanel>
+          <ItemsPanelTemplate>
+            <StackPanel Orientation="Horizontal" Spacing="1" />
+          </ItemsPanelTemplate>
+        </ItemsControl.ItemsPanel>
+        <ItemsControl.ItemTemplate>
+          <DataTemplate x:DataType="mod:ModuleToolbarButton">
+            <Button Classes="tbi" Command="{Binding ActivateCommand}" IsVisible="{Binding IsVisible}" ToolTip.Tip="{Binding ToolTip}">
+              <Panel>
+                <v:VsIcon Kind="{Binding Icon}" />
+                <Ellipse Width="6" Height="6" Fill="#89D185" Stroke="{StaticResource VsEnvironmentBrush}" StrokeThickness="1"
+                         HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,-2,-1" IsVisible="{Binding IsOn}" />
+              </Panel>
+            </Button>
+          </DataTemplate>
+        </ItemsControl.ItemTemplate>
+      </ItemsControl>
       <StackPanel Orientation="Horizontal" Spacing="1">
         <Button Classes="tbi" ToolTip.Tip="Open Project/Solution (Ctrl+Shift+O)" Command="{Binding OpenSolutionCommand}"><v:VsIcon Kind="Open" /></Button>
         <Button Classes="tbi" ToolTip.Tip="Save (Ctrl+S)" Command="{Binding SaveCommand}"><v:VsIcon Kind="Save" /></Button>

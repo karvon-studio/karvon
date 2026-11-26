@@ -20,10 +20,11 @@ public enum RemoteAnswer
 /// <summary>
 /// A question an agent asks the user, as Telegram shows it: what it asks, the command or file it is about, and whether it
 /// may be answered there (<paramref name="OnlyHere"/>: Karvon warns about it, so it is answered at the computer).
-/// <paramref name="Answerable"/> is false for what Telegram cannot answer (Claude's questions with options, a plan).
+/// <paramref name="Answerable"/> is false for what Telegram cannot answer (a plan); <paramref name="Questions"/> are Claude's
+/// questions with options, answered by them.
 /// </summary>
 public sealed record RemoteAsk(string RequestId, string Question, string? Code, string? Description, bool CanAllowForSession, bool OnlyHere,
-    bool Answerable = true);
+    bool Answerable = true, IReadOnlyList<RemoteQuestion>? Questions = null);
 
 /// <summary>
 /// An agent panel, as the remote control reaches it: its conversations answered, prompted, stopped, opened again, or a new
@@ -40,15 +41,18 @@ public interface IRemoteHost
     /// <summary>A question it shows answered; false when it waits no more.</summary>
     Task<bool> AnswerAsync(string requestId, RemoteAnswer answer);
 
-    /// <summary>A prompt for a conversation it has running; false when it has not.</summary>
-    Task<bool> PromptAsync(IAgentSession session, string text);
+    /// <summary>Questions with options it shows answered, one reply each; false when they wait no more.</summary>
+    Task<bool> AnswerQuestionsAsync(string requestId, IReadOnlyList<RemoteReply> replies);
+
+    /// <summary>A prompt (with the images sent with it) for a conversation it has running; false when it has not.</summary>
+    Task<bool> PromptAsync(IAgentSession session, string text, IReadOnlyList<RemoteImage> images);
 
     /// <summary>A past conversation opened and prompted; false when it is not there.</summary>
-    Task<bool> ResumeAsync(string sessionId, string text);
+    Task<bool> ResumeAsync(string sessionId, string text, IReadOnlyList<RemoteImage> images);
 
     Task InterruptAsync(IAgentSession session);
 
-    Task NewConversationAsync(string text);
+    Task NewConversationAsync(string text, IReadOnlyList<RemoteImage> images);
 }
 
 /// <summary>The group Karvon talks in and the one person whose say it takes there.</summary>
@@ -64,11 +68,12 @@ public sealed record RemotePairing(long ChatId, string ChatTitle, long UserId, s
 /// sends has its secrets hidden. One Karvon window at a time polls the bot (<see cref="LockFile"/>).
 /// </para>
 /// </summary>
-public sealed class TelegramRemote : IAsyncDisposable
+public sealed partial class TelegramRemote : IAsyncDisposable
 {
     const string TokenKey = "karvon-telegram/token";
     const string PairingKey = "karvon-telegram/pairing";
     const string TopicsKey = "karvon-telegram/topics";
+    const string CodeKey = "karvon-telegram/pairing-code";
 
     static TelegramRemote? _shared;
 
@@ -86,8 +91,7 @@ public sealed class TelegramRemote : IAsyncDisposable
     CancellationTokenSource? _polling;
     Task _poll = Task.CompletedTask;
     Timer? _ticker;
-    string? _pairingCode;
-    DateTime _pairingUntil;
+    bool _wasPaired;
     string? _problem;
     TelegramUser? _me;
 
@@ -112,6 +116,9 @@ public sealed class TelegramRemote : IAsyncDisposable
 
     /// <summary>Whether what an agent does shows as it goes (Settings); else only its questions and its answer.</summary>
     public Func<bool> ShowsProgress { get; set; } = () => true;
+
+    /// <summary>How old a message may be and still be done: an older one was sent while Karvon was not there.</summary>
+    public TimeSpan StaleAfter { get; set; } = TimeSpan.FromMinutes(2);
 
     /// <summary>How often a conversation's status message is edited at most.</summary>
     public TimeSpan EditEvery { get; set; } = TimeSpan.FromSeconds(4);
@@ -140,30 +147,44 @@ public sealed class TelegramRemote : IAsyncDisposable
     /// <summary>A Karvon window polls the bot: this one.</summary>
     public bool IsPolling => _owner is not null && _polling is { IsCancellationRequested: false };
 
-    /// <summary>Conversations are shown in Telegram now: it is set up, paired, on, and this window polls.</summary>
-    public bool IsActive => IsPolling && Pairing is not null && IsOn();
+    /// <summary>Conversations are shown in Telegram now: it is set up, paired, on, and this window polls (or another hands it its own).</summary>
+    public bool IsActive => (IsPolling || IsLinked) && Pairing is not null && IsOn();
 
     /// <summary>"@bot": the bot's name, once Telegram said it.</summary>
     public string? BotName => Pairing?.BotName ?? _me?.Display;
 
-    /// <summary>The code to send in the group, while it is waited for.</summary>
-    public string? PairingCode => _pairingCode is not null && DateTime.UtcNow < _pairingUntil ? _pairingCode : null;
+    /// <summary>The code to send in the group, while it is waited for (kept sealed: the window that polls may be another).</summary>
+    public string? PairingCode
+    {
+        get
+        {
+            var kept = _store.Get(CodeKey)?.Split(' ');
+            return kept is [var code, var until] && long.TryParse(until, out var ticks) && DateTime.UtcNow.Ticks < ticks ? code : null;
+        }
+    }
 
     /// <summary>What it is now, for Settings.</summary>
     public string State =>
         Token is null ? _store.IsLocked ? "Off: the vault is locked" : "Not set up"
         : _problem is { } problem ? problem
         : !IsOn() ? "Off"
-        : _owner is null && _polling is not null ? "Used by another Karvon window"
         : Pairing is { } pairing ? $"On: {pairing.BotName} in “{pairing.ChatTitle}”, for {pairing.UserName}"
+            + (IsPolling ? "" : IsLinked ? ", through another Karvon window" : ", waiting for the Karvon window that uses it")
         : PairingCode is { } code ? $"Waiting for “/pair {code}” in your group"
         : "Not paired with a group yet";
 
     /// <summary>Kept until Karvon closes: the vault has no passphrase.</summary>
     public bool IsForSession => !_store.CanKeep;
 
-    /// <summary>An agent panel's conversations, by its kind ("claude", "agents"): made when Telegram first needs it.</summary>
-    public void AddHost(string kind, Func<IRemoteHost> host) => _hosts[kind] = host;
+    /// <summary>
+    /// An agent panel's conversations, by its kind ("claude", "agents"): made when Telegram first needs it. Its folder says
+    /// which window opens a past conversation again.
+    /// </summary>
+    public void AddHost(string kind, Func<IRemoteHost> host, Func<string> folder)
+    {
+        _hosts[kind] = host;
+        _folders[kind] = folder;
+    }
 
     // ---- Setting it up ------------------------------------------------------------------------------------------
 
@@ -207,11 +228,11 @@ public sealed class TelegramRemote : IAsyncDisposable
         lock (_lock)
             _chats.Clear();
         const string alphabet = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
-        _pairingCode = string.Concat(Enumerable.Range(0, 6).Select(_ => alphabet[RandomNumberGenerator.GetInt32(alphabet.Length)]));
-        _pairingUntil = DateTime.UtcNow.AddMinutes(15);
+        var code = string.Concat(Enumerable.Range(0, 6).Select(_ => alphabet[RandomNumberGenerator.GetInt32(alphabet.Length)]));
+        _store.Set(CodeKey, "Telegram pairing", code + " " + DateTime.UtcNow.AddMinutes(15).Ticks);
         Start();
         Changed?.Invoke();
-        return _pairingCode;
+        return code;
     }
 
     /// <summary>The bot, its group and its topics forgotten here (the topics stay in Telegram).</summary>
@@ -221,7 +242,8 @@ public sealed class TelegramRemote : IAsyncDisposable
         _store.Delete(TokenKey);
         _store.Delete(PairingKey);
         _store.Delete(TopicsKey);
-        _pairingCode = null;
+        _store.Delete(CodeKey);
+        _store.Delete(LinkKey);
         _problem = null;
         _me = null;
         lock (_lock)
@@ -230,27 +252,15 @@ public sealed class TelegramRemote : IAsyncDisposable
         Changed?.Invoke();
     }
 
-    /// <summary>Polls the bot when it is set up and on, and no other Karvon window does.</summary>
+    /// <summary>Polls the bot when it is set up and on and no other Karvon window does; else gets its own from the one that does.</summary>
     public void Start()
     {
         if (Token is null || !IsOn() || _polling is { IsCancellationRequested: false })
             return;
         _polling = new CancellationTokenSource();
         _ticker ??= new Timer(_ => Tick(), null, TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(1));
-        TryPoll();
-        Changed?.Invoke();
-    }
-
-    /// <summary>Polls when no other Karvon window does (else it is tried again each tick: that window may close).</summary>
-    void TryPoll()
-    {
-        lock (_lock)
-        {
-            if (_polling is not { IsCancellationRequested: false } polling || _owner is not null || !TakeLock())
-                return;
-            var cancel = polling.Token;
-            _poll = Task.Run(() => PollAsync(cancel), CancellationToken.None);
-        }
+        var cancel = _polling.Token;
+        _poll = Task.Run(() => RunAsync(cancel), CancellationToken.None);
         Changed?.Invoke();
     }
 
@@ -265,6 +275,7 @@ public sealed class TelegramRemote : IAsyncDisposable
         {
         }
         _polling = null;
+        _link = null;
         _owner?.Dispose();
         _owner = null;
         Changed?.Invoke();
@@ -340,16 +351,19 @@ public sealed class TelegramRemote : IAsyncDisposable
 
     TelegramBot Bot(string token) => new(token, _http, _api);
 
-    async Task HandleAsync(TelegramBot bot, TelegramUpdate update)
+    /// <summary>An update: another window's handed to it (by the one that polls), this one's taken here.</summary>
+    async Task HandleAsync(TelegramBot bot, TelegramUpdate update, bool forwarded = false)
     {
         try
         {
+            if (!forwarded && await ForwardAsync(update))
+                return;
             if (update.Callback is { } callback)
                 await OnButtonAsync(bot, callback);
-            else if (update.Message is { Text: { Length: > 0 } } message)
+            else if (update.Message is { } message)
                 await OnMessageAsync(bot, message);
         }
-        catch (Exception ex) when (ex is TelegramException or HttpRequestException or TaskCanceledException)
+        catch (Exception ex) when (ex is TelegramException or HttpRequestException or TaskCanceledException or IOException or UnauthorizedAccessException)
         {
             _problem = "Telegram: " + ex.Message;
             Changed?.Invoke();
@@ -360,32 +374,68 @@ public sealed class TelegramRemote : IAsyncDisposable
     {
         if (Pairing is not { } pairing)
         {
-            await TryPairAsync(bot, message);
+            if (message.Text is { Length: > 0 })
+                await TryPairAsync(bot, message);
             return;
         }
         // Only the one who paired it, in that group.
-        if (message.Chat.Id != pairing.ChatId || message.From?.Id != pairing.UserId)
+        if (message.Chat.Id != pairing.ChatId || message.From?.Id != pairing.UserId || !IsOn())
             return;
-        var text = message.Text!.Trim();
-        if (!IsOn())
-            return;
-        if (!message.IsTopicMessage || message.ThreadId is not { } thread)
+        int? where = message.IsTopicMessage ? message.ThreadId : null;
+        // Sent while no Karvon window was there to take it: not done now, unasked, hours later.
+        if (message.Date > 0 && DateTimeOffset.UtcNow.ToUnixTimeSeconds() - message.Date > StaleAfter.TotalSeconds)
         {
-            if (text.StartsWith('/') && !text.StartsWith("/new", StringComparison.Ordinal))
+            await bot.SendMessageAsync(pairing.ChatId, where, "Karvon was not running when this was sent, so it was not done. Send it again if it still stands.", silent: true);
+            return;
+        }
+        if (message.IsOther)
+        {
+            await bot.SendMessageAsync(pairing.ChatId, where, "Karvon takes text, photos and files here; that one was not sent.", silent: true);
+            return;
+        }
+        // Several photos or files sent at once: one prompt, once they have all come.
+        if (!Gathered(bot, message))
+            await PromptedAsync(bot, [message]);
+    }
+
+    /// <summary>What the user sent (a text, or photos and files with their caption): a prompt, a command, an answer.</summary>
+    async Task PromptedAsync(TelegramBot bot, IReadOnlyList<TelegramMessage> messages)
+    {
+        if (Pairing is not { } pairing || messages.Count == 0)
+            return;
+        var first = messages[0];
+        int? where = first.IsTopicMessage ? first.ThreadId : null;
+        var hasFiles = messages.Any(m => m.Photo is not null || m.Document is not null);
+        var (text, images, problem) = await GatherAsync(bot, messages);
+        if (problem is not null)
+        {
+            await bot.SendMessageAsync(pairing.ChatId, where, problem + " Nothing was sent.", silent: true);
+            return;
+        }
+        if (text.Length == 0 && images.Count == 0)
+            return;
+        if (!first.IsTopicMessage || first.ThreadId is not { } thread)
+        {
+            if (!hasFiles && text.StartsWith('/') && !text.StartsWith("/new", StringComparison.Ordinal))
             {
                 await bot.SendMessageAsync(pairing.ChatId, null, "A message here begins a new conversation; one in a conversation's topic goes to it, and /stop there stops it.", silent: true);
                 return;
             }
-            text = text.StartsWith("/new", StringComparison.Ordinal) ? text[4..].Trim() : text;
-            if (text.Length == 0 || HostOf("claude") is not { } host)
+            text = !hasFiles && text.StartsWith("/new", StringComparison.Ordinal) ? text[4..].Trim() : text;
+            if (text.Length == 0 && images.Count == 0 || HostOf("claude") is not { } host)
                 return;
-            await host.NewConversationAsync(text);
+            await host.NewConversationAsync(text, images);
             return;
         }
         Chat? chat;
         lock (_lock)
             chat = _chats.FirstOrDefault(c => c.ThreadId == thread);
-        if (text == "/stop" || text.StartsWith("/stop@", StringComparison.Ordinal))
+        if (!hasFiles && chat is not null && !text.StartsWith('/') && QuestionOf(chat) is { } question && Approves())
+        {
+            await ReplyAsync(question, new RemoteReply([], text));
+            return;
+        }
+        if (!hasFiles && (text == "/stop" || text.StartsWith("/stop@", StringComparison.Ordinal)))
         {
             if (chat is { Running: true })
                 await chat.Host.InterruptAsync(chat.Session);
@@ -393,11 +443,11 @@ public sealed class TelegramRemote : IAsyncDisposable
                 await bot.SendMessageAsync(pairing.ChatId, thread, "It is not working on anything.", silent: true);
             return;
         }
-        if (chat is not null && await chat.Host.PromptAsync(chat.Session, text))
+        if (chat is not null && await chat.Host.PromptAsync(chat.Session, text, images))
             return;
         // Not running here now: opened again in its panel, and prompted.
         if (Topics().FirstOrDefault(t => t.Value.Thread == thread) is { Key: { } sessionId, Value: var topic }
-            && HostOf(topic.Kind) is { } owner && await owner.ResumeAsync(sessionId, text))
+            && HostOf(topic.Kind) is { } owner && await owner.ResumeAsync(sessionId, text, images))
             return;
         await bot.SendMessageAsync(pairing.ChatId, thread, "This conversation is not in Karvon any more. A message in General begins a new one.", silent: true);
     }
@@ -428,7 +478,7 @@ public sealed class TelegramRemote : IAsyncDisposable
         }
         var pairing = new RemotePairing(message.Chat.Id, message.Chat.Title ?? "the group", from.Id, from.Display, _me.Display);
         _store.Set(PairingKey, "Telegram group", JsonSerializer.Serialize(pairing));
-        _pairingCode = null;
+        _store.Delete(CodeKey);
         await bot.SendMessageAsync(message.Chat.Id, message.IsTopicMessage ? message.ThreadId : null,
             $"Karvon Studio is paired with this group, and hears {Html(from.Display)} alone here. Each conversation gets a topic of its own; a message in General begins a new one.");
         Changed?.Invoke();
@@ -439,6 +489,11 @@ public sealed class TelegramRemote : IAsyncDisposable
         if (Pairing is not { } pairing || callback.From.Id != pairing.UserId || callback.Message?.Chat.Id != pairing.ChatId)
         {
             await bot.AnswerCallbackAsync(callback.Id, "Not yours to answer.");
+            return;
+        }
+        if (callback.Data?.StartsWith("q:", StringComparison.Ordinal) == true)
+        {
+            await OnPickAsync(bot, callback, callback.Data);
             return;
         }
         if (callback.Data is not { Length: > 2 } data || data[1] != ':' || !_asks.TryGetValue(data[2..], out var ask) || ask.Done)
@@ -504,6 +559,9 @@ public sealed class TelegramRemote : IAsyncDisposable
 
         public HashSet<string> Files { get; } = new(StringComparer.Ordinal);
 
+        /// <summary>What the turn did and asked, in HTML lines: its answer's message keeps them, folded.</summary>
+        public List<string> History { get; } = [];
+
         public int Waiting { get; set; }
 
         public bool Dirty { get; set; }
@@ -514,11 +572,22 @@ public sealed class TelegramRemote : IAsyncDisposable
         public Task Queue { get; set; } = Task.CompletedTask;
     }
 
-    sealed class Ask(Chat chat, RemoteAsk request)
+    sealed class Ask(Chat chat, RemoteAsk request, string key)
     {
         public Chat Chat { get; } = chat;
 
         public RemoteAsk Request { get; } = request;
+
+        /// <summary>What its buttons send back, after "a:", "q:"...</summary>
+        public string Key { get; } = key;
+
+        /// <summary>The question it is on, of its <see cref="RemoteAsk.Questions"/>.</summary>
+        public int Current { get; set; }
+
+        public List<RemoteReply> Replies { get; } = [];
+
+        /// <summary>The options ticked so far, where several may be.</summary>
+        public HashSet<int> Picked { get; } = [];
 
         public int? MessageId { get; set; }
 
@@ -575,7 +644,7 @@ public sealed class TelegramRemote : IAsyncDisposable
                         chat.Named = true;
                     }
                     else if (chat.ThreadId is { } thread)
-                        Remember(init.SessionId, thread, kind);
+                        Remember(init.SessionId, thread, kind, host.Folder);
                     return;
                 case ClaudeUserText { ParentToolUseId: null } user when chat.Title.Length == 0 && !user.Text.StartsWith('[') && !user.Text.StartsWith('<'):
                     chat.Title = FirstLine(ClaudeHistory.StripContext(user.Text), 60);
@@ -608,6 +677,8 @@ public sealed class TelegramRemote : IAsyncDisposable
                     foreach (var use in assistant.Blocks.OfType<ClaudeToolUseBlock>())
                     {
                         chat.Step = Step(use);
+                        if (use.Name is not ("AskUserQuestion" or "ExitPlanMode"))
+                            chat.History.Add("▸ " + Html(chat.Step));
                         if (use.Name is "Edit" or "MultiEdit" or "Write" or "NotebookEdit"
                             && (ClaudeProtocol.Str(use.Input, "file_path") ?? ClaudeProtocol.Str(use.Input, "notebook_path")) is { } file)
                             chat.Files.Add(file);
@@ -627,12 +698,18 @@ public sealed class TelegramRemote : IAsyncDisposable
             return;
         var chat = ChatOf(host, session, kind);
         var key = Convert.ToHexString(RandomNumberGenerator.GetBytes(6)).ToLowerInvariant();
-        var ask = new Ask(chat, request);
+        var ask = new Ask(chat, request, key);
         _asks[key] = ask;
+        Announce();
         lock (_lock)
         {
             chat.Waiting++;
             chat.Dirty = true;
+        }
+        if (request.Questions is { Count: > 0 } && Approves())
+        {
+            SendQuestion(ask);
+            return;
         }
         var html = $"🔐 <b>{Html(Clip(request.Question, 300))}</b>"
             + (request.Code is { Length: > 0 } code ? $"\n<pre>{Html(Clip(code, 2500))}</pre>" : "")
@@ -651,13 +728,13 @@ public sealed class TelegramRemote : IAsyncDisposable
             if (ask.Done)
                 return;
             ask.MessageId = await bot.SendMessageAsync(pairing.ChatId, chat.ThreadId, html, buttons);
-            // Answered in Karvon while it was being sent.
+            // Answered in Karvon while it was being sent: it goes at once.
             if (ask.Done)
-                await bot.EditMessageAsync(pairing.ChatId, ask.MessageId.Value, ask.Html + $"\n\n<i>{Html(ask.Outcome ?? "Answered")}</i>");
+                await bot.DeleteMessageAsync(pairing.ChatId, ask.MessageId.Value);
         });
     }
 
-    /// <summary>A question answered (in Karvon, on another device, from Telegram): its message says how, without its buttons.</summary>
+    /// <summary>A question answered (in Karvon, on another device, from Telegram): its message goes, the chat kept to one a turn.</summary>
     public void Answered(string requestId, string outcome)
     {
         if (_asks.FirstOrDefault(a => a.Value.Request.RequestId == requestId) is not { Key: { } key, Value: { } ask } || ask.Done)
@@ -665,15 +742,23 @@ public sealed class TelegramRemote : IAsyncDisposable
         ask.Done = true;
         ask.Outcome ??= outcome;
         _asks.TryRemove(key, out _);
+        Announce();
         lock (_lock)
         {
             ask.Chat.Waiting = Math.Max(0, ask.Chat.Waiting - 1);
             ask.Chat.Dirty = true;
+            // Its message goes; the answer's keeps what it asked and how it was answered.
+            if (ask.Request.Questions is { Count: > 0 } questions && ask.Replies.Count > 0)
+                foreach (var (question, reply) in questions.Zip(ask.Replies))
+                    ask.Chat.History.Add("❓ " + Html(Clip(question.Question, 120)) + " — <b>"
+                        + Html(Clip(reply.Other ?? string.Join(", ", reply.Picked.Where(i => i < question.Options.Count).Select(i => question.Options[i].Label)), 120)) + "</b>");
+            else
+                ask.Chat.History.Add((ask.Request.Questions is { Count: > 0 } ? "❓ " : "🔐 ") + Html(Clip(ask.Request.Question, 150)) + " — <i>" + Html(ask.Outcome) + "</i>");
         }
         Enqueue(ask.Chat, async (bot, pairing) =>
         {
             if (ask.MessageId is { } id)
-                await bot.EditMessageAsync(pairing.ChatId, id, ask.Html + $"\n\n<i>{Html(ask.Outcome)}</i>");
+                await bot.DeleteMessageAsync(pairing.ChatId, id);
         });
     }
 
@@ -696,6 +781,7 @@ public sealed class TelegramRemote : IAsyncDisposable
         chat.Step = null;
         chat.Thinking = false;
         chat.Files.Clear();
+        chat.History.Clear();
         chat.StatusId = null;
         if (!ShowsProgress())
             return;
@@ -703,8 +789,13 @@ public sealed class TelegramRemote : IAsyncDisposable
         Enqueue(chat, async (bot, pairing) =>
         {
             await EnsureTopicAsync(bot, pairing, chat);
-            chat.StatusId = await bot.SendMessageAsync(pairing.ChatId, chat.ThreadId, html, silent: true);
+            var id = await bot.SendMessageAsync(pairing.ChatId, chat.ThreadId, html, silent: true);
             chat.Edited = DateTime.Now;
+            // Over before it was sent: it goes at once.
+            if (chat.Running)
+                chat.StatusId = id;
+            else
+                await bot.DeleteMessageAsync(pairing.ChatId, id);
         });
     }
 
@@ -716,30 +807,81 @@ public sealed class TelegramRemote : IAsyncDisposable
         var files = chat.Files.Count;
         var status = (isError ? "❌ <b>Stopped</b>" : "✅ <b>Done</b>") + $" · {took}" + (files > 0 ? $" · {files} {(files == 1 ? "file" : "files")} changed" : "");
         var answer = Redaction.Text(text ?? "").Trim();
+        var statusId = chat.StatusId;
+        chat.StatusId = null;
+        var history = chat.History.ToList();
+        // One message a turn: its answer (with a sound) in place of the status message, which goes.
         Enqueue(chat, async (bot, pairing) =>
         {
             await EnsureTopicAsync(bot, pairing, chat);
-            if (chat.StatusId is { } id)
-                await bot.EditMessageAsync(pairing.ChatId, id, status);
-            var head = (isError ? "❌ " : "✅ ") + $"<b>{Html(chat.Host.AgentName)}</b> " + (isError ? "stopped" : "is done") + $" ({took}).";
-            if (answer.Length == 0)
-                await bot.SendMessageAsync(pairing.ChatId, chat.ThreadId, head);
-            else if (head.Length + answer.Length < 3500)
-                await bot.SendMessageAsync(pairing.ChatId, chat.ThreadId, head + "\n\n" + Html(answer));
+            var html = TelegramMarkdown.ToHtml(answer);
+            if (status.Length + Folded(history, 1200).Length + html.Length < 4000)
+            {
+                var head = status + Folded(history, 1200);
+                await SendFormattedAsync(() => bot.SendMessageAsync(pairing.ChatId, chat.ThreadId, head + (answer.Length > 0 ? "\n\n" + html : "")),
+                    () => bot.SendMessageAsync(pairing.ChatId, chat.ThreadId, head + (answer.Length > 0 ? "\n\n" + Html(answer) : "")));
+            }
             else
             {
-                // A long answer: its start here, all of it as a file.
-                await bot.SendMessageAsync(pairing.ChatId, chat.ThreadId, head + "\n\n" + Html(Clip(answer, 1500)) + "\n\n<i>All of it is in the file below.</i>");
-                await bot.SendDocumentAsync(pairing.ChatId, chat.ThreadId, "answer.md", Encoding.UTF8.GetBytes(answer), null, silent: true);
+                // A long answer: all of it as a file, its start under it (and what the turn did, as much as a caption holds).
+                var head = status + Folded(history, 300);
+                await SendFormattedAsync(
+                    () => bot.SendDocumentAsync(pairing.ChatId, chat.ThreadId, "answer.md", Encoding.UTF8.GetBytes(answer),
+                        head + "\n\n" + TelegramMarkdown.ToHtml(Clip(answer, 400)) + "\n\n<i>All of it is in the file.</i>"),
+                    () => bot.SendDocumentAsync(pairing.ChatId, chat.ThreadId, "answer.md", Encoding.UTF8.GetBytes(answer),
+                        head + "\n\n" + Html(Clip(answer, 400)) + "\n\n<i>All of it is in the file.</i>"));
             }
+            if (statusId is { } id)
+                await bot.DeleteMessageAsync(pairing.ChatId, id);
         });
+    }
+
+    /// <summary>
+    /// What a turn did and asked, folded under its answer's first line (Telegram opens it on a tap): its last lines, as
+    /// many as <paramref name="max"/> characters hold.
+    /// </summary>
+    static string Folded(IReadOnlyList<string> history, int max)
+    {
+        if (history.Count == 0)
+            return "";
+        List<string> lines = [];
+        var length = 0;
+        foreach (var line in history.Reverse())
+        {
+            if (length + line.Length > max && lines.Count > 0)
+            {
+                lines.Insert(0, $"… {history.Count - lines.Count} before");
+                break;
+            }
+            lines.Insert(0, line);
+            length += line.Length + 1;
+        }
+        return "\n<blockquote expandable>" + string.Join("\n", lines) + "</blockquote>";
+    }
+
+    /// <summary>A message with the agent's Markdown in it; as plain text where Telegram cannot read what it was made into.</summary>
+    static async Task SendFormattedAsync(Func<Task> formatted, Func<Task> plain)
+    {
+        try
+        {
+            await formatted();
+        }
+        catch (TelegramException ex) when (ex.Code == 400 && ex.Message.Contains("parse", StringComparison.OrdinalIgnoreCase))
+        {
+            await plain();
+        }
     }
 
     /// <summary>The status messages of the conversations that work, edited when something changed (not more often than <see cref="EditEvery"/>).</summary>
     void Tick()
     {
-        if (_owner is null && _polling is { IsCancellationRequested: false })
-            TryPoll();
+        // Paired, or let go, in another window.
+        if ((Pairing is not null) != _wasPaired)
+        {
+            _wasPaired = !_wasPaired;
+            Changed?.Invoke();
+        }
+        Announce();
         if (!IsActive || !ShowsProgress())
             return;
         List<(Chat Chat, string Html)> due = [];
@@ -776,6 +918,8 @@ public sealed class TelegramRemote : IAsyncDisposable
     static string Step(ClaudeToolUseBlock use)
     {
         string? Str(string name) => ClaudeProtocol.Str(use.Input, name);
+        if (use.Name is "AskUserQuestion" or "ExitPlanMode")
+            return use.Name == "AskUserQuestion" ? "Asking you" : "Proposing a plan";
         var name = use.Name.StartsWith("mcp__", StringComparison.Ordinal) ? use.Name.Split("__").Last() : use.Name;
         var detail = Str("file_path") is { } file ? Path.GetFileName(file)
             : Str("command") is { } command ? FirstLine(command, 80)
@@ -801,8 +945,9 @@ public sealed class TelegramRemote : IAsyncDisposable
         if ((chat.SessionId ?? chat.Session.SessionId) is { } id)
         {
             chat.SessionId = id;
-            Remember(id, chat.ThreadId.Value, chat.Kind);
+            Remember(id, chat.ThreadId.Value, chat.Kind, chat.Host.Folder);
         }
+        Announce();
     }
 
     /// <summary>Telegram told in the chat's order, by this window's bot; what goes wrong is shown in Settings.</summary>
@@ -830,7 +975,8 @@ public sealed class TelegramRemote : IAsyncDisposable
 
     // ---- The topics, by conversation --------------------------------------------------------------------------------
 
-    public sealed record Topic(int Thread, string Kind);
+    /// <summary>A conversation's topic, of an agent panel's kind, in a folder.</summary>
+    public sealed record Topic(int Thread, string Kind, string? Folder = null);
 
     Dictionary<string, Topic> Topics()
     {
@@ -844,10 +990,10 @@ public sealed class TelegramRemote : IAsyncDisposable
         }
     }
 
-    void Remember(string sessionId, int thread, string kind)
+    void Remember(string sessionId, int thread, string kind, string folder)
     {
         var topics = Topics();
-        topics[sessionId] = new Topic(thread, kind);
+        topics[sessionId] = new Topic(thread, kind, Folder(folder));
         _store.Set(TopicsKey, "Telegram topics", JsonSerializer.Serialize(topics));
     }
 

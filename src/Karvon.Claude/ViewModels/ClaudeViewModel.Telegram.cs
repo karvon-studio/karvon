@@ -1,4 +1,5 @@
-using System.Text;
+using System.Text.Json;
+using System.Text.Json.Nodes;
 using Karvon.Claude;
 using Karvon.Claude.Remote;
 using Karvon.Claude.Tools;
@@ -38,10 +39,13 @@ public partial class ClaudeViewModel : IRemoteHost
         switch (request.ToolName)
         {
             case "AskUserQuestion":
-                var questions = request.Input.TryGetProperty("questions", out var qs) && qs.ValueKind == System.Text.Json.JsonValueKind.Array
-                    ? string.Join("\n", qs.EnumerateArray().Select(q => ClaudeJson.Str(q, "question")).OfType<string>())
-                    : null;
-                ask = new RemoteAsk(request.RequestId, $"{AgentName} asks you", questions, null, false, false, Answerable: false);
+                List<RemoteQuestion> questions = request.Input.TryGetProperty("questions", out var qs) && qs.ValueKind == JsonValueKind.Array
+                    ? [.. qs.EnumerateArray().Select(q => new RemoteQuestion(ClaudeJson.Str(q, "question") ?? "", ClaudeJson.Str(q, "header"), ClaudeJson.Bool(q, "multiSelect"),
+                        q.TryGetProperty("options", out var opts) && opts.ValueKind == JsonValueKind.Array
+                            ? [.. opts.EnumerateArray().Select(o => new RemoteOption(ClaudeJson.Str(o, "label") ?? "", ClaudeJson.Str(o, "description")))]
+                            : []))]
+                    : [];
+                ask = new RemoteAsk(request.RequestId, $"{AgentName} asks you", null, null, false, false, Answerable: questions.Count > 0, Questions: questions);
                 break;
             case "ExitPlanMode":
                 ask = new RemoteAsk(request.RequestId, $"{AgentName} has a plan for you to approve", ClaudeJson.Str(request.Input, "plan"), null, false, false, Answerable: false);
@@ -92,10 +96,8 @@ public partial class ClaudeViewModel : IRemoteHost
             return true;
         }
         // In the background: answered there, and its card closed when it is shown again.
-        if (_background.FirstOrDefault(b => b.Events.OfType<ClaudePermissionRequest>().Any(r => r.RequestId == requestId)
-                && !b.Events.OfType<ClaudePermissionCancelled>().Any(c => c.RequestId == requestId)) is not { } conversation)
+        if (WaitingInBackground(requestId) is not var (conversation, request))
             return false;
-        var request = conversation.Events.OfType<ClaudePermissionRequest>().First(r => r.RequestId == requestId);
         var outcome = answer == RemoteAnswer.Deny ? "Denied from Telegram" : "Allowed from Telegram";
         if (_asks.TryRemove(requestId, out var asked))
             asked.TrySetResult(answer != RemoteAnswer.Deny);
@@ -106,32 +108,86 @@ public partial class ClaudeViewModel : IRemoteHost
                 RemoteAnswer.AllowForSession => new ClaudePermissionDecision(true, request.Input, request.Suggestions),
                 _ => new ClaudePermissionDecision(false, Message: "The user doesn't want to proceed with this tool use. Wait for their next instruction.", Interrupt: true),
             }, "the user, from Telegram");
+        AnsweredInBackground(conversation, requestId, outcome);
+        return true;
+    }
+
+    async Task<bool> IRemoteHost.AnswerQuestionsAsync(string requestId, IReadOnlyList<RemoteReply> replies)
+    {
+        // Shown here: its options picked (or its own answer typed), and sent, as its card's button would.
+        if (Items.OfType<QuestionChatItem>().FirstOrDefault(q => q.IsPending && q.Request.RequestId == requestId) is { } card)
+        {
+            foreach (var (entry, reply) in card.Questions.Zip(replies))
+            {
+                foreach (var option in entry.Options)
+                    option.IsSelected = false;
+                entry.Other = reply.Other ?? "";
+                foreach (var i in reply.Picked.Where(i => i >= 0 && i < entry.Options.Count))
+                    entry.Options[i].IsSelected = true;
+            }
+            await SubmitAnswersCommand.ExecuteAsync(card);
+            return !card.IsPending;
+        }
+        if (WaitingInBackground(requestId) is not var (conversation, request))
+            return false;
+        var answers = new JsonObject();
+        if (request.Input.TryGetProperty("questions", out var qs) && qs.ValueKind == JsonValueKind.Array)
+            foreach (var (q, reply) in qs.EnumerateArray().Zip(replies))
+            {
+                var labels = q.TryGetProperty("options", out var opts) && opts.ValueKind == JsonValueKind.Array
+                    ? opts.EnumerateArray().Select(o => ClaudeJson.Str(o, "label") ?? "").ToList() : [];
+                answers[ClaudeJson.Str(q, "question") ?? ""] = reply.Other is { Length: > 0 } other ? other.Trim()
+                    : string.Join(", ", reply.Picked.Where(i => i >= 0 && i < labels.Count).Select(i => labels[i]));
+            }
+        var updated = JsonNode.Parse(request.Input.GetRawText()) as JsonObject ?? [];
+        updated["answers"] = answers;
+        using var doc = JsonDocument.Parse(updated.ToJsonString());
+        await conversation.Session.RespondToPermissionAsync(requestId, ClaudePermissionDecision.AllowOnce(doc.RootElement.Clone()), "the user, from Telegram");
+        AnsweredInBackground(conversation, requestId, "Answered from Telegram");
+        return true;
+    }
+
+    /// <summary>The conversation in the background whose question this is, while it waits for its answer.</summary>
+    (BackgroundConversation Conversation, ClaudePermissionRequest Request)? WaitingInBackground(string requestId) =>
+        _background.FirstOrDefault(b => b.Events.OfType<ClaudePermissionRequest>().Any(r => r.RequestId == requestId)
+            && !b.Events.OfType<ClaudePermissionCancelled>().Any(c => c.RequestId == requestId)) is { } conversation
+            ? (conversation, conversation.Events.OfType<ClaudePermissionRequest>().First(r => r.RequestId == requestId))
+            : null;
+
+    /// <summary>Its card closed when it is shown again, saying how it was answered.</summary>
+    void AnsweredInBackground(BackgroundConversation conversation, string requestId, string outcome)
+    {
         conversation.Events.Add(new ClaudePermissionCancelled(requestId, outcome));
         conversation.IsWaiting = conversation.Events.OfType<ClaudePermissionRequest>()
             .Any(r => !conversation.Events.OfType<ClaudePermissionCancelled>().Any(c => c.RequestId == r.RequestId));
         BackgroundChanged();
-        return true;
     }
 
-    async Task<bool> IRemoteHost.PromptAsync(IAgentSession session, string text)
+    async Task<bool> IRemoteHost.PromptAsync(IAgentSession session, string text, IReadOnlyList<RemoteImage> images)
     {
         text = RemoteText(text);
+        List<ClaudeImage> sent = [.. images.Select(i => new ClaudeImage(i.MediaType, Convert.ToBase64String(i.Data)))];
         if (session == _session && !session.HasExited)
         {
-            ApplyRemotePrompt(new ClaudeRemotePrompt(text, []));
-            await session.SendUserMessageAsync(SealedFiles.Unmention(text, _workingDirectory()));
+            ApplyRemotePrompt(new ClaudeRemotePrompt(text, sent));
+            await session.SendUserMessageAsync(SealedFiles.Unmention(text, _workingDirectory()), images: sent);
             return true;
         }
         if (_background.FirstOrDefault(b => b.Session == session) is { } conversation && !session.HasExited)
         {
-            conversation.Events.Add(new ClaudeRemotePrompt(text, []));
-            await session.SendUserMessageAsync(SealedFiles.Unmention(text, _workingDirectory()));
+            conversation.Events.Add(new ClaudeRemotePrompt(text, sent));
+            await session.SendUserMessageAsync(SealedFiles.Unmention(text, _workingDirectory()), images: sent);
             return true;
         }
         return false;
     }
 
-    async Task<bool> IRemoteHost.ResumeAsync(string sessionId, string text)
+    static List<ClaudeAttachment> RemoteAttachments(IReadOnlyList<RemoteImage> images) => [.. images.Select(i => new ClaudeAttachment(i.Name, i.MediaType, i.Data))];
+
+    /// <summary>A slash command, sent as one: with no images, and nothing after its line.</summary>
+    static bool IsRemoteCommand(string text, IReadOnlyList<RemoteImage> images) => images.Count == 0 && IsSlashCommand(text);
+
+    async Task<bool> IRemoteHost.ResumeAsync(string sessionId, string text, IReadOnlyList<RemoteImage> images)
     {
         if (sessionId.Length == 0 || sessionId is "." or ".." || sessionId.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0)
             return false;
@@ -140,20 +196,20 @@ public partial class ClaudeViewModel : IRemoteHost
         if (!File.Exists(file) || _backend is not null && agent is null)
             return false;
         await LoadConversationAsync(agent ?? new ClaudeConversation(sessionId, "", File.GetLastWriteTime(file), file));
-        await SendPromptAsync(RemoteText(text), null, [], IsSlashCommand(text), remote: true);
+        await SendPromptAsync(RemoteText(text), null, RemoteAttachments(images), IsRemoteCommand(text, images), remote: true);
         return true;
     }
 
     Task IRemoteHost.InterruptAsync(IAgentSession session) =>
         session == _session ? StopCommand.ExecuteAsync(null) : session.InterruptAsync();
 
-    async Task IRemoteHost.NewConversationAsync(string text)
+    async Task IRemoteHost.NewConversationAsync(string text, IReadOnlyList<RemoteImage> images)
     {
         await NewConversationAsync();
         CheckCli();
         if (CliPath is null)
             return;
-        await SendPromptAsync(RemoteText(text), null, [], IsSlashCommand(text), remote: true);
+        await SendPromptAsync(RemoteText(text), null, RemoteAttachments(images), IsRemoteCommand(text, images), remote: true);
     }
 
     /// <summary>A prompt from Telegram, a secret in it hidden (it was not asked about here).</summary>

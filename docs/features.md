@@ -522,22 +522,32 @@ Turned off with **Before the shell** on the karvon page of the MCP Servers windo
 What Claude may do with them, what asks and what refuses, where your secrets are kept and what can reach them:
 [permissions.md](permissions.md).
 
-## Telegram remote control (Settings > Claude and Agents)
+## Telegram remote control (Settings > Claude and Agents, or its button by Settings)
 
-Your conversations (Claude Code's and the Agents panel's) in a Telegram group of yours, set up in a window: a bot's token
-from @BotFather (checked with Telegram), a group with Topics on where the bot is an administrator who may manage topics,
-and a code sent there, which pairs the group and the person who sent it. Each conversation gets a topic of its own,
-named by its first prompt: a message, edited without a sound, says what it does as it goes (working, thinking, waiting
-for you, the step it is on, the files it changed); a question comes with a sound and **Allow**, **Allow for the
-session** and **Deny**; its answer comes when it ends (a long one as a file too). A message in its topic is a prompt for
-it (one no longer open in Karvon is opened again); `/stop` there stops it; a message in General begins a new
-conversation. A question answered in Karvon says so in Telegram, and one answered in Telegram closes its card here.
-Karvon hears the person who paired it alone, in that group alone. Karvon's own questions about a destructive call (a
-`DROP`, a pod deleted) are answered at the computer only; Claude's questions with options and its plans are told there
-and answered in Karvon. The token, the pairing and the topics are kept in the vault's sealed part, which no agent
-reaches (without a vault passphrase, until Karvon closes); what is sent has its secrets hidden. Karvon reaches Telegram
-(long polling): nothing reaches Karvon. One Karvon window uses the bot at a time; another takes it over when that one
-closes. Settings turns it off, keeps answering to Karvon alone, or leaves out the progress.
+Your conversations (Claude Code's and the Agents panel's) in a Telegram group of yours, set up in a window (the toolbar's
+Telegram button, before Settings, opens it, with a green dot while it is on): a bot's token from @BotFather (checked
+with Telegram), a group with Topics on where the bot is an administrator who may manage topics, and a code sent there,
+which pairs the group and the person who sent it. Each conversation gets a topic of its own, named by its first prompt.
+**A turn leaves one message**: while it works, a message edited without a sound says what it does (working, thinking,
+waiting for you, the step it is on, the files it changed); a question comes as a message of its own, with a sound, and
+goes once it is answered; when the turn ends, both go, and its answer comes with a sound: how long it took and the files
+it changed, then what it did and asked, folded (each step, each question and how it was answered), then the answer, its
+Markdown shown as Telegram shows it (a long answer as a file, its start under it). A question has **Allow**, **Allow for
+the session** and **Deny**; Claude's questions with options have their options as buttons (ticked, then Done, where
+several may be picked), or a text written in the topic as your own answer. A message in a topic is a prompt for its
+conversation (one no longer open in Karvon is opened again); `/stop` there stops it; a message in General begins a new
+conversation. **Photos and files** go with the prompt their caption is: a photo (or an image sent as a file) as an
+image, a text file (a log, code, JSON, up to 100 KB) in the prompt, whole, anything else saved on this machine with the
+prompt saying where; several sent at once are one prompt. A question answered in Karvon goes from Telegram too, and one
+answered in Telegram closes its card here. Karvon hears the person who paired it alone, in that group alone. Karvon's own
+questions about a destructive call (a `DROP`, a pod deleted) are answered at the computer only; a plan is told there and
+approved in Karvon. The token, the pairing and the topics are kept in the vault's sealed part, which no agent reaches
+(without a vault passphrase, until Karvon closes); what is sent has its secrets hidden. Karvon reaches Telegram (long
+polling): nothing reaches Karvon. With several Karvon windows open, one polls the bot and hands each of the others what
+is theirs (a question of theirs answered, a message in their conversation's topic, a past conversation of their folder)
+over a socket of the user's, where each side proves it knows a key kept in the vault's sealed part; when it closes,
+another takes the bot over. A message sent while no Karvon was running is not done hours later: Karvon says so. Settings
+turns it off, keeps answering to Karvon alone, or leaves out the progress.
 
 ## Karvon Studio Installer and updates (Tools > Get Tools and Features)
 

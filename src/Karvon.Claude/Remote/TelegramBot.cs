@@ -23,8 +23,20 @@ public sealed record TelegramChat(long Id, string Type, string? Title, bool IsFo
     public bool IsGroup => Type is "group" or "supergroup";
 }
 
-/// <summary>A message; <paramref name="ThreadId"/> is its topic's when <paramref name="IsTopicMessage"/> (else it is in General).</summary>
-public sealed record TelegramMessage(int MessageId, TelegramChat Chat, TelegramUser? From, int? ThreadId, bool IsTopicMessage, string? Text);
+/// <summary>
+/// A message; <paramref name="ThreadId"/> is its topic's when <paramref name="IsTopicMessage"/> (else it is in General);
+/// <paramref name="Date"/> when it was sent (Unix seconds). A photo or a file comes with its caption; several sent at once
+/// share their <paramref name="MediaGroupId"/>.
+/// </summary>
+public sealed record TelegramMessage(int MessageId, TelegramChat Chat, TelegramUser? From, int? ThreadId, bool IsTopicMessage, string? Text, long Date = 0,
+    string? Caption = null, TelegramFile? Photo = null, TelegramFile? Document = null, string? MediaGroupId = null)
+{
+    /// <summary>Anything that is not text, a photo or a file (a voice message, a sticker...).</summary>
+    public bool IsOther { get; init; }
+}
+
+/// <summary>A file Telegram keeps: fetched by its id (20 MB at most for a bot).</summary>
+public sealed record TelegramFile(string FileId, string Name, string? MimeType, long Size);
 
 /// <summary>An inline button pressed.</summary>
 public sealed record TelegramCallback(string Id, TelegramUser From, TelegramMessage? Message, string? Data);
@@ -103,6 +115,44 @@ public sealed class TelegramBot(string token, HttpClient http, Uri? api = null)
             await CallAsync("editMessageText", args, ct);
         }
         catch (TelegramException ex) when (ex.Code == 400 && ex.Message.Contains("not modified", StringComparison.OrdinalIgnoreCase))
+        {
+        }
+    }
+
+    /// <summary>The most a bot may fetch of a file.</summary>
+    public const long MaxDownload = 20 * 1024 * 1024;
+
+    /// <summary>A file someone sent, fetched.</summary>
+    public async Task<byte[]> DownloadAsync(TelegramFile file, CancellationToken ct = default)
+    {
+        if (file.Size > MaxDownload)
+            throw new TelegramException($"{file.Name} is larger than 20 MB, which is the most a bot may fetch.", 0);
+        var found = await CallAsync("getFile", new JsonObject { ["file_id"] = file.FileId }, ct);
+        if (found?["file_path"]?.GetValue<string>() is not { Length: > 0 } path)
+            throw new TelegramException($"Telegram did not give {file.Name}.", 0);
+        using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        cts.CancelAfter(TimeSpan.FromMinutes(2));
+        try
+        {
+            using var response = await http.GetAsync(new Uri(_api, $"./file/bot{token}/{path}"), HttpCompletionOption.ResponseHeadersRead, cts.Token);
+            if (!response.IsSuccessStatusCode)
+                throw new TelegramException($"Telegram did not give {file.Name} ({(int)response.StatusCode}).", (int)response.StatusCode);
+            return await response.Content.ReadAsByteArrayAsync(cts.Token);
+        }
+        catch (HttpRequestException ex)
+        {
+            throw new TelegramException("Telegram could not be reached: " + ex.Message, 0);
+        }
+    }
+
+    /// <summary>A message of the bot's taken away; one already gone is no error.</summary>
+    public async Task DeleteMessageAsync(long chatId, int messageId, CancellationToken ct = default)
+    {
+        try
+        {
+            await CallAsync("deleteMessage", new JsonObject { ["chat_id"] = chatId, ["message_id"] = messageId }, ct);
+        }
+        catch (TelegramException ex) when (ex.Code == 400)
         {
         }
     }
@@ -241,7 +291,22 @@ public sealed class TelegramBot(string token, HttpClient http, Uri? api = null)
         User(node["from"]),
         node["message_thread_id"]?.GetValue<int>(),
         node["is_topic_message"]?.GetValue<bool>() ?? false,
-        node["text"]?.GetValue<string>());
+        node["text"]?.GetValue<string>(),
+        node["date"]?.GetValue<long>() ?? 0,
+        node["caption"]?.GetValue<string>(),
+        // A photo comes in several sizes, the largest last.
+        node["photo"] is JsonArray { Count: > 0 } sizes && sizes[^1] is { } largest
+            ? new TelegramFile(largest["file_id"]?.GetValue<string>() ?? "", "photo.jpg", "image/jpeg", largest["file_size"]?.GetValue<long>() ?? 0)
+            : null,
+        node["document"] is { } document
+            ? new TelegramFile(document["file_id"]?.GetValue<string>() ?? "", document["file_name"]?.GetValue<string>() ?? "file",
+                document["mime_type"]?.GetValue<string>(), document["file_size"]?.GetValue<long>() ?? 0)
+            : null,
+        node["media_group_id"]?.GetValue<string>())
+    {
+        IsOther = node["text"] is null && node["photo"] is null && node["document"] is null
+            && (node["voice"] ?? node["audio"] ?? node["video"] ?? node["video_note"] ?? node["sticker"] ?? node["animation"]) is not null,
+    };
 
     static TelegramUpdate? Update(JsonNode? node)
     {

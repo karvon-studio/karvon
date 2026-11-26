@@ -38,7 +38,7 @@ public sealed class VsIcon : Control
         "Dependencies", "Package", "Framework", "cs", "razor", "css", "js", "json", "xml", "html", "sql", "md", "proto",
         "yaml", "image", "binary", "file", "CloneRepository", "OpenProject", "NewProject", "FsProject", "VbProject", "ArrowRight",
         "Claude", "History", "Send", "Copy", "Eye", "EyeOff", "Attach", "Hand", "CodeBrackets", "PlanDoc", "Bolt", "Gauge", "Plug", "Check", "Settings",
-        "Sparkle", "FileCode", "ChevronUp", "GitCommit", "Repo", "Globe", "User", "ShieldOff", "Remote", "HotReload",
+        "Sparkle", "FileCode", "ChevronUp", "GitCommit", "Repo", "Globe", "User", "ShieldOff", "Remote", "Telegram", "HotReload",
         "Docker", "DockerContainer", "DockerStack", "DockerImage", "DockerVolume", "DockerNetwork", "DockerPlay", "DockerStop", "DockerRestart",
         "DockerPause", "DockerDelete", "DockerMore", "DockerLink", "DockerBack", "DockerTerminal", "DockerLogs", "DockerStats", "DockerInspect",
         "ToolExplorer", "ToolTests", "ToolGit", "ToolDatabase", "ToolErrors", "ToolOutput", "ToolFind", "ToolLocals", "ToolCallStack", "ToolImmediate", "ToolCoverage", "ToolTerminal",
@@ -442,6 +442,12 @@ public sealed class VsIcon : Control
                 break;
             case "Send":
                 Stroke(dc, "M8,13 L8,3.5 M3.8,7.6 L8,3.4 L12.2,7.6", fg, 1.8);
+                break;
+            case "Telegram":
+                // Its blue circle with the white paper plane: the remote control over Telegram.
+                Fill(dc, "M8,1 A7,7 0 1 0 8,15 A7,7 0 1 0 8,1 Z", Color.Parse("#2AABEE"));
+                Fill(dc, "M3.6,7.7 L11.6,4.6 C12,4.45 12.35,4.7 12.25,5.15 L10.9,11.5 C10.8,11.95 10.5,12.05 10.1,11.85 L8.1,10.35 L7.1,11.3 "
+                    + "C7,11.4 6.9,11.5 6.7,11.5 L6.85,9.45 L10.6,6.05 C10.75,5.9 10.55,5.85 10.35,5.95 L5.7,8.9 L3.7,8.25 C3.25,8.1 3.25,7.85 3.6,7.7 Z", Colors.White);
                 break;
             case "Copy":
                 Stroke(dc, "M5.5,5.5 L13.5,5.5 L13.5,14.5 L5.5,14.5 Z M3.5,11 L2.5,11 L2.5,1.5 L10.5,1.5 L10.5,2.5", fg, 1.1);

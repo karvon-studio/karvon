@@ -20,6 +20,9 @@ public partial class MainViewModel : IWorkbench
     /// <summary>The modules' items in the status bar.</summary>
     public IReadOnlyList<ModuleStatusItem> StatusItems { get; private set; } = [];
 
+    /// <summary>The modules' buttons in the toolbar, before Settings.</summary>
+    public IReadOnlyList<ModuleToolbarButton> ToolbarButtons { get; private set; } = [];
+
     /// <summary>A module that is on.</summary>
     public T? Module<T>() where T : KarvonModule => Modules.OfType<T>().FirstOrDefault();
 
@@ -39,6 +42,7 @@ public partial class MainViewModel : IWorkbench
                 Editor.TextMateSupport.Add(grammar);
         }
         StatusItems = [.. Modules.Select(m => m.StatusItem).OfType<ModuleStatusItem>()];
+        ToolbarButtons = [.. Modules.Select(m => m.ToolbarButton).OfType<ModuleToolbarButton>()];
         RegisterModuleLanguageServers();
     }
 

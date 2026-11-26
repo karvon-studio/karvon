@@ -38,7 +38,7 @@ public abstract class AgentPanelModule : KarvonModule
         Remote.IsOn = () => settings.TelegramOn;
         Remote.Approves = () => settings.TelegramApproves;
         Remote.ShowsProgress = () => settings.TelegramProgress;
-        Remote.AddHost(kind, panel);
+        Remote.AddHost(kind, panel, WorkingDirectory);
         Remote.Start();
     }
 

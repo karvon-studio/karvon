@@ -50,6 +50,17 @@ public sealed class ClaudeModule : AgentPanelModule, IClaudeService
         _ = Output;
         Workbench.ActiveDocumentChanged += _ => _claude?.RefreshContext();
         UseTelegram("claude", () => Claude);
+        Remote.Changed += () => Dispatcher.UIThread.Post(ShowTelegramState);
+        ShowTelegramState();
+    }
+
+    /// <summary>Telegram's button in the toolbar, before Settings: its window, and how it is.</summary>
+    public override ModuleToolbarButton ToolbarButton { get; } = new("Telegram") { Click = ShowTelegramSetupAsync };
+
+    void ShowTelegramState()
+    {
+        ToolbarButton.IsOn = Remote.IsActive;
+        ToolbarButton.ToolTip = "Telegram remote control: " + Remote.State;
     }
 
     /// <summary>In Settings' Claude page: Telegram's remote control, set up in its window, and how it works.</summary>

@@ -163,6 +163,9 @@ public abstract partial class KarvonModule : ObservableObject, IDisposable, IAsy
     /// <summary>Its item in the status bar, or none (see <see cref="ModuleStatusItem"/>).</summary>
     public virtual ModuleStatusItem? StatusItem => null;
 
+    /// <summary>Its button in the toolbar, before Settings, or none (see <see cref="ModuleToolbarButton"/>).</summary>
+    public virtual ModuleToolbarButton? ToolbarButton => null;
+
     public virtual IReadOnlyList<ToolWindowInfo> ToolWindows => [];
 
     /// <summary>How its documents look in the document well: a template for each of its document types.</summary>
