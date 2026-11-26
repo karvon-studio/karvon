@@ -256,6 +256,9 @@ public class MachineTests
         Assert.DoesNotContain(usage.Disks, d => d.Format is "tmpfs" or "squashfs" or "overlay");
         Assert.DoesNotContain(usage.Disks, d => d.Mount.StartsWith("/boot", StringComparison.Ordinal));
         Assert.Equal([true, true, true, false, false], new[] { "/boot", "/boot/efi", "/efi", "/", "/bootstrap" }.Select(ResourceSampler.IsBoot));
+        // Fedora and Arch mount a disk for the user at /run/media: theirs, unlike the rest of /run.
+        Assert.Equal([false, false, true, true, true, false],
+            new[] { "/", "/run/media/me/STICK", "/run/user/1000/doc", "/snap/core/1", "/boot/efi", "/media/me/STICK" }.Select(ResourceSampler.IsSystem));
         Assert.Equal(50, ResourceSampler.Busy([10, 0, 10, 80, 0], [20, 0, 20, 100, 0]), 1);
 
         var host = new Host();

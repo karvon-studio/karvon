@@ -106,10 +106,7 @@ public sealed class ResourceSampler
             try
             {
                 if (!drive.IsReady || drive.TotalSize <= 0 || drive.DriveType is DriveType.Ram or DriveType.CDRom || Pseudo.Contains(drive.DriveFormat)
-                    || drive.Name.StartsWith("/snap/", StringComparison.Ordinal) || drive.Name.StartsWith("/var/lib/docker/", StringComparison.Ordinal)
-                    || drive.Name.StartsWith("/run/", StringComparison.Ordinal) || drive.Name.StartsWith("/sys/", StringComparison.Ordinal)
-                    || drive.Name.StartsWith("/proc/", StringComparison.Ordinal) || drive.Name.StartsWith("/dev/", StringComparison.Ordinal)
-                    || IsBoot(drive.Name))
+                    || IsSystem(drive.Name))
                     continue;
                 disks.Add(new DiskUsage(drive.Name, drive.DriveFormat, drive.TotalSize, drive.AvailableFreeSpace,
                     OperatingSystem.IsWindows() && drive.VolumeLabel is { Length: > 0 } label ? label : null));
@@ -120,6 +117,16 @@ public sealed class ResourceSampler
         }
         return disks;
     }
+
+    /// <summary>Where the system mounts what is no disk of the user's: a snap's, a container's, the kernel's.</summary>
+    static readonly string[] SystemFolders = ["/snap/", "/var/lib/docker/", "/run/", "/sys/", "/proc/", "/dev/"];
+
+    /// <summary>
+    /// A mount that is the system's, not a disk of the user's (as the file manager leaves it out): under <see cref="SystemFolders"/>,
+    /// or the boot partition; but a disk mounted for the user at /run/media (as Fedora and Arch do) is the user's.
+    /// </summary>
+    internal static bool IsSystem(string mount) =>
+        !mount.StartsWith("/run/media/", StringComparison.Ordinal) && (IsBoot(mount) || SystemFolders.Any(f => mount.StartsWith(f, StringComparison.Ordinal)));
 
     /// <summary>The system's boot partition (/boot, its EFI one at /boot/efi or /efi): the file manager does not show it either.</summary>
     internal static bool IsBoot(string mount) =>
