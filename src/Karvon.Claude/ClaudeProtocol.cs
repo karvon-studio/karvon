@@ -61,7 +61,7 @@ public sealed record ClaudePermissionRequest(
     string? AgentId = null) : ClaudeEvent;
 
 /// <summary>control_cancel_request: a question Karvon was asked is answered elsewhere (on claude.ai, with Remote Control).</summary>
-public sealed record ClaudePermissionCancelled(string RequestId) : ClaudeEvent;
+public sealed record ClaudePermissionCancelled(string RequestId, string? Outcome = null) : ClaudeEvent;
 
 /// <summary>system/status with a permission mode: the mode changed (from claude.ai, or by an approved plan).</summary>
 public sealed record ClaudeModeChanged(string Mode) : ClaudeEvent;

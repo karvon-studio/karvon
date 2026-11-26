@@ -40,6 +40,7 @@ public sealed class AgentsModule : AgentPanelModule
     {
         _ = Output;
         Workbench.ActiveDocumentChanged += _ => _agents?.RefreshContext();
+        UseTelegram("agents", () => Agents);
     }
 
     /// <summary>The agents the panel can talk to: those Karvon knows, then the user's own ACP agents.</summary>
@@ -67,6 +68,8 @@ public sealed class AgentsModule : AgentPanelModule
             Backends = Backends(Workbench.Settings),
         };
         Wire(agents, ToolWindowId, "the agent", () => agents.AgentName, "agents");
+        agents.Remote = Remote;
+        agents.RemoteKind = "agents";
         return agents;
     }
 

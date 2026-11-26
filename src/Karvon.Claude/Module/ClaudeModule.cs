@@ -49,6 +49,68 @@ public sealed class ClaudeModule : AgentPanelModule, IClaudeService
     {
         _ = Output;
         Workbench.ActiveDocumentChanged += _ => _claude?.RefreshContext();
+        UseTelegram("claude", () => Claude);
+    }
+
+    /// <summary>In Settings' Claude page: Telegram's remote control, set up in its window, and how it works.</summary>
+    public override IReadOnlyList<SettingsPage> SettingsPages()
+    {
+        var settings = Workbench.Settings;
+        bool SetUp() => Remote.Token is not null;
+        return
+        [
+            new("claude", "Claude and Agents", "Claude",
+            [
+                new("Remote Control (Telegram)",
+                [
+                    new ActionSetting("Telegram",
+                        "Your conversations in a Telegram group of yours: each in its topic, what it does as it goes, its questions with Allow and "
+                        + "Deny, its answer; a message there is a prompt. The bot's token is kept in the vault's sealed part, which no agent reaches.",
+                        () => Remote.State,
+                        new SettingAction("Set Up...", ShowTelegramSetupAsync),
+                        new SettingAction("Forget", ForgetTelegramAsync) { ShownWhen = SetUp }) { Keywords = "remote phone mobile bot" },
+                    new SwitchSetting("Use Telegram", "Off, nothing is told or taken there; the bot stays set up.", () => settings.TelegramOn, on =>
+                    {
+                        settings.TelegramOn = on;
+                        settings.Save();
+                        if (on)
+                            Remote.Start();
+                        else
+                            _ = Remote.StopAsync();
+                    }) { ShownWhen = SetUp, Keywords = nameof(settings.TelegramOn) },
+                    new SwitchSetting("Answer questions from Telegram",
+                        "Allow and Deny on an agent's questions there. Karvon's own about a destructive call (a DROP, a pod deleted) are answered at the computer alone.",
+                        () => settings.TelegramApproves, on =>
+                        {
+                            settings.TelegramApproves = on;
+                            settings.Save();
+                        }) { ShownWhen = SetUp, Keywords = nameof(settings.TelegramApproves) },
+                    new SwitchSetting("Show progress", "One message a turn, edited as the agent works, without a sound; off, only its questions and its answer.",
+                        () => settings.TelegramProgress, on =>
+                        {
+                            settings.TelegramProgress = on;
+                            settings.Save();
+                        }) { ShownWhen = SetUp, Keywords = nameof(settings.TelegramProgress) },
+                ]),
+            ]),
+        ];
+    }
+
+    static async Task ShowTelegramSetupAsync()
+    {
+        var lifetime = Avalonia.Application.Current?.ApplicationLifetime as Avalonia.Controls.ApplicationLifetimes.IClassicDesktopStyleApplicationLifetime;
+        var owner = lifetime?.Windows.FirstOrDefault(w => w.IsActive) ?? lifetime?.MainWindow;
+        var window = new TelegramSetupWindow(Remote);
+        if (owner is null)
+            window.Show();
+        else
+            await window.ShowDialog(owner);
+    }
+
+    async Task ForgetTelegramAsync()
+    {
+        if (await Workbench.ConfirmAsync("Forget Telegram", "Karvon forgets the bot and its group; the topics stay in Telegram. Set it up again to use it.") == true)
+            await Remote.ForgetAsync();
     }
 
     ClaudeViewModel Create()
@@ -59,6 +121,8 @@ public sealed class ClaudeModule : AgentPanelModule, IClaudeService
             McpServers = cwd => ExtraMcpServers?.Invoke(cwd),
         };
         Wire(claude, ToolWindowId, "Claude Code", () => "Claude", "claude");
+        claude.Remote = Remote;
+        claude.RemoteKind = "claude";
         claude.SignInWith = account => SignInAsync(claude, account);
         // Another account has other servers (its own .claude.json) and its own skills.
         claude.PropertyChanged += (_, e) =>

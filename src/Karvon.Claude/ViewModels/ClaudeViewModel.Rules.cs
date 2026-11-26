@@ -35,12 +35,16 @@ public partial class ClaudeViewModel
             if (ask.Caller is IAgentSession session && session != _session)
             {
                 if (_background.Any(b => b.Session == session))
+                {
                     HandleInBackground(session, request);
+                    ReportAsk(session, request);
+                }
                 else if (_asks.TryRemove(request.RequestId, out var gone))
                     gone.TrySetResult(false);
                 return;
             }
             Apply(request, live: true);
+            ReportAsk(_session, request);
         });
         return answer.Task.ContinueWith(t =>
         {

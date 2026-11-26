@@ -25,6 +25,23 @@ public abstract class AgentPanelModule : KarvonModule
     /// <summary>Its Output channel's name.</summary>
     protected abstract string OutputName { get; }
 
+    /// <summary>Telegram's remote control (this Karvon's): the panel's conversations are shown there once it is set up.</summary>
+    protected static Remote.TelegramRemote Remote => Karvon.Claude.Remote.TelegramRemote.Shared;
+
+    /// <summary>
+    /// The panel's conversations told to Telegram, as <paramref name="kind"/>, and its own made when a message there needs it;
+    /// Telegram polled as Settings says (once it is set up).
+    /// </summary>
+    protected void UseTelegram(string kind, Func<ClaudeViewModel> panel)
+    {
+        var settings = Workbench.Settings;
+        Remote.IsOn = () => settings.TelegramOn;
+        Remote.Approves = () => settings.TelegramApproves;
+        Remote.ShowsProgress = () => settings.TelegramProgress;
+        Remote.AddHost(kind, panel);
+        Remote.Start();
+    }
+
     /// <summary>Output (its channel): every call of Karvon's tools, what it was about and what it gave.</summary>
     public OutputChannel Output => _output ??= Workbench.Output(OutputName);
 

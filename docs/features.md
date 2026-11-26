@@ -522,6 +522,23 @@ Turned off with **Before the shell** on the karvon page of the MCP Servers windo
 What Claude may do with them, what asks and what refuses, where your secrets are kept and what can reach them:
 [permissions.md](permissions.md).
 
+## Telegram remote control (Settings > Claude and Agents)
+
+Your conversations (Claude Code's and the Agents panel's) in a Telegram group of yours, set up in a window: a bot's token
+from @BotFather (checked with Telegram), a group with Topics on where the bot is an administrator who may manage topics,
+and a code sent there, which pairs the group and the person who sent it. Each conversation gets a topic of its own,
+named by its first prompt: a message, edited without a sound, says what it does as it goes (working, thinking, waiting
+for you, the step it is on, the files it changed); a question comes with a sound and **Allow**, **Allow for the
+session** and **Deny**; its answer comes when it ends (a long one as a file too). A message in its topic is a prompt for
+it (one no longer open in Karvon is opened again); `/stop` there stops it; a message in General begins a new
+conversation. A question answered in Karvon says so in Telegram, and one answered in Telegram closes its card here.
+Karvon hears the person who paired it alone, in that group alone. Karvon's own questions about a destructive call (a
+`DROP`, a pod deleted) are answered at the computer only; Claude's questions with options and its plans are told there
+and answered in Karvon. The token, the pairing and the topics are kept in the vault's sealed part, which no agent
+reaches (without a vault passphrase, until Karvon closes); what is sent has its secrets hidden. Karvon reaches Telegram
+(long polling): nothing reaches Karvon. One Karvon window uses the bot at a time; another takes it over when that one
+closes. Settings turns it off, keeps answering to Karvon alone, or leaves out the progress.
+
 ## Karvon Studio Installer and updates (Tools > Get Tools and Features)
 
 As Visual Studio Installer: the installed Karvon Studio (its version, how it was installed, its update and the

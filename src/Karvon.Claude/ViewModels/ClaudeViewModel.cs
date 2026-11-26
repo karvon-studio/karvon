@@ -402,14 +402,15 @@ public sealed partial class ClaudeViewModel : ObservableObject, IAsyncDisposable
         await SendPromptAsync(text, context, images, isCommand);
     }
 
-    async Task SendPromptAsync(string text, ClaudeEditorContext? context, IReadOnlyList<ClaudeAttachment> images, bool isCommand)
+    async Task SendPromptAsync(string text, ClaudeEditorContext? context, IReadOnlyList<ClaudeAttachment> images, bool isCommand, bool remote = false)
     {
-        Items.Add(new UserChatItem(text, context?.Label, images));
+        Items.Add(new UserChatItem(text, context?.Label, images) { IsRemote = remote });
         _pendingModelCommand = isCommand && text.StartsWith("/model ", StringComparison.Ordinal) ? text[7..].Trim() : null;
         BeginTurn();
         try
         {
             var session = await EnsureSessionAsync();
+            Remote?.Prompted(this, session, RemoteKind, text);
             // Another agent's conversation: Karvon's transcript keeps the prompt (the agent does not tell it back).
             if (_transcripts.TryGetValue(session, out var transcript))
                 transcript.Prompt(text, images.Select(i => i.ToImage()));
@@ -578,6 +579,7 @@ public sealed partial class ClaudeViewModel : ObservableObject, IAsyncDisposable
 
     void Handle(IAgentSession session, ClaudeEvent ev)
     {
+        Report(session, ev);
         if (session != _session)
         {
             HandleInBackground(session, ev);
@@ -614,7 +616,7 @@ public sealed partial class ClaudeViewModel : ObservableObject, IAsyncDisposable
                 break;
 
             case ClaudePermissionCancelled cancelled:
-                ApplyAnsweredElsewhere(cancelled.RequestId);
+                ApplyAnsweredElsewhere(cancelled.RequestId, cancelled.Outcome ?? "Answered on another device");
                 break;
 
             case ClaudeModeChanged modeChanged when KnownMode(modeChanged.Mode) != PermissionMode:
@@ -1290,6 +1292,7 @@ public sealed partial class ClaudeViewModel : ObservableObject, IAsyncDisposable
     {
         item.IsResolved = true;
         item.Outcome = outcome;
+        RemoteAnswered(item.Request.RequestId, outcome + " in Karvon");
         if (item.Request.ToolUseId is { } id && _tools.TryGetValue(id, out var tool) && tool.State == ToolState.WaitingForApproval)
             tool.State = ToolState.Running;
     }
@@ -1318,6 +1321,7 @@ public sealed partial class ClaudeViewModel : ObservableObject, IAsyncDisposable
         updated["answers"] = answers;
         item.IsResolved = true;
         item.Outcome = string.Join("\n", item.Questions.Select(q => $"{q.Question} {q.Answer}"));
+        RemoteAnswered(item.Request.RequestId, "Answered in Karvon");
         using var doc = JsonDocument.Parse(updated.ToJsonString());
         await RespondAsync(item.Request, ClaudePermissionDecision.AllowOnce(doc.RootElement.Clone()));
     }
@@ -1336,6 +1340,7 @@ public sealed partial class ClaudeViewModel : ObservableObject, IAsyncDisposable
         if (item is not { IsPending: true })
             return;
         item.IsResolved = true;
+        RemoteAnswered(item.Request.RequestId, approve ? "Approved in Karvon" : "Kept planning, in Karvon");
         if (!approve)
         {
             var feedback = item.Feedback.Trim();
@@ -1361,14 +1366,17 @@ public sealed partial class ClaudeViewModel : ObservableObject, IAsyncDisposable
                 case PermissionChatItem { IsPending: true } p:
                     p.IsResolved = true;
                     p.Outcome = outcome;
+                    RemoteAnswered(p.Request.RequestId, outcome);
                     break;
                 case QuestionChatItem { IsPending: true } q:
                     q.IsResolved = true;
                     q.Outcome = outcome;
+                    RemoteAnswered(q.Request.RequestId, outcome);
                     break;
                 case PlanChatItem { IsPending: true } plan:
                     plan.IsResolved = true;
                     plan.Outcome = outcome;
+                    RemoteAnswered(plan.Request.RequestId, outcome);
                     break;
             }
         }
@@ -1514,6 +1522,7 @@ public sealed partial class ClaudeViewModel : ObservableObject, IAsyncDisposable
             else
                 ClaudeHistory.Delete(conversation);
             HistoryProblem = null;
+            Remote?.Deleted(conversation.SessionId);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {

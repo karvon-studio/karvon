@@ -177,6 +177,7 @@ public partial class ClaudeViewModel
     /// <summary>A question shown here was answered on claude.ai: the card is closed, and Claude goes on.</summary>
     void ApplyAnsweredElsewhere(string requestId, string outcome = "Answered on another device")
     {
+        RemoteAnswered(requestId, outcome);
         foreach (var item in Items)
         {
             switch (item)
