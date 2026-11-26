@@ -252,7 +252,7 @@ name or pid, each with the ports it listens on, the machine's CPU and memory abo
 stopped (asked first). **Resources**: the CPU in all and each core's, memory and swap, the last five minutes of both as a
 line, each disk's space and each network interface's traffic (a container's virtual cable left out), the uptime.
 **Disks**: each disk (its name as the file manager gives it: its label, the computer's name for its root, else its
-size; where it is mounted, how full), and on Linux those not mounted (a Windows partition, a second disk; not the
+size; where it is mounted, how full; the system's boot partition left out, as the file manager leaves it), and on Linux those not mounted (a Windows partition, a second disk; not the
 system's own boot and recovery ones), mounted by udisks when chosen (the system asks for the password it wants) and
 browsed; its files browsed: a folder's files and folders (hidden ones when asked), searched, by name, size or date; its
 folders measured, the largest first, to see what took the space (other disks and /proc's kind not entered), and drawn

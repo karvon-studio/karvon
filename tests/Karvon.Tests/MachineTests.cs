@@ -254,6 +254,8 @@ public class MachineTests
         Assert.True(usage.Memory.Total > usage.Memory.Used && usage.Memory.Used > 0);
         Assert.Contains(usage.Disks, d => d.Mount == "/" && d.Total > 0);
         Assert.DoesNotContain(usage.Disks, d => d.Format is "tmpfs" or "squashfs" or "overlay");
+        Assert.DoesNotContain(usage.Disks, d => d.Mount.StartsWith("/boot", StringComparison.Ordinal));
+        Assert.Equal([true, true, true, false, false], new[] { "/boot", "/boot/efi", "/efi", "/", "/bootstrap" }.Select(ResourceSampler.IsBoot));
         Assert.Equal(50, ResourceSampler.Busy([10, 0, 10, 80, 0], [20, 0, 20, 100, 0]), 1);
 
         var host = new Host();

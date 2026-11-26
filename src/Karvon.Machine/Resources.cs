@@ -108,7 +108,8 @@ public sealed class ResourceSampler
                 if (!drive.IsReady || drive.TotalSize <= 0 || drive.DriveType is DriveType.Ram or DriveType.CDRom || Pseudo.Contains(drive.DriveFormat)
                     || drive.Name.StartsWith("/snap/", StringComparison.Ordinal) || drive.Name.StartsWith("/var/lib/docker/", StringComparison.Ordinal)
                     || drive.Name.StartsWith("/run/", StringComparison.Ordinal) || drive.Name.StartsWith("/sys/", StringComparison.Ordinal)
-                    || drive.Name.StartsWith("/proc/", StringComparison.Ordinal) || drive.Name.StartsWith("/dev/", StringComparison.Ordinal))
+                    || drive.Name.StartsWith("/proc/", StringComparison.Ordinal) || drive.Name.StartsWith("/dev/", StringComparison.Ordinal)
+                    || IsBoot(drive.Name))
                     continue;
                 disks.Add(new DiskUsage(drive.Name, drive.DriveFormat, drive.TotalSize, drive.AvailableFreeSpace,
                     OperatingSystem.IsWindows() && drive.VolumeLabel is { Length: > 0 } label ? label : null));
@@ -119,6 +120,10 @@ public sealed class ResourceSampler
         }
         return disks;
     }
+
+    /// <summary>The system's boot partition (/boot, its EFI one at /boot/efi or /efi): the file manager does not show it either.</summary>
+    internal static bool IsBoot(string mount) =>
+        mount is "/boot" or "/efi" || mount.StartsWith("/boot/", StringComparison.Ordinal) || mount.StartsWith("/efi/", StringComparison.Ordinal);
 
     List<NetworkUsage> Network(double seconds)
     {
