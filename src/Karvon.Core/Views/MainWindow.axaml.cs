@@ -391,6 +391,8 @@ public partial class MainWindow : Window, IDialogService
         return ok == true ? box.Text : null;
     }
 
+    public Task<string?> VaultPassphraseAsync(bool change) => new VaultPassphraseWindow(change).ShowDialog<string?>(this);
+
     public async Task<string?> PickAsync(string title, string label, IReadOnlyList<string> options, string? initial)
     {
         var list = new ListBox { ItemsSource = options, SelectedItem = initial is not null && options.Contains(initial) ? initial : options.FirstOrDefault(), MaxHeight = 320, Width = 340 };

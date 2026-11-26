@@ -21,39 +21,17 @@ public partial class MainViewModel
 
     public bool CanSetVaultPassphrase => Vault() is { IsLocked: false, HasPassphrase: false };
 
-    const int MinPassphrase = 8;
-
     [RelayCommand]
     async Task SetVaultPassphrase()
     {
         if (Dialogs is null || Vault() is not { IsLocked: false } vault)
             return;
-        // What was wrong is said in the dialog asked again, not only in the status bar, where it goes unseen.
-        var problem = "";
-        while (true)
-        {
-            var first = await Dialogs.PromptAsync("Vault Passphrase",
-                problem + $"A passphrase for Karvon's vault ({MinPassphrase} characters at least), asked each time Karvon Studio starts. Forgotten, what the vault keeps is lost.", "", secret: true);
-            if (first is not { Length: > 0 })
-                return;
-            if (first.Length < MinPassphrase)
-            {
-                problem = $"That was {first.Length} characters: it takes {MinPassphrase} at least.\n\n";
-                continue;
-            }
-            var again = await Dialogs.PromptAsync("Vault Passphrase", "The passphrase again", "", secret: true);
-            if (again is null)
-                return;
-            if (again != first)
-            {
-                problem = "The two were not the same: type it again.\n\n";
-                continue;
-            }
-            await Task.Run(() => vault.SetPassphrase(first));
-            SetStatus("Karvon's vault has a passphrase: Karvon Studio asks for it as it starts.");
-            VaultChanged();
+        // Its window checks it as it is typed (long enough, the same twice), and says what forgetting it costs.
+        if (await Dialogs.VaultPassphraseAsync(vault.HasPassphrase) is not { Length: >= SecretVault.MinPassphrase } passphrase)
             return;
-        }
+        await Task.Run(() => vault.SetPassphrase(passphrase));
+        SetStatus("Karvon's vault has a passphrase: Karvon Studio asks for it as it starts.");
+        VaultChanged();
     }
 
     [RelayCommand]

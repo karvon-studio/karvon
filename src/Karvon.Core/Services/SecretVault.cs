@@ -29,6 +29,9 @@ public sealed class SecretVault : ICredentialStore
     /// <summary>PBKDF2-SHA256's rounds for a passphrase (OWASP's for it).</summary>
     public const int Iterations = 600_000;
 
+    /// <summary>The fewest characters a passphrase has.</summary>
+    public const int MinPassphrase = 8;
+
     readonly ICredentialStore _keyring;
     readonly string _path;
     byte[]? _key, _sealKey;

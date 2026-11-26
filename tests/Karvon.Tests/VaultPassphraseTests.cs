@@ -1,6 +1,7 @@
 using Avalonia.Controls;
 using Avalonia.Headless.XUnit;
 using Avalonia.Interactivity;
+using Avalonia.Threading;
 using Avalonia.VisualTree;
 using Bengine.Introspection.Servers;
 using Karvon.Claude.Tools;
@@ -45,6 +46,10 @@ public class VaultPassphraseTests
             Labels.Add(label);
             return Task.FromResult(Prompts.Count > 0 ? Prompts.Dequeue() : null);
         }
+
+        public Queue<string?> Passphrases { get; } = new();
+
+        public Task<string?> VaultPassphraseAsync(bool change) => Task.FromResult(Passphrases.Count > 0 ? Passphrases.Dequeue() : null);
 
         public Task<bool?> ConfirmSaveAsync(string fileName) => Task.FromResult<bool?>(false);
 
@@ -164,6 +169,52 @@ public class VaultPassphraseTests
     }
 
     [AvaloniaFact]
+    public async Task Its_window_sets_a_passphrase_long_enough_and_typed_the_same_twice_saying_what_forgetting_it_costs()
+    {
+        var owner = new Window { Width = 800, Height = 600 };
+        owner.Show();
+        var window = new VaultPassphraseWindow(change: false);
+        var result = window.ShowDialog<string?>(owner);
+        Dispatcher.UIThread.RunJobs();
+        var first = Find<TextBox>(window, "Passphrase");
+        var again = Find<TextBox>(window, "Again");
+        var set = Find<Button>(window, "Set");
+        Assert.False(set.IsEnabled);
+        Assert.Contains("cannot be recovered", ((TextBlock)Find<Border>(window, "Forgotten").Child!).Text);
+
+        // Too short: said as it is typed, and Set stays off.
+        first.Text = "secret";
+        Dispatcher.UIThread.RunJobs();
+        Assert.Equal("8 characters at least: 6 so far", Find<TextBlock>(window, "Length").Text);
+        Assert.False(set.IsEnabled);
+        // Long enough, not the same twice.
+        first.Text = "long enough 1";
+        again.Text = "long enough 2";
+        Dispatcher.UIThread.RunJobs();
+        Assert.Equal("✓ 8 characters at least", Find<TextBlock>(window, "Length").Text);
+        Assert.Equal("The two are not the same", Find<TextBlock>(window, "Same").Text);
+        Assert.False(set.IsEnabled);
+        again.Text = "long enough 1";
+        Dispatcher.UIThread.RunJobs();
+        Assert.Equal("✓ The two are the same", Find<TextBlock>(window, "Same").Text);
+        Assert.True(set.IsEnabled);
+
+        // Its eye shows both as typed, and hides them again.
+        Assert.Equal('•', first.PasswordChar);
+        Click(Find<Button>(window, "Show"));
+        Assert.Equal(('\0', '\0'), (first.PasswordChar, again.PasswordChar));
+        Dispatcher.UIThread.RunJobs();
+        Snapshot(window, "vault-passphrase");
+        Click(Find<Button>(window, "Show"));
+        Assert.Equal(('•', '•'), (first.PasswordChar, again.PasswordChar));
+
+        Click(set);
+        Assert.Equal("long enough 1", await result);
+        Assert.Null(VaultPassphraseWindow.Problem("long enough 1", "long enough 1"));
+        owner.Close();
+    }
+
+    [AvaloniaFact]
     public async Task Tools_Vault_sets_unlocks_and_removes_it()
     {
         var keyring = new MemoryKeyring();
@@ -175,17 +226,10 @@ public class VaultPassphraseTests
         vm.Vault = () => current;
         Assert.True(vm.CanSetVaultPassphrase);
 
-        // Too short, then not the same twice: asked again, the dialog saying why (not the status bar alone), until cancelled.
-        dialogs.Prompts.Enqueue("short");
+        // Cancelled: not set. Its window (below) gives it only long enough and typed the same twice.
         await vm.SetVaultPassphraseCommand.ExecuteAsync(null);
-        Assert.StartsWith("That was 5 characters: it takes 8 at least.", dialogs.Labels[^1]);
-        dialogs.Prompts.Enqueue("long enough 1");
-        dialogs.Prompts.Enqueue("long enough 2");
-        await vm.SetVaultPassphraseCommand.ExecuteAsync(null);
-        Assert.StartsWith("The two were not the same", dialogs.Labels[^1]);
         Assert.False(current.HasPassphrase);
-        dialogs.Prompts.Enqueue("long enough 1");
-        dialogs.Prompts.Enqueue("long enough 1");
+        dialogs.Passphrases.Enqueue("long enough 1");
         await vm.SetVaultPassphraseCommand.ExecuteAsync(null);
         Assert.True(current.HasPassphrase);
         Assert.True(vm.HasVaultPassphrase);
