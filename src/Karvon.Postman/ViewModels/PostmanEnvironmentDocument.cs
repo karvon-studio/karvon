@@ -4,7 +4,10 @@ using CommunityToolkit.Mvvm.Input;
 
 namespace Karvon.Postman.ViewModels;
 
-/// <summary>A variable of an environment, as its row: its name, and its value (Karvon's, or the file's where it came with one), hidden until it is shown.</summary>
+/// <summary>
+/// A variable of an environment, as its row: its name, and its value (Karvon's, or else the file's where it came with one:
+/// shown, and Karvon's once it is changed), hidden until it is shown.
+/// </summary>
 public sealed partial class PostmanVariableRow : ObservableObject
 {
     readonly Action<PostmanVariableRow> _edited;
@@ -13,7 +16,7 @@ public sealed partial class PostmanVariableRow : ObservableObject
     {
         Key = variable.Key;
         Initial = variable.Initial;
-        Current = variable.Current ?? "";
+        Current = variable.Current ?? variable.Initial;
         HasCurrent = variable.Current is not null;
         Enabled = variable.Enabled;
         IsSecret = variable.IsSecret;
@@ -50,7 +53,7 @@ public sealed partial class PostmanVariableRow : ObservableObject
 
     public string Eye => IsShown ? "EyeOff" : "Eye";
 
-    /// <summary>What stands in place of a value Karvon does not have.</summary>
+    /// <summary>What stands in place of a value taken away: the file's is the one used then.</summary>
     public string Hint => Initial.Length > 0 ? "In the file" : "Value";
 
     [RelayCommand]

@@ -28,23 +28,32 @@ public partial class MainViewModel
     {
         if (Dialogs is null || Vault() is not { IsLocked: false } vault)
             return;
-        var first = await Dialogs.PromptAsync("Vault Passphrase",
-            "A passphrase for Karvon's vault, asked each time Karvon Studio starts. Forgotten, what the vault keeps is lost.", "", secret: true);
-        if (first is not { Length: > 0 })
-            return;
-        if (first.Length < MinPassphrase)
+        // What was wrong is said in the dialog asked again, not only in the status bar, where it goes unseen.
+        var problem = "";
+        while (true)
         {
-            SetStatus($"The vault's passphrase was not set: it takes {MinPassphrase} characters at least.");
+            var first = await Dialogs.PromptAsync("Vault Passphrase",
+                problem + $"A passphrase for Karvon's vault ({MinPassphrase} characters at least), asked each time Karvon Studio starts. Forgotten, what the vault keeps is lost.", "", secret: true);
+            if (first is not { Length: > 0 })
+                return;
+            if (first.Length < MinPassphrase)
+            {
+                problem = $"That was {first.Length} characters: it takes {MinPassphrase} at least.\n\n";
+                continue;
+            }
+            var again = await Dialogs.PromptAsync("Vault Passphrase", "The passphrase again", "", secret: true);
+            if (again is null)
+                return;
+            if (again != first)
+            {
+                problem = "The two were not the same: type it again.\n\n";
+                continue;
+            }
+            await Task.Run(() => vault.SetPassphrase(first));
+            SetStatus("Karvon's vault has a passphrase: Karvon Studio asks for it as it starts.");
+            VaultChanged();
             return;
         }
-        if (await Dialogs.PromptAsync("Vault Passphrase", "The passphrase again", "", secret: true) != first)
-        {
-            SetStatus("The vault's passphrase was not set: the two were not the same.");
-            return;
-        }
-        await Task.Run(() => vault.SetPassphrase(first));
-        SetStatus("Karvon's vault has a passphrase: Karvon Studio asks for it as it starts.");
-        VaultChanged();
     }
 
     [RelayCommand]
@@ -68,11 +77,16 @@ public partial class MainViewModel
     {
         if (Dialogs is null || Vault() is not { IsLocked: true } vault)
             return;
-        if (await Dialogs.PromptAsync("Unlock Karvon's Vault", "The vault's passphrase", "", secret: true) is not { Length: > 0 } passphrase)
-            return;
-        SetStatus(await Task.Run(() => vault.Unlock(passphrase))
-            ? "Karvon's vault is unlocked: what asks for a sign-in now finds it."
-            : "That is not the vault's passphrase.");
+        var label = "The vault's passphrase";
+        while (true)
+        {
+            if (await Dialogs.PromptAsync("Unlock Karvon's Vault", label, "", secret: true) is not { Length: > 0 } passphrase)
+                return;
+            if (await Task.Run(() => vault.Unlock(passphrase)))
+                break;
+            label = "That is not the vault's passphrase. The vault's passphrase";
+        }
+        SetStatus("Karvon's vault is unlocked: what asks for a sign-in now finds it.");
         VaultChanged();
     }
 

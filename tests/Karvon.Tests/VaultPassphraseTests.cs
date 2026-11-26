@@ -38,7 +38,13 @@ public class VaultPassphraseTests
 
         public Task<string?> PickSolutionAsync() => Task.FromResult<string?>(null);
 
-        public Task<string?> PromptAsync(string title, string label, string initial) => Task.FromResult(Prompts.Count > 0 ? Prompts.Dequeue() : null);
+        public List<string> Labels { get; } = [];
+
+        public Task<string?> PromptAsync(string title, string label, string initial)
+        {
+            Labels.Add(label);
+            return Task.FromResult(Prompts.Count > 0 ? Prompts.Dequeue() : null);
+        }
 
         public Task<bool?> ConfirmSaveAsync(string fileName) => Task.FromResult<bool?>(false);
 
@@ -169,12 +175,14 @@ public class VaultPassphraseTests
         vm.Vault = () => current;
         Assert.True(vm.CanSetVaultPassphrase);
 
-        // Too short, then not the same twice: not set.
+        // Too short, then not the same twice: asked again, the dialog saying why (not the status bar alone), until cancelled.
         dialogs.Prompts.Enqueue("short");
         await vm.SetVaultPassphraseCommand.ExecuteAsync(null);
+        Assert.StartsWith("That was 5 characters: it takes 8 at least.", dialogs.Labels[^1]);
         dialogs.Prompts.Enqueue("long enough 1");
         dialogs.Prompts.Enqueue("long enough 2");
         await vm.SetVaultPassphraseCommand.ExecuteAsync(null);
+        Assert.StartsWith("The two were not the same", dialogs.Labels[^1]);
         Assert.False(current.HasPassphrase);
         dialogs.Prompts.Enqueue("long enough 1");
         dialogs.Prompts.Enqueue("long enough 1");
@@ -186,8 +194,10 @@ public class VaultPassphraseTests
         // Left locked as Karvon started: unlocked from the menu.
         current = SecretVault.Open(keyring, path)!;
         Assert.True(vm.IsVaultLocked);
+        dialogs.Prompts.Enqueue("wrong passphrase");
         dialogs.Prompts.Enqueue("long enough 1");
         await vm.UnlockVaultCommand.ExecuteAsync(null);
+        Assert.StartsWith("That is not the vault's passphrase.", dialogs.Labels[^1]);
         Assert.False(current.IsLocked);
         Assert.False(vm.IsVaultLocked);
 

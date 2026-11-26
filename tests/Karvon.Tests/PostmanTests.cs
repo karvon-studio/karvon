@@ -666,6 +666,9 @@ public class PostmanTests
         // Its file came with values: moved to the vault, as its document's button does.
         var environment = module.Open(module.Library.Active!);
         Assert.True(environment.HasFileValues);
+        // The file's values are shown (hidden until the eye), not only their names; changed, they are Karvon's.
+        Assert.Equal([(server.Url, false), ("s3cr3t-value-in-file", false)], environment.Rows.Take(2).Select(r => (r.Current, r.Variable.Current is not null)));
+        Assert.False(environment.IsDirty);
         Dispatcher.UIThread.RunJobs();
         Snapshot(window, "postman-environment-file");
         await environment.MoveToVaultCommand.ExecuteAsync(null);
