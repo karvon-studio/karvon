@@ -11,8 +11,8 @@ permissions:
 jobs:
   build:
     name: Build — ${{ matrix.name }}
-    # A build takes 6-20 minutes; a stuck one stops here, not at GitHub's 6 hours.
-    timeout-minutes: 40
+    # A build takes 20-70 minutes (0.1.2: Linux 21, Windows and both Macs past 40); a stuck one stops here, not at GitHub's 6 hours.
+    timeout-minutes: 90
     strategy:
       fail-fast: false
       matrix:
