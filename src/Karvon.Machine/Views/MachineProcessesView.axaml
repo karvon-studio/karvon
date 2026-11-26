@@ -1,0 +1,131 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:v="using:Karvon.Views"
+             xmlns:mvm="using:Karvon.Machine.ViewModels"
+             x:Class="Karvon.Machine.Views.MachineProcessesView"
+             x:DataType="mvm:ProcessesPage">
+  <UserControl.Styles>
+    <Style Selector="ListBox#Table ListBoxItem">
+      <Setter Property="Padding" Value="0" />
+      <Setter Property="MinHeight" Value="0" />
+    </Style>
+    <Style Selector="Grid.processRow">
+      <Setter Property="Height" Value="34" />
+      <Setter Property="Background" Value="Transparent" />
+    </Style>
+    <Style Selector="Grid.processRow StackPanel.rowActions">
+      <Setter Property="Opacity" Value="0" />
+    </Style>
+    <Style Selector="ListBoxItem:pointerover Grid.processRow StackPanel.rowActions">
+      <Setter Property="Opacity" Value="1" />
+    </Style>
+    <Style Selector="Grid.processRow TextBlock.cell">
+      <Setter Property="VerticalAlignment" Value="Center" />
+      <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+      <Setter Property="Margin" Value="0,0,12,0" />
+    </Style>
+    <Style Selector="TextBlock.busy">
+      <Setter Property="Foreground" Value="#E3B341" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+    </Style>
+  </UserControl.Styles>
+
+  <DockPanel Margin="26,20,26,0">
+    <StackPanel DockPanel.Dock="Top" Spacing="16">
+      <StackPanel>
+        <TextBlock Classes="dkTitle" Text="Processes" />
+        <TextBlock Classes="dkSubtitle" Text="What runs on this computer, and what each of it uses." />
+      </StackPanel>
+
+      <Grid ColumnDefinitions="*,14,*,14,*" MaxWidth="880" HorizontalAlignment="Left">
+        <Border Name="CpuCard" Classes="dkCard">
+          <StackPanel Spacing="3">
+            <TextBlock Text="CPU usage" Classes="dkMuted" FontSize="12" />
+            <StackPanel Orientation="Horizontal" Spacing="6">
+              <TextBlock Text="{Binding CpuUsageText}" FontSize="18" FontWeight="SemiBold" />
+              <TextBlock Text="{Binding CpuLimitText}" Classes="dkMuted" VerticalAlignment="Bottom" Margin="0,0,0,3" />
+            </StackPanel>
+          </StackPanel>
+        </Border>
+        <Border Grid.Column="2" Classes="dkCard">
+          <StackPanel Spacing="3">
+            <TextBlock Text="Memory usage" Classes="dkMuted" FontSize="12" />
+            <StackPanel Orientation="Horizontal" Spacing="6">
+              <TextBlock Text="{Binding MemoryUsageText}" FontSize="18" FontWeight="SemiBold" />
+              <TextBlock Text="{Binding MemoryLimitText}" Classes="dkMuted" VerticalAlignment="Bottom" Margin="0,0,0,3" />
+            </StackPanel>
+          </StackPanel>
+        </Border>
+        <Border Grid.Column="4" Classes="dkCard">
+          <StackPanel Spacing="3">
+            <TextBlock Text="Processes" Classes="dkMuted" FontSize="12" />
+            <TextBlock Text="{Binding ProcessCountText}" FontSize="18" FontWeight="SemiBold" />
+          </StackPanel>
+        </Border>
+      </Grid>
+
+      <Grid Height="34">
+        <Grid.ColumnDefinitions>
+          <ColumnDefinition Width="*" MaxWidth="300" MinWidth="140" />
+          <ColumnDefinition Width="Auto" />
+          <ColumnDefinition Width="*" />
+          <ColumnDefinition Width="Auto" />
+        </Grid.ColumnDefinitions>
+        <Panel>
+          <TextBox Name="SearchBox" Classes="dkSearch" Text="{Binding Search}" PlaceholderText="Search" />
+          <v:VsIcon Kind="Search" Width="14" Height="14" Margin="10,0,0,0" HorizontalAlignment="Left" IsHitTestVisible="False" Foreground="#9D9D9D" />
+        </Panel>
+        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="2" Margin="18,0,0,0">
+          <ToggleSwitch Name="MineOnlySwitch" Classes="dkSwitch" IsChecked="{Binding MineOnly}" />
+          <TextBlock Text="Only show my processes" VerticalAlignment="Center" />
+        </StackPanel>
+        <TextBlock Grid.Column="3" Text="{Binding CountText}" HorizontalAlignment="Right" VerticalAlignment="Center" Classes="dkMuted" FontSize="11" Margin="16,0,0,0" />
+      </Grid>
+      <TextBlock Text="{Binding Problem}" IsVisible="{Binding HasProblem}" Foreground="#F14C4C" TextWrapping="Wrap" />
+    </StackPanel>
+
+    <Grid RowDefinitions="Auto,*" Margin="0,12,0,0">
+      <Border Classes="dkTableHeader">
+        <Grid ColumnDefinitions="220,80,80,100,100,110,*,40" VerticalAlignment="Center" Margin="8,0">
+          <Button Classes="dkSort" Command="{Binding SortCommand}" CommandParameter="name">
+            <StackPanel Orientation="Horizontal" Spacing="4"><TextBlock Text="Name" Classes="dkHeader" /><TextBlock Text="{Binding NameSort}" Classes="dkHeader" /></StackPanel>
+          </Button>
+          <Button Grid.Column="1" Classes="dkSort" Command="{Binding SortCommand}" CommandParameter="pid">
+            <StackPanel Orientation="Horizontal" Spacing="4"><TextBlock Text="PID" Classes="dkHeader" /><TextBlock Text="{Binding PidSort}" Classes="dkHeader" /></StackPanel>
+          </Button>
+          <Button Grid.Column="2" Classes="dkSort" Command="{Binding SortCommand}" CommandParameter="cpu">
+            <StackPanel Orientation="Horizontal" Spacing="4"><TextBlock Text="CPU" Classes="dkHeader" /><TextBlock Text="{Binding CpuSort}" Classes="dkHeader" /></StackPanel>
+          </Button>
+          <Button Grid.Column="3" Classes="dkSort" Command="{Binding SortCommand}" CommandParameter="memory">
+            <StackPanel Orientation="Horizontal" Spacing="4"><TextBlock Text="Memory" Classes="dkHeader" /><TextBlock Text="{Binding MemorySort}" Classes="dkHeader" /></StackPanel>
+          </Button>
+          <TextBlock Grid.Column="4" Text="User" Classes="dkHeader" />
+          <TextBlock Grid.Column="5" Text="Ports" Classes="dkHeader" />
+          <TextBlock Grid.Column="6" Text="Command line" Classes="dkHeader" />
+        </Grid>
+      </Border>
+      <ListBox Name="Table" Grid.Row="1" ItemsSource="{Binding Rows}" Background="Transparent">
+        <ListBox.ItemTemplate>
+          <DataTemplate x:DataType="mvm:ProcessRow">
+            <Grid Classes="processRow" ColumnDefinitions="220,80,80,100,100,110,*,40" Margin="8,0">
+              <DockPanel VerticalAlignment="Center" Margin="0,0,12,0">
+                <Border DockPanel.Dock="Right" Classes="pill blue" IsVisible="{Binding IsKarvon}" Margin="6,0,0,0"><TextBlock Text="Karvon" /></Border>
+                <TextBlock Classes="cell" Text="{Binding Name}" FontWeight="SemiBold" Margin="0" ToolTip.Tip="{Binding Name}" />
+              </DockPanel>
+              <TextBlock Grid.Column="1" Classes="cell dkMuted dkMono" Text="{Binding PidText}" />
+              <TextBlock Grid.Column="2" Classes="cell" Classes.busy="{Binding IsBusy}" Text="{Binding CpuText}" />
+              <TextBlock Grid.Column="3" Classes="cell" Text="{Binding MemoryText}" />
+              <TextBlock Grid.Column="4" Classes="cell dkMuted" Text="{Binding UserText}" />
+              <TextBlock Grid.Column="5" Classes="cell dkMono" Foreground="#4DAAFC" Text="{Binding PortsText}" />
+              <TextBlock Grid.Column="6" Classes="cell dkMuted dkMono" Text="{Binding CommandText}" ToolTip.Tip="{Binding CommandText}" FontSize="11.5" />
+              <StackPanel Grid.Column="7" Classes="rowActions" Orientation="Horizontal" HorizontalAlignment="Right">
+                <Button Classes="dkIcon" Command="{Binding $parent[UserControl].((mvm:ProcessesPage)DataContext).StopCommand}" CommandParameter="{Binding}"
+                        IsVisible="{Binding CanStop}" ToolTip.Tip="Stop the Process…"><v:VsIcon Kind="Stop" /></Button>
+              </StackPanel>
+            </Grid>
+          </DataTemplate>
+        </ListBox.ItemTemplate>
+      </ListBox>
+    </Grid>
+  </DockPanel>
+</UserControl>

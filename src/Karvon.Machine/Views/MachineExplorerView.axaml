@@ -1,0 +1,48 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:v="using:Karvon.Views"
+             xmlns:mvm="using:Karvon.Machine.ViewModels"
+             x:Class="Karvon.Machine.Views.MachineExplorerView"
+             x:DataType="mvm:MachineExplorerViewModel">
+  <UserControl.Styles>
+    <StyleInclude Source="avares://Karvon.Core/Themes/ExplorerStyles.axaml" />
+    <Style Selector="ListBox#Sections ListBoxItem">
+      <Setter Property="Padding" Value="8,0" />
+      <Setter Property="MinHeight" Value="24" />
+    </Style>
+  </UserControl.Styles>
+
+  <DockPanel>
+    <Border DockPanel.Dock="Top" Background="{StaticResource VsEnvironmentBrush}">
+      <TextBlock Classes="toolTitle" Text="This Computer" />
+    </Border>
+    <Border DockPanel.Dock="Top" Padding="4,2">
+      <StackPanel Orientation="Horizontal" Spacing="2">
+        <Button Name="RefreshButton" Classes="tbi" Command="{Binding RefreshCommand}" ToolTip.Tip="Refresh"><v:VsIcon Kind="Refresh" /></Button>
+      </StackPanel>
+    </Border>
+
+    <!-- What the machine uses now (as Docker Explorer's foot) -->
+    <Border DockPanel.Dock="Bottom" BorderBrush="#3F3F46" BorderThickness="0,1,0,0" Padding="8,4,8,5">
+      <StackPanel Spacing="2">
+        <TextBlock Name="CpuFoot" Text="{Binding CpuText}" FontSize="11" />
+        <TextBlock Text="{Binding MemoryText}" FontSize="11" Classes="dkMuted" />
+        <TextBlock Text="{Binding UptimeText}" FontSize="11" Classes="dkMuted" />
+      </StackPanel>
+    </Border>
+
+    <!-- Its sections: the one chosen opens its page in the document well -->
+    <ListBox Name="Sections" ItemsSource="{Binding Sections}" Background="Transparent">
+      <ListBox.ItemTemplate>
+        <DataTemplate x:DataType="mvm:MachineSection">
+          <Grid ColumnDefinitions="Auto,*" Background="Transparent" ToolTip.Tip="{Binding Description}">
+            <v:VsIcon Kind="{Binding Icon}" Width="15" Height="15" Foreground="#4DAAFC" />
+            <TextBlock Grid.Column="1" Margin="6,0,0,0" VerticalAlignment="Center" TextTrimming="CharacterEllipsis">
+              <Run Text="{Binding Title}" FontWeight="SemiBold" /><Run Text="  " /><Run Text="{Binding Detail}" Foreground="#9D9D9D" />
+            </TextBlock>
+          </Grid>
+        </DataTemplate>
+      </ListBox.ItemTemplate>
+    </ListBox>
+  </DockPanel>
+</UserControl>

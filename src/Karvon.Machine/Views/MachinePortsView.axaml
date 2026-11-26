@@ -1,0 +1,114 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:v="using:Karvon.Views"
+             xmlns:mvm="using:Karvon.Machine.ViewModels"
+             x:Class="Karvon.Machine.Views.MachinePortsView"
+             x:DataType="mvm:PortsPage">
+  <UserControl.Styles>
+    <Style Selector="Border.dkRow StackPanel.rowActions">
+      <Setter Property="Opacity" Value="0" />
+    </Style>
+    <Style Selector="Border.dkRow:pointerover StackPanel.rowActions">
+      <Setter Property="Opacity" Value="1" />
+    </Style>
+    <Style Selector="Border.dkRow TextBlock.cell">
+      <Setter Property="VerticalAlignment" Value="Center" />
+      <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+      <Setter Property="Margin" Value="0,0,12,0" />
+    </Style>
+  </UserControl.Styles>
+
+  <DockPanel Margin="26,20,26,0">
+    <StackPanel DockPanel.Dock="Top" Spacing="16">
+      <StackPanel>
+        <TextBlock Classes="dkTitle" Text="Ports" />
+        <TextBlock Classes="dkSubtitle" Text="The ports this computer listens on, each with the process that holds it." />
+      </StackPanel>
+
+      <Grid ColumnDefinitions="*,14,*,14,*" MaxWidth="880" HorizontalAlignment="Left">
+        <Border Name="ListeningCard" Classes="dkCard">
+          <StackPanel Spacing="3">
+            <TextBlock Text="Listening" Classes="dkMuted" FontSize="12" />
+            <TextBlock Text="{Binding ListeningText}" FontSize="18" FontWeight="SemiBold" />
+          </StackPanel>
+        </Border>
+        <Border Grid.Column="2" Classes="dkCard">
+          <StackPanel Spacing="3">
+            <TextBlock Text="Your programs'" Classes="dkMuted" FontSize="12" />
+            <TextBlock Text="{Binding MineText}" FontSize="18" FontWeight="SemiBold" />
+          </StackPanel>
+        </Border>
+        <Border Grid.Column="4" Classes="dkCard" ToolTip.Tip="Bound to an address the network reaches (all addresses, or one of the network's)">
+          <StackPanel Spacing="3">
+            <TextBlock Text="Reached from the network" Classes="dkMuted" FontSize="12" />
+            <TextBlock Text="{Binding NetworkText}" FontSize="18" FontWeight="SemiBold" />
+          </StackPanel>
+        </Border>
+      </Grid>
+
+      <Grid Height="34">
+        <Grid.ColumnDefinitions>
+          <ColumnDefinition Width="*" MaxWidth="300" MinWidth="140" />
+          <ColumnDefinition Width="Auto" />
+          <ColumnDefinition Width="*" />
+          <ColumnDefinition Width="Auto" />
+        </Grid.ColumnDefinitions>
+        <Panel>
+          <TextBox Name="SearchBox" Classes="dkSearch" Text="{Binding Search}" PlaceholderText="Search" />
+          <v:VsIcon Kind="Search" Width="14" Height="14" Margin="10,0,0,0" HorizontalAlignment="Left" IsHitTestVisible="False" Foreground="#9D9D9D" />
+        </Panel>
+        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="2" Margin="18,0,0,0">
+          <ToggleSwitch Name="MineOnlySwitch" Classes="dkSwitch" IsChecked="{Binding MineOnly}" />
+          <TextBlock Text="Only show my programs' ports" VerticalAlignment="Center" />
+        </StackPanel>
+        <TextBlock Grid.Column="3" Text="{Binding CountText}" HorizontalAlignment="Right" VerticalAlignment="Center" Classes="dkMuted" FontSize="11" Margin="16,0,0,0" />
+      </Grid>
+      <TextBlock Text="{Binding Problem}" IsVisible="{Binding HasProblem}" Foreground="#F14C4C" TextWrapping="Wrap" />
+    </StackPanel>
+
+    <Grid RowDefinitions="Auto,*" Margin="0,12,0,0">
+      <Border Classes="dkTableHeader">
+        <Grid ColumnDefinitions="80,70,170,190,80,100,*,70" VerticalAlignment="Center" Margin="8,0">
+          <TextBlock Text="Port" Classes="dkHeader" />
+          <TextBlock Grid.Column="1" Text="Protocol" Classes="dkHeader" />
+          <TextBlock Grid.Column="2" Text="Address" Classes="dkHeader" />
+          <TextBlock Grid.Column="3" Text="Process" Classes="dkHeader" />
+          <TextBlock Grid.Column="4" Text="PID" Classes="dkHeader" />
+          <TextBlock Grid.Column="5" Text="User" Classes="dkHeader" />
+          <TextBlock Grid.Column="6" Text="Command line" Classes="dkHeader" />
+          <TextBlock Grid.Column="7" Text="Actions" Classes="dkHeader" HorizontalAlignment="Right" />
+        </Grid>
+      </Border>
+      <ScrollViewer Grid.Row="1" HorizontalScrollBarVisibility="Disabled">
+        <ItemsControl Name="Table" ItemsSource="{Binding Rows}">
+          <ItemsControl.ItemTemplate>
+            <DataTemplate x:DataType="mvm:PortRow">
+              <Border Classes="dkRow" MinHeight="38">
+                <Grid ColumnDefinitions="80,70,170,190,80,100,*,70" Margin="8,0">
+                  <Button Classes="dkLink" Content="{Binding PortText}" Command="{Binding $parent[UserControl].((mvm:PortsPage)DataContext).OpenCommand}" CommandParameter="{Binding}"
+                          IsVisible="{Binding CanOpen}" ToolTip.Tip="{Binding Port.Url, StringFormat=Open {0}}" VerticalAlignment="Center" />
+                  <TextBlock Classes="cell" Text="{Binding PortText}" IsVisible="{Binding !CanOpen}" />
+                  <TextBlock Grid.Column="1" Classes="cell dkMuted" Text="{Binding Protocol}" />
+                  <TextBlock Grid.Column="2" Classes="cell" Text="{Binding AddressText}" ToolTip.Tip="{Binding AddressTip}" />
+                  <DockPanel Grid.Column="3" VerticalAlignment="Center" Margin="0,0,12,0">
+                    <Border DockPanel.Dock="Right" Classes="pill blue" IsVisible="{Binding IsKarvon}" Margin="6,0,0,0"><TextBlock Text="Karvon" /></Border>
+                    <TextBlock Classes="cell" Text="{Binding ProcessText}" FontWeight="SemiBold" Margin="0" />
+                  </DockPanel>
+                  <TextBlock Grid.Column="4" Classes="cell dkMuted dkMono" Text="{Binding PidText}" />
+                  <TextBlock Grid.Column="5" Classes="cell dkMuted" Text="{Binding UserText}" />
+                  <TextBlock Grid.Column="6" Classes="cell dkMuted dkMono" Text="{Binding CommandText}" ToolTip.Tip="{Binding CommandText}" FontSize="11.5" />
+                  <StackPanel Grid.Column="7" Classes="rowActions" Orientation="Horizontal" Spacing="2" HorizontalAlignment="Right">
+                    <Button Classes="dkIcon" Command="{Binding $parent[UserControl].((mvm:PortsPage)DataContext).OpenCommand}" CommandParameter="{Binding}"
+                            IsVisible="{Binding CanOpen}" ToolTip.Tip="Open in Browser"><v:VsIcon Kind="Globe" /></Button>
+                    <Button Classes="dkIcon" Command="{Binding $parent[UserControl].((mvm:PortsPage)DataContext).StopCommand}" CommandParameter="{Binding}"
+                            IsVisible="{Binding CanStop}" ToolTip.Tip="Stop the Process…"><v:VsIcon Kind="Stop" /></Button>
+                  </StackPanel>
+                </Grid>
+              </Border>
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+      </ScrollViewer>
+    </Grid>
+  </DockPanel>
+</UserControl>

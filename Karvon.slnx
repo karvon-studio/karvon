@@ -10,6 +10,7 @@
     <Project Path="src/Karvon.Servers/Karvon.Servers.csproj" />
     <Project Path="src/Karvon.Jira/Karvon.Jira.csproj" />
     <Project Path="src/Karvon.Ports/Karvon.Ports.csproj" />
+    <Project Path="src/Karvon.Machine/Karvon.Machine.csproj" />
     <Project Path="src/Karvon.Pipelines/Karvon.Pipelines.csproj" />
     <Project Path="src/Karvon.PullRequests/Karvon.PullRequests.csproj" />
     <Project Path="src/Karvon.Kubernetes/Karvon.Kubernetes.csproj" />

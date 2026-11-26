@@ -1,0 +1,27 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mvm="using:Karvon.Machine.ViewModels"
+             xmlns:mv="using:Karvon.Machine.Views"
+             x:Class="Karvon.Machine.Views.MachineDocumentView"
+             x:DataType="mvm:MachineDocument"
+             Background="#1E1E1E">
+  <UserControl.Styles>
+    <StyleInclude Source="avares://Karvon.Core/Themes/ExplorerStyles.axaml" />
+  </UserControl.Styles>
+  <ContentControl Name="Page" Content="{Binding Content}">
+    <ContentControl.DataTemplates>
+      <DataTemplate DataType="mvm:PortsPage">
+        <mv:MachinePortsView />
+      </DataTemplate>
+      <DataTemplate DataType="mvm:ProcessesPage">
+        <mv:MachineProcessesView />
+      </DataTemplate>
+      <DataTemplate DataType="mvm:ResourcesPage">
+        <mv:MachineResourcesView />
+      </DataTemplate>
+      <DataTemplate DataType="mvm:DisksPage">
+        <mv:MachineDisksView />
+      </DataTemplate>
+    </ContentControl.DataTemplates>
+  </ContentControl>
+</UserControl>

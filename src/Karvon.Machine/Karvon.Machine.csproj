@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- This Computer: the machine's listening ports (and the processes that hold them), its processes and its resources; Claude's tools for them. -->
+  <PropertyGroup>
+    <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
+    <RootNamespace>Karvon.Machine</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="Karvon.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Karvon.Core\Karvon.Core.csproj" />
+  </ItemGroup>
+</Project>

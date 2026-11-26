@@ -239,6 +239,31 @@ Claude Code's tools: `tunnel_list`, `tunnel_open` (asking you first: it makes th
 through Karvon's own client, so Claude never sees the key. A `jprq`, `ngrok` or `cloudflared` tunnel in Bash is sent to
 them.
 
+## This Computer (View > This Computer)
+
+An explorer of this computer, as Docker Explorer's: its sections, Ports, Processes, Resources and Disks (with how many there are) and, at its foot, the CPU,
+memory and uptime; a section chosen opens its page in the document well, read again every few seconds while it shows.
+**Ports**: the ports it listens on (TCP listening, UDP bound), a process's sockets on several addresses one row (its
+addresses in the tooltip): the address (all addresses, this computer only, or which), the process that holds it (name,
+pid, user, command line with its secrets hidden; another user's or the system's without its name), Karvon's own marked;
+how many there are, how many are yours, how many the network reaches; searched, or yours alone; a port opened in the
+browser, its process stopped (asked first). **Processes**: what runs, by its CPU (over the last seconds) or memory, or by
+name or pid, each with the ports it listens on, the machine's CPU and memory above; searched, or yours alone; a process
+stopped (asked first). **Resources**: the CPU in all and each core's, memory and swap, the last five minutes of both as a
+line, each disk's space and each network interface's traffic (a container's virtual cable left out), the uptime.
+**Disks**: each disk (where it is mounted, how full) and its files browsed: a folder's files and folders (hidden ones when
+asked), searched, by name, size or date; its folders measured, the largest first, to see what took the space (other
+disks and /proc's kind not entered); a folder opened, a **picture** in a page of its own (fitted or at its size, the
+folder's others with ← and →), a **video or a sound played in Karvon** by the system's GStreamer (play and pause with
+Space, its line to seek, ← and → five seconds, its volume; a video's pictures drawn on the page; a video's **mini
+player**, a small window over every other at the screen's corner that plays on while you work, its page closed or not:
+dragged, made larger from its corner, its buttons under the pointer, back to its page on a double click), the rest in the
+editor, or any of them with the system's program. Where GStreamer is not (Windows, macOS), a video or sound opens with the
+system's player.
+Claude gets `machine_ports` (all of them, or whether one port is taken, and by what), `machine_processes`,
+`machine_resources` and `machine_stop_process` (the user is asked, at the computer); `ss`, `netstat`, `lsof -i`, `ps aux`
+and `top -b` are sent to them. Linux reads /proc, macOS lsof and ps, Windows netstat.
+
 ## Pipelines (View > Pipelines)
 
 The open repository's CI, as it goes: GitHub Actions' workflow runs (read through your own `gh`, signed in; without
@@ -546,8 +571,10 @@ approved in Karvon. The token, the pairing and the topics are kept in the vault'
 polling): nothing reaches Karvon. With several Karvon windows open, one polls the bot and hands each of the others what
 is theirs (a question of theirs answered, a message in their conversation's topic, a past conversation of their folder)
 over a socket of the user's, where each side proves it knows a key kept in the vault's sealed part; when it closes,
-another takes the bot over. A message sent while no Karvon was running is not done hours later: Karvon says so. Settings
-turns it off, keeps answering to Karvon alone, or leaves out the progress.
+another takes the bot over. A message sent while no Karvon was running is not done hours later: Karvon says so. Its
+button's menu turns it **off and on** (in every Karvon window): off, what it shows of the turns that run goes, nothing is
+told, and a message written there is answered, once, that it is off. Settings keeps answering to Karvon alone, or leaves
+out the progress.
 
 ## Karvon Studio Installer and updates (Tools > Get Tools and Features)
 

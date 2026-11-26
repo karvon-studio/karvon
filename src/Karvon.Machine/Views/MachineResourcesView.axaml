@@ -1,0 +1,145 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:v="using:Karvon.Views"
+             xmlns:mvm="using:Karvon.Machine.ViewModels"
+             xmlns:mv="using:Karvon.Machine.Views"
+             x:Class="Karvon.Machine.Views.MachineResourcesView"
+             x:DataType="mvm:ResourcesPage">
+  <UserControl.Styles>
+    <Style Selector="ProgressBar.usage">
+      <Setter Property="Minimum" Value="0" />
+      <Setter Property="Maximum" Value="100" />
+      <Setter Property="Height" Value="8" />
+      <Setter Property="MinHeight" Value="8" />
+      <Setter Property="MinWidth" Value="0" />
+      <Setter Property="CornerRadius" Value="4" />
+      <Setter Property="Background" Value="#2D2D30" />
+      <Setter Property="Foreground" Value="#4DAAFC" />
+      <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+    <Style Selector="ProgressBar.usage.high">
+      <Setter Property="Foreground" Value="#F14C4C" />
+    </Style>
+    <Style Selector="TextBlock.section">
+      <Setter Property="FontSize" Value="14" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+      <Setter Property="Margin" Value="0,8,0,0" />
+    </Style>
+  </UserControl.Styles>
+
+  <ScrollViewer HorizontalScrollBarVisibility="Disabled">
+    <StackPanel Margin="26,20,26,24" Spacing="14" MaxWidth="1100" HorizontalAlignment="Left">
+      <StackPanel>
+        <TextBlock Classes="dkTitle" Text="Resources" />
+        <TextBlock Classes="dkSubtitle" Text="What this computer uses now: its CPU, memory, disks and network." />
+      </StackPanel>
+
+      <Grid ColumnDefinitions="*,14,*,14,*">
+        <Border Name="CpuCard" Classes="dkCard">
+          <StackPanel Spacing="3">
+            <TextBlock Text="CPU usage" Classes="dkMuted" FontSize="12" />
+            <StackPanel Orientation="Horizontal" Spacing="6">
+              <TextBlock Text="{Binding CpuText}" FontSize="18" FontWeight="SemiBold" />
+              <TextBlock Text="{Binding CpuDetail}" Classes="dkMuted" VerticalAlignment="Bottom" Margin="0,0,0,3" />
+            </StackPanel>
+          </StackPanel>
+        </Border>
+        <Border Grid.Column="2" Classes="dkCard">
+          <StackPanel Spacing="3">
+            <TextBlock Text="Memory usage" Classes="dkMuted" FontSize="12" />
+            <StackPanel Orientation="Horizontal" Spacing="6">
+              <TextBlock Text="{Binding Memory.Detail}" FontSize="18" FontWeight="SemiBold" />
+              <TextBlock Text="{Binding Memory.Text}" Classes="dkMuted" VerticalAlignment="Bottom" Margin="0,0,0,3" />
+            </StackPanel>
+          </StackPanel>
+        </Border>
+        <Border Grid.Column="4" Classes="dkCard">
+          <StackPanel Spacing="3">
+            <TextBlock Text="Up for" Classes="dkMuted" FontSize="12" />
+            <TextBlock Text="{Binding UptimeText}" FontSize="18" FontWeight="SemiBold" />
+          </StackPanel>
+        </Border>
+      </Grid>
+
+      <!-- The last minutes, the newest at the right -->
+      <Grid ColumnDefinitions="*,14,*">
+        <Border Classes="dkCard" Padding="12,10">
+          <StackPanel Spacing="6">
+            <TextBlock Text="CPU, the last 5 minutes" Classes="dkMuted" FontSize="12" />
+            <mv:UsageChart Name="CpuChart" Values="{Binding CpuHistory}" Height="90" />
+          </StackPanel>
+        </Border>
+        <Border Grid.Column="2" Classes="dkCard" Padding="12,10">
+          <StackPanel Spacing="6">
+            <TextBlock Text="Memory, the last 5 minutes" Classes="dkMuted" FontSize="12" />
+            <mv:UsageChart Values="{Binding MemoryHistory}" Height="90" Stroke="#B180D7" />
+          </StackPanel>
+        </Border>
+      </Grid>
+
+      <TextBlock Classes="section" Text="Each CPU" IsVisible="{Binding HasCores}" />
+      <ItemsControl Name="CoreBars" ItemsSource="{Binding Cores}">
+        <ItemsControl.ItemsPanel>
+          <ItemsPanelTemplate>
+            <WrapPanel ItemWidth="260" />
+          </ItemsPanelTemplate>
+        </ItemsControl.ItemsPanel>
+        <ItemsControl.ItemTemplate>
+          <DataTemplate x:DataType="mvm:UsageBar">
+            <Grid ColumnDefinitions="60,*,44" Margin="0,3,24,3">
+              <TextBlock Text="{Binding Name}" Classes="dkMuted" FontSize="12" VerticalAlignment="Center" />
+              <ProgressBar Grid.Column="1" Classes="usage" Classes.high="{Binding IsHigh}" Value="{Binding Share}" />
+              <TextBlock Grid.Column="2" Text="{Binding Text}" FontSize="12" HorizontalAlignment="Right" VerticalAlignment="Center" />
+            </Grid>
+          </DataTemplate>
+        </ItemsControl.ItemTemplate>
+      </ItemsControl>
+
+      <TextBlock Classes="section" Text="Memory" />
+      <StackPanel Spacing="6">
+        <Grid ColumnDefinitions="90,*,260">
+          <TextBlock Text="Memory" VerticalAlignment="Center" />
+          <ProgressBar Grid.Column="1" Classes="usage" Classes.high="{Binding Memory.IsHigh}" Value="{Binding Memory.Share}" />
+          <TextBlock Grid.Column="2" Text="{Binding Memory.Text}" Classes="dkMuted" Margin="12,0,0,0" VerticalAlignment="Center" />
+        </Grid>
+        <Grid ColumnDefinitions="90,*,260" IsVisible="{Binding HasSwap}">
+          <TextBlock Text="Swap" VerticalAlignment="Center" />
+          <ProgressBar Grid.Column="1" Classes="usage" Classes.high="{Binding Swap.IsHigh}" Value="{Binding Swap.Share}" />
+          <TextBlock Grid.Column="2" Text="{Binding Swap.Text}" Classes="dkMuted" Margin="12,0,0,0" VerticalAlignment="Center" />
+        </Grid>
+      </StackPanel>
+
+      <TextBlock Classes="section" Text="Disks" />
+      <ItemsControl Name="DiskBars" ItemsSource="{Binding Disks}">
+        <ItemsControl.ItemTemplate>
+          <DataTemplate x:DataType="mvm:UsageBar">
+            <Grid ColumnDefinitions="220,*,330" Margin="0,4">
+              <StackPanel VerticalAlignment="Center">
+                <TextBlock Text="{Binding Name}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding Name}" />
+                <TextBlock Text="{Binding Detail}" Classes="dkMuted" FontSize="11" />
+              </StackPanel>
+              <ProgressBar Grid.Column="1" Classes="usage" Classes.high="{Binding IsHigh}" Value="{Binding Share}" />
+              <TextBlock Grid.Column="2" Text="{Binding Text}" Classes="dkMuted" Margin="12,0,0,0" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+            </Grid>
+          </DataTemplate>
+        </ItemsControl.ItemTemplate>
+      </ItemsControl>
+
+      <TextBlock Classes="section" Text="Network" />
+      <ItemsControl Name="NetworkBars" ItemsSource="{Binding Network}">
+        <ItemsControl.ItemTemplate>
+          <DataTemplate x:DataType="mvm:UsageBar">
+            <Grid ColumnDefinitions="220,*,330" Margin="0,4">
+              <StackPanel VerticalAlignment="Center">
+                <TextBlock Text="{Binding Name}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                <TextBlock Text="{Binding Detail}" Classes="dkMuted" FontSize="11" />
+              </StackPanel>
+              <ProgressBar Grid.Column="1" Classes="usage" Value="{Binding Share}" />
+              <TextBlock Grid.Column="2" Text="{Binding Text}" Margin="12,0,0,0" VerticalAlignment="Center" FontFamily="{StaticResource VsCodeFont}" FontSize="12" />
+            </Grid>
+          </DataTemplate>
+        </ItemsControl.ItemTemplate>
+      </ItemsControl>
+    </StackPanel>
+  </ScrollViewer>
+</UserControl>

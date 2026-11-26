@@ -1,0 +1,35 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:v="using:Karvon.Views"
+             xmlns:mvm="using:Karvon.Machine.ViewModels"
+             x:Class="Karvon.Machine.Views.MachineImageView"
+             x:DataType="mvm:ImagePage"
+             Focusable="True">
+  <DockPanel>
+    <Border DockPanel.Dock="Top" Padding="10,6" BorderBrush="#333337" BorderThickness="0,0,0,1">
+      <DockPanel>
+        <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="2">
+          <TextBlock Text="{Binding Place}" Classes="dkMuted" FontSize="12" VerticalAlignment="Center" Margin="0,0,8,0" />
+          <Button Name="PreviousButton" Classes="tbi" Command="{Binding PreviousCommand}" ToolTip.Tip="Previous Picture (←)"><v:VsIcon Kind="DockerBack" /></Button>
+          <Button Name="NextButton" Classes="tbi" Command="{Binding NextCommand}" ToolTip.Tip="Next Picture (→)"><v:VsIcon Kind="DockerBack" RenderTransform="rotate(180deg)" /></Button>
+          <ToggleButton Name="FitButton" Classes="tbi" IsChecked="{Binding Fit}" ToolTip.Tip="Fit to the Page, or at Its Own Size" Margin="6,0,0,0">
+            <TextBlock Text="Fit" FontSize="12" />
+          </ToggleButton>
+          <Button Classes="tbi" Command="{Binding OpenWithSystemCommand}" ToolTip.Tip="Open with the System's Viewer"><v:VsIcon Kind="DockerLink" /></Button>
+        </StackPanel>
+        <StackPanel Orientation="Horizontal" Spacing="10">
+          <v:VsIcon Kind="FileImage" Width="16" Height="16" />
+          <TextBlock Text="{Binding Name}" FontWeight="SemiBold" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+          <TextBlock Text="{Binding Info}" Classes="dkMuted" FontSize="12" VerticalAlignment="Center" />
+        </StackPanel>
+      </DockPanel>
+    </Border>
+    <TextBlock DockPanel.Dock="Top" Text="{Binding Problem}" IsVisible="{Binding Problem, Converter={x:Static ObjectConverters.IsNotNull}}" Foreground="#F14C4C" Margin="12" TextWrapping="Wrap" />
+    <Panel Background="#161616">
+      <Image Name="Fitted" Source="{Binding Image}" Stretch="Uniform" IsVisible="{Binding Fit}" Margin="12" />
+      <ScrollViewer HorizontalScrollBarVisibility="Auto" IsVisible="{Binding !Fit}">
+        <Image Source="{Binding Image}" Stretch="None" HorizontalAlignment="Center" VerticalAlignment="Center" />
+      </ScrollViewer>
+    </Panel>
+  </DockPanel>
+</UserControl>

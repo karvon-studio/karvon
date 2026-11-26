@@ -1,0 +1,177 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:v="using:Karvon.Views"
+             xmlns:mvm="using:Karvon.Machine.ViewModels"
+             x:Class="Karvon.Machine.Views.MachineDisksView"
+             x:DataType="mvm:DisksPage">
+  <UserControl.Styles>
+    <Style Selector="ProgressBar.usage">
+      <Setter Property="Minimum" Value="0" />
+      <Setter Property="Maximum" Value="100" />
+      <Setter Property="Height" Value="6" />
+      <Setter Property="MinHeight" Value="6" />
+      <Setter Property="MinWidth" Value="0" />
+      <Setter Property="CornerRadius" Value="3" />
+      <Setter Property="Background" Value="#2D2D30" />
+      <Setter Property="Foreground" Value="#4DAAFC" />
+    </Style>
+    <Style Selector="ProgressBar.usage.high">
+      <Setter Property="Foreground" Value="#F14C4C" />
+    </Style>
+    <!-- A disk's card: chosen, it is the one browsed -->
+    <Style Selector="Button.disk">
+      <Setter Property="Background" Value="#252526" />
+      <Setter Property="BorderBrush" Value="#3F3F46" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CornerRadius" Value="6" />
+      <Setter Property="Padding" Value="14,10" />
+      <Setter Property="Width" Value="250" />
+      <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+      <Setter Property="Margin" Value="0,0,12,12" />
+    </Style>
+    <Style Selector="Button.disk.current">
+      <Setter Property="BorderBrush" Value="#4DAAFC" />
+    </Style>
+    <Style Selector="ListBox#Table ListBoxItem">
+      <Setter Property="Padding" Value="0" />
+      <Setter Property="MinHeight" Value="0" />
+    </Style>
+    <Style Selector="Grid.fileRow">
+      <Setter Property="Height" Value="30" />
+      <Setter Property="Background" Value="Transparent" />
+    </Style>
+    <Style Selector="Grid.fileRow TextBlock.cell">
+      <Setter Property="VerticalAlignment" Value="Center" />
+      <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+      <Setter Property="Margin" Value="0,0,12,0" />
+    </Style>
+    <Style Selector="Grid.fileRow StackPanel.rowActions">
+      <Setter Property="Opacity" Value="0" />
+    </Style>
+    <Style Selector="ListBoxItem:pointerover Grid.fileRow StackPanel.rowActions">
+      <Setter Property="Opacity" Value="1" />
+    </Style>
+    <Style Selector="Button.crumb">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderThickness" Value="0" />
+      <Setter Property="Padding" Value="4,2" />
+      <Setter Property="Foreground" Value="#CCCCCC" />
+    </Style>
+  </UserControl.Styles>
+
+  <DockPanel Margin="26,20,26,0">
+    <StackPanel DockPanel.Dock="Top" Spacing="14">
+      <StackPanel>
+        <TextBlock Classes="dkTitle" Text="Disks" />
+        <TextBlock Classes="dkSubtitle" Text="This computer's disks and their files: what is on them, and what takes their space." />
+      </StackPanel>
+
+      <ItemsControl Name="DiskCards" ItemsSource="{Binding Disks}">
+        <ItemsControl.ItemsPanel>
+          <ItemsPanelTemplate>
+            <WrapPanel />
+          </ItemsPanelTemplate>
+        </ItemsControl.ItemsPanel>
+        <ItemsControl.ItemTemplate>
+          <DataTemplate x:DataType="mvm:DiskCard">
+            <Button Classes="disk" Classes.current="{Binding IsCurrent}" Command="{Binding BrowseCommand}" ToolTip.Tip="{Binding Mount, StringFormat=Browse {0}}">
+              <StackPanel Spacing="5">
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                  <v:VsIcon Kind="Disk" Width="16" Height="16" Foreground="#4DAAFC" />
+                  <TextBlock Text="{Binding Mount}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                </StackPanel>
+                <ProgressBar Classes="usage" Classes.high="{Binding IsHigh}" Value="{Binding Share}" />
+                <TextBlock Text="{Binding Text}" FontSize="12" />
+                <TextBlock Text="{Binding Detail}" Classes="dkMuted" FontSize="11" />
+              </StackPanel>
+            </Button>
+          </DataTemplate>
+        </ItemsControl.ItemTemplate>
+      </ItemsControl>
+
+      <!-- Where it is: up, home, and each folder of the path -->
+      <DockPanel>
+        <StackPanel DockPanel.Dock="Left" Orientation="Horizontal" Spacing="2" Margin="0,0,8,0">
+          <Button Name="UpButton" Classes="tbi" Command="{Binding UpCommand}" IsEnabled="{Binding CanGoUp}" ToolTip.Tip="Up"><v:VsIcon Kind="ChevronUp" /></Button>
+          <Button Classes="tbi" Command="{Binding HomeCommand}" ToolTip.Tip="Home Folder"><v:VsIcon Kind="Folder" /></Button>
+        </StackPanel>
+        <ItemsControl Name="Crumbs" ItemsSource="{Binding Crumbs}" VerticalAlignment="Center">
+          <ItemsControl.ItemsPanel>
+            <ItemsPanelTemplate>
+              <StackPanel Orientation="Horizontal" />
+            </ItemsPanelTemplate>
+          </ItemsControl.ItemsPanel>
+          <ItemsControl.ItemTemplate>
+            <DataTemplate x:DataType="mvm:FolderCrumb">
+              <StackPanel Orientation="Horizontal">
+                <Button Classes="crumb" Content="{Binding Name}" Command="{Binding $parent[UserControl].((mvm:DisksPage)DataContext).CrumbCommand}" CommandParameter="{Binding Path}" />
+                <TextBlock Text="›" Classes="dkMuted" VerticalAlignment="Center" Margin="2,0" />
+              </StackPanel>
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+      </DockPanel>
+
+      <Grid Height="34">
+        <Grid.ColumnDefinitions>
+          <ColumnDefinition Width="*" MaxWidth="300" MinWidth="140" />
+          <ColumnDefinition Width="Auto" />
+          <ColumnDefinition Width="Auto" />
+          <ColumnDefinition Width="*" />
+          <ColumnDefinition Width="Auto" />
+        </Grid.ColumnDefinitions>
+        <Panel>
+          <TextBox Name="SearchBox" Classes="dkSearch" Text="{Binding Search}" PlaceholderText="Search this folder" />
+          <v:VsIcon Kind="Search" Width="14" Height="14" Margin="10,0,0,0" HorizontalAlignment="Left" IsHitTestVisible="False" Foreground="#9D9D9D" />
+        </Panel>
+        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="2" Margin="18,0,0,0">
+          <ToggleSwitch Name="HiddenSwitch" Classes="dkSwitch" IsChecked="{Binding ShowHidden}" />
+          <TextBlock Text="Show hidden files" VerticalAlignment="Center" />
+        </StackPanel>
+        <Button Name="MeasureButton" Grid.Column="2" Classes="dkOutline" Margin="18,0,0,0" Command="{Binding MeasureCommand}" Content="{Binding MeasureText}"
+                ToolTip.Tip="Each folder's size, the largest first: what the space went to (click again to stop)" />
+        <TextBlock Grid.Column="4" Text="{Binding CountText}" HorizontalAlignment="Right" VerticalAlignment="Center" Classes="dkMuted" FontSize="11" Margin="16,0,0,0" />
+      </Grid>
+      <TextBlock Text="{Binding Problem}" IsVisible="{Binding HasProblem}" Foreground="#F14C4C" TextWrapping="Wrap" />
+    </StackPanel>
+
+    <Grid RowDefinitions="Auto,*" Margin="0,10,0,0">
+      <Border Classes="dkTableHeader">
+        <Grid ColumnDefinitions="*,220,150,130,40" VerticalAlignment="Center" Margin="8,0">
+          <Button Classes="dkSort" Command="{Binding SortCommand}" CommandParameter="name">
+            <StackPanel Orientation="Horizontal" Spacing="4"><TextBlock Text="Name" Classes="dkHeader" /><TextBlock Text="{Binding NameSort}" Classes="dkHeader" /></StackPanel>
+          </Button>
+          <Button Grid.Column="1" Classes="dkSort" Command="{Binding SortCommand}" CommandParameter="size">
+            <StackPanel Orientation="Horizontal" Spacing="4"><TextBlock Text="Size" Classes="dkHeader" /><TextBlock Text="{Binding SizeSort}" Classes="dkHeader" /></StackPanel>
+          </Button>
+          <Button Grid.Column="2" Classes="dkSort" Command="{Binding SortCommand}" CommandParameter="modified">
+            <StackPanel Orientation="Horizontal" Spacing="4"><TextBlock Text="Modified" Classes="dkHeader" /><TextBlock Text="{Binding ModifiedSort}" Classes="dkHeader" /></StackPanel>
+          </Button>
+          <TextBlock Grid.Column="3" Text="Kind" Classes="dkHeader" />
+        </Grid>
+      </Border>
+      <ListBox Name="Table" Grid.Row="1" ItemsSource="{Binding Rows}" Background="Transparent">
+        <ListBox.ItemTemplate>
+          <DataTemplate x:DataType="mvm:FileRow">
+            <Grid Classes="fileRow" ColumnDefinitions="*,220,150,130,40" Margin="8,0">
+              <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center" Margin="0,0,12,0">
+                <v:VsIcon Kind="{Binding Icon}" Width="16" Height="16" />
+                <TextBlock Classes="cell" Text="{Binding Name}" Margin="0" />
+              </StackPanel>
+              <Grid Grid.Column="1" ColumnDefinitions="80,*" Margin="0,0,12,0">
+                <TextBlock Classes="cell" Text="{Binding SizeText}" Margin="0" />
+                <ProgressBar Grid.Column="1" Classes="usage" Value="{Binding Share}" VerticalAlignment="Center" IsVisible="{Binding IsFolder}" />
+              </Grid>
+              <TextBlock Grid.Column="2" Classes="cell dkMuted" Text="{Binding ModifiedText}" />
+              <TextBlock Grid.Column="3" Classes="cell dkMuted" Text="{Binding KindText}" />
+              <StackPanel Grid.Column="4" Classes="rowActions" Orientation="Horizontal" HorizontalAlignment="Right">
+                <Button Classes="dkIcon" Command="{Binding $parent[UserControl].((mvm:DisksPage)DataContext).OpenWithSystemCommand}" CommandParameter="{Binding}"
+                        ToolTip.Tip="Open with the System's Program"><v:VsIcon Kind="DockerLink" /></Button>
+              </StackPanel>
+            </Grid>
+          </DataTemplate>
+        </ListBox.ItemTemplate>
+      </ListBox>
+    </Grid>
+  </DockPanel>
+</UserControl>

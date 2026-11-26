@@ -7,7 +7,7 @@ public static class BuiltInModules
 {
     public static IReadOnlyList<KarvonModule> Create() =>
     [
-        new Database.DatabaseModule(), new Docker.DockerModule(), new Servers.ServersModule(), new Jira.JiraModule(), new Ports.PortsModule(), new Pipelines.PipelinesModule(), new PullRequests.PullRequestsModule(), new Kubernetes.KubernetesModule(), new Http.HttpModule(), new Postman.PostmanModule(), new Mcp.McpModule(), new Skills.SkillsModule(), new Documents.DocumentsModule(), new Browser.BrowserModule(), new Completions.CompletionsModule(), new CodeMap.CodeMapModule(),
+        new Database.DatabaseModule(), new Docker.DockerModule(), new Servers.ServersModule(), new Jira.JiraModule(), new Ports.PortsModule(), new Machine.MachineModule(), new Pipelines.PipelinesModule(), new PullRequests.PullRequestsModule(), new Kubernetes.KubernetesModule(), new Http.HttpModule(), new Postman.PostmanModule(), new Mcp.McpModule(), new Skills.SkillsModule(), new Documents.DocumentsModule(), new Browser.BrowserModule(), new Completions.CompletionsModule(), new CodeMap.CodeMapModule(),
         new DotNet.DotNetModule(), new TypeScript.TypeScriptModule(), new Python.PythonModule(), new Go.GoModule(), new Rust.RustModule(), new Cpp.CppModule(), new Java.JavaModule(), new Kotlin.KotlinModule(), new Jwc.JwcModule(), new Arche.ArcheModule(), new Bek.BekModule(),
         new Claude.ClaudeModule(), new Claude.AgentsModule(),
     ];

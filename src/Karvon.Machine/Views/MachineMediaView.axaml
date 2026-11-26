@@ -1,0 +1,58 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:v="using:Karvon.Views"
+             xmlns:mvm="using:Karvon.Machine.ViewModels"
+             x:Class="Karvon.Machine.Views.MachineMediaView"
+             x:DataType="mvm:MediaPage"
+             Focusable="True">
+  <UserControl.Styles>
+    <Style Selector="Slider.timeline">
+      <Setter Property="Minimum" Value="0" />
+      <Setter Property="VerticalAlignment" Value="Center" />
+      <Setter Property="MinWidth" Value="0" />
+    </Style>
+  </UserControl.Styles>
+  <DockPanel>
+    <!-- What plays it: play or pause, its line, its time, its volume -->
+    <Border DockPanel.Dock="Bottom" Padding="12,8" Background="#252526" BorderBrush="#333337" BorderThickness="0,1,0,0" IsEnabled="{Binding CanPlay}">
+      <Grid ColumnDefinitions="Auto,*,Auto,Auto,120,Auto">
+        <Button Name="PlayButton" Classes="tbi" Width="30" Height="28" Command="{Binding PlayPauseCommand}" ToolTip.Tip="{Binding PlayTip}">
+          <v:VsIcon Kind="{Binding PlayIcon}" Width="16" Height="16" />
+        </Button>
+        <Slider Name="Timeline" Grid.Column="1" Classes="timeline" Maximum="{Binding Duration}" Value="{Binding Position}" Margin="10,0" />
+        <TextBlock Grid.Column="2" Text="{Binding TimeText}" FontFamily="{StaticResource VsCodeFont}" FontSize="12" VerticalAlignment="Center" Margin="0,0,14,0" />
+        <TextBlock Grid.Column="3" Text="🔊" VerticalAlignment="Center" Margin="0,0,6,0" />
+        <Slider Name="VolumeSlider" Grid.Column="4" Classes="timeline" Maximum="100" Value="{Binding Volume}" ToolTip.Tip="Volume" />
+        <StackPanel Grid.Column="5" Orientation="Horizontal" Spacing="2" Margin="10,0,0,0">
+          <Button Name="MiniButton" Classes="tbi" Command="{Binding MiniCommand}" IsVisible="{Binding IsVideo}" ToolTip.Tip="Mini Player: over the other windows, as you work">
+            <v:VsIcon Kind="MiniPlayer" />
+          </Button>
+          <Button Classes="tbi" Command="{Binding OpenWithSystemCommand}" ToolTip.Tip="Open with the System's Player">
+            <v:VsIcon Kind="DockerLink" />
+          </Button>
+        </StackPanel>
+      </Grid>
+    </Border>
+    <Border DockPanel.Dock="Top" Padding="10,6" BorderBrush="#333337" BorderThickness="0,0,0,1">
+      <StackPanel Orientation="Horizontal" Spacing="10">
+        <v:VsIcon Kind="FileVideo" Width="16" Height="16" IsVisible="{Binding IsVideo}" />
+        <v:VsIcon Kind="FileAudio" Width="16" Height="16" IsVisible="{Binding IsSound}" />
+        <TextBlock Text="{Binding Name}" FontWeight="SemiBold" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+      </StackPanel>
+    </Border>
+    <TextBlock DockPanel.Dock="Top" Text="{Binding Problem}" IsVisible="{Binding HasProblem}" Foreground="#F14C4C" Margin="12" TextWrapping="Wrap" />
+    <Panel Background="Black">
+      <Image Name="Picture" Source="{Binding Frame}" Stretch="Uniform" IsVisible="{Binding ShowsHere}" />
+      <!-- Shown in the mini player alone -->
+      <StackPanel Name="InMini" IsVisible="{Binding ShowsInMini}" HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="14">
+        <v:VsIcon Kind="MiniPlayer" Width="64" Height="64" HorizontalAlignment="Center" Foreground="#9D9D9D" />
+        <TextBlock Text="Playing in the mini player" FontSize="15" HorizontalAlignment="Center" Foreground="#CCCCCC" />
+        <Button Name="PlayHereButton" Classes="dkOutline" HorizontalAlignment="Center" Content="Play Here" Click="OnPlayHere" />
+      </StackPanel>
+      <StackPanel IsVisible="{Binding IsSound}" HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="14">
+        <v:VsIcon Kind="FileAudio" Width="96" Height="96" HorizontalAlignment="Center" />
+        <TextBlock Text="{Binding Name}" FontSize="16" FontWeight="SemiBold" HorizontalAlignment="Center" TextTrimming="CharacterEllipsis" MaxWidth="600" />
+      </StackPanel>
+    </Panel>
+  </DockPanel>
+</UserControl>

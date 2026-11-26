@@ -21,6 +21,7 @@
     <ProjectReference Include="..\Karvon.Servers\Karvon.Servers.csproj" />
     <ProjectReference Include="..\Karvon.Jira\Karvon.Jira.csproj" />
     <ProjectReference Include="..\Karvon.Ports\Karvon.Ports.csproj" />
+    <ProjectReference Include="..\Karvon.Machine\Karvon.Machine.csproj" />
     <ProjectReference Include="..\Karvon.Pipelines\Karvon.Pipelines.csproj" />
     <ProjectReference Include="..\Karvon.PullRequests\Karvon.PullRequests.csproj" />
     <ProjectReference Include="..\Karvon.Kubernetes\Karvon.Kubernetes.csproj" />

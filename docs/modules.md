@@ -13,6 +13,10 @@ Each module is a project of its own, referencing `Karvon.Core`. The core referen
 - Jira (`src/Karvon.Jira`): Jira's REST API (Cloud's and Server's), its sites' secrets in the keyring, and Claude's Jira tools;
 - Ports (`src/Karvon.Ports`): port forwarding through a jprq tunnel service (its multiplexing protocol, gob and all, in C#),
   a bottom tool window, the workbench's `ListeningUrls`, and Claude's tunnel tools;
+- This Computer (`src/Karvon.Machine`): an explorer of the machine (Ports, Processes, Resources, Disks), each a page in
+  the document well (Linux's /proc, macOS's lsof and ps, Windows's netstat); a file browser, pictures shown and videos and
+  sounds played by the system's GStreamer (P/Invoke: playbin, an appsink for the pictures); Claude's `machine_ports`,
+  `machine_processes`, `machine_resources` and `machine_stop_process`.
 - Pipelines (`src/Karvon.Pipelines`): GitHub Actions (through gh) and GitLab CI, a run's page, a status bar item, and
   Claude's pipeline tools;
 - Pull Requests (`src/Karvon.PullRequests`, which uses the Pipelines' sign-in and APIs): GitHub's pull requests and

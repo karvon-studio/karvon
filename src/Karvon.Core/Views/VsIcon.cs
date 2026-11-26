@@ -42,7 +42,7 @@ public sealed class VsIcon : Control
         "Docker", "DockerContainer", "DockerStack", "DockerImage", "DockerVolume", "DockerNetwork", "DockerPlay", "DockerStop", "DockerRestart",
         "DockerPause", "DockerDelete", "DockerMore", "DockerLink", "DockerBack", "DockerTerminal", "DockerLogs", "DockerStats", "DockerInspect",
         "ToolExplorer", "ToolTests", "ToolGit", "ToolDatabase", "ToolErrors", "ToolOutput", "ToolFind", "ToolLocals", "ToolCallStack", "ToolImmediate", "ToolCoverage", "ToolTerminal",
-        "ToolServers", "ToolMcp", "ToolSkills", "ToolJira", "ToolPorts", "ToolPipelines", "ToolPullRequests", "ToolKubernetes", "ToolEndpoints", "ToolPostman",
+        "ToolServers", "ToolMcp", "ToolSkills", "ToolJira", "ToolPorts", "ToolMachine", "Processes", "Activity", "Disk", "FileImage", "FileVideo", "FileAudio", "MiniPlayer", "Expand", "ToolPipelines", "ToolPullRequests", "ToolKubernetes", "ToolEndpoints", "ToolPostman",
         "PullRequest", "PullRequestDraft", "PullRequestMerged", "PullRequestClosed", "Comment",
     ];
 
@@ -583,6 +583,44 @@ public sealed class VsIcon : Control
                 break;
             case "Comment":
                 Line(dc, "M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z", fg, 1.8);
+                break;
+            case "Processes":
+                // Rows, each with its mark: what runs.
+                Line(dc, "M4 6h2.5 M10 6h10 M4 12h2.5 M10 12h10 M4 18h2.5 M10 18h10", fg, 2);
+                break;
+            case "MiniPlayer":
+                // A screen with a small one in its corner: picture in picture.
+                Line(dc, "M4 5h16a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1z", fg, 1.6);
+                Fill(dc, "M8.2,7.4 L12.6,7.4 L12.6,11.2 L8.2,11.2 Z", fg);
+                break;
+            case "Expand":
+                // Out to its corners: back to its page.
+                Line(dc, "M14 4h6v6 M20 4l-7 7 M10 20H4v-6 M4 20l7-7", fg, 1.8);
+                break;
+            case "Disk":
+                // A drive: its case, the line on it and its light.
+                Line(dc, "M5.5 4h13A2.5 2.5 0 0 1 21 6.5v11a2.5 2.5 0 0 1-2.5 2.5h-13A2.5 2.5 0 0 1 3 17.5v-11A2.5 2.5 0 0 1 5.5 4z M3 13.5h18 M16.5 16.8h.01", fg, 1.7);
+                break;
+            case "FileImage":
+                // A picture: its frame, a sun and a hill.
+                Line(dc, "M4.5 4h15A1.5 1.5 0 0 1 21 5.5v13a1.5 1.5 0 0 1-1.5 1.5h-15A1.5 1.5 0 0 1 3 18.5v-13A1.5 1.5 0 0 1 4.5 4z M8.5 10.5a1.8 1.8 0 1 0 0-3.6a1.8 1.8 0 1 0 0 3.6z M21 15.5l-5-5L5 20", Color.Parse("#4EC9B0"), 1.6);
+                break;
+            case "FileVideo":
+                // A film: its frame and a play mark.
+                Line(dc, "M4.5 5h15A1.5 1.5 0 0 1 21 6.5v11a1.5 1.5 0 0 1-1.5 1.5h-15A1.5 1.5 0 0 1 3 17.5v-11A1.5 1.5 0 0 1 4.5 5z", Color.Parse("#C586C0"), 1.6);
+                Fill(dc, "M6.7,5.6 L10.7,8 L6.7,10.4 Z", Color.Parse("#C586C0"));
+                break;
+            case "FileAudio":
+                // A note.
+                Line(dc, "M9 18V5l11-2v13 M9 18a3 3 0 1 1-6 0a3 3 0 1 1 6 0z M20 16a3 3 0 1 1-6 0a3 3 0 1 1 6 0z", Color.Parse("#DCDCAA"), 1.6);
+                break;
+            case "Activity":
+                // A pulse: what the machine uses as it goes.
+                Line(dc, "M2.5 12.5h4l2.5-6 4.5 12 3-7.5 1.5 1.5h3.5", fg, 1.8);
+                break;
+            case "ToolMachine":
+                // A screen on its stand: this computer.
+                Line(dc, "M3.5 4h17A1.5 1.5 0 0 1 22 5.5v10a1.5 1.5 0 0 1-1.5 1.5h-17A1.5 1.5 0 0 1 2 15.5v-10A1.5 1.5 0 0 1 3.5 4z M12 17v3.5 M8 20.5h8", fg, 1.6);
                 break;
             case "ToolPorts":
                 // A mast sending out: a port reached from outside.
