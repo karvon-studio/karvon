@@ -8,7 +8,8 @@ using Karvon.Services;
 namespace Karvon.Views;
 
 /// <summary>
-/// What Karvon Studio shows first when its vault has a passphrase: the passphrase, before any module reads a secret.
+/// What Karvon Studio asks when its vault has a passphrase, as the start window opens a project or goes on without one (or
+/// as one given on the command line opens): the passphrase, before the IDE's modules start and read a secret.
 /// Not now goes on with the vault locked (each sign-in it keeps is asked for this time); a passphrase forgotten takes what
 /// the vault kept with it, once the user says so.
 /// </summary>

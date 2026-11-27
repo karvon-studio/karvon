@@ -632,12 +632,24 @@ public class UiTests
         Assert.Null(cloneVm.Message);
         Assert.Equal(Path.Combine(root, "clones", "Repo", "Repo.slnx"), cloned);
 
-        // Closing the start window (X) continues without code, exactly once.
-        var closing = new StartWindow { DataContext = new StartViewModel(settings) };
+    }
+
+    [AvaloniaFact]
+    public void Start_window_s_X_closes_it_and_Karvon_without_opening_the_ide()
+    {
+        var closing = new StartWindow { DataContext = new StartViewModel(new Karvon.Services.Settings { InMemory = true }) };
         var finished = new List<string?>();
         closing.Finished += finished.Add;
         closing.Show();
         closing.Close();
+        // Not as Continue without code, which opens the IDE: Karvon Studio has no window left, and ends.
+        Assert.Empty(finished);
+        Assert.False(closing.IsVisible);
+
+        var going = new StartWindow { DataContext = new StartViewModel(new Karvon.Services.Settings { InMemory = true }) };
+        going.Finished += finished.Add;
+        going.Show();
+        ((StartViewModel)going.DataContext!).ContinueWithoutCodeCommand.Execute(null);
         Assert.Equal([null], finished);
     }
 

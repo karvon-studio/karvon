@@ -35,7 +35,7 @@ public partial class StartWindow : Window
 
     StartViewModel? Vm => DataContext as StartViewModel;
 
-    /// <summary>Raised once: the solution or project to open, or null for "Continue without code" or closing the window.</summary>
+    /// <summary>Raised once: the solution or project to open, or null for "Continue without code". Not when its X closes it.</summary>
     public event Action<string?>? Finished;
 
     void Finish(string? path)
@@ -61,18 +61,6 @@ public partial class StartWindow : Window
             _finished = true;
             Close();
         }, () => Services.DesktopShell.Open(updater.Latest?.PageUrl ?? $"https://github.com/{Updates.UpdateFeed.Repository}/releases")));
-    }
-
-    protected override void OnClosing(WindowClosingEventArgs e)
-    {
-        base.OnClosing(e);
-        // Closing the start window at launch opens the IDE without code, as in VS. This runs before the window
-        // is gone, so the IDE window exists by then and the app does not shut down for lack of windows.
-        if (!e.Cancel && !_finished)
-        {
-            _finished = true;
-            Finished?.Invoke(null);
-        }
     }
 
     void OnViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)

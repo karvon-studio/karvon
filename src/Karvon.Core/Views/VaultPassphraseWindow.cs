@@ -90,7 +90,7 @@ public sealed class VaultPassphraseWindow : Window
                     Child = new TextBlock
                     {
                         TextWrapping = TextWrapping.Wrap,
-                        Text = "Forgotten, it cannot be recovered or reset, by Karvon or anyone. You could only forget the vault as Karvon starts: "
+                        Text = "Forgotten, it cannot be recovered or reset, by Karvon or anyone. You could only forget the vault when Karvon asks for it: "
                             + "you sign in again to what it kept (Jira, the data sources, the servers, GitLab), and the values of Postman's "
                             + "environments are lost. Keep it in a password manager.",
                     },

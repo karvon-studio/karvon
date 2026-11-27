@@ -109,8 +109,11 @@ public partial class MainViewModel : IWorkbench
     }
 
     /// <summary>New Project's templates: each module's (.NET's, a Go module...), in the modules' order.</summary>
-    public IReadOnlyList<Templates.ProjectTemplateSource> ProjectTemplateSources =>
-        [.. Modules.Select(m => new Templates.ProjectTemplateSource(m.Name, m.LoadProjectTemplatesAsync))];
+    public IReadOnlyList<Templates.ProjectTemplateSource> ProjectTemplateSources => TemplateSources(Modules);
+
+    /// <summary>These modules' templates (they need not be started: the start window lists them before the IDE is made).</summary>
+    public static IReadOnlyList<Templates.ProjectTemplateSource> TemplateSources(IEnumerable<KarvonModule> modules) =>
+        [.. modules.Select(m => new Templates.ProjectTemplateSource(m.Name, m.LoadProjectTemplatesAsync))];
 
     /// <summary>Karvon closes: what the modules started stops.</summary>
     public async Task ShutdownModulesAsync()

@@ -60,7 +60,7 @@ public partial class MainViewModel
             new("Vault",
             [
                 new ActionSetting("Karvon's vault", "Where Karvon keeps passwords and keys, encrypted.", () =>
-                        IsVaultLocked ? "Locked" : HasVaultPassphrase ? "Opened by its passphrase, asked as Karvon Studio starts" : "Opened by the system keyring as you sign in to the computer",
+                        IsVaultLocked ? "Locked" : HasVaultPassphrase ? "Opened by its passphrase, asked as a project opens (or Karvon goes on without one)" : "Opened by the system keyring as you sign in to the computer",
                     new SettingAction("Set Passphrase...", () => SetVaultPassphraseCommand.ExecuteAsync(null)) { ShownWhen = () => CanSetVaultPassphrase },
                     new SettingAction("Change Passphrase...", () => SetVaultPassphraseCommand.ExecuteAsync(null)) { ShownWhen = () => HasVaultPassphrase },
                     new SettingAction("Remove Passphrase...", () => RemoveVaultPassphraseCommand.ExecuteAsync(null)) { ShownWhen = () => HasVaultPassphrase },

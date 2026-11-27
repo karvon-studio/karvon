@@ -5,8 +5,8 @@ using Karvon.Services;
 namespace Karvon.ViewModels;
 
 /// <summary>
-/// Tools > Vault: a passphrase for Karvon's vault (asked as Karvon Studio starts, the key then in no keyring), changed or
-/// taken away, and the vault unlocked when it was left locked as Karvon started.
+/// Tools > Vault: a passphrase for Karvon's vault (asked as the start window opens a project or goes on without one, the
+/// key then in no keyring), changed or taken away, and the vault unlocked when it was left locked then.
 /// </summary>
 public partial class MainViewModel
 {
@@ -30,7 +30,7 @@ public partial class MainViewModel
         if (await Dialogs.VaultPassphraseAsync(vault.HasPassphrase) is not { Length: >= SecretVault.MinPassphrase } passphrase)
             return;
         await Task.Run(() => vault.SetPassphrase(passphrase));
-        SetStatus("Karvon's vault has a passphrase: Karvon Studio asks for it as it starts.");
+        SetStatus("Karvon's vault has a passphrase: Karvon Studio asks for it as it opens a project, or goes on without one.");
         VaultChanged();
     }
 
