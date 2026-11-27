@@ -101,6 +101,52 @@ public partial class MainWindow
         RefreshDock();
     }
 
+    /// <summary>
+    /// A dock's app dragged to another place in it (as Ubuntu's, one open but not pinned is pinned there); kept.
+    /// </summary>
+    public void MoveDockApp(string id, int index)
+    {
+        if (Vm is not { } vm)
+            return;
+        var order = DockApps.ToList();
+        order.Remove(id);
+        order.Insert(Math.Clamp(index, 0, order.Count), id);
+        var pinned = order.Where(a => a == id || IsPinned(a)).ToList();
+        // Those pinned whose module is off now keep their place, at the end.
+        pinned.AddRange(Pinned.Where(p => !pinned.Contains(p)));
+        vm.Settings.DockPinned = pinned;
+        vm.Settings.Save();
+        RefreshDock();
+    }
+
+    /// <summary>The apps grid's apps, in the order they were dragged to (new ones, and all before any was, by name).</summary>
+    public IReadOnlyList<(string Id, string Title)> GridApps
+    {
+        get
+        {
+            var byName = Apps.OrderBy(a => a.Title, StringComparer.CurrentCultureIgnoreCase);
+            if (Vm?.Settings.AppsOrder is not { } order)
+                return [.. byName];
+            return [.. byName.OrderBy(a => order.IndexOf(a.Id) is var at and >= 0 ? at : int.MaxValue)];
+        }
+    }
+
+    /// <summary>An app dragged to another place in the apps grid; kept.</summary>
+    public void MoveApp(string id, int index)
+    {
+        if (Vm is not { } vm)
+            return;
+        var order = GridApps.Select(a => a.Id).ToList();
+        if (!order.Remove(id))
+            return;
+        order.Insert(Math.Clamp(index, 0, order.Count), id);
+        // Those whose module is off now keep their place, at the end.
+        order.AddRange((vm.Settings.AppsOrder ?? []).Where(a => !order.Contains(a)));
+        vm.Settings.AppsOrder = order;
+        vm.Settings.Save();
+        FillApps(animate: false);
+    }
+
     /// <summary>The dock at the left, the right or the bottom.</summary>
     public void SetDockSide(DockSide side)
     {
@@ -132,9 +178,17 @@ public partial class MainWindow
         var side = DockSide;
         DockPanel.SetDock(OsDock, side switch { DockSide.Right => Dock.Right, DockSide.Bottom => Dock.Bottom, _ => Dock.Left });
         var vertical = side != DockSide.Bottom;
-        var items = new StackPanel { Orientation = vertical ? Orientation.Vertical : Orientation.Horizontal, Spacing = 4 };
-        foreach (var id in DockApps)
-            items.Children.Add(DockItem(id, vertical));
+        var orientation = vertical ? Orientation.Vertical : Orientation.Horizontal;
+        var items = new StackPanel { Orientation = orientation, Spacing = 4 };
+        // Its apps dragged along it to another place; the apps button and the line before it stay last.
+        var apps = DockApps;
+        var reorder = new DragReorder(items, orientation, () => true, (from, to) => MoveDockApp(apps[from], to));
+        foreach (var id in apps)
+        {
+            var item = DockItem(id, vertical, reorder);
+            items.Children.Add(item);
+            reorder.Add(item);
+        }
         items.Children.Add(new Border
         {
             Background = new SolidColorBrush(Color.Parse("#33FFFFFF")),
@@ -153,7 +207,7 @@ public partial class MainWindow
         OsDock.ContextMenu = DockMenu();
     }
 
-    Control DockItem(string id, bool vertical)
+    Control DockItem(string id, bool vertical, DragReorder reorder)
     {
         var open = IsAppOpen(id);
         var title = Apps.FirstOrDefault(a => a.Id == id).Title ?? id;
@@ -178,7 +232,11 @@ public partial class MainWindow
         button.Classes.Set("open", open);
         ToolTip.SetTip(button, title);
         ToolTip.SetPlacement(button, DockSide switch { DockSide.Right => PlacementMode.Left, DockSide.Bottom => PlacementMode.Top, _ => PlacementMode.Right });
-        button.Click += (_, _) => ToggleApp(id);
+        button.Click += (_, _) =>
+        {
+            if (!reorder.Dragged)
+                ToggleApp(id);
+        };
         button.ContextMenu = AppMenu(id, open);
         return button;
     }
@@ -392,8 +450,11 @@ public partial class MainWindow
             return;
         var text = _appsSearch?.Text?.Trim() ?? "";
         grid.Children.Clear();
+        // Its apps dragged to another place, all of them shown (not while searching).
+        var shown = new List<string>();
+        var reorder = new DragReorder(grid, null, () => text.Length == 0, (from, to) => MoveApp(shown[from], to));
         var index = 0;
-        foreach (var (id, title) in Apps.OrderBy(a => a.Title, StringComparer.CurrentCultureIgnoreCase))
+        foreach (var (id, title) in GridApps)
         {
             if (text.Length > 0 && !title.Contains(text, StringComparison.CurrentCultureIgnoreCase))
                 continue;
@@ -414,12 +475,16 @@ public partial class MainWindow
             };
             tile.Click += (_, _) =>
             {
+                if (reorder.Dragged)
+                    return;
                 HideApps();
                 OpenApp(id);
                 RefreshDock();
             };
             tile.ContextMenu = AppMenu(id, IsAppOpen(id));
             grid.Children.Add(tile);
+            shown.Add(id);
+            reorder.Add(tile);
             if (animate)
                 Arrive(tile, index++);
         }

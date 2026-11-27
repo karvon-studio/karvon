@@ -21,6 +21,9 @@ public sealed class Settings
     /// <summary>The apps (tool window ids) the OS view's dock keeps, in their order; null for the first ones it has.</summary>
     public List<string>? DockPinned { get; set; }
 
+    /// <summary>The OS view's apps grid in the order its apps were dragged to; null for their names' order.</summary>
+    public List<string>? AppsOrder { get; set; }
+
     /// <summary>Tool window id → dock side ("Left", "Right", "Bottom") for windows the user moved.</summary>
     public Dictionary<string, string> ToolLayout { get; set; } = [];
 

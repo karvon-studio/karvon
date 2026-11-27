@@ -95,7 +95,7 @@ public static class SettingsSync
         nameof(Settings.DisabledModules), nameof(Settings.SkillSources), nameof(Settings.SkillsAgensi), nameof(Settings.SkillsMemorySource),
         nameof(Settings.SkillsSyncMemoryFiles), nameof(Settings.UiLanguage), nameof(Settings.MarkdownPreview), nameof(Settings.MarkdownPreviewBelow),
         nameof(Settings.InlayHints), nameof(Settings.CodeLens), nameof(Settings.StickyScroll), nameof(Settings.Minimap), nameof(Settings.LineBlame),
-        nameof(Settings.ExceptionBreakpoints), nameof(Settings.OsView), nameof(Settings.DockPosition), nameof(Settings.DockPinned),
+        nameof(Settings.ExceptionBreakpoints), nameof(Settings.OsView), nameof(Settings.DockPosition), nameof(Settings.DockPinned), nameof(Settings.AppsOrder),
     ];
 
     /// <summary>The settings synced, as JSON.</summary>

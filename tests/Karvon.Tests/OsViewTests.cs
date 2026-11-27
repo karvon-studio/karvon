@@ -1,4 +1,6 @@
+using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Headless;
 using Avalonia.Headless.XUnit;
 using Avalonia.Input;
 using Avalonia.Media;
@@ -122,6 +124,100 @@ public class OsViewTests
         Assert.DoesNotContain("os", right.Classes);
         window.Close();
     }
+
+    [AvaloniaFact]
+    public async Task The_dock_s_and_the_apps_grid_s_apps_go_where_they_are_dragged_and_stay_there()
+    {
+        var vm = NewViewModel(settings =>
+        {
+            settings.OsView = true;
+            settings.DockPosition = "Left";
+            settings.DockPinned = null;
+            settings.AppsOrder = null;
+        });
+        var window = new MainWindow { DataContext = vm, Width = 1400, Height = 900 };
+        window.Show();
+        await WaitUntil(() => false, TimeSpan.FromMilliseconds(200));
+        Assert.Equal(["SolutionExplorer", "Claude", "Git", "DatabaseExplorer", "Terminal", "ErrorList"], window.DockApps);
+        Assert.False(window.IsAppOpen("Terminal"));
+
+        // Terminal dragged up the dock to Claude's place: there, Claude and those after it a place down. A drag is not
+        // a click: Terminal stays as it was.
+        await Drag(window, Button(window, "Dock_Terminal"), Button(window, "Dock_Claude"));
+        Assert.Equal(["SolutionExplorer", "Terminal", "Claude", "Git", "DatabaseExplorer", "ErrorList"], window.DockApps);
+        Assert.Equal(["SolutionExplorer", "Terminal", "Claude", "Git", "DatabaseExplorer"], vm.Settings.DockPinned);
+        Assert.False(window.IsAppOpen("Terminal"));
+        Assert.All(window.GetVisualDescendants().OfType<Button>().Where(b => b.Name?.StartsWith("Dock_") == true), b => Assert.True(b.RenderTransform is null || b.RenderTransform.Value.IsIdentity));
+        // The Error List, open but not pinned, dragged to the top: pinned there, as Ubuntu's.
+        await Drag(window, Button(window, "Dock_ErrorList"), Button(window, "Dock_SolutionExplorer"));
+        Assert.Equal(["ErrorList", "SolutionExplorer", "Terminal", "Claude", "Git", "DatabaseExplorer"], vm.Settings.DockPinned);
+        // Let go where it was: nothing moves.
+        await Drag(window, Button(window, "Dock_Git"), Button(window, "Dock_Git"), by: 10);
+        Assert.Equal(["ErrorList", "SolutionExplorer", "Terminal", "Claude", "Git", "DatabaseExplorer"], window.DockApps);
+
+        // The apps grid's last app (by name, as they first are) dragged to the first place: there, the grid open still.
+        window.ShowApps();
+        for (var tick = 0; tick < 60; tick++)
+        {
+            Avalonia.Headless.AvaloniaHeadlessPlatform.ForceRenderTimerTick();
+            await WaitUntil(() => false, TimeSpan.FromMilliseconds(20));
+        }
+        var byName = window.ShownApps.ToList();
+        Assert.Equal(window.Apps.Count, byName.Count);
+        var (first, last) = (byName[0], byName[^1]);
+        await Drag(window, Button(window, "App_" + last), Button(window, "App_" + first));
+        Assert.True(window.IsAppsShown);
+        Assert.Equal([last, .. byName[..^1]], window.ShownApps);
+        Assert.Equal(window.ShownApps, vm.Settings.AppsOrder);
+        // A row down (the first app to the second row's first place).
+        var columns = (int)(window.AppsGrid!.Width / window.AppsGrid.ItemWidth);
+        await Drag(window, Button(window, "App_" + last), Button(window, "App_" + window.ShownApps[columns]));
+        Assert.Equal(last, window.ShownApps[columns]);
+        Snapshot(window, "os-view-apps-reordered");
+        // Not while searching: what is shown is not all of them.
+        window.SearchApps("e");
+        var found = window.ShownApps.ToList();
+        await Drag(window, Button(window, "App_" + found[^1]), Button(window, "App_" + found[0]));
+        Assert.Equal(found, window.ShownApps);
+        window.HideApps();
+        var order = vm.Settings.AppsOrder!.ToList();
+        window.Close();
+
+        // Kept: Karvon opened again (its settings read from where they were written) docks and shows them so.
+        var file = Path.Combine(Path.GetTempPath(), "karvon-os-view-" + Guid.NewGuid().ToString("N") + ".json");
+        File.WriteAllText(file, System.Text.Json.JsonSerializer.Serialize(vm.Settings));
+        var saved = Karvon.Services.Settings.Load(file);
+        File.Delete(file);
+        var again = NewViewModel(settings =>
+        {
+            settings.OsView = true;
+            settings.DockPinned = saved.DockPinned;
+            settings.AppsOrder = saved.AppsOrder;
+        });
+        var reopened = new MainWindow { DataContext = again, Width = 1400, Height = 900 };
+        reopened.Show();
+        await WaitUntil(() => false, TimeSpan.FromMilliseconds(200));
+        Assert.Equal(["ErrorList", "SolutionExplorer", "Terminal", "Claude", "Git", "DatabaseExplorer"], reopened.DockApps.Take(6));
+        Assert.Equal(order, reopened.GridApps.Select(a => a.Id));
+        Assert.Contains(nameof(Karvon.Services.Settings.AppsOrder), Karvon.Services.SettingsSync.Of(again.Settings).Select(p => p.Key));
+        reopened.Close();
+    }
+
+    /// <summary>A press on one, the pointer to the other (a little at first, then there), let go.</summary>
+    static async Task Drag(Window window, Control from, Control to, double by = 12)
+    {
+        var start = CenterOf(from, window);
+        var end = CenterOf(to, window);
+        window.MouseDown(start, MouseButton.Left);
+        window.MouseMove(start + new Avalonia.Point(0, by), RawInputModifiers.LeftMouseButton);
+        window.MouseMove(end, RawInputModifiers.LeftMouseButton);
+        await WaitUntil(() => false, TimeSpan.FromMilliseconds(50));
+        window.MouseUp(end, MouseButton.Left);
+        await WaitUntil(() => false, TimeSpan.FromMilliseconds(100));
+    }
+
+    static Avalonia.Point CenterOf(Avalonia.Visual visual, Avalonia.Visual relativeTo) =>
+        visual.TranslatePoint(new Avalonia.Point(visual.Bounds.Width / 2, visual.Bounds.Height / 2), relativeTo)!.Value;
 
     static Button Button(Window window, string name) =>
         window.GetVisualDescendants().OfType<Button>().FirstOrDefault(b => b.Name == name) ?? throw new InvalidOperationException($"No {name}.");

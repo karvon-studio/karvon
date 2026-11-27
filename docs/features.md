@@ -8,7 +8,8 @@ Karvon as a desktop of apps, for whoever wants it (the IDE as it always was stay
 app, opened as it always is, and the IDE itself is the desktop. A dock as Ubuntu's stands for the activity bars: the
 apps pinned to it and those open (a dot by them), at the left, the right or the bottom (its menu). An app clicked comes
 up; clicked again while open, it goes down. Its last button shows every app in a grid over the IDE, which is blurred
-behind it: type to search, Enter opens the first, Esc goes back. Right-click an app to pin or unpin it. An app's picture
+behind it: type to search, Enter opens the first, Esc goes back. Right-click an app to pin or unpin it. Drag an app along the dock or in the grid to put it in
+another place (one open but not pinned is pinned where it is dropped); both orders are kept. An app's picture
 is its module's, or Karvon's own in `src/Karvon.Core/Assets/Apps/<id>.png` or `.svg`; without one, its icon on a tile of
 its own colour. The grid sits in the middle of the screen, a few columns wide (larger tiles on a large screen), its apps
 coming up one after another. Outside the OS view the activity bars show the same apps' 2D pictures
