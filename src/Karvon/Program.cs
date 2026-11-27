@@ -7,6 +7,13 @@ static class Program
     [STAThread]
     public static void Main(string[] args)
     {
+        // The window's watchdog reading a dump of Karvon's threads: here, out of the process it reads (UiWatchdog).
+        if (args is ["--read-stack", var dump, var thread] && int.TryParse(thread, System.Globalization.CultureInfo.InvariantCulture, out var id))
+        {
+            foreach (var frame in Services.UiWatchdog.ReadStack(dump, id))
+                Console.WriteLine(frame);
+            return;
+        }
         App.StartupArgs = args;
         // Child tools that look up `dotnet` on PATH (vstest.console, MSBuild nodes) must find the same SDK Karvon uses,
         // not a distro package that happens to be first on a desktop session's PATH.

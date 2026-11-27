@@ -71,7 +71,23 @@ public static class ErrorReports
         }
     }
 
-    static void Write(Exception ex, string what)
+    /// <summary>Shown by whoever listens, not written to the log (it has been already).</summary>
+    public static void Show(Exception ex)
+    {
+        try
+        {
+            Reported?.Invoke(ex);
+        }
+        catch (Exception listener) when (listener is not OutOfMemoryException)
+        {
+            Write(listener, "Showing an error failed");
+        }
+    }
+
+    static void Write(Exception ex, string what) => Log(what, ex.ToString());
+
+    /// <summary>Something to know that is not an error caught (the window not answering): written to the log, not shown.</summary>
+    public static void Log(string what, string text)
     {
         try
         {
@@ -80,7 +96,7 @@ public static class ErrorReports
             // The last megabyte or so: the one before goes when it is full.
             if (file.Exists && file.Length > MaxLog)
                 File.Move(LogFile, LogFile + ".1", overwrite: true);
-            File.AppendAllText(LogFile, $"{DateTime.Now:yyyy-MM-dd HH:mm:ss} {what}: {Karvon.Claude.Tools.Redaction.Text(ex.ToString())}\n\n");
+            File.AppendAllText(LogFile, $"{DateTime.Now:yyyy-MM-dd HH:mm:ss} {what}: {Karvon.Claude.Tools.Redaction.Text(text)}\n\n");
             if (!OperatingSystem.IsWindows())
                 File.SetUnixFileMode(LogFile, UnixFileMode.UserRead | UnixFileMode.UserWrite);
         }

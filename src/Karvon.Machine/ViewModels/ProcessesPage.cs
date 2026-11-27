@@ -171,7 +171,7 @@ public sealed partial class ProcessesPage(MachineExplorerViewModel explorer) : O
         var ports = row.PortsText.Length > 0 ? $" It listens on {row.PortsText}." : "";
         if (await Explorer.Host.ConfirmAsync("Stop the Process", $"Stop {row.Name} (process {row.Pid})?{ports} What it has not saved is lost.") != true)
             return;
-        Problem = MachineExplorerViewModel.StopProcess(row.Pid);
+        Problem = await Task.Run(() => MachineExplorerViewModel.StopProcess(row.Pid));
         await Explorer.RefreshAsync();
     }
 }

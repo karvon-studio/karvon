@@ -49,7 +49,8 @@ public static class Volumes
             if (process is null)
                 return null;
             var output = process.StandardOutput.ReadToEndAsync();
-            _ = process.StandardError.ReadToEndAsync();
+            // Read so that it does not fill; its fault, when the process goes first, is seen here (not left unobserved).
+            _ = process.StandardError.ReadToEndAsync().ContinueWith(t => t.Exception, TaskContinuationOptions.OnlyOnFaulted | TaskContinuationOptions.ExecuteSynchronously);
             if (!process.WaitForExit(5000))
             {
                 process.Kill();

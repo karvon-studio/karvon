@@ -148,7 +148,7 @@ public sealed partial class PortsPage(MachineExplorerViewModel explorer) : Obser
         if (await Explorer.Host.ConfirmAsync("Stop the Process",
                 $"Stop {row.ProcessText} (process {pid})? It listens on {row.Protocol} port {row.PortText}; what it has not saved is lost.") != true)
             return;
-        Problem = MachineExplorerViewModel.StopProcess(pid);
+        Problem = await Task.Run(() => MachineExplorerViewModel.StopProcess(pid));
         await Explorer.RefreshAsync();
     }
 }

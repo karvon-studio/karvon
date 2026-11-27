@@ -12,12 +12,16 @@ public partial class App : Application
 {
     public static string[] StartupArgs { get; set; } = [];
 
+    static Services.UiWatchdog? _watchdog;
+
     public override void Initialize() => AvaloniaXamlLoader.Load(this);
 
     public override void OnFrameworkInitializationCompleted()
     {
         // What no code caught does not end Karvon Studio: it is logged and shown.
         Services.ErrorReports.Install();
+        // A module that keeps the window's thread waiting is written down, with where it waits.
+        _watchdog = Services.UiWatchdog.Start();
         Editor.FindPanel.Install();
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
