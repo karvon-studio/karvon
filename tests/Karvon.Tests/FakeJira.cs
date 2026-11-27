@@ -66,9 +66,27 @@ sealed class FakeJira(bool cloud, string secret = "the-secret", string user = "m
         return this;
     }
 
+    // Cloud's avatar is elsewhere (Atlassian's or Gravatar's), Server's the site's own.
     JsonObject User() => cloud
-        ? new JsonObject { ["accountId"] = _me, ["displayName"] = "Dev Eloper", ["emailAddress"] = user }
-        : new JsonObject { ["name"] = _me, ["key"] = _me, ["displayName"] = "Dev Eloper", ["emailAddress"] = user };
+        ? new JsonObject { ["accountId"] = _me, ["displayName"] = "Dev Eloper", ["emailAddress"] = user, ["avatarUrls"] = Avatar($"https://{AvatarHost}/{_me}.png") }
+        : new JsonObject { ["name"] = _me, ["key"] = _me, ["displayName"] = "Dev Eloper", ["emailAddress"] = user,
+            ["avatarUrls"] = Avatar($"https://jira.example.invalid/secure/useravatar?ownerId={_me}&avatarId=10500") };
+
+    static JsonObject Avatar(string url) => new() { ["48x48"] = url, ["24x24"] = url + "&size=small" };
+
+    /// <summary>Where Cloud's avatars are: not the site.</summary>
+    public const string AvatarHost = "avatars.example.invalid";
+
+    public sealed record Picture(string Host, string Path, string? Authorization);
+
+    /// <summary>The avatars read: where, and whether the site's secret went with the request.</summary>
+    public List<Picture> Pictures { get; } = [];
+
+    /// <summary>An avatar: a 48 by 48 orange square.</summary>
+    static readonly byte[] Png = Convert.FromBase64String(
+        "iVBORw0KGgoAAAANSUhEUgAAADAAAAAwCAIAAADYYG7QAAAAOklEQVR42u3OQQ0AAAgEoEtkUYsawxbOBxsByHS9EiEhISEhISEhISEhISEhISEhISEhISEhISGhOwurhanT00WQAgAAAABJRU5ErkJggg==");
+
+    static HttpResponseMessage PngResponse() => new(HttpStatusCode.OK) { Content = new ByteArrayContent(Png) { Headers = { ContentType = new("image/png") } } };
 
     JsonNode Body(string text) => cloud
         ? JsonNode.Parse(JsonSerializer.Serialize(Karvon.Jira.JiraText.ToAdf(text)))!
@@ -108,11 +126,21 @@ sealed class FakeJira(bool cloud, string secret = "the-secret", string user = "m
             Requests.Add(new(request.Method.Method, path, body, request.Headers.Authorization?.ToString()));
         if (Down)
             throw new HttpRequestException("Name or service not known");
+        if (request.RequestUri.Host == AvatarHost || path.StartsWith("secure/useravatar", StringComparison.Ordinal))
+        {
+            lock (Pictures)
+                Pictures.Add(new(request.RequestUri.Host, path, request.Headers.Authorization?.ToString()));
+        }
+        // Elsewhere, anyone's avatar is given (as Gravatar gives it).
+        if (request.RequestUri.Host == AvatarHost)
+            return PngResponse();
         var expected = cloud ? "Basic " + Convert.ToBase64String(Encoding.UTF8.GetBytes($"{user}:{secret}")) : "Bearer " + secret;
         if (request.Headers.Authorization?.ToString() != expected)
             return Json(HttpStatusCode.Unauthorized, new JsonObject { ["errorMessages"] = new JsonArray("You are not authenticated. Authentication required to perform this operation.") });
         var api = cloud ? "rest/api/3/" : "rest/api/2/";
         var route = path.Split('?')[0];
+        if (route == "secure/useravatar")
+            return PngResponse();
         var query = System.Web.HttpUtility.ParseQueryString(request.RequestUri.Query);
         lock (Issues)
             return Route(request.Method.Method, route, query, body, api);

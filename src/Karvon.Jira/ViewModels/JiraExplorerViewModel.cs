@@ -229,6 +229,43 @@ public sealed partial class JiraExplorerViewModel : ObservableObject, IDisposabl
     /// The site's client, signed in with its secret: the keyring's or this session's, else asked over the window (null when
     /// the user said no).
     /// </summary>
+    double? _boardZoom;
+
+    string ViewFile => Path.Combine(Host.ConfigDirectory, "jira-view.json");
+
+    /// <summary>How large boards are drawn (1: as they are), in jira-view.json beside jira.json.</summary>
+    public double BoardZoom
+    {
+        get
+        {
+            if (_boardZoom is null)
+            {
+                _boardZoom = 1;
+                try
+                {
+                    if (File.Exists(ViewFile) && System.Text.Json.Nodes.JsonNode.Parse(File.ReadAllText(ViewFile))?["boardZoom"]?.GetValue<double>() is { } kept && double.IsFinite(kept))
+                        _boardZoom = kept;
+                }
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Text.Json.JsonException or InvalidOperationException or FormatException)
+                {
+                }
+            }
+            return _boardZoom.Value;
+        }
+        set
+        {
+            _boardZoom = value;
+            try
+            {
+                Directory.CreateDirectory(Host.ConfigDirectory);
+                File.WriteAllText(ViewFile, new System.Text.Json.Nodes.JsonObject { ["boardZoom"] = value }.ToJsonString());
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+            }
+        }
+    }
+
     public async Task<JiraClient> ClientAsync(JiraSite site)
     {
         if (_open.TryGetValue(site.Id, out var open))

@@ -8,21 +8,34 @@
              x:DataType="jvm:JiraBoardPageViewModel">
   <UserControl.Styles>
     <StyleInclude Source="avares://Karvon.Core/Themes/ExplorerStyles.axaml" />
+    <!-- As Jira's board draws a card: raised a little, its summary over its type, key, priority and assignee. -->
     <Style Selector="Border.card">
       <Setter Property="Background" Value="#333337" />
       <Setter Property="CornerRadius" Value="4" />
-      <Setter Property="Padding" Value="10,8" />
-      <Setter Property="Margin" Value="0,0,0,6" />
+      <Setter Property="Padding" Value="12,10" />
+      <Setter Property="Margin" Value="0,0,0,8" />
       <Setter Property="Cursor" Value="Hand" />
+      <Setter Property="BoxShadow" Value="0 1 2 0 #66000000" />
     </Style>
     <Style Selector="Border.card:pointerover">
       <Setter Property="Background" Value="#3E3E42" />
+    </Style>
+    <Style Selector="TextBlock.key.done">
+      <Setter Property="TextDecorations" Value="Strikethrough" />
     </Style>
   </UserControl.Styles>
 
   <DockPanel Background="{StaticResource VsToolWindowBrush}">
     <Border DockPanel.Dock="Top" Padding="16,10" BorderBrush="{StaticResource VsBorderBrush}" BorderThickness="0,0,0,1">
       <StackPanel Spacing="6">
+        <DockPanel>
+          <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="2" VerticalAlignment="Center">
+            <Button Name="ZoomOut" Classes="tbi" Command="{Binding ZoomOutCommand}" ToolTip.Tip="Smaller (Ctrl+wheel)"><v:VsIcon Kind="Minus" /></Button>
+            <Button Name="ZoomReset" Classes="tbi" Command="{Binding ResetZoomCommand}" ToolTip.Tip="As they are (Ctrl+0)" MinWidth="46">
+              <TextBlock Text="{Binding ZoomText}" FontSize="12" HorizontalAlignment="Center" />
+            </Button>
+            <Button Name="ZoomIn" Classes="tbi" Command="{Binding ZoomInCommand}" ToolTip.Tip="Larger (Ctrl+= or Ctrl+wheel)"><v:VsIcon Kind="Plus" /></Button>
+          </StackPanel>
         <StackPanel Orientation="Horizontal" Spacing="10">
           <TextBlock Text="{Binding Board.Name}" FontSize="18" VerticalAlignment="Center" />
           <ComboBox Name="SprintBox" ItemsSource="{Binding Sprints}" SelectedItem="{Binding Sprint}" MinWidth="180" IsVisible="{Binding HasSprints}">
@@ -35,10 +48,12 @@
           <Button Classes="tbi" Command="{Binding RefreshCommand}" ToolTip.Tip="Refresh"><v:VsIcon Kind="Refresh" /></Button>
           <ProgressBar IsIndeterminate="True" IsVisible="{Binding IsBusy}" Width="80" Height="3" MinWidth="0" VerticalAlignment="Center" />
         </StackPanel>
+        </DockPanel>
         <TextBlock Name="BoardError" Text="{Binding Error}" Foreground="#F14C4C" TextWrapping="Wrap" IsVisible="{Binding Error, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
       </StackPanel>
     </Border>
-    <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
+    <ScrollViewer Name="BoardScroll" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
+      <LayoutTransformControl Name="Scaled">
       <ItemsControl Name="Columns" ItemsSource="{Binding Columns}" Margin="12">
         <ItemsControl.ItemsPanel>
           <ItemsPanelTemplate>
@@ -49,22 +64,28 @@
           <DataTemplate x:DataType="jvm:JiraColumn">
             <Border Width="280" Background="#252528" CornerRadius="6" Padding="8" DragDrop.AllowDrop="True">
               <DockPanel>
-                <TextBlock DockPanel.Dock="Top" Text="{Binding Header}" FontWeight="SemiBold" Classes="dkMuted" Margin="4,2,4,8" />
+                <TextBlock DockPanel.Dock="Top" Classes="dkMuted" FontSize="12" FontWeight="SemiBold" Margin="4,2,4,10" LetterSpacing="0.3">
+                  <Run Text="{Binding Title}" /><Run Text="   " /><Run Text="{Binding Count}" />
+                </TextBlock>
                 <ScrollViewer HorizontalScrollBarVisibility="Disabled">
                   <ItemsControl ItemsSource="{Binding Cards}">
                     <ItemsControl.ItemTemplate>
                       <DataTemplate x:DataType="j:JiraIssueSummary">
-                        <Border Classes="card" Tag="{Binding}" ToolTip.Tip="Drag it to another column to move it; a double click opens it">
+                        <Border Classes="card" Tag="{Binding}">
                           <Border.ContextMenu>
                             <ContextMenu>
                               <MenuItem Header="Open" Command="{Binding $parent[UserControl].((jvm:JiraBoardPageViewModel)DataContext).OpenCommand}" CommandParameter="{Binding}" />
                             </ContextMenu>
                           </Border.ContextMenu>
-                          <StackPanel Spacing="4">
+                          <StackPanel Spacing="10">
                             <TextBlock Text="{Binding Summary}" TextWrapping="Wrap" MaxLines="3" TextTrimming="CharacterEllipsis" />
-                            <Grid ColumnDefinitions="Auto,*,Auto">
-                              <TextBlock Text="{Binding Key}" Foreground="#4DAAFC" FontSize="11" />
-                              <TextBlock Grid.Column="2" Text="{Binding Assignee}" Classes="dkMuted" FontSize="11" TextTrimming="CharacterEllipsis" MaxWidth="140" />
+                            <Grid ColumnDefinitions="Auto,Auto,*,Auto,Auto">
+                              <jv:JiraTypeIcon Type="{Binding Type}" Subtask="{Binding Subtask}" Width="16" Height="16" VerticalAlignment="Center" />
+                              <TextBlock Grid.Column="1" Text="{Binding Key}" Classes="key dkMuted" Classes.done="{Binding IsDone}" FontSize="12" FontWeight="SemiBold"
+                                         Margin="6,0,0,0" VerticalAlignment="Center" />
+                              <jv:JiraPriorityIcon Grid.Column="3" Priority="{Binding Priority}" Width="16" Height="16" VerticalAlignment="Center" />
+                              <jv:JiraAvatar Grid.Column="4" Width="24" Height="24" Margin="8,0,0,0" VerticalAlignment="Center" Person="{Binding Assignee}"
+                                             Url="{Binding AssigneeAvatar}" Avatars="{Binding $parent[UserControl].((jvm:JiraBoardPageViewModel)DataContext).Avatars}" />
                             </Grid>
                           </StackPanel>
                         </Border>
@@ -77,6 +98,7 @@
           </DataTemplate>
         </ItemsControl.ItemTemplate>
       </ItemsControl>
+      </LayoutTransformControl>
     </ScrollViewer>
   </DockPanel>
 </UserControl>

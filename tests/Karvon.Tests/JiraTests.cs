@@ -182,6 +182,84 @@ public class JiraTests
         Assert.All(reads, r => Assert.Contains("jql=(fixVersion is EMPTY) AND status in (", r));
     }
 
+    [AvaloniaFact]
+    public async Task A_board_s_cards_show_their_type_priority_and_assignee_s_picture_as_Jira_s_and_are_drawn_larger_or_smaller()
+    {
+        foreach (var cloud in new[] { false, true })
+        {
+            var fake = new FakeJira(cloud).Seed();
+            // SHOP-1, a bug in progress, the highest; SHOP-2, a task to do, nobody's.
+            fake.Issues["SHOP-1"]["fields"]!["priority"] = new JsonObject { ["name"] = "Highest" };
+            fake.Issues["SHOP-2"]["fields"]!["assignee"] = null;
+            var site = cloud ? Cloud : Server;
+            var keyring = new TestKeyring();
+            keyring.Secrets["karvon-jira/" + site.Id] = Secret;
+            var host = new TestJiraHost();
+            var explorer = new JiraExplorerViewModel(host, keyring, (s, secret) => new JiraClient(s, secret, fake));
+            var board = new JiraBoardPageViewModel(explorer, site, new JiraBoard(7, "SHOP board", "scrum"));
+            await board.RefreshAsync();
+            Assert.Null(board.Error);
+            var bug = board.Columns.SelectMany(c => c.Cards).Single(c => c.Key == "SHOP-1");
+            Assert.Equal(("Dev Eloper", "Highest", false), (bug.Assignee, bug.Priority, bug.IsDone));
+            Assert.Equal(cloud ? $"https://{FakeJira.AvatarHost}/acc-1.png" : "https://jira.example.invalid/secure/useravatar?ownerId=dev&avatarId=10500", bug.AssigneeAvatar);
+            Assert.Null(board.Columns.SelectMany(c => c.Cards).Single(c => c.Key == "SHOP-2").Assignee);
+
+            var window = new Window { Width = 1100, Height = 600, Content = new JiraBoardPageView { DataContext = board } };
+            window.Show();
+            var avatars = window.GetVisualDescendants().OfType<JiraAvatar>().ToList();
+            Assert.Equal(2, avatars.Count);
+            await WaitUntil(() => avatars.Any(a => a.ShowsPicture), TimeSpan.FromSeconds(5));
+            // The assignee's picture, read once; nobody's card has the grey figure, its tooltip says so.
+            var assigned = avatars.Single(a => a.Person == "Dev Eloper");
+            Assert.True(assigned.ShowsPicture);
+            Assert.Equal("Assignee: Dev Eloper", ToolTip.GetTip(assigned));
+            var nobody = avatars.Single(a => a.Person is null);
+            Assert.False(nobody.ShowsPicture);
+            Assert.Equal("Unassigned", ToolTip.GetTip(nobody));
+            var picture = Assert.Single(fake.Pictures);
+            // The site's token goes to the site alone: not with a picture elsewhere.
+            if (cloud)
+                Assert.Equal((FakeJira.AvatarHost, (string?)null), (picture.Host, picture.Authorization));
+            else
+                Assert.Equal(("jira.example.invalid", "Bearer " + Secret), (picture.Host, picture.Authorization));
+            Assert.Equal(["Bug", "Задача"], window.GetVisualDescendants().OfType<JiraTypeIcon>().Select(t => t.Type).Order());
+            Assert.Equal([JiraTypeIcon.Kind.Task, JiraTypeIcon.Kind.Bug],
+                window.GetVisualDescendants().OfType<JiraTypeIcon>().Select(t => JiraTypeIcon.KindOf(t.Type, t.Subtask)).Order());
+            Assert.Equal(["Priority: Highest", "Priority: Medium"],
+                window.GetVisualDescendants().OfType<JiraPriorityIcon>().Select(p => ToolTip.GetTip(p) as string).Order());
+            if (!cloud)
+                Snapshot(window, "jira-board-cards");
+
+            // Larger and smaller, within bounds; every board's, kept for the next time.
+            var scaled = window.GetVisualDescendants().OfType<LayoutTransformControl>().Single();
+            Assert.Null(scaled.LayoutTransform);
+            board.ZoomIn();
+            board.ZoomIn();
+            Assert.Equal((1.2, "120%"), (board.Zoom, board.ZoomText));
+            Assert.Equal(1.2, ((Avalonia.Media.ScaleTransform)scaled.LayoutTransform!).ScaleX, 3);
+            if (!cloud)
+            {
+                await WaitUntil(() => false, TimeSpan.FromMilliseconds(100));
+                Snapshot(window, "jira-board-zoomed");
+            }
+            for (var i = 0; i < 30; i++)
+                board.ZoomOut();
+            Assert.Equal(JiraBoardPageViewModel.MinZoom, board.Zoom);
+            board.ZoomIn();
+            var again = new JiraBoardPageViewModel(new JiraExplorerViewModel(host, keyring, (s, secret) => new JiraClient(s, secret, fake)), site, new JiraBoard(7, "SHOP board", "scrum"));
+            Assert.Equal(0.6, again.Zoom);
+            board.ResetZoom();
+            Assert.Null(scaled.LayoutTransform);
+            window.Close();
+        }
+        Assert.Equal("DE", JiraAvatar.Initials("Dev Eloper"));
+        Assert.Equal("S", JiraAvatar.Initials("  shahzod "));
+        Assert.Equal(JiraTypeIcon.Kind.Subtask, JiraTypeIcon.KindOf("Подзадача", subtask: true));
+        Assert.Equal(JiraTypeIcon.Kind.Story, JiraTypeIcon.KindOf("Story", subtask: false));
+        Assert.Equal([JiraPriorityIcon.Level.Highest, JiraPriorityIcon.Level.High, JiraPriorityIcon.Level.Medium, JiraPriorityIcon.Level.Low, JiraPriorityIcon.Level.Lowest, JiraPriorityIcon.Level.None],
+            new[] { "Blocker", "Major", "Medium", "Minor", "Trivial", null }.Select(JiraPriorityIcon.LevelOf));
+    }
+
     sealed class TestJiraHost : IJiraHost
     {
         public string ConfigDirectory { get; } = Directory.CreateTempSubdirectory("karvon-jira-").FullName;

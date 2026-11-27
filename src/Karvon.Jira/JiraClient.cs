@@ -22,9 +22,18 @@ public sealed class JiraClient : IDisposable
     /// <summary>The fields an issue's row needs.</summary>
     static readonly string[] RowFields = ["summary", "status", "issuetype", "priority", "assignee", "updated"];
 
+    /// <summary>Pictures elsewhere than the site (an avatar on Gravatar): no default header of the site's, its authorization least of all.</summary>
+    readonly Lazy<HttpClient> _elsewhereClient;
+
     public JiraClient(JiraSite site, string secret, HttpMessageHandler? handler = null)
     {
         Site = site;
+        _elsewhereClient = new(() =>
+        {
+            var client = handler is null ? new HttpClient() : new HttpClient(handler, disposeHandler: false);
+            client.Timeout = TimeSpan.FromSeconds(30);
+            return client;
+        });
         _http = handler is null ? new HttpClient() : new HttpClient(handler);
         _http.BaseAddress = new Uri(site.Url.TrimEnd('/') + "/");
         _http.Timeout = TimeSpan.FromSeconds(60);
@@ -39,7 +48,12 @@ public sealed class JiraClient : IDisposable
         _http.DefaultRequestHeaders.Add("X-Atlassian-Token", "no-check");
     }
 
-    public void Dispose() => _http.Dispose();
+    public void Dispose()
+    {
+        _http.Dispose();
+        if (_elsewhereClient.IsValueCreated)
+            _elsewhereClient.Value.Dispose();
+    }
 
     string Api(string path) => $"{Site.ApiPath}/{path}";
 
@@ -137,9 +151,53 @@ public sealed class JiraClient : IDisposable
     {
         var fields = Obj(issue, "fields");
         var status = Obj(fields, "status");
+        var type = Obj(fields, "issuetype");
+        var assignee = Obj(fields, "assignee");
         return new JiraIssueSummary(Str(issue, "key") ?? "", Str(fields, "summary") ?? "", Str(status, "name") ?? "",
-            Str(Obj(status, "statusCategory"), "key") ?? "", Str(Obj(fields, "issuetype"), "name") ?? "", Str(Obj(fields, "priority"), "name"),
-            Str(Obj(fields, "assignee"), "displayName"), Date(fields, "updated"));
+            Str(Obj(status, "statusCategory"), "key") ?? "", Str(type, "name") ?? "", Str(Obj(fields, "priority"), "name"),
+            Str(assignee, "displayName"), Date(fields, "updated"), Str(Obj(assignee, "avatarUrls"), "48x48"),
+            type.ValueKind == JsonValueKind.Object && type.TryGetProperty("subtask", out var subtask) && subtask.ValueKind == JsonValueKind.True);
+    }
+
+    /// <summary>The largest picture read (an avatar is a few kilobytes).</summary>
+    const int MostAvatarBytes = 1 << 20;
+
+
+    /// <summary>
+    /// A user's avatar (its bytes), or null when it cannot be read. The site's own (Server's /secure/useravatar) is read
+    /// signed in; one elsewhere (Cloud's, Gravatar's) without the site's token or password, which go to the site alone.
+    /// </summary>
+    public async Task<byte[]?> AvatarAsync(string url, CancellationToken ct)
+    {
+        if (!Uri.TryCreate(url, UriKind.Absolute, out var uri) || uri.Scheme is not ("https" or "http"))
+            return null;
+        var site = _http.BaseAddress!;
+        var own = uri.Scheme == site.Scheme && string.Equals(uri.Host, site.Host, StringComparison.OrdinalIgnoreCase) && uri.Port == site.Port;
+        using var request = new HttpRequestMessage(HttpMethod.Get, uri);
+        request.Headers.Accept.ParseAdd("image/png");
+        request.Headers.Accept.ParseAdd("image/*;q=0.8");
+        request.Headers.UserAgent.ParseAdd("Karvon-Studio (https://github.com/karvon-studio/karvon)");
+        try
+        {
+            using var response = await (own ? _http : _elsewhereClient.Value).SendAsync(request, HttpCompletionOption.ResponseHeadersRead, ct);
+            if (!response.IsSuccessStatusCode || response.Content.Headers.ContentLength > MostAvatarBytes)
+                return null;
+            await using var stream = await response.Content.ReadAsStreamAsync(ct);
+            using var read = new MemoryStream();
+            var buffer = new byte[16384];
+            int n;
+            while ((n = await stream.ReadAsync(buffer, ct)) > 0)
+            {
+                if (read.Length + n > MostAvatarBytes)
+                    return null;
+                read.Write(buffer, 0, n);
+            }
+            return read.ToArray();
+        }
+        catch (Exception ex) when (ex is HttpRequestException or IOException || ex is TaskCanceledException && !ct.IsCancellationRequested)
+        {
+            return null;
+        }
     }
 
     /// <summary>The issues a JQL query finds (at most <paramref name="max"/>), in its order.</summary>

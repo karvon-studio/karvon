@@ -8,8 +8,8 @@ using Karvon.Jira.ViewModels;
 namespace Karvon.Jira.Views;
 
 /// <summary>
-/// A board's page (see <see cref="JiraBoardPageViewModel"/>): a card dragged to another column moves its issue there (by
-/// the transition to that column's status); a double click opens it.
+/// A board's page (see <see cref="JiraBoardPageViewModel"/>), its cards as Jira's: a card dragged to another column moves
+/// its issue there (by the transition to that column's status); a double click opens it. It is drawn larger or smaller.
 /// </summary>
 public partial class JiraBoardPageView : UserControl
 {
@@ -21,6 +21,55 @@ public partial class JiraBoardPageView : UserControl
         Columns.AddHandler(PointerPressedEvent, OnPressed, RoutingStrategies.Tunnel);
         Columns.AddHandler(PointerReleasedEvent, OnReleased, RoutingStrategies.Tunnel);
         Columns.AddHandler(DoubleTappedEvent, OnDoubleTapped, RoutingStrategies.Bubble);
+        // Larger or smaller as the editor is: Ctrl and the wheel, Ctrl+= (or the keypad's + and -), Ctrl+0.
+        BoardScroll.AddHandler(PointerWheelChangedEvent, OnWheel, RoutingStrategies.Tunnel);
+        AddHandler(KeyDownEvent, OnKeyDown, RoutingStrategies.Tunnel);
+        DataContextChanged += (_, _) =>
+        {
+            if (Vm is { } vm)
+            {
+                vm.PropertyChanged += (_, e) =>
+                {
+                    if (e.PropertyName == nameof(JiraBoardPageViewModel.Zoom))
+                        Scale();
+                };
+                Scale();
+            }
+        };
+    }
+
+    void Scale() => Scaled.LayoutTransform = Vm is { Zoom: var zoom } && zoom != 1 ? new Avalonia.Media.ScaleTransform(zoom, zoom) : null;
+
+    void OnWheel(object? sender, PointerWheelEventArgs e)
+    {
+        if (!e.KeyModifiers.HasFlag(KeyModifiers.Control) || Vm is not { } vm || e.Delta.Y == 0)
+            return;
+        if (e.Delta.Y > 0)
+            vm.ZoomIn();
+        else
+            vm.ZoomOut();
+        e.Handled = true;
+    }
+
+    void OnKeyDown(object? sender, KeyEventArgs e)
+    {
+        if (e.KeyModifiers != KeyModifiers.Control || Vm is not { } vm)
+            return;
+        switch (e.Key)
+        {
+            case Key.OemPlus or Key.Add:
+                vm.ZoomIn();
+                break;
+            case Key.Subtract:
+                vm.ZoomOut();
+                break;
+            case Key.D0 or Key.NumPad0:
+                vm.ResetZoom();
+                break;
+            default:
+                return;
+        }
+        e.Handled = true;
     }
 
     JiraBoardPageViewModel? Vm => DataContext as JiraBoardPageViewModel;

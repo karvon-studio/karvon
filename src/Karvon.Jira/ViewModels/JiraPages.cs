@@ -181,6 +181,12 @@ public sealed class JiraColumn(JiraBoardColumn column)
     public int Total { get; set; }
 
     public string Header => Total > Cards.Count ? $"{Name}  {Cards.Count} of {Total}" : $"{Name}  {Cards.Count}";
+
+    /// <summary>Its name as Jira's board heads a column: in capitals.</summary>
+    public string Title => Name.ToUpperInvariant();
+
+    /// <summary>How many cards it shows (and has, when it has more).</summary>
+    public string Count => Total > Cards.Count ? $"{Cards.Count} of {Total}" : $"{Cards.Count}";
 }
 
 /// <summary>
@@ -196,6 +202,44 @@ public sealed partial class JiraBoardPageViewModel(JiraExplorerViewModel explore
     public ObservableCollection<JiraColumn> Columns { get; } = [];
 
     public ObservableCollection<JiraSprint> Sprints { get; } = [];
+
+    /// <summary>The assignees' pictures its cards show, each read once.</summary>
+    public JiraAvatars Avatars { get; } = new(() => explorer.ClientAsync(site));
+
+    public const double MinZoom = 0.5;
+
+    public const double MaxZoom = 2;
+
+    const double ZoomStep = 0.1;
+
+    double? _zoom;
+
+    /// <summary>How large its columns and cards are drawn (1: as they are), every board's the same, kept as Karvon closes.</summary>
+    public double Zoom
+    {
+        get => _zoom ??= Math.Clamp(explorer.BoardZoom, MinZoom, MaxZoom);
+        set
+        {
+            value = Math.Round(Math.Clamp(value, MinZoom, MaxZoom), 2);
+            if (value == Zoom)
+                return;
+            _zoom = value;
+            explorer.BoardZoom = value;
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(ZoomText));
+        }
+    }
+
+    public string ZoomText => $"{Math.Round(Zoom * 100)}%";
+
+    [RelayCommand]
+    public void ZoomIn() => Zoom += ZoomStep;
+
+    [RelayCommand]
+    public void ZoomOut() => Zoom -= ZoomStep;
+
+    [RelayCommand]
+    public void ResetZoom() => Zoom = 1;
 
     /// <summary>A scrum board has sprints to choose from; a kanban board none.</summary>
     public bool HasSprints => Sprints.Count > 0;

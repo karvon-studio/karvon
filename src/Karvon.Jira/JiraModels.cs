@@ -42,8 +42,13 @@ public sealed record JiraProject(string Id, string Key, string Name, IReadOnlyLi
 
 /// <summary>An issue in a list: what a row of it shows.</summary>
 /// <param name="StatusCategory">The status's category: new (to do), indeterminate (in progress), done.</param>
+/// <param name="AssigneeAvatar">The assignee's picture (their avatarUrls' 48x48), on the site or elsewhere (Gravatar).</param>
+/// <param name="Subtask">Its type is a sub-task's.</param>
 public sealed record JiraIssueSummary(string Key, string Summary, string Status, string StatusCategory, string Type, string? Priority,
-    string? Assignee, DateTimeOffset? Updated);
+    string? Assignee, DateTimeOffset? Updated, string? AssigneeAvatar = null, bool Subtask = false)
+{
+    public bool IsDone => StatusCategory == "done";
+}
 
 public sealed record JiraComment(string Author, DateTimeOffset? Created, string Body);
 

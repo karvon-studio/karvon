@@ -215,8 +215,12 @@ password); Test connection says as whom it signs in. The token or password stays
 Karvon asks for it once a session); `jira.json` in Karvon's settings has only the sites. Under each site: the issues
 assigned to you and those you reported, your favourite filters, the boards. An issue opens as a page: its fields,
 description and comments (as the site renders them), Move to (its workflow's transitions now), a comment, Assign to
-me, Open in Jira, and Ask Claude. A board opens as its columns, of its active sprint; a card dragged to another column
-moves by its workflow's transition. JQL search, and New Issue (its project's types, by their ids; yours; its dates).
+me, Open in Jira, and Ask Claude. A board opens as its columns, of its active sprint, its cards as Jira's: the type's
+icon, the key, the priority's arrows and the assignee's picture (their initials when it cannot be read; a grey figure
+when nobody is assigned). A picture on the site is read signed in, one elsewhere (Gravatar) without the site's secret. A
+card dragged to another column moves by its workflow's transition. The board is drawn larger or smaller (its − and +,
+Ctrl and the wheel, Ctrl+0), the same for every board and kept. JQL search, and New Issue (its project's types, by their
+ids; yours; its dates).
 
 Claude Code's Jira tools work through Karvon's sign-in, so Claude never sees a token: `jira_sites`, `jira_search`
 (JQL), `jira_issue`, `jira_projects`, and, each asking you first, `jira_create` (assigned to the signed-in user, its
