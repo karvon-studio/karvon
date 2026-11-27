@@ -124,7 +124,10 @@ public class ServersLiveTests
             var tools = new TestToolHost(null, new Docker.DockerEngine(docker)).Tools(() => explorer);
             explorer.SetForClaude(explorer.Find("live")!, true);
             var message = ClaudeIdeToolsTests.Allowed(tools, "server_exec", new { server = "live", command = "uname -s" });
-            Assert.Equal("Exit code 0.\nLinux", (await tools.HandleAsync(message, CancellationToken.None))["result"]!["content"]![0]!["text"]!.GetValue<string>());
+            // The machine's output, marked as data from it, not instructions.
+            var ran = (await tools.HandleAsync(message, CancellationToken.None))["result"]!["content"]![0]!["text"]!.GetValue<string>();
+            Assert.StartsWith("Data from the command's output on live", ran);
+            Assert.Contains("Exit code 0.\nLinux", ran);
 
             // A password, asked once (no key gets in), then kept for the session.
             var byPassword = explorer.Find("live-password")!;
@@ -137,6 +140,31 @@ public class ServersLiveTests
             explorer.Disconnect(byPassword);
             Assert.True(await explorer.ConnectAsync(byPassword));
             Assert.Null(explorer.Dialog);
+
+            // The machine stops answering on a connection that is up (paused): Claude's command opens no channel. The
+            // window goes on meanwhile (its thread never waits on the machine), and the command ends in the connection's
+            // timeout, the connection dropped, instead of waiting for its output for ever.
+            Run("docker", "pause", name);
+            try
+            {
+                var clock = System.Diagnostics.Stopwatch.StartNew();
+                var ticks = 0;
+                var timer = new Avalonia.Threading.DispatcherTimer(TimeSpan.FromMilliseconds(250), Avalonia.Threading.DispatcherPriority.Normal, (_, _) => ticks++);
+                timer.Start();
+                var stalled = ClaudeIdeToolsTests.Allowed(tools, "server_exec", new { server = "live", command = "uname -s" });
+                var answer = (await tools.HandleAsync(stalled, CancellationToken.None))["result"]!;
+                timer.Stop();
+                Assert.True(answer["isError"]!.GetValue<bool>());
+                Assert.Equal("live did not answer the command: its connection stopped responding. The next command connects again.",
+                    answer["content"]![0]!["text"]!.GetValue<string>());
+                Assert.InRange(clock.Elapsed, TimeSpan.FromSeconds(5), TimeSpan.FromSeconds(40));
+                Assert.True(ticks > clock.Elapsed.TotalSeconds * 2, $"The window's thread ran {ticks} times in {clock.Elapsed.TotalSeconds:0} s.");
+            }
+            finally
+            {
+                Run("docker", "unpause", name);
+            }
+            Assert.Equal("Linux", (await explorer.Connections.RunAsync(explorer.Find("live")!.Host, "uname -s")).Output);
         }
         finally
         {

@@ -295,7 +295,8 @@ public sealed partial class ServerPageViewModel : ObservableObject, IDisposable
             Directory.CreateDirectory(Path.GetDirectoryName(local)!);
             await using (var stream = File.Create(local))
                 await sftp.DownloadFileAsync(entry.Path, stream);
-            _explorer.RememberCopy(local, Host, entry.Path, sftp.GetLastWriteTimeUtc(entry.Path));
+            // SFTP's own call waits on the machine: not on the window's thread.
+            _explorer.RememberCopy(local, Host, entry.Path, await Task.Run(() => sftp.GetLastWriteTimeUtc(entry.Path)));
             _explorer.Host.OpenFile(local);
         }
         catch (Exception ex) when (ex is ServerException or SshException or IOException)

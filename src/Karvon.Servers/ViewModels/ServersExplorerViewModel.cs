@@ -519,13 +519,14 @@ public sealed partial class ServersExplorerViewModel : ObservableObject, IServer
         try
         {
             var sftp = await Connections.SftpAsync(copy.Host);
-            var now = sftp.Exists(copy.Remote) ? sftp.GetLastWriteTimeUtc(copy.Remote) : (DateTime?)null;
+            // SFTP's own calls wait on the machine: not on the window's thread.
+            var now = await Task.Run(() => sftp.Exists(copy.Remote) ? sftp.GetLastWriteTimeUtc(copy.Remote) : (DateTime?)null);
             if (copy.Modified is { } then && now is { } changed && changed > then
                 && !await ConfirmAsync($"{Path.GetFileName(copy.Remote)} changed on {copy.Host.Name}", $"{copy.Remote} was changed there since you opened it. Overwrite it with yours?", "Overwrite", danger: true))
                 return;
             await using (var stream = File.OpenRead(local))
                 await sftp.UploadFileAsync(stream, copy.Remote);
-            _remoteCopies[local] = copy with { Modified = sftp.GetLastWriteTimeUtc(copy.Remote) };
+            _remoteCopies[local] = copy with { Modified = await Task.Run(() => sftp.GetLastWriteTimeUtc(copy.Remote)) };
             Host.Status($"Saved {copy.Remote} on {copy.Host.Name}.");
         }
         catch (Exception ex) when (ex is ServerException or Renci.SshNet.Common.SshException or IOException)

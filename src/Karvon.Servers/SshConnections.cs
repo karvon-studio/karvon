@@ -190,8 +190,36 @@ public sealed class SshConnections(string knownHostsFile, IServerPrompts prompts
         var clock = Stopwatch.StartNew();
         using var command = connection.Client.CreateCommand("true");
         command.CommandTimeout = ConnectTimeout;
-        await command.ExecuteAsync(cancellationToken);
+        await ExecuteAsync(command, cancellationToken);
         connection.Latency = clock.Elapsed;
+    }
+
+    /// <summary>
+    /// A command run to its end off the caller's thread. SSH.NET opens a command's channel synchronously, waiting on the
+    /// machine for up to its connection's timeout. The explorer, the status bar's latency and Claude's tools call from the
+    /// window's thread, which must not wait on a machine.
+    /// </summary>
+    static Task ExecuteAsync(Renci.SshNet.SshCommand command, CancellationToken cancellationToken) =>
+        Task.Run(() => command.ExecuteAsync(cancellationToken), cancellationToken);
+
+    /// <summary>
+    /// A command's output so far, after it timed out. There is none when its channel never opened (the machine stopped
+    /// answering on its connection), and SshCommand.Result would wait for it for ever: it is given up after a moment. The
+    /// command's disposal ends that wait.
+    /// </summary>
+    static async Task<string?> OutputSoFarAsync(Renci.SshNet.SshCommand command)
+    {
+        var reading = Task.Run(() => command.Result);
+        try
+        {
+            return await reading.WaitAsync(TimeSpan.FromSeconds(2));
+        }
+        catch (TimeoutException)
+        {
+            // Given up: what it ends in once the command is disposed is seen here, not left unobserved.
+            _ = reading.ContinueWith(t => t.Exception, TaskContinuationOptions.OnlyOnFaulted | TaskContinuationOptions.ExecuteSynchronously);
+            return null;
+        }
     }
 
     /// <summary>Measures the latency again; null when the machine is not connected.</summary>
@@ -373,11 +401,18 @@ public sealed class SshConnections(string knownHostsFile, IServerPrompts prompts
         ssh.CommandTimeout = timeout ?? TimeSpan.FromMinutes(2);
         try
         {
-            await ssh.ExecuteAsync(cancellationToken);
+            await ExecuteAsync(ssh, cancellationToken);
         }
         catch (SshOperationTimeoutException)
         {
-            return new ServerResult(-1, ssh.Result.TrimEnd(), $"The command did not finish in {ssh.CommandTimeout.TotalSeconds:0} s.");
+            if (await OutputSoFarAsync(ssh) is not { } output)
+            {
+                // Its channel never opened: the connection is up, but the machine does not answer on it. Closed off the
+                // caller's thread too: a dead connection's goodbye waits on it.
+                await Task.Run(() => Drop(host.Name));
+                throw new ServerException($"{host.Name} did not answer the command: its connection stopped responding. The next command connects again.");
+            }
+            return new ServerResult(-1, output.TrimEnd(), $"The command did not finish in {ssh.CommandTimeout.TotalSeconds:0} s.");
         }
         catch (Exception ex) when (ex is SshConnectionException or SocketException or ObjectDisposedException)
         {
@@ -395,7 +430,8 @@ public sealed class SshConnections(string knownHostsFile, IServerPrompts prompts
     {
         var client = await ClientAsync(host, cancellationToken);
         using var ssh = client.CreateCommand(command);
-        var running = ssh.BeginExecute();
+        // Its channel opened off the caller's thread (see ExecuteAsync).
+        var running = await Task.Run(ssh.BeginExecute, cancellationToken);
         using var stop = cancellationToken.Register(() => ssh.CancelAsync(forceKill: true));
         try
         {
