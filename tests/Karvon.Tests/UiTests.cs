@@ -59,6 +59,9 @@ public class UiTests
     /// <summary>The Database Explorer module of a window's view model.</summary>
     internal static Karvon.Database.DatabaseModule Db(MainViewModel vm) => vm.Module<Karvon.Database.DatabaseModule>()!;
 
+    /// <summary>The files the tests' view models opened with the system's program (none really is).</summary>
+    internal static readonly List<string> OpenedOutside = [];
+
     internal static MainViewModel NewViewModel(Action<Karvon.Services.Settings>? configure = null, IReadOnlyList<Karvon.Modules.KarvonModule>? modules = null)
     {
         // The Claude Code window must never start the user's real CLI from a test.
@@ -68,6 +71,8 @@ public class UiTests
         settings.DisabledModules = [];
         configure?.Invoke(settings);
         var vm = new MainViewModel(settings, modules);
+        // A file of bytes is never opened with the desktop's own program from a test.
+        vm.OpenWithSystem = path => { lock (OpenedOutside) OpenedOutside.Add(path); return true; };
         // Other tests may be building in parallel: never shut down the shared build servers.
         if (vm.Module<Karvon.DotNet.DotNetModule>() is { } dotnet)
             dotnet.ShutdownBuildServers = () => Task.CompletedTask;

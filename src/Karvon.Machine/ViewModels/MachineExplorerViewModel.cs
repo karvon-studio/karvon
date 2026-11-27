@@ -191,23 +191,19 @@ public sealed partial class MachineExplorerViewModel : ObservableObject, IDispos
     /// <summary>A file opened: a picture, a video or a sound in a page of its own (the one it has, when open), the rest in the editor.</summary>
     public void OpenFile(string path)
     {
-        var kind = Files.KindOf(path);
-        if (kind is FileKind.Other or FileKind.Folder)
+        if (Files.KindOf(path) is FileKind.Other or FileKind.Folder)
         {
             _host.OpenFile(path);
             return;
         }
-        var key = "machine-file:" + path;
-        if (_host.Documents.FirstOrDefault(d => d.Key == key) is { } open)
-        {
-            _host.ShowDocument(open);
-            return;
-        }
-        if (kind == FileKind.Image)
-        {
-            _host.ShowDocument(new MachineFileDocument(path, new ImagePage(path)));
-            return;
-        }
+        _host.ShowDocument(_host.Documents.OfType<MachineFileDocument>().FirstOrDefault(d => d.Key == path) ?? DocumentFor(path));
+    }
+
+    /// <summary>A picture's, a video's or a sound's page (Solution Explorer's opened file's too).</summary>
+    public DocumentTab DocumentFor(string path)
+    {
+        if (Files.KindOf(path) == FileKind.Image)
+            return new MachineFileDocument(path, new ImagePage(path));
         var media = new MediaPage(path);
         var document = new MachineFileDocument(path, media);
         // From the mini player: its page in front, opened again (on the same player) when it was closed.
@@ -220,7 +216,7 @@ public sealed partial class MachineExplorerViewModel : ObservableObject, IDispos
             }
             _host.ShowDocument(document);
         };
-        _host.ShowDocument(document);
+        return document;
     }
 
     /// <summary>A process ended; why not, when it could not be.</summary>

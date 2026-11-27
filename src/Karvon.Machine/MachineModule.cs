@@ -38,6 +38,11 @@ public sealed class MachineModule : KarvonModule, IMachineHost
     /// <summary>The explorer, made the first time it is needed (nothing is read before).</summary>
     public MachineExplorerViewModel Explorer => _explorer ??= new MachineExplorerViewModel(this);
 
+    /// <summary>A picture, a video or a sound, wherever it is opened (Solution Explorer, Open File): its page in Karvon.</summary>
+    public override bool OpensFile(string path) => Files.KindOf(path) is FileKind.Image or FileKind.Video or FileKind.Audio;
+
+    public override DocumentTab OpenFile(string path) => Explorer.DocumentFor(path);
+
     public override IEnumerable<IClaudeTool> ClaudeTools() =>
         [new MachinePortsTool(Listening.All), new MachineProcessesTool(), new MachineStopProcessTool(), new MachineResourcesTool()];
 

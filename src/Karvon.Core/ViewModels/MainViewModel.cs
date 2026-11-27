@@ -474,8 +474,14 @@ public partial class MainViewModel : ObservableObject
         var existing = Editors.FirstOrDefault(d => d.FilePath == path);
         if (existing is null)
         {
-            if (!File.Exists(path) || activate && OpenModuleFile(path) || IsBinary(path))
+            if (!File.Exists(path) || activate && OpenModuleFile(path))
                 return null;
+            if (IsBinary(path))
+            {
+                if (activate)
+                    OpenOutside(path);
+                return null;
+            }
             EditorHost host;
             try
             {
@@ -518,7 +524,30 @@ public partial class MainViewModel : ObservableObject
 
     static bool IsBinary(string path) => Path.GetExtension(path).ToLowerInvariant() is
         ".png" or ".jpg" or ".jpeg" or ".gif" or ".ico" or ".webp" or ".xlsx" or ".docx" or ".pdf" or ".dll" or ".exe"
-        or ".ttf" or ".woff" or ".woff2" or ".zip" or ".pyc";
+        or ".ttf" or ".woff" or ".woff2" or ".zip" or ".pyc" or ".otf" or ".bmp" or ".tar" or ".gz" or ".tgz" or ".7z"
+        or ".rar" or ".so" or ".dylib" or ".class" or ".jar" or ".wasm" or ".bin" or ".db" or ".sqlite";
+
+    /// <summary>A program's own file: never started from the editor (a double click on it runs nothing).</summary>
+    static bool IsProgram(string path) => Path.GetExtension(path).ToLowerInvariant() is
+        ".exe" or ".dll" or ".so" or ".dylib" or ".pyc" or ".class" or ".jar" or ".wasm" or ".bin";
+
+    /// <summary>The desktop's program for a file (a double click's), the tests' own in theirs: false when there is none.</summary>
+    public Func<string, bool> OpenWithSystem { get; set; } = DesktopShell.Open;
+
+    /// <summary>
+    /// A file of bytes that no module shows (a font, an archive): opened with the system's program for it, as the file
+    /// manager opens it. A program's own file is not: the status bar says so.
+    /// </summary>
+    void OpenOutside(string path)
+    {
+        var name = Path.GetFileName(path);
+        if (IsProgram(path))
+            SetStatus($"{name} is a program's file: Karvon does not show it, nor start it.");
+        else if (OpenWithSystem(path))
+            SetStatus($"{name} opened with the system's program for it.");
+        else
+            SetStatus($"{name} is not text, and no program of this computer opens it.");
+    }
 
     void Wire(DocumentViewModel doc)
     {

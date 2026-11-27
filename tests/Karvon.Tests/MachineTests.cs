@@ -310,6 +310,59 @@ public class MachineTests
         Assert.Equal($"No process {child.Id} runs.", stop.Refusal(input));
     }
 
+    [AvaloniaFact]
+    public void A_picture_or_a_video_opened_in_Solution_Explorer_shows_in_Karvon_and_other_files_of_bytes_with_the_system_s_program()
+    {
+        var folder = Directory.CreateTempSubdirectory("karvon-open-").FullName;
+        try
+        {
+            var picture = Path.Combine(folder, "database-2d@10x.png");
+            File.WriteAllBytes(picture, Png);
+            var video = Path.Combine(folder, "intro.mp4");
+            File.WriteAllBytes(video, [0, 0, 0, 24]);
+            var font = Path.Combine(folder, "Inter.ttf");
+            File.WriteAllBytes(font, [0, 1, 0, 0]);
+            var program = Path.Combine(folder, "tool.exe");
+            File.WriteAllBytes(program, [0x4D, 0x5A]);
+            var vm = NewViewModel();
+
+            // A picture: its page, as the Disks page opens it; opened again, the same one.
+            Assert.Null(vm.OpenDocument(picture));
+            var shown = Assert.IsType<MachineFileDocument>(vm.ActiveDocument);
+            Assert.Equal(picture, shown.Key);
+            var page = Assert.IsType<ImagePage>(shown.Content);
+            Assert.NotNull(page.Image);
+            Assert.Null(page.Problem);
+            vm.OpenDocument(picture);
+            Assert.Same(shown, vm.ActiveDocument);
+            Assert.Single(vm.Documents.OfType<MachineFileDocument>());
+
+            // A video: its player's page.
+            vm.OpenDocument(video);
+            var played = Assert.IsType<MachineFileDocument>(vm.ActiveDocument);
+            Assert.IsType<MediaPage>(played.Content);
+            Assert.Equal(2, vm.Documents.OfType<MachineFileDocument>().Count());
+
+            // A font: no module shows it, the system's program does; a program's own file is neither shown nor started.
+            vm.OpenDocument(font);
+            Assert.Equal("Inter.ttf opened with the system's program for it.", vm.StatusText);
+            vm.OpenDocument(program);
+            Assert.Equal("tool.exe is a program's file: Karvon does not show it, nor start it.", vm.StatusText);
+            lock (OpenedOutside)
+            {
+                Assert.Contains(font, OpenedOutside);
+                Assert.DoesNotContain(program, OpenedOutside);
+            }
+            Assert.Same(played, vm.ActiveDocument);
+            foreach (var document in vm.Documents.OfType<MachineFileDocument>())
+                (document.Content as IDisposable)?.Dispose();
+        }
+        finally
+        {
+            Directory.Delete(folder, recursive: true);
+        }
+    }
+
     static readonly byte[] Png = Convert.FromBase64String("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==");
 
     [AvaloniaFact]

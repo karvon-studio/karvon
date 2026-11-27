@@ -14,7 +14,8 @@ public sealed class MachineFileDocument : DocumentTab
 {
     public MachineFileDocument(string path, object page)
     {
-        Key = "machine-file:" + path;
+        // Its key is the file's path, as a module's documents' are (the one open already is found by it).
+        Key = path;
         Content = page;
         if (page is ImagePage image)
             image.PropertyChanged += (_, e) =>
