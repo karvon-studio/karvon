@@ -404,16 +404,18 @@ public partial class MainWindow
         var columns = MainGrid.ColumnDefinitions;
         var left = LeftTabs.ItemCount > 0;
         var right = RightTabs.ItemCount > 0;
+        // In the OS view the dock stands for the activity bars: a folded group is not there at all.
+        var bar = _osView ? 0 : ActivityBarWidth;
 
         // A folded group is its activity bar only, with no splitter.
-        columns[0].Width = !left ? new GridLength(0) : _leftCollapsed ? new GridLength(ActivityBarWidth)
+        columns[0].Width = !left ? new GridLength(0) : _leftCollapsed ? new GridLength(bar)
             : columns[0].Width.Value > ActivityBarWidth ? columns[0].Width : new GridLength(Math.Max(_leftWidth, 160));
         columns[1].Width = new GridLength(left && !_leftCollapsed ? 4 : 0);
         LeftDock.IsVisible = left;
         LeftSplitter.IsVisible = left && !_leftCollapsed;
         LeftTabs.Classes.Set("collapsed", _leftCollapsed);
 
-        columns[4].Width = !right ? new GridLength(0) : _rightCollapsed ? new GridLength(ActivityBarWidth)
+        columns[4].Width = !right ? new GridLength(0) : _rightCollapsed ? new GridLength(bar)
             : columns[4].Width.Value > ActivityBarWidth ? columns[4].Width : new GridLength(Math.Max(_rightWidth, 160));
         columns[3].Width = new GridLength(right && !_rightCollapsed ? 4 : 0);
         RightDock.IsVisible = right;
@@ -421,6 +423,7 @@ public partial class MainWindow
         RightTabs.Classes.Set("collapsed", _rightCollapsed);
 
         UpdateBottomDock(BottomTabs.ItemCount > 0);
+        RefreshDock();
     }
 
     void OnToolTabPressed(object? sender, PointerPressedEventArgs e)

@@ -190,6 +190,78 @@
   </Style>
 
   <!-- The bottom tool group's tabs leave room at their right for its Auto Hide and Minimize buttons -->
+  <!-- The OS view's dock: a rounded shelf of apps, as Ubuntu's; an app's button lit under the pointer and while open. -->
+  <Style Selector="Border.osdock">
+    <Setter Property="Background" Value="#E61B1B1F" />
+    <Setter Property="BorderBrush" Value="#26FFFFFF" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="CornerRadius" Value="16" />
+    <Setter Property="Padding" Value="6" />
+    <Setter Property="BoxShadow" Value="0 4 18 0 #66000000" />
+  </Style>
+  <Style Selector="Button.dockapp">
+    <Setter Property="Width" Value="52" />
+    <Setter Property="Height" Value="52" />
+    <Setter Property="Padding" Value="0" />
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="BorderThickness" Value="0" />
+    <Setter Property="CornerRadius" Value="12" />
+    <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+    <Setter Property="VerticalContentAlignment" Value="Stretch" />
+    <Setter Property="RenderTransform" Value="scale(1)" />
+    <Setter Property="Transitions">
+      <Transitions>
+        <TransformOperationsTransition Property="RenderTransform" Duration="0:0:0.12" />
+      </Transitions>
+    </Setter>
+  </Style>
+  <Style Selector="Button.dockapp > Panel, Button.dockapp > Canvas">
+    <Setter Property="HorizontalAlignment" Value="Center" />
+    <Setter Property="VerticalAlignment" Value="Center" />
+  </Style>
+  <Style Selector="Button.dockapp > Panel">
+    <Setter Property="Width" Value="52" />
+    <Setter Property="Height" Value="52" />
+  </Style>
+  <Style Selector="Button.dockapp > Panel > v|AppIcon">
+    <Setter Property="HorizontalAlignment" Value="Center" />
+    <Setter Property="VerticalAlignment" Value="Center" />
+  </Style>
+  <Style Selector="Button.dockapp:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="#26FFFFFF" />
+  </Style>
+  <Style Selector="Button.dockapp.open /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="#1AFFFFFF" />
+  </Style>
+  <Style Selector="Button.dockapp:pressed">
+    <Setter Property="RenderTransform" Value="scale(0.92)" />
+  </Style>
+  <!-- The apps grid: a tile an app, lit under the pointer. -->
+  <Style Selector="Button.apptile">
+    <Setter Property="Width" Value="124" />
+    <Setter Property="Height" Value="116" />
+    <Setter Property="Padding" Value="8,10" />
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="BorderThickness" Value="0" />
+    <Setter Property="CornerRadius" Value="14" />
+    <Setter Property="HorizontalContentAlignment" Value="Center" />
+    <Setter Property="VerticalContentAlignment" Value="Top" />
+  </Style>
+  <Style Selector="Button.apptile:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="#2EFFFFFF" />
+  </Style>
+  <Style Selector="TextBox.appssearch">
+    <Setter Property="CornerRadius" Value="16" />
+    <Setter Property="Padding" Value="14,7" />
+    <Setter Property="Background" Value="#33FFFFFF" />
+    <Setter Property="BorderBrush" Value="#33FFFFFF" />
+    <Setter Property="Foreground" Value="White" />
+  </Style>
+
+  <!-- The OS view: the side groups' activity bars give way to its dock. -->
+  <Style Selector="TabControl.os /template/ ItemsPresenter#PART_ItemsPresenter">
+    <Setter Property="IsVisible" Value="False" />
+  </Style>
   <Style Selector="TabControl#BottomTabs /template/ ItemsPresenter#PART_ItemsPresenter">
     <Setter Property="Margin" Value="0,0,48,0" />
   </Style>

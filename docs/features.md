@@ -2,6 +2,16 @@
 
 What Karvon Studio does, in detail; the [README](../README.md) has the short version.
 
+## OS View (View > OS View)
+
+Karvon as a desktop of apps, for whoever wants it (the IDE as it always was stays the default). Each tool window is an
+app, opened as it always is, and the IDE itself is the desktop. A dock as Ubuntu's stands for the activity bars: the
+apps pinned to it and those open (a dot by them), at the left, the right or the bottom (its menu). An app clicked comes
+up; clicked again while open, it goes down. Its last button shows every app in a grid over the IDE, which is blurred
+behind it: type to search, Enter opens the first, Esc goes back. Right-click an app to pin or unpin it. An app's picture
+is its module's, or Karvon's own in `src/Karvon.Core/Assets/Apps/<id>.png` or `.svg`; without one, its icon on a tile of
+its own colour.
+
 ## Languages
 
 | Language | Language server | Debugger | Build and run | Tests |

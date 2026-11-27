@@ -67,8 +67,9 @@ public class UiTests
         // The Claude Code window must never start the user's real CLI from a test.
         FakeClaude.Ensure();
         var settings = Karvon.Services.Settings.Load();
-        // Every module on, unless the test says otherwise.
+        // Every module on, and the IDE as it always was (not the OS view), unless the test says otherwise.
         settings.DisabledModules = [];
+        settings.OsView = false;
         configure?.Invoke(settings);
         var vm = new MainViewModel(settings, modules);
         // A file of bytes is never opened with the desktop's own program from a test.
@@ -140,7 +141,7 @@ public class UiTests
         window.Show();
         // Avalonia's check box menu item runs its command when clicked, it does not check itself: each has one.
         var items = window.GetLogicalDescendants().OfType<Avalonia.Controls.MenuItem>().Where(i => i.ToggleType == Avalonia.Controls.MenuItemToggleType.CheckBox).ToList();
-        Assert.Equal(7, items.Count);
+        Assert.Equal(8, items.Count);
         foreach (var item in items)
         {
             var was = item.IsChecked;

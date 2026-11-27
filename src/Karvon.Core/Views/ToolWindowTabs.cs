@@ -23,7 +23,32 @@ public static class ToolWindowTabs
     /// <summary>The modules' tool windows' icons, by their ids.</summary>
     static readonly Dictionary<string, string> ModuleIcons = [];
 
-    public static void Register(ToolWindowInfo tool) => ModuleIcons[tool.Id] = tool.Icon;
+    /// <summary>The modules' tool windows' pictures as apps (the OS view's), by their ids.</summary>
+    static readonly Dictionary<string, string> AppIcons = [];
+
+    public static void Register(ToolWindowInfo tool)
+    {
+        ModuleIcons[tool.Id] = tool.Icon;
+        if (tool.AppIcon is { } app)
+            AppIcons[tool.Id] = app;
+    }
+
+    /// <summary>
+    /// A tool window's picture as an app: its module's, else Karvon's own in Assets/Apps (by its id, .png or .svg); null
+    /// for its icon on a tile.
+    /// </summary>
+    public static string? AppIconOf(string id)
+    {
+        if (AppIcons.TryGetValue(id, out var given))
+            return given;
+        foreach (var extension in new[] { ".png", ".svg" })
+        {
+            var uri = new Uri($"avares://Karvon.Core/Assets/Apps/{id}{extension}");
+            if (Avalonia.Platform.AssetLoader.Exists(uri))
+                return uri.ToString();
+        }
+        return null;
+    }
 
     /// <summary>The icon of a tool window, by its id (the tab's Tag).</summary>
     public static string IconOf(string? id) => id is not null && ModuleIcons.TryGetValue(id, out var icon) ? icon : id switch

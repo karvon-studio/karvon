@@ -9,6 +9,18 @@ public sealed class Settings
     public string? LastSolution { get; set; }
     public double EditorZoom { get; set; } = 1.0;
 
+    /// <summary>
+    /// The OS view: the tool windows as apps, those pinned and open in a dock (as Ubuntu's), the rest in an apps grid over
+    /// the IDE, instead of the activity bars. Off: the IDE as it always was.
+    /// </summary>
+    public bool OsView { get; set; }
+
+    /// <summary>Where the OS view's dock is: "Left", "Right" or "Bottom".</summary>
+    public string DockPosition { get; set; } = "Left";
+
+    /// <summary>The apps (tool window ids) the OS view's dock keeps, in their order; null for the first ones it has.</summary>
+    public List<string>? DockPinned { get; set; }
+
     /// <summary>Tool window id → dock side ("Left", "Right", "Bottom") for windows the user moved.</summary>
     public Dictionary<string, string> ToolLayout { get; set; } = [];
 

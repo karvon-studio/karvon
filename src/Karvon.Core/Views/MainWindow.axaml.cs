@@ -50,6 +50,7 @@ public partial class MainWindow : Window, IDialogService
                 vm.ToolWindowShowing = IsToolWindowShowing;
                 vm.ToolWindowBesideRequested += OnToolWindowBesideRequested;
                 AttachModules(vm);
+                AttachOsView(vm);
                 AttachUpdateNotification(vm);
                 vm.InstallerRequested = (page, check) => ShowInstaller(page, check);
                 BuildToolSets(vm);

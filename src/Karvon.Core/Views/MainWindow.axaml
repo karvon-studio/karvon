@@ -39,7 +39,8 @@
     <KeyBinding Gesture="Ctrl+OemComma" Command="{Binding ShowSettingsCommand}" />
   </Window.KeyBindings>
 
-  <DockPanel>
+  <Panel Name="OsRoot">
+  <DockPanel Name="Shell">
     <!-- ===== Menu ===== -->
     <Menu Name="MainMenu" DockPanel.Dock="Top" Background="{StaticResource VsEnvironmentBrush}">
       <MenuItem Header="_File">
@@ -186,6 +187,7 @@
           </MenuItem.Header>
         </MenuItem>
         <MenuItem Header="F_ull Screen" InputGesture="Shift+Alt+Enter" Click="OnFullScreen" />
+        <MenuItem Name="OsViewMenuItem" Header="_OS View" ToggleType="CheckBox" IsChecked="{Binding OsView}" Command="{Binding ToggleOsViewCommand}" />
         <Separator />
         <MenuItem Click="OnZoomIn">
           <MenuItem.Header>
@@ -516,6 +518,9 @@
         </StackPanel>
       </Grid>
     </Border>
+
+    <!-- The OS view's dock, at the side it is put (MainWindow.OsView.cs) -->
+    <Border Name="OsDock" DockPanel.Dock="Left" IsVisible="False" />
 
     <!-- ===== Main area: [documents / bottom tool windows] | Solution Explorer ===== -->
     <Grid Name="MainGrid" ColumnDefinitions="0,0,*,4,400">
@@ -1315,4 +1320,7 @@
       <StackPanel Name="NotificationLayer" Grid.ColumnSpan="5" ZIndex="98" Spacing="8" HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,14,14" />
     </Grid>
   </DockPanel>
+  <!-- The OS view's apps grid, over the IDE blurred (MainWindow.OsView.cs) -->
+  <Panel Name="AppsLayer" IsVisible="False" />
+  </Panel>
 </Window>

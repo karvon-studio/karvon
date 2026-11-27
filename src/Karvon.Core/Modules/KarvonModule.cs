@@ -36,6 +36,12 @@ public sealed record ToolWindowInfo(string Id, string Title, string MenuHeader, 
 
     /// <summary>The set it is a tab of (<see cref="ViewModels.ToolWindows.Git"/>), rather than a tool window of its own; null for none.</summary>
     public string? Set { get; init; }
+
+    /// <summary>
+    /// Its picture as an app in the OS view's dock and apps grid (an avares:// PNG or SVG, square, 256 px or more); null
+    /// for <see cref="Icon"/> on a tile of its own colour.
+    /// </summary>
+    public string? AppIcon { get; init; }
 }
 
 /// <summary>A workload's language server: the files it serves, and how it starts for a folder.</summary>

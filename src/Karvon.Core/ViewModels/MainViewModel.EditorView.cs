@@ -29,6 +29,23 @@ public partial class MainViewModel
         set => SetEditorView(value, Settings.Minimap, v => Settings.Minimap = v, (host, v) => host.ShowMinimap = v);
     }
 
+    /// <summary>The OS view (a dock and an apps grid) instead of the activity bars; the window follows.</summary>
+    public bool OsView
+    {
+        get => Settings.OsView;
+        set
+        {
+            if (Settings.OsView == value)
+                return;
+            Settings.OsView = value;
+            Settings.Save();
+            OnPropertyChanged();
+        }
+    }
+
+    [RelayCommand]
+    void ToggleOsView() => OsView = !OsView;
+
     // The View menu's check boxes: Avalonia's menu item runs its command, it does not check itself.
     [RelayCommand]
     void ToggleInlayHints() => InlayHints = !InlayHints;
