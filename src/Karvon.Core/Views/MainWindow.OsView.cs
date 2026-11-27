@@ -4,6 +4,7 @@ using Avalonia.Animation.Easings;
 using Avalonia.Controls;
 using Avalonia.Controls.Shapes;
 using Avalonia.Input;
+using Avalonia.Interactivity;
 using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Media.Transformation;
@@ -72,6 +73,16 @@ public partial class MainWindow
                 if (e.Source == group)
                     RefreshDock();
             };
+        // Esc puts the apps grid down wherever the focus is: in its search, on a tile pressed or dragged, or nowhere once
+        // its tiles were laid again.
+        AddHandler(KeyDownEvent, (_, e) =>
+        {
+            if (e.Key == Key.Escape && IsAppsShown)
+            {
+                HideApps();
+                e.Handled = true;
+            }
+        }, RoutingStrategies.Bubble, handledEventsToo: true);
         ApplyOsView();
     }
 
@@ -145,6 +156,8 @@ public partial class MainWindow
         vm.Settings.AppsOrder = order;
         vm.Settings.Save();
         FillApps(animate: false);
+        // The tile dragged is laid again: typing goes on to the search.
+        _appsSearch?.Focus();
     }
 
     /// <summary>The dock at the left, the right or the bottom.</summary>

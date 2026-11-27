@@ -169,17 +169,32 @@ public class OsViewTests
         Assert.True(window.IsAppsShown);
         Assert.Equal([last, .. byName[..^1]], window.ShownApps);
         Assert.Equal(window.ShownApps, vm.Settings.AppsOrder);
+        // Esc goes back to the IDE after a drag too (the tile dragged, focused, is laid again).
+        window.KeyPress(Key.Escape, RawInputModifiers.None, PhysicalKey.Escape, null);
+        Assert.False(window.IsAppsShown);
+        window.ShowApps();
+        for (var tick = 0; tick < 60; tick++)
+        {
+            Avalonia.Headless.AvaloniaHeadlessPlatform.ForceRenderTimerTick();
+            await WaitUntil(() => false, TimeSpan.FromMilliseconds(20));
+        }
         // A row down (the first app to the second row's first place).
         var columns = (int)(window.AppsGrid!.Width / window.AppsGrid.ItemWidth);
         await Drag(window, Button(window, "App_" + last), Button(window, "App_" + window.ShownApps[columns]));
         Assert.Equal(last, window.ShownApps[columns]);
         Snapshot(window, "os-view-apps-reordered");
+        // Typing goes on to the search once a tile is dragged.
+        Assert.Equal("AppsSearch", (window.FocusManager?.GetFocusedElement() as Control)?.Name);
         // Not while searching: what is shown is not all of them.
         window.SearchApps("e");
+        await WaitUntil(() => false, TimeSpan.FromMilliseconds(100));
         var found = window.ShownApps.ToList();
         await Drag(window, Button(window, "App_" + found[^1]), Button(window, "App_" + found[0]));
         Assert.Equal(found, window.ShownApps);
-        window.HideApps();
+        // Esc goes back to the IDE with the focus on a tile pressed, not in the search.
+        Assert.StartsWith("App_", (window.FocusManager?.GetFocusedElement() as Control)?.Name);
+        window.KeyPress(Key.Escape, RawInputModifiers.None, PhysicalKey.Escape, null);
+        Assert.False(window.IsAppsShown);
         var order = vm.Settings.AppsOrder!.ToList();
         window.Close();
 
