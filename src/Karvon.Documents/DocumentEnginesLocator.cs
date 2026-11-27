@@ -17,10 +17,10 @@ public static class DocumentEnginesLocator
     /// <summary>Each platform's zip and its SHA-256.</summary>
     internal static readonly IReadOnlyDictionary<string, string> AllBuilds = new Dictionary<string, string>
     {
-        ["linux-x64"] = "c6f0019ee06cad68f19af37151a5a87079727c3135bc9ad503172e3b9581f2d2",
-        ["osx-arm64"] = "1804bb570e896539543f7e0c4910cda2f8b6a88e6957eab4b606da3471c05f81",
-        ["osx-x64"] = "2e953bbeae2d1d0ec081282bec8e95893752ac4398bd87a070e40365dfdb4034",
-        ["win-x64"] = "da5267ed0791b69fbf67b3733b4c28a22f072f1fc5de1fd165fcbcfb485641ff",
+        ["linux-x64"] = "04d00211129df6fd58ad2aa91a131b3dfab0d40cbfa9babc16f00357a9db66dd",
+        ["osx-arm64"] = "f3615864af617e72750b08445fd14708147adcbbe66b825f91ff137bf90c64e8",
+        ["osx-x64"] = "ed7019cc12192c45205d7d38f50f34a152fa7ad3b7f810d112f6d5f0bffbc256",
+        ["win-x64"] = "ed764932cff3e70988fb139061c4d9fa4d66061f058c93086e33b427b704b03f",
     };
 
     static string Root => Path.Combine(Karvon.Modules.ModuleComponent.DataRoot, "documents");
