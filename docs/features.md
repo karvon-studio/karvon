@@ -10,7 +10,9 @@ apps pinned to it and those open (a dot by them), at the left, the right or the 
 up; clicked again while open, it goes down. Its last button shows every app in a grid over the IDE, which is blurred
 behind it: type to search, Enter opens the first, Esc goes back. Right-click an app to pin or unpin it. An app's picture
 is its module's, or Karvon's own in `src/Karvon.Core/Assets/Apps/<id>.png` or `.svg`; without one, its icon on a tile of
-its own colour.
+its own colour. The grid sits in the middle of the screen, a few columns wide (larger tiles on a large screen), its apps
+coming up one after another. Outside the OS view the activity bars show the same apps' 2D pictures
+(`src/Karvon.Core/Assets/Icons2D/<id>.png`).
 
 ## Languages
 

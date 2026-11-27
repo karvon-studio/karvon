@@ -93,7 +93,11 @@
       <ControlTemplate>
         <Panel Name="PART_LayoutRoot" Width="44" Height="44" Background="{TemplateBinding Background}" ToolTip.Tip="{TemplateBinding Header}">
           <Border Name="PART_Indicator" Width="2" HorizontalAlignment="Left" Background="Transparent" />
-          <v:VsIcon Kind="{TemplateBinding Tag, Converter={x:Static v:ToolWindowTabs.Icon}}" Width="22" Height="22" Foreground="{TemplateBinding Foreground}" />
+          <!-- A module's 2D picture when it has one (in colour, lit when in front), else its drawn icon. -->
+          <v:VsIcon Kind="{TemplateBinding Tag, Converter={x:Static v:ToolWindowTabs.Icon}}" Width="22" Height="22" Foreground="{TemplateBinding Foreground}"
+                    IsVisible="{TemplateBinding Tag, Converter={x:Static v:ToolWindowTabs.HasNoIcon2D}}" />
+          <Image Name="PART_Icon2D" Source="{TemplateBinding Tag, Converter={x:Static v:ToolWindowTabs.Icon2D}}" Width="24" Height="24" Opacity="0.7"
+                 RenderOptions.BitmapInterpolationMode="HighQuality" IsVisible="{TemplateBinding Tag, Converter={x:Static v:ToolWindowTabs.HasIcon2D}}" />
           <Border Name="PART_Badge" IsVisible="{TemplateBinding v:ToolWindowTabs.Badge, Converter={x:Static v:ToolWindowTabs.HasBadge}}"
                   Background="#0078D4" CornerRadius="8" MinWidth="16" Height="16" Padding="4,0"
                   HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,6,6">
@@ -108,6 +112,12 @@
     </Style>
     <Style Selector="^:selected">
       <Setter Property="Foreground" Value="#FFFFFF" />
+    </Style>
+    <Style Selector="^:pointerover /template/ Image#PART_Icon2D">
+      <Setter Property="Opacity" Value="0.9" />
+    </Style>
+    <Style Selector="^:selected /template/ Image#PART_Icon2D">
+      <Setter Property="Opacity" Value="1" />
     </Style>
     <Style Selector="^:selected /template/ Border#PART_Indicator">
       <Setter Property="Background" Value="#3399FF" />

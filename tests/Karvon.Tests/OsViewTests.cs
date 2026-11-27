@@ -27,9 +27,13 @@ public class OsViewTests
         var dock = window.FindControl<Border>("OsDock")!;
         var right = window.FindControl<TabControl>("RightTabs")!;
 
-        // Off, the IDE as it was: its activity bars, no dock.
+        // Off, the IDE as it was: its activity bars, no dock. A module's icon on them is its 2D picture; Karvon's own
+        // tool windows keep theirs drawn.
         Assert.False(dock.IsVisible);
         Assert.DoesNotContain("os", right.Classes);
+        Assert.All(window.Apps, app => Assert.NotNull(ToolWindowTabs.Icon2DOf(app.Id)));
+        Assert.Null(ToolWindowTabs.Icon2DOf("NoSuchToolWindow"));
+        Snapshot(window, "activity-bar-2d");
 
         // On: the dock stands for the activity bars; its apps those pinned (as they first are), then those open.
         vm.OsView = true;
@@ -42,9 +46,11 @@ public class OsViewTests
         Assert.Contains("open", Button(window, "Dock_SolutionExplorer").Classes);
         Assert.DoesNotContain("open", Button(window, "Dock_DatabaseExplorer").Classes);
         Assert.Equal("Database Explorer", ToolTip.GetTip(Button(window, "Dock_DatabaseExplorer")));
-        // An app with its picture (Assets/Apps) is drawn by it; one without, its icon on a tile.
+        // Each app is drawn by its picture (Assets/Apps); one without (a module's new tool window), its icon on a tile.
         Assert.True(IconOf(Button(window, "Dock_DatabaseExplorer")).HasPicture);
-        Assert.False(IconOf(Button(window, "Dock_SolutionExplorer")).HasPicture);
+        Assert.True(IconOf(Button(window, "Dock_SolutionExplorer")).HasPicture);
+        Assert.All(window.Apps, app => Assert.NotNull(ToolWindowTabs.AppIconOf(app.Id)));
+        Assert.False(new AppIcon { AppId = "NoSuchToolWindow" }.HasPicture);
         await WaitUntil(() => false, TimeSpan.FromMilliseconds(200));
         Snapshot(window, "os-view-dock");
 
@@ -62,10 +68,23 @@ public class OsViewTests
         // An app not pinned is on the dock while it is open: Docker Explorer, from the apps grid.
         window.ShowApps();
         Assert.True(window.IsAppsShown);
-        Assert.IsType<BlurEffect>(window.FindControl<DockPanel>("Shell")!.Effect);
+        Assert.IsAssignableFrom<IBlurEffect>(window.FindControl<DockPanel>("Shell")!.Effect);
         Assert.Equal(window.Apps.Count, window.ShownApps.Count);
         Assert.Contains("Machine", window.ShownApps);
-        await WaitUntil(() => false, TimeSpan.FromMilliseconds(400));
+        // In the middle, as wide as its columns: a few on a laptop's screen, larger tiles on a large one, never a row across it.
+        Assert.Equal((120, 65, 8), MainWindow.GridMetrics(new Avalonia.Size(1400, 900)));
+        Assert.Equal((171, 92, 8), MainWindow.GridMetrics(new Avalonia.Size(2560, 1380)));
+        Assert.Equal((120, 65, 5), MainWindow.GridMetrics(new Avalonia.Size(1000, 700)));
+        var grid = window.AppsGrid!;
+        Assert.Equal(8 * 120, grid.Width);
+        Assert.Equal(Avalonia.Layout.HorizontalAlignment.Center, grid.HorizontalAlignment);
+        // Its tiles come up one after another; once they have, each is there whole.
+        for (var tick = 0; tick < 60; tick++)
+        {
+            Avalonia.Headless.AvaloniaHeadlessPlatform.ForceRenderTimerTick();
+            await WaitUntil(() => false, TimeSpan.FromMilliseconds(20));
+        }
+        Assert.All(grid.Children, tile => Assert.Equal(1, tile.Opacity));
         Snapshot(window, "os-view-apps");
         window.SearchApps("dock");
         Assert.Equal(["DockerExplorer"], window.ShownApps);

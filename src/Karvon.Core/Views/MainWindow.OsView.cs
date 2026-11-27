@@ -1,5 +1,6 @@
 using Avalonia;
 using Avalonia.Animation;
+using Avalonia.Animation.Easings;
 using Avalonia.Controls;
 using Avalonia.Controls.Shapes;
 using Avalonia.Input;
@@ -231,9 +232,19 @@ public partial class MainWindow
 
     // ---- The apps grid ----------------------------------------------------------------------------------------------
 
-    public bool IsAppsShown => AppsLayer.IsVisible;
+    /// <summary>The apps grid is up (not on its way out).</summary>
+    public bool IsAppsShown => AppsLayer.IsVisible && AppsLayer.IsHitTestVisible;
 
-    /// <summary>The apps grid over the IDE, which is blurred behind it; it comes up as it fades in.</summary>
+    /// <summary>The grid's tiles: their size and their icons' by the window's (a large screen's larger), and how many a row.</summary>
+    public static (double Tile, double Icon, int Columns) GridMetrics(Size window)
+    {
+        var tile = Math.Round(Math.Clamp(window.Width / 15, 120, 176));
+        // As Ubuntu's: a few columns in the middle of the screen, not a row across it.
+        var columns = (int)Math.Clamp(Math.Floor(window.Width * 0.7 / tile), 3, 8);
+        return (tile, Math.Round(tile * 0.54), columns);
+    }
+
+    /// <summary>The apps grid over the IDE, which blurs behind it; its tiles come up one after another.</summary>
     public void ShowApps()
     {
         if (IsAppsShown)
@@ -241,8 +252,8 @@ public partial class MainWindow
             HideApps();
             return;
         }
-        _appsSearch = new TextBox { Name = "AppsSearch", Watermark = "Type to search", Width = 340, HorizontalAlignment = HorizontalAlignment.Center, Classes = { "appssearch" } };
-        _appsSearch.TextChanged += (_, _) => FillApps();
+        _appsSearch = new TextBox { Name = "AppsSearch", Watermark = "Type to search", Width = 360, HorizontalAlignment = HorizontalAlignment.Center, Classes = { "appssearch" } };
+        _appsSearch.TextChanged += (_, _) => FillApps(animate: false);
         _appsSearch.KeyDown += (_, e) =>
         {
             if (e.Key == Key.Escape)
@@ -258,7 +269,7 @@ public partial class MainWindow
                 e.Handled = true;
             }
         };
-        _appsGrid = new WrapPanel { Name = "AppsGrid", HorizontalAlignment = HorizontalAlignment.Center, ItemWidth = 132, ItemHeight = 124 };
+        _appsGrid = new WrapPanel { Name = "AppsGrid", HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
         _appsContent = new Border
         {
             Padding = new Thickness(40, 36),
@@ -270,8 +281,6 @@ public partial class MainWindow
                     new ScrollViewer { Margin = new Thickness(0, 28, 0, 0), Content = _appsGrid, HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled },
                 },
             },
-            RenderTransform = TransformOperations.Parse("scale(0.94)"),
-            Transitions = [new TransformOperationsTransition { Property = RenderTransformProperty, Duration = TimeSpan.FromMilliseconds(200), Easing = new Avalonia.Animation.Easings.CubicEaseOut() }],
         };
         var dim = new Border { Background = new SolidColorBrush(Color.Parse("#99101014")) };
         // A click on nothing (not on an app) goes back.
@@ -284,30 +293,81 @@ public partial class MainWindow
         AppsLayer.Children.Clear();
         AppsLayer.Children.Add(dim);
         AppsLayer.Children.Add(_appsContent);
+        AppsLayer.IsHitTestVisible = true;
         AppsLayer.Opacity = 0;
-        AppsLayer.Transitions = [new DoubleTransition { Property = OpacityProperty, Duration = TimeSpan.FromMilliseconds(180) }];
+        AppsLayer.Transitions = [new DoubleTransition { Property = OpacityProperty, Duration = TimeSpan.FromMilliseconds(220), Easing = new CubicEaseOut() }];
         AppsLayer.IsVisible = true;
-        Shell.Effect = new BlurEffect { Radius = 28 };
-        FillApps();
+        AppsLayer.SizeChanged -= OnAppsLayerSized;
+        AppsLayer.SizeChanged += OnAppsLayerSized;
+        // The IDE blurs as the grid comes (from none to its full blur).
+        Shell.Transitions = [new EffectTransition { Property = EffectProperty, Duration = TimeSpan.FromMilliseconds(260), Easing = new CubicEaseOut() }];
+        Shell.Effect = new BlurEffect { Radius = 0 };
+        FillApps(animate: true);
         Dispatcher.UIThread.Post(() =>
         {
             AppsLayer.Opacity = 1;
-            if (_appsContent is { } content)
-                content.RenderTransform = TransformOperations.Parse("scale(1)");
+            Shell.Effect = new BlurEffect { Radius = 30 };
             _appsSearch?.Focus();
         }, DispatcherPriority.Render);
     }
 
+    void OnAppsLayerSized(object? sender, SizeChangedEventArgs e) => SizeApps();
+
+    /// <summary>The grid laid out for the window as it is now: its tiles' size, and as wide as its columns (in the middle).</summary>
+    void SizeApps()
+    {
+        if (_appsGrid is not { } grid)
+            return;
+        var (tile, icon, columns) = GridMetrics(OsRoot.Bounds.Size.Width > 0 ? OsRoot.Bounds.Size : new Size(Width, Height));
+        grid.ItemWidth = tile;
+        // Its icon, and two lines of its name under it.
+        grid.ItemHeight = icon + (tile >= 150 ? 84 : 76);
+        grid.Width = columns * tile;
+        foreach (var button in grid.Children.OfType<Button>())
+        {
+            button.Width = tile - 8;
+            button.Height = grid.ItemHeight - 8;
+            if (button.Content is StackPanel { Children: [AppIcon appIcon, TextBlock label] })
+            {
+                appIcon.Width = appIcon.Height = icon;
+                label.FontSize = tile >= 150 ? 14 : 12.5;
+            }
+        }
+    }
+
+    /// <summary>The grid goes as it came: faded, a little smaller, the IDE's blur with it.</summary>
     public void HideApps()
     {
-        if (!AppsLayer.IsVisible)
+        if (!AppsLayer.IsVisible || !AppsLayer.IsHitTestVisible)
             return;
-        AppsLayer.IsVisible = false;
-        AppsLayer.Children.Clear();
-        Shell.Effect = null;
+        AppsLayer.IsHitTestVisible = false;
+        AppsLayer.SizeChanged -= OnAppsLayerSized;
+        var content = _appsContent;
         _appsSearch = null;
         _appsGrid = null;
         _appsContent = null;
+        // The blur and the grid go together; the IDE is usable at once.
+        Shell.Transitions = null;
+        Shell.Effect = null;
+        if (content is null)
+        {
+            Gone();
+            return;
+        }
+        content.Transitions = [new TransformOperationsTransition { Property = RenderTransformProperty, Duration = TimeSpan.FromMilliseconds(140) }];
+        content.RenderTransform = TransformOperations.Parse("scale(0.96)");
+        AppsLayer.Transitions = [new DoubleTransition { Property = OpacityProperty, Duration = TimeSpan.FromMilliseconds(140) }];
+        AppsLayer.Opacity = 0;
+        DispatcherTimer.RunOnce(Gone, TimeSpan.FromMilliseconds(150));
+
+        void Gone()
+        {
+            // Shown again meanwhile: that one stays.
+            if (AppsLayer.IsHitTestVisible)
+                return;
+            AppsLayer.IsVisible = false;
+            AppsLayer.Children.Clear();
+        }
     }
 
     /// <summary>Searches the apps by name (as typed), in the order they are docked.</summary>
@@ -316,19 +376,23 @@ public partial class MainWindow
         if (_appsSearch is { } search)
         {
             search.Text = text;
-            FillApps();
+            FillApps(animate: false);
         }
     }
+
+    /// <summary>The apps grid's panel while it is up.</summary>
+    public WrapPanel? AppsGrid => _appsGrid;
 
     /// <summary>The apps the grid shows now, by their ids.</summary>
     public IReadOnlyList<string> ShownApps => _appsGrid?.Children.OfType<Button>().Select(b => (string)b.Tag!).ToList() ?? [];
 
-    void FillApps()
+    void FillApps(bool animate)
     {
         if (_appsGrid is not { } grid)
             return;
         var text = _appsSearch?.Text?.Trim() ?? "";
         grid.Children.Clear();
+        var index = 0;
         foreach (var (id, title) in Apps.OrderBy(a => a.Title, StringComparer.CurrentCultureIgnoreCase))
         {
             if (text.Length > 0 && !title.Contains(text, StringComparison.CurrentCultureIgnoreCase))
@@ -356,7 +420,30 @@ public partial class MainWindow
             };
             tile.ContextMenu = AppMenu(id, IsAppOpen(id));
             grid.Children.Add(tile);
+            if (animate)
+                Arrive(tile, index++);
         }
+        SizeApps();
+    }
+
+    /// <summary>A tile coming up into its place, from a little below and smaller, a moment after the one before.</summary>
+    static void Arrive(Control tile, int index)
+    {
+        tile.Opacity = 0;
+        tile.RenderTransform = TransformOperations.Parse("translate(0px, 28px) scale(0.7)");
+        tile.Transitions =
+        [
+            new DoubleTransition { Property = OpacityProperty, Duration = TimeSpan.FromMilliseconds(300), Easing = new CubicEaseOut() },
+            new TransformOperationsTransition { Property = RenderTransformProperty, Duration = TimeSpan.FromMilliseconds(340), Easing = new BackEaseOut() },
+        ];
+        void Up()
+        {
+            tile.Opacity = 1;
+            tile.RenderTransform = TransformOperations.Parse("translate(0px, 0px) scale(1)");
+        }
+        // Once it is drawn where it starts; the ones after it a little later each (the last ones together).
+        var delay = TimeSpan.FromMilliseconds(30 + Math.Min(index, 24) * 14);
+        DispatcherTimer.RunOnce(Up, delay);
     }
 
     static Control Docked(Control control, Dock dock)
